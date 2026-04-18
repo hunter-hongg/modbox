@@ -1,0 +1,20 @@
+[
+{
+  "directory": "/home/hunter/projects/modbox/build",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/projects/modbox/build/vcpkg_installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cat.c.o -c /home/hunter/projects/modbox/src/commands/cat.c",
+  "file": "/home/hunter/projects/modbox/src/commands/cat.c",
+  "output": "CMakeFiles/modbox.dir/src/commands/cat.c.o"
+},
+{
+  "directory": "/home/hunter/projects/modbox/build",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/projects/modbox/build/vcpkg_installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/help.c.o -c /home/hunter/projects/modbox/src/commands/help.c",
+  "file": "/home/hunter/projects/modbox/src/commands/help.c",
+  "output": "CMakeFiles/modbox.dir/src/commands/help.c.o"
+},
+{
+  "directory": "/home/hunter/projects/modbox/build",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/projects/modbox/build/vcpkg_installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/main.c.o -c /home/hunter/projects/modbox/src/main.c",
+  "file": "/home/hunter/projects/modbox/src/main.c",
+  "output": "CMakeFiles/modbox.dir/src/main.c.o"
+}
+]

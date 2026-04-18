@@ -1,0 +1,11 @@
+{
+  "name": "modbox",
+  "version": "0.0.1",
+  "dependencies": [
+    {
+      "name": "argtable3",
+      "version>=": "3.3.1"
+    }
+  ],
+  "builtin-baseline": "256acc64012b23a13041d8705805e1f23b43a024" 
+}
