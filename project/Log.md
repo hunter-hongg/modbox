@@ -4,3 +4,4 @@
 
 - 完成**基础`cat`与`-n`参数**
 - 配置`vcpkg`并添加`argtable3`
+- 添加**README**
