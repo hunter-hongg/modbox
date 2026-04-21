@@ -6,3 +6,7 @@
 - 完成`cat -b`参数
 - 配置`vcpkg`并添加`argtable3`
 - 添加**README**
+
+## 2026-4-21
+
+- 完成`cat -E`参数
