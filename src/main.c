@@ -4,6 +4,7 @@
 
 #include "commands/help.h"
 #include "commands/cat.h"
+#include "commands/ls.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -12,6 +13,7 @@ void execute_command(gchar* command, gint argc, gchar** argv) {
 
     g_hash_table_insert(commands, "help", help_command);
     g_hash_table_insert(commands, "cat", cat_command);
+    g_hash_table_insert(commands, "ls", ls_command);
 
     if (g_hash_table_contains(commands, command)) {
         command_t cmd = g_hash_table_lookup(commands, command);

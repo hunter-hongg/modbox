@@ -1,31 +1,40 @@
 # modbox
 
-C CLI tool with command dispatch (help, cat).
+## Development
 
-## Build Commands
+### Building
+- `make` or `make compile` - build project
+- `make run` - build and run `./target/modbox`
+- `make clean` - remove `build` and `target` directories
+- `make refresh` - full rebuild (clean + regenerate CMake)
 
-```bash
-make        # or make compile - build the project
-make run   # build and run ./target/modbox
-make clean # rm -rf build target
-make refresh # full rebuild: clean + cmake regenerate
-```
+### Adding Commands
+1. Create header: `include/commands/<cmd>.h`
+   ```c
+   #ifndef <CMD>_H
+   #define <CMD>_H
+   #include <glib.h>
+   void <cmd>_command(gint argc, gchar** argv);
+   #endif
+   ```
+2. Implement: `src/commands/<cmd>.c`
+3. Register in `src/main.c`:
+   ```c
+   g_hash_table_insert(commands, "<cmd>", <cmd>_command);
+   ```
 
-## Key Files
+### Command Interface
+- Signature: `void command(gint argc, gchar** argv)`
+- Uses argtable3 for argument parsing (see `src/commands/cat.c`)
+- Command lookup via GHashTable in `src/main.c`
 
-- `src/main.c` - entry point, command dispatch via GHashTable
-- `CMakeLists.txt` - build config
-- `vcpkg.json` - dependencies (argtable3)
+### Dependencies
+- vcpkg (manages argtable3)
+- System glib-2.0
+- CMake toolchain hardcoded to `$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake`
 
-## Dependencies
-
-- vcpkg for argtable3
-- glib-2.0 (system)
-
-CMake toolchain is hardcoded to `$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake`.
-
-## Notes
-
-- No tests in this repo
-- No lint/typecheck (C project)
-- Build output goes to `./target/modbox`
+### Notes
+- Build output: `./target/modbox`
+- No tests, lint, or typecheck configured
+- Entry point: `src/main.c` (command dispatch)
+- Current commands: help, cat
