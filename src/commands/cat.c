@@ -3,8 +3,6 @@
 #include <glib.h>
 #include <argtable3.h>
 
-#include "commands/cat.h"
-
 static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends) {
     char buf[1024];
     int has_newline = 1; // 默认假设文件以换行符结尾

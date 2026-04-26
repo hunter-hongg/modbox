@@ -1,12 +1,6 @@
 # CMake最低版本要求
 cmake_minimum_required(VERSION 3.10)
 
-# 设置 vcpkg 工具链文件（必须在 project() 之前）
-if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-        CACHE STRING "Vcpkg toolchain file")
-endif()
-
 # 项目配置：名称modbox，语言C
 project(modbox C)
 
@@ -25,7 +19,8 @@ include_directories(include)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 
-# 查找 Argtable3 依赖（通过 vcpkg 安装）
+# 查找 Argtable3 依赖（系统安装）
+list(PREPEND CMAKE_PREFIX_PATH "/usr/lib64/cmake/argtable3")
 find_package(Argtable3 CONFIG REQUIRED)
 
 # 添加头文件路径
