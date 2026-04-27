@@ -3,19 +3,29 @@
 #include <glib.h>
 #include <argtable3.h>
 
-static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends) {
+static int is_blank_line(const char* buf) {
+    return buf[0] == '\n';
+}
+
+static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends, int squeeze_blank) {
     char buf[1024];
     int has_newline = 1;
+    int prev_blank = 0;
     while (fgets(buf, sizeof(buf), fp)) {
         size_t len = strlen(buf);
         has_newline = (len > 0 && buf[len - 1] == '\n');
+        int blank = is_blank_line(buf);
 
-        // 判断当前行是否应该显示行号 (-n 所有行, -b 仅非空行)
+        if (squeeze_blank && blank && prev_blank) {
+            continue;
+        }
+        prev_blank = blank;
+
         int should_number = 0;
         if (show_line_numbers) {
             should_number = 1;
         } else if (show_nonempty_line_numbers) {
-            should_number = (buf[0] != '\n');
+            should_number = !blank;
         }
 
         if (should_number) {
@@ -23,7 +33,6 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
         }
 
         if (show_ends && has_newline) {
-            // 将末尾换行符替换为 $ 再输出换行
             buf[len - 1] = '$';
             printf("%s\n", buf);
         } else {
@@ -71,6 +80,7 @@ void cat_command(gint argc, gchar** argv) {
     int show_line_numbers = 0;
     int show_nonempty_line_numbers = 0;
     int show_ends = 0;
+    int squeeze_blank = 0;
 
     int orig_argc = argc;
     gchar** my_argv = expand_short_options(&argc, argv);
@@ -79,10 +89,11 @@ void cat_command(gint argc, gchar** argv) {
     struct arg_lit* number_opt = arg_lit0("n", "number", "number all output lines");
     struct arg_lit* nonempty_number_opt = arg_lit0("b", "number-nonblank", "number nonempty output lines");
     struct arg_lit* show_ends_opt = arg_lit0("E", "show-ends", "display $ at end of each line");
+    struct arg_lit* squeeze_blank_opt = arg_lit0("s", "squeeze-blank", "never more than one single blank line");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, file_arg, end };
+    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, squeeze_blank_opt, file_arg, end };
 
     int nerrors = arg_parse(argc, my_argv, argtable);
 
@@ -95,6 +106,7 @@ void cat_command(gint argc, gchar** argv) {
     show_line_numbers = (number_opt->count > 0);
     show_nonempty_line_numbers = (nonempty_number_opt->count > 0);
     show_ends = (show_ends_opt->count > 0);
+    squeeze_blank = (squeeze_blank_opt->count > 0);
 
     // According to POSIX, -b overrides -n
     if (show_nonempty_line_numbers) {
@@ -103,7 +115,7 @@ void cat_command(gint argc, gchar** argv) {
 
     int line_num = 1;
     if (file_arg->count == 0) {
-        process_file(stdin, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends);
+        process_file(stdin, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank);
     } else {
         int prev_file_had_newline = 1; // 默认假设第一个文件前有换行符
         for (int i = 0; i < file_arg->count; i++) {
@@ -122,7 +134,7 @@ void cat_command(gint argc, gchar** argv) {
             if (i > 0 && !prev_file_had_newline) {
                 printf("\n");
             }
-            prev_file_had_newline = process_file(fp, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends);
+            prev_file_had_newline = process_file(fp, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank);
             fclose(fp);
         }
     }
