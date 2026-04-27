@@ -5,25 +5,27 @@
 
 static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends) {
     char buf[1024];
-    int has_newline = 1; // 默认假设文件以换行符结尾
+    int has_newline = 1;
     while (fgets(buf, sizeof(buf), fp)) {
-        has_newline = (buf[strlen(buf) - 1] == '\n');
-        if (show_ends) {
-            size_t len = strlen(buf);
-            if (len > 0 && buf[len - 1] == '\n') {
-                buf[len - 1] = '$';
-                printf("%s\n", buf);
-            } else {
-                printf("%s", buf);
-            }
-        } else if (show_line_numbers) {
-            printf("%6d  %s", (*line_num)++, buf);
+        size_t len = strlen(buf);
+        has_newline = (len > 0 && buf[len - 1] == '\n');
+
+        // 判断当前行是否应该显示行号 (-n 所有行, -b 仅非空行)
+        int should_number = 0;
+        if (show_line_numbers) {
+            should_number = 1;
         } else if (show_nonempty_line_numbers) {
-            if (buf[0] != '\n') {
-                printf("%6d  %s", (*line_num)++, buf);
-            } else {
-                printf("%s", buf);
-            }
+            should_number = (buf[0] != '\n');
+        }
+
+        if (should_number) {
+            printf("%6d  ", (*line_num)++);
+        }
+
+        if (show_ends && has_newline) {
+            // 将末尾换行符替换为 $ 再输出换行
+            buf[len - 1] = '$';
+            printf("%s\n", buf);
         } else {
             printf("%s", buf);
         }
@@ -31,10 +33,48 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
     return has_newline;
 }
 
+static gchar** expand_short_options(int* argc, gchar** argv) {
+    int new_argc = 0;
+    for (int i = 0; i < *argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
+            new_argc += strlen(argv[i]) - 1;
+        } else {
+            new_argc += 1;
+        }
+    }
+
+    if (new_argc == *argc) {
+        return argv;
+    }
+
+    gchar** new_argv = g_malloc(new_argc * sizeof(gchar*));
+    int j = 0;
+    for (int i = 0; i < *argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
+            for (int k = 1; argv[i][k] != '\0'; k++) {
+                gchar* opt = g_malloc(3);
+                opt[0] = '-';
+                opt[1] = argv[i][k];
+                opt[2] = '\0';
+                new_argv[j++] = opt;
+            }
+        } else {
+            new_argv[j++] = argv[i];
+        }
+    }
+
+    *argc = new_argc;
+    return new_argv;
+}
+
 void cat_command(gint argc, gchar** argv) {
     int show_line_numbers = 0;
     int show_nonempty_line_numbers = 0;
     int show_ends = 0;
+
+    int orig_argc = argc;
+    gchar** my_argv = expand_short_options(&argc, argv);
+    int expanded = (my_argv != argv);
 
     struct arg_lit* number_opt = arg_lit0("n", "number", "number all output lines");
     struct arg_lit* nonempty_number_opt = arg_lit0("b", "number-nonblank", "number nonempty output lines");
@@ -44,12 +84,12 @@ void cat_command(gint argc, gchar** argv) {
 
     void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, file_arg, end };
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = arg_parse(argc, my_argv, argtable);
 
     if (nerrors > 0) {
         arg_print_errors(stdout, end, argv[0]);
         arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        goto cleanup;
     }
 
     show_line_numbers = (number_opt->count > 0);
@@ -88,4 +128,21 @@ void cat_command(gint argc, gchar** argv) {
     }
     
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+
+cleanup:
+    if (expanded) {
+        for (int i = 0; i < argc; i++) {
+            int from_original = 0;
+            for (int j = 0; j < orig_argc; j++) {
+                if (my_argv[i] == argv[j]) {
+                    from_original = 1;
+                    break;
+                }
+            }
+            if (!from_original) {
+                g_free(my_argv[i]);
+            }
+        }
+        g_free(my_argv);
+    }
 }
