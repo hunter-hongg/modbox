@@ -7,7 +7,43 @@ static int is_blank_line(const char* buf) {
     return buf[0] == '\n';
 }
 
-static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends, int squeeze_blank) {
+static void output_char_visual(unsigned char c, int show_tabs, int show_nonprinting) {
+    if (show_tabs && c == '\t') {
+        printf("^I");
+        return;
+    }
+
+    if (show_nonprinting) {
+        if (c == '\n' || c == '\t') {
+            putchar(c);
+            return;
+        }
+        if (c < 32) {
+            printf("^%c", c + 64);
+            return;
+        }
+        if (c == 127) {
+            printf("^?");
+            return;
+        }
+        if (c >= 128 && c <= 159) {
+            printf("M-^%c", (c - 128) + 64);
+            return;
+        }
+        if (c == 255) {
+            printf("M-^?");
+            return;
+        }
+        if (c >= 160) {
+            printf("M-%c", c - 128);
+            return;
+        }
+    }
+
+    putchar(c);
+}
+
+static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends, int squeeze_blank, int show_tabs, int show_nonprinting) {
     char buf[1024];
     int has_newline = 1;
     int prev_blank = 0;
@@ -32,11 +68,37 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
             printf("%6d  ", (*line_num)++);
         }
 
-        if (show_ends && has_newline) {
-            buf[len - 1] = '$';
-            printf("%s\n", buf);
+        if (show_nonprinting) {
+            size_t content_len = has_newline ? len - 1 : len;
+            for (size_t j = 0; j < content_len; j++) {
+                output_char_visual((unsigned char)buf[j], show_tabs, 1);
+            }
+            if (has_newline) {
+                if (show_ends) {
+                    printf("$\n");
+                } else {
+                    printf("\n");
+                }
+            }
         } else {
-            printf("%s", buf);
+            int tab_processed = 0;
+            if (show_tabs) {
+                for (size_t j = 0; j < len; j++) {
+                    if (buf[j] == '\t') {
+                        printf("^I");
+                    } else {
+                        putchar(buf[j]);
+                    }
+                }
+                tab_processed = 1;
+            }
+
+            if (show_ends && has_newline && !tab_processed) {
+                buf[len - 1] = '$';
+                printf("%s\n", buf);
+            } else if (!tab_processed) {
+                printf("%s", buf);
+            }
         }
     }
     return has_newline;
@@ -81,6 +143,8 @@ void cat_command(gint argc, gchar** argv) {
     int show_nonempty_line_numbers = 0;
     int show_ends = 0;
     int squeeze_blank = 0;
+    int show_tabs = 0;
+    int show_nonprinting = 0;
 
     int orig_argc = argc;
     gchar** my_argv = expand_short_options(&argc, argv);
@@ -89,11 +153,13 @@ void cat_command(gint argc, gchar** argv) {
     struct arg_lit* number_opt = arg_lit0("n", "number", "number all output lines");
     struct arg_lit* nonempty_number_opt = arg_lit0("b", "number-nonblank", "number nonempty output lines");
     struct arg_lit* show_ends_opt = arg_lit0("E", "show-ends", "display $ at end of each line");
+    struct arg_lit* show_tabs_opt = arg_lit0("T", "show-tabs", "display TAB characters as ^I");
     struct arg_lit* squeeze_blank_opt = arg_lit0("s", "squeeze-blank", "never more than one single blank line");
+    struct arg_lit* show_nonprinting_opt = arg_lit0("v", "show-nonprinting", "use ^ and M- notation, except for LFD and TAB");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, squeeze_blank_opt, file_arg, end };
+    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, file_arg, end };
 
     int nerrors = arg_parse(argc, my_argv, argtable);
 
@@ -106,7 +172,9 @@ void cat_command(gint argc, gchar** argv) {
     show_line_numbers = (number_opt->count > 0);
     show_nonempty_line_numbers = (nonempty_number_opt->count > 0);
     show_ends = (show_ends_opt->count > 0);
+    show_tabs = (show_tabs_opt->count > 0);
     squeeze_blank = (squeeze_blank_opt->count > 0);
+    show_nonprinting = (show_nonprinting_opt->count > 0);
 
     // According to POSIX, -b overrides -n
     if (show_nonempty_line_numbers) {
@@ -115,9 +183,9 @@ void cat_command(gint argc, gchar** argv) {
 
     int line_num = 1;
     if (file_arg->count == 0) {
-        process_file(stdin, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank);
+        process_file(stdin, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank, show_tabs, show_nonprinting);
     } else {
-        int prev_file_had_newline = 1; // 默认假设第一个文件前有换行符
+        int prev_file_had_newline = 1; // Assume newline present before first file
         for (int i = 0; i < file_arg->count; i++) {
             FILE* fp;
             if (strcmp(file_arg->filename[i], "-") == 0) {
@@ -127,18 +195,18 @@ void cat_command(gint argc, gchar** argv) {
             }
             if (fp == NULL) {
                 printf("cat: %s: No such file or directory\n", file_arg->filename[i]);
-                prev_file_had_newline = 1; // 错误信息后假设已有换行符
+                prev_file_had_newline = 1; // Assume newline present after error message
                 continue;
             }
-            // 如果前一个文件没有以换行符结尾，添加一个换行符
+            // If previous file did not end with newline, add one
             if (i > 0 && !prev_file_had_newline) {
                 printf("\n");
             }
-            prev_file_had_newline = process_file(fp, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank);
+            prev_file_had_newline = process_file(fp, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank, show_tabs, show_nonprinting);
             fclose(fp);
         }
     }
-    
+
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
 cleanup:

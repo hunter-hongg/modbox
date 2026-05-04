@@ -38,3 +38,13 @@
 - No tests, lint, or typecheck configured
 - Entry point: `src/main.c` (command dispatch)
 - Current commands: help, cat
+
+### cat Command Options
+- `-n`, `--number` — number all output lines
+- `-b`, `--number-nonblank` — number nonempty output lines
+- `-E`, `--show-ends` — display `$` at end of each line
+- `-T`, `--show-tabs` — display TAB characters as `^I`
+- `-s`, `--squeeze-blank` — never more than one single blank line
+- `-v`, `--show-nonprinting` — use `^` and `M-` notation for non-printing characters (except LFD and TAB)
+- Options can be combined (e.g., `-vTE`), via `expand_short_options` in `src/commands/cat.c`
+- Visual character output helper: `output_char_visual()` in `src/commands/cat.c`
