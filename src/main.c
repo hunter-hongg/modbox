@@ -1,6 +1,6 @@
 #include <stdio.h>
+#include <string.h>
 #include <glib.h>
-#include <argtable3.h>
 
 #include "commands/help.h"
 #include "commands/cat.h"
@@ -8,7 +8,7 @@
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
-void execute_command(gchar* command, gint argc, gchar** argv) {
+static void execute_command(gchar* command, gint argc, gchar** argv) {
     GHashTable* commands = g_hash_table_new(g_str_hash, g_str_equal);
 
     g_hash_table_insert(commands, "help", help_command);

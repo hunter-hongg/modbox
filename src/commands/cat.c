@@ -3,6 +3,13 @@
 #include <glib.h>
 #include <argtable3.h>
 
+/* Named constants for character ranges used by output_char_visual */
+#define ASCII_DEL          127
+#define ASCII_128          128
+#define ASCII_CP1252_END   159
+#define ASCII_160          160
+#define ASCII_255          255
+
 static int is_blank_line(const char* buf) {
     return buf[0] == '\n';
 }
@@ -22,20 +29,20 @@ static void output_char_visual(unsigned char c, int show_tabs, int show_nonprint
             printf("^%c", c + 64);
             return;
         }
-        if (c == 127) {
+        if (c == ASCII_DEL) {
             printf("^?");
             return;
         }
-        if (c >= 128 && c <= 159) {
-            printf("M-^%c", (c - 128) + 64);
+        if (c >= ASCII_128 && c <= ASCII_CP1252_END) {
+            printf("M-^%c", (c - ASCII_128) + 64);
             return;
         }
-        if (c == 255) {
+        if (c == ASCII_255) {
             printf("M-^?");
             return;
         }
-        if (c >= 160) {
-            printf("M-%c", c - 128);
+        if (c >= ASCII_160) {
+            printf("M-%c", c - ASCII_128);
             return;
         }
     }
@@ -108,7 +115,7 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
     int new_argc = 0;
     for (int i = 0; i < *argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
-            new_argc += strlen(argv[i]) - 1;
+            new_argc += (int)strlen(argv[i]) - 1;
         } else {
             new_argc += 1;
         }
@@ -118,7 +125,7 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
         return argv;
     }
 
-    gchar** new_argv = g_malloc(new_argc * sizeof(gchar*));
+    gchar** new_argv = (gchar**)g_malloc(new_argc * sizeof(gchar*));
     int j = 0;
     for (int i = 0; i < *argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
@@ -138,6 +145,7 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
     return new_argv;
 }
 
+// NOLINTNEXTLINE(misc-use-internal-linkage)
 void cat_command(gint argc, gchar** argv) {
     int show_line_numbers = 0;
     int show_nonempty_line_numbers = 0;
@@ -203,7 +211,8 @@ void cat_command(gint argc, gchar** argv) {
                 printf("\n");
             }
             prev_file_had_newline = process_file(fp, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank, show_tabs, show_nonprinting);
-            fclose(fp);
+            // NOLINTNEXTLINE(bugprone-unused-return-value)
+            (void)fclose(fp);
         }
     }
 
@@ -223,6 +232,6 @@ cleanup:
                 g_free(my_argv[i]);
             }
         }
-        g_free(my_argv);
+        g_free((gpointer)my_argv);
     }
 }

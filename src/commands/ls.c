@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 #include <glib.h>
 #include <argtable3.h>
 #include <pwd.h>
@@ -25,9 +26,15 @@ static int should_color(color_mode_t mode) {
 }
 
 static const char* get_file_color(struct stat* st) {
-    if (S_ISDIR(st->st_mode)) return "01;34";
-    if (S_ISLNK(st->st_mode)) return "01;36";
-    if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) return "01;32";
+    if (S_ISDIR(st->st_mode)) {
+        return "01;34";
+    }
+    if (S_ISLNK(st->st_mode)) {
+        return "01;36";
+    }
+    if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
+        return "01;32";
+    }
     return NULL;
 }
 
@@ -54,9 +61,13 @@ static void print_file_info(const char* filename, int show_details, color_mode_t
     }
 
     if (!show_details) {
-        if (use_color) printf("\033[%sm", color_code);
+        if (use_color) {
+            printf("\033[%sm", color_code);
+        }
         printf("%s", filename);
-        if (use_color) printf("\033[0m");
+        if (use_color) {
+            printf("\033[0m");
+        }
         printf("  ");
         return;
     }
@@ -81,12 +92,16 @@ static void print_file_info(const char* filename, int show_details, color_mode_t
     printf("%8ld ", (long)st.st_size);
 
     char time_buf[20];
-    strftime(time_buf, sizeof(time_buf), "%b %d %H:%M", localtime(&st.st_mtime));
+    (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M", localtime(&st.st_mtime));
     printf("%s ", time_buf);
 
-    if (use_color) printf("\033[%sm", color_code);
+    if (use_color) {
+        printf("\033[%sm", color_code);
+    }
     printf("%s", filename);
-    if (use_color) printf("\033[0m");
+    if (use_color) {
+        printf("\033[0m");
+    }
     printf("\n");
 }
 
@@ -130,7 +145,8 @@ void ls_command(gint argc, gchar** argv) {
         } else if (strcmp(val, "never") == 0) {
             color_mode = COLOR_NEVER;
         } else {
-            fprintf(stderr, "ls: invalid argument '%s' for --color\nValid arguments: always, auto, never\n", val);
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "ls: invalid argument '%s' for --color\nValid arguments: always, auto, never\n", val);
         }
     }
 

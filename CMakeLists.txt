@@ -30,7 +30,42 @@ include_directories(${GLIB_INCLUDE_DIRS})
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 # 链接库
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(${PROJECT_NAME}
     ${GLIB_LIBRARIES}
     argtable3::argtable3
 )
+
+
+# 导出 compile_commands.json（供 clang-tidy 使用）
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# 全局查找 clang-tidy
+find_program(CLANG_TIDY clang-tidy)
+
+option(ENABLE_CLANG_TIDY "Enable clang-tidy static analysis during build" OFF)
+
+if(ENABLE_CLANG_TIDY)
+  if(CLANG_TIDY)
+    set(CMAKE_C_CLANG_TIDY "${CLANG_TIDY}" --use-color --system-headers=false)
+    message(STATUS "clang-tidy enabled: ${CLANG_TIDY}")
+  else()
+    message(WARNING "ENABLE_CLANG_TIDY is ON but clang-tidy was not found")
+  endif()
+endif()
+
+# 手动 lint 目标
+if(CLANG_TIDY)
+  add_custom_target(lint
+        COMMAND ${CLANG_TIDY}
+                -p ${CMAKE_BINARY_DIR}
+                --use-color
+                --system-headers=false
+                ${SRC_FILES}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Linting source files with clang-tidy"
+    )
+else()
+  add_custom_target(lint
+        COMMENT "Lint unavailable: install clang-tidy"
+    )
+endif()
