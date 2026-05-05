@@ -92,3 +92,11 @@ set `-DENABLE_CLANG_TIDY=ON` when running CMake (default: OFF)
 use `^` and `M-` notation for non-printing characters (except LFD and TAB)
 - Options can be combined (e.g., `-vTE`), via `expand_short_options` in `src/commands/cat.c`
 - Visual character output helper: `output_char_visual()` in `src/commands/cat.c`
+
+### ls Command Options
+
+- `-a`, `--all` — do not ignore entries starting with `.`
+- `-A`, `--almost-all` — do not list implied `.` and `..`
+- `-l`, `--long` — use a long listing format
+- `--color=WHEN` — colorize the output; WHEN can be `always`, `auto`, or `never`
+- Supports multiple directory arguments
