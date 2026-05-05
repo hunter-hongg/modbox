@@ -38,6 +38,7 @@ static const char *get_file_color(struct stat *st) {
 }
 
 static void print_file_info(const char *filename, int show_details,
+                            int show_author,
                             color_mode_t color_mode) {
   int use_color = should_color(color_mode);
 
@@ -82,7 +83,12 @@ static void print_file_info(const char *filename, int show_details,
 
   struct passwd *pwd = getpwuid(st.st_uid);
   struct group *grp = getgrgid(st.st_gid);
-  printf("%s %s ", pwd ? pwd->pw_name : "-", grp ? grp->gr_name : "-");
+  if (show_author) {
+    printf("%s %s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-",
+           grp ? grp->gr_name : "-");
+  } else {
+    printf("%s %s ", pwd ? pwd->pw_name : "-", grp ? grp->gr_name : "-");
+  }
 
   printf("%8ld ", (long)st.st_size);
 
@@ -105,6 +111,7 @@ void ls_command(gint argc, gchar **argv) {
   int show_all = 0;
   int show_almost_all = 0;
   int show_details = 0;
+  int show_author = 0;
   color_mode_t color_mode = COLOR_NEVER;
 
   for (int i = 1; i < argc; i++) {
@@ -119,6 +126,8 @@ void ls_command(gint argc, gchar **argv) {
   struct arg_lit *almost_all_opt =
       arg_lit0("A", "almost-all", "do not list implied . and ..");
   struct arg_lit *long_opt = arg_lit0("l", "long", "use a long listing format");
+  struct arg_lit *author_opt =
+      arg_lit0(NULL, "author", "with -l, print the author of each file");
   struct arg_str *color_opt =
       arg_str0(NULL, "color", "WHEN",
                "colorize the output; WHEN can be 'always', 'auto', or 'never'");
@@ -126,7 +135,7 @@ void ls_command(gint argc, gchar **argv) {
       arg_filen(NULL, NULL, "DIR", 0, 100, "directory to list");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {all_opt,   almost_all_opt, long_opt,
+  void *argtable[] = {all_opt,   almost_all_opt, long_opt,  author_opt,
                       color_opt, dir_arg,        end};
 
   int nerrors = arg_parse(argc, argv, argtable);
@@ -140,6 +149,7 @@ void ls_command(gint argc, gchar **argv) {
   show_almost_all = (almost_all_opt->count > 0);
   show_all = (all_opt->count > 0) && (!show_almost_all); // -A overrides -a
   show_details = (long_opt->count > 0);
+  show_author = (author_opt->count > 0);
 
   if (color_opt->count > 0) {
     const char *val = color_opt->sval[0];
@@ -190,7 +200,8 @@ void ls_command(gint argc, gchar **argv) {
 
     GList *iter = files;
     while (iter != NULL) {
-      print_file_info((const char *)iter->data, show_details, color_mode);
+      print_file_info((const char *)iter->data, show_details, show_author,
+                       color_mode);
       g_free(iter->data);
       iter = iter->next;
     }

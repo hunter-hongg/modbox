@@ -98,5 +98,6 @@ use `^` and `M-` notation for non-printing characters (except LFD and TAB)
 - `-a`, `--all` — do not ignore entries starting with `.`
 - `-A`, `--almost-all` — do not list implied `.` and `..`
 - `-l`, `--long` — use a long listing format
+- `--author` — with -l, print the author of each file
 - `--color=WHEN` — colorize the output; WHEN can be `always`, `auto`, or `never`
 - Supports multiple directory arguments
