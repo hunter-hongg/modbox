@@ -78,7 +78,7 @@ set `-DENABLE_CLANG_TIDY=ON` when running CMake (default: OFF)
 
 - Build output: `./target/modbox`
 - Entry point: `src/main.c` (command dispatch)
-- Current commands: help, cat, ls
+- Current commands: help, cat, ls, cp
 - No tests or typecheck configured
 
 ### cat Command Options
