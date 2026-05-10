@@ -17,6 +17,5 @@ void help_command(gint argc, gchar** argv) {
     (void)argc;
     gchar* runname = g_path_get_basename(argv[0]);
     output_help(argv[0], runname);
-    cleanup:
     g_free(runname);
 }

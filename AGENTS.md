@@ -78,8 +78,15 @@ set `-DENABLE_CLANG_TIDY=ON` when running CMake (default: OFF)
 
 - Build output: `./target/modbox`
 - Entry point: `src/main.c` (command dispatch)
-- Current commands: help, cat, ls, cp
+- Current commands: help, cat, ls, cp, ln
 - No tests or typecheck configured
+
+### ln Command Options
+
+- `-f`, `--force` — remove existing destination file before linking
+- `-v`, `--verbose` — explain what is being done
+- First argument must be an existing regular file
+- Second argument: if it's an existing directory, creates a link with the source's basename inside that directory; otherwise creates a link at the given path
 
 ### cat Command Options
 

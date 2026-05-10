@@ -6,4 +6,3 @@
 void cp_command(gint argc, gchar** argv);
 
 #endif
-

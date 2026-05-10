@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+#
+# run_tests.sh — Automated test suite for modbox
+#
+# Tests all commands (cat, ls, cp, help) and their options.
+# Each test prints PASS or FAIL with details on mismatch.
+#
+
+# Do NOT set errexit — test failures use non-zero returns via grep/[[ ]] etc.
+set -o nounset
+
+MODBOX=$(readlink -f "$(dirname "$0")/../target/modbox")
+PASS_COUNT=0
+FAIL_COUNT=0
+TMPDIR=$(mktemp -d /tmp/modbox_test.XXXXXX)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# ── Test framework ──────────────────────────────────────────────────────────
+
+pass()  { echo "  PASS  $*"; PASS_COUNT=$((PASS_COUNT + 1)); }
+fail()  { echo "  FAIL  $*"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
+
+# assert_cmd EXPECTED_OUTPUT args...
+# Runs: modbox <args...> and compares stdout to EXPECTED_OUTPUT
+assert_cmd() {
+    local expected="$1"; shift
+    local actual
+    actual=$("$MODBOX" "$@" 2>/dev/null || true)
+    if [[ "$actual" == "$expected" ]]; then
+        pass "$*"
+    else
+        fail "$* — expected [$(echo "$expected" | head -c 80)] got [$(echo "$actual" | head -c 80)]"
+    fi
+}
+
+# assert_cmd_pat PATTERN args...
+# Runs modbox <args> and checks stdout contains PATTERN (extended regex)
+assert_cmd_pat() {
+    local pattern="$1"; shift
+    if "$MODBOX" "$@" 2>/dev/null | grep -qE "$pattern"; then
+        pass "$* → matches /$pattern/"
+    else
+        fail "$* — expected pattern /$pattern/ not found in output"
+    fi
+}
+
+# assert_cmd_not_pat PATTERN args...
+assert_cmd_not_pat() {
+    local pattern="$1"; shift
+    if "$MODBOX" "$@" 2>/dev/null | grep -qE "$pattern"; then
+        fail "$* — unexpected pattern /$pattern/ found"
+    else
+        pass "$* — correctly lacks /$pattern/"
+    fi
+}
+
+# assert_cmd_pat_stderr PATTERN args...
+assert_cmd_pat_stderr() {
+    local pattern="$1"; shift
+    if "$MODBOX" "$@" 2>&1 1>/dev/null | grep -qE "$pattern"; then
+        pass "$* → stderr matches /$pattern/"
+    else
+        fail "$* — expected stderr pattern /$pattern/ not found"
+    fi
+}
+
+echo "============================================"
+echo "  modbox Test Suite"
+echo "  Binary: $MODBOX"
+echo "============================================"
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  help
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo "── help ────────────────────────────────────"
+
+assert_cmd_pat "Usage:" help
+
+# ── cat ─────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── cat ─────────────────────────────────────"
+
+printf 'hello\nworld\n' > "$TMPDIR"/simple.txt
+printf '\n\n\n'                > "$TMPDIR"/blanks.txt
+printf 'line1\n\n\nline4\n'    > "$TMPDIR"/mixed.txt
+printf 'with\ttab\n'           > "$TMPDIR"/tab.txt
+printf 'a\n\n\nb\n'            > "$TMPDIR"/squeeze.txt
+printf 'hello\n'               > "$TMPDIR"/a.txt
+printf 'world\n'               > "$TMPDIR"/b.txt
+printf '\x7f\n'                > "$TMPDIR"/del.txt
+printf '\x01\x02\x1f\n'        > "$TMPDIR"/low.txt
+printf '\x80\x9f\xa0\xff\n'    > "$TMPDIR"/high.txt
+printf ''                      > "$TMPDIR"/empty.txt
+
+echo "  ── basic read ──"
+assert_cmd "$(printf 'hello\nworld\n')" cat "$TMPDIR"/simple.txt
+
+echo "  ── -n : number all lines ──"
+assert_cmd "$(printf '     1  hello\n     2  world\n')" cat -n "$TMPDIR"/simple.txt
+
+echo "  ── -b : number non-blank lines ──"
+assert_cmd "$(printf '     1  line1\n\n\n     2  line4\n')" cat -b "$TMPDIR"/mixed.txt
+
+echo "  ── -nb : -b overrides -n ──"
+assert_cmd "$(printf '     1  line1\n\n\n     2  line4\n')" cat -nb "$TMPDIR"/mixed.txt
+
+echo "  ── -E : show $ at line ends ──"
+assert_cmd "$(printf 'hello$\nworld$\n')" cat -E "$TMPDIR"/simple.txt
+
+echo "  ── -T : show tabs as ^I ──"
+assert_cmd "with^Itab" cat -T "$TMPDIR"/tab.txt
+
+echo "  ── -s : squeeze blank lines ──"
+assert_cmd "$(printf 'a\n\nb\n')" cat -s "$TMPDIR"/squeeze.txt
+
+echo "  ── -v : show non-printing ──"
+# Tab is printed as-is with -v (no -T)
+assert_cmd "$(printf 'with\ttab\n')" cat -v "$TMPDIR"/tab.txt
+assert_cmd_pat '\^A\^B\^_' cat -v "$TMPDIR"/low.txt   # 0x01→^A, 0x02→^B, 0x1f→^_
+assert_cmd_pat 'M-\^@'     cat -v "$TMPDIR"/high.txt   # 0x80→M-^@
+assert_cmd_pat 'M-\^_'     cat -v "$TMPDIR"/high.txt   # 0x9f→M-^_
+assert_cmd_pat 'M- '       cat -v "$TMPDIR"/high.txt   # 0xa0→M-<space>
+assert_cmd_pat 'M-\^\?'    cat -v "$TMPDIR"/high.txt   # 0xff→M-^?
+
+echo "  ── -A : -vET (show all) ──"
+assert_cmd "with^Itab$" cat -A "$TMPDIR"/tab.txt
+
+echo "  ── -e / -t : compound options ──"
+assert_cmd "$(printf 'hello$\nworld$\n')" cat -e "$TMPDIR"/simple.txt
+assert_cmd "with^Itab" cat -t "$TMPDIR"/tab.txt
+
+echo "  ── combined -vTE ──"
+assert_cmd "with^Itab$" cat -vTE "$TMPDIR"/tab.txt
+
+echo "  ── multiple files ──"
+assert_cmd "$(printf 'hello\nworld\n')" cat "$TMPDIR"/a.txt "$TMPDIR"/b.txt
+
+echo "  ── stdin ──"
+assert_cmd "stdin test" cat <<<"stdin test"
+assert_cmd "dash test" cat - <<<"dash test"
+
+echo "  ── empty file ──"
+assert_cmd "" cat "$TMPDIR"/empty.txt
+assert_cmd "" cat -n "$TMPDIR"/empty.txt
+
+echo "  ── -n -s combined ──"
+assert_cmd "$(printf '     1  line1\n     2  \n     3  line4\n')" cat -n -s "$TMPDIR"/mixed.txt
+
+echo "  ── DEL character (0x7f) ──"
+assert_cmd_pat '\^\?' cat -v "$TMPDIR"/del.txt
+
+echo "  ── -vT : tab becomes ^I ──"
+assert_cmd "a^Ib" cat -vT - <<< $'a\tb'
+
+echo "  ── all-blank with -b produces no output ──"
+assert_cmd "" cat -b "$TMPDIR"/blanks.txt
+
+echo "  ── error: non-existent file ──"
+assert_cmd_pat "No such file" cat "$TMPDIR"/nonexistent.txt
+
+# ── ls ──────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── ls ──────────────────────────────────────"
+
+mkdir -p "$TMPDIR"/ls_dir
+touch    "$TMPDIR"/ls_dir/regular.txt
+touch    "$TMPDIR"/ls_dir/.hidden
+touch    "$TMPDIR"/ls_dir/backup~
+touch    "$TMPDIR"/ls_dir/exec.sh
+chmod +x "$TMPDIR"/ls_dir/exec.sh
+mkdir    "$TMPDIR"/ls_dir/subdir
+# Create file with non-graphic byte in its name (for -b escape test)
+python3 -c "open('$TMPDIR/ls_dir/\x01file','w')" 2>/dev/null || touch "$TMPDIR"/ls_dir/ctrl
+
+# ls tests need to run from the target directory (pre-existing path behavior
+# — lstat() uses bare filenames, not full paths)
+cd "$TMPDIR"/ls_dir
+
+echo "  ── basic ls ──"
+assert_cmd_pat 'regular\.txt' ls 2>/dev/null
+assert_cmd_pat 'subdir'       ls 2>/dev/null
+
+echo "  ── -a : show all ──"
+assert_cmd_pat '\.hidden' ls -a 2>/dev/null
+# ls output is space-separated, so match for ". " or ".  " (dot followed by spaces)
+assert_cmd_pat '\.  '     ls -a 2>/dev/null
+assert_cmd_pat '\.\. '    ls -a 2>/dev/null
+
+echo "  ── -A : almost all — no . .. ──"
+assert_cmd_pat '\.hidden' ls -A 2>/dev/null
+# With -A, . and .. should NOT appear; check that no entry starts with just dot-space
+assert_cmd_not_pat '(^| )\.\.?  *' ls -A 2>/dev/null
+
+echo "  ── -l : long format ──"
+assert_cmd_pat 'regular\.txt' ls -l 2>/dev/null
+assert_cmd_pat '^d'           ls -l 2>/dev/null   # subdir starts with d
+assert_cmd_pat '^-'           ls -l 2>/dev/null   # regular file starts with -
+assert_cmd_pat 'exec\.sh'     ls -l 2>/dev/null   # executable
+
+echo "  ── -la : long + all ──"
+assert_cmd_pat '\.hidden' ls -la 2>/dev/null
+assert_cmd_pat '^d'       ls -la 2>/dev/null
+
+echo "  ── -B : ignore backups ──"
+assert_cmd_not_pat 'backup~' ls -B 2>/dev/null
+
+echo "  ── -l --author ──"
+# --author adds extra user column (user user group)
+assert_cmd_pat 'regular\.txt' ls -l --author 2>/dev/null
+
+echo "  ── -b : escape non-graphic ──"
+assert_cmd_pat '\\001' ls -b 2>/dev/null
+
+echo "  ── --color=always ──"
+assert_cmd_pat $'\x1b\[' ls --color=always 2>/dev/null
+
+echo "  ── --block-size ──"
+assert_cmd_pat 'reg' ls -l --block-size=K 2>/dev/null
+
+echo "  ── multiple directories ──"
+assert_cmd_pat 'regular' ls "$TMPDIR"/ls_dir /tmp 2>/dev/null
+
+echo "  ── non-existent directory error ──"
+assert_cmd_pat "No such file" ls "$TMPDIR"/nonexistent_dir 2>/dev/null
+
+cd "$TMPDIR"
+
+# ── cp ──────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── cp ──────────────────────────────────────"
+
+echo "source content" > "$TMPDIR"/cp_src.txt
+mkdir -p "$TMPDIR"/cp_src_dir/sub
+echo "nested" > "$TMPDIR"/cp_src_dir/sub/file.txt
+
+echo "  ── file → file ──"
+"$MODBOX" cp "$TMPDIR"/cp_src.txt "$TMPDIR"/cp_dst.txt
+assert_cmd "source content" cat "$TMPDIR"/cp_dst.txt
+
+echo "  ── file → existing directory ──"
+mkdir -p "$TMPDIR"/cp_dir_target
+"$MODBOX" cp "$TMPDIR"/cp_src.txt "$TMPDIR"/cp_dir_target/ 2>/dev/null || true
+# cp to existing dir should place file inside with same basename
+if [[ -f "$TMPDIR"/cp_dir_target/cp_src.txt ]]; then
+    assert_cmd "source content" cat "$TMPDIR"/cp_dir_target/cp_src.txt
+else
+    fail "cp file to directory — cp_src.txt not found in target dir"
+fi
+
+echo "  ── -r : recursive ──"
+"$MODBOX" cp -r "$TMPDIR"/cp_src_dir "$TMPDIR"/cp_recursive_dst 2>/dev/null || true
+assert_cmd "nested" cat "$TMPDIR"/cp_recursive_dst/sub/file.txt
+
+echo "  ── -v : verbose ──"
+# -v prints "'src' -> 'dst'" to stdout
+out=$("$MODBOX" cp -v "$TMPDIR"/cp_src.txt "$TMPDIR"/cp_v_dst.txt 2>/dev/null || true)
+if echo "$out" | grep -qE "'$TMPDIR/cp_src.txt' ->"; then
+    pass "cp -v → verbose output"
+else
+    fail "cp -v — expected verbose output, got [$out]"
+fi
+
+echo "  ── -r -v : recursive verbose ──"
+out=$("$MODBOX" cp -r -v "$TMPDIR"/cp_src_dir "$TMPDIR"/cp_rv_dst 2>/dev/null || true)
+if echo "$out" | grep -qE "'$TMPDIR/cp_src_dir' ->"; then
+    pass "cp -r -v → verbose output"
+else
+    fail "cp -r -v — expected verbose output, got [$(echo "$out" | head -c 80)]"
+fi
+
+echo "  ── multiple sources with -r ──"
+mkdir -p "$TMPDIR"/cp_m1/sub "$TMPDIR"/cp_m2
+echo "f1" > "$TMPDIR"/cp_m1/f1.txt
+echo "f2" > "$TMPDIR"/cp_m2/f2.txt
+mkdir -p "$TMPDIR"/cp_multi_dst
+"$MODBOX" cp -r "$TMPDIR"/cp_m1 "$TMPDIR"/cp_m2 "$TMPDIR"/cp_multi_dst 2>/dev/null || true
+assert_cmd "f1" cat "$TMPDIR"/cp_multi_dst/cp_m1/f1.txt
+assert_cmd "f2" cat "$TMPDIR"/cp_multi_dst/cp_m2/f2.txt
+
+echo "  ── error: non-existent source ──"
+assert_cmd_pat_stderr "No such file" cp "$TMPDIR"/nonexistent "$TMPDIR"/dest
+
+echo "  ── error: dir without -r ──"
+assert_cmd_pat_stderr "not a regular" cp "$TMPDIR"/cp_src_dir "$TMPDIR"/cp_no_r
+
+echo "  ── error: missing destination ──"
+err=$("$MODBOX" cp "$TMPDIR"/cp_src.txt 2>&1 || true)
+if echo "$err" | grep -qiE "missing|expected|requires a value"; then
+    pass "cp: missing dest → reports error"
+else
+    fail "cp: missing dest — no error, got [$err]"
+fi
+
+# ── ln ──────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── ln ──────────────────────────────────────"
+
+echo "source content" > "$TMPDIR"/ln_src.txt
+mkdir -p "$TMPDIR"/ln_dir
+
+echo "  ── file → file ──"
+"$MODBOX" ln "$TMPDIR"/ln_src.txt "$TMPDIR"/ln_dst.txt
+assert_cmd "source content" cat "$TMPDIR"/ln_dst.txt
+
+echo "  ── file → existing directory ──"
+"$MODBOX" ln "$TMPDIR"/ln_src.txt "$TMPDIR"/ln_dir/
+if [[ -f "$TMPDIR"/ln_dir/ln_src.txt ]]; then
+    pass "ln file to directory — ln_src.txt found in target dir"
+else
+    fail "ln file to directory — ln_src.txt not found in target dir"
+fi
+assert_cmd "source content" cat "$TMPDIR"/ln_dir/ln_src.txt
+
+echo "  ── -v : verbose ──"
+out=$("$MODBOX" ln -v "$TMPDIR"/ln_src.txt "$TMPDIR"/ln_v_dst.txt 2>/dev/null || true)
+if echo "$out" | grep -qE "'.*ln_v_dst.*' ->"; then
+    pass "ln -v → verbose output"
+else
+    fail "ln -v — expected verbose output, got [$out]"
+fi
+
+echo "  ── -f : force ──"
+echo "dummy" > "$TMPDIR"/ln_existing.txt
+"$MODBOX" ln -f "$TMPDIR"/ln_src.txt "$TMPDIR"/ln_existing.txt
+assert_cmd "source content" cat "$TMPDIR"/ln_existing.txt
+
+echo "  ── error: non-existent source ──"
+assert_cmd_pat_stderr "No such file" ln "$TMPDIR"/nonexistent "$TMPDIR"/ln_err
+
+echo "  ── error: directory as source ──"
+assert_cmd_pat_stderr "not a regular" ln "$TMPDIR"/ln_dir "$TMPDIR"/ln_dir_link
+
+# ── Summary ─────────────────────────────────────────────────────────────────
+
+echo ""
+echo "════════════════════════════════════════════"
+echo "  Results: $PASS_COUNT passed, $FAIL_COUNT failed"
+echo "════════════════════════════════════════════"
+
+if [[ $FAIL_COUNT -gt 0 ]]; then
+    exit 1
+fi
+exit 0

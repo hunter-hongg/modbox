@@ -6,6 +6,7 @@
 #include "commands/cat.h"
 #include "commands/ls.h"
 #include "commands/cp.h"
+#include "commands/ln.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -16,6 +17,7 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
     g_hash_table_insert(commands, "cat", cat_command);
     g_hash_table_insert(commands, "ls", ls_command);
     g_hash_table_insert(commands, "cp", cp_command);
+    g_hash_table_insert(commands, "ln", ln_command);
 
     if (g_hash_table_contains(commands, command)) {
         command_t cmd = g_hash_table_lookup(commands, command);
@@ -26,11 +28,10 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
         output_help(argv[0], runname);
     }
 
-    cleanup:
     g_hash_table_destroy(commands);
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     gchar* runname = g_path_get_basename(argv[0]);
     if ((strcmp(runname, "modbox") == 0) && (argc == 1)) {
