@@ -78,8 +78,27 @@ set `-DENABLE_CLANG_TIDY=ON` when running CMake (default: OFF)
 
 - Build output: `./target/modbox`
 - Entry point: `src/main.c` (command dispatch)
-- Current commands: help, cat, ls, cp, ln
-- No tests or typecheck configured
+- Current commands: help, cat, ls, cp, mv, ln
+- **Running tests**: `bash tests/run_tests.sh` — see below for details
+
+### Tests
+
+- **Test suite**: `tests/run_tests.sh` — a self-contained Bash test script with helpers:
+  - `assert_cmd EXPECTED_OUTPUT args...` — compares stdout exactly
+  - `assert_cmd_pat PATTERN args...` — checks stdout for regex pattern
+  - `assert_cmd_not_pat PATTERN args...` — checks stdout lacks regex pattern
+  - `assert_cmd_pat_stderr PATTERN args...` — checks stderr for regex pattern
+- Run with: `bash tests/run_tests.sh`
+- Exit code 0 = all pass, exit code 1 = some fail
+
+### mv Command
+
+- Positional args only: `SOURCE... DEST` (2–101 args)
+- Supports moving regular files and directories (recursive)
+- Uses `rename()` first (same-filesystem); falls back to copy+unlink (cross-filesystem)
+- Multiple sources: destination must be an existing directory
+- Moving a directory into itself produces: `mv: cannot move '...' to '...': Invalid argument`
+- Error messages printed to stderr
 
 ### ln Command Options
 

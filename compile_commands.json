@@ -31,6 +31,12 @@
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/include/sysprof-6  -o CMakeFiles/modbox.dir/src/commands/mv.c.o -c /home/hunter/projects/modbox/src/commands/mv.c",
+  "file": "/home/hunter/projects/modbox/src/commands/mv.c",
+  "output": "CMakeFiles/modbox.dir/src/commands/mv.c.o"
+},
+{
+  "directory": "/home/hunter/projects/modbox/build",
   "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/include/sysprof-6  -o CMakeFiles/modbox.dir/src/main.c.o -c /home/hunter/projects/modbox/src/main.c",
   "file": "/home/hunter/projects/modbox/src/main.c",
   "output": "CMakeFiles/modbox.dir/src/main.c.o"

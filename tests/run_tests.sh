@@ -336,6 +336,114 @@ assert_cmd_pat_stderr "No such file" ln "$TMPDIR"/nonexistent "$TMPDIR"/ln_err
 echo "  ── error: directory as source ──"
 assert_cmd_pat_stderr "not a regular" ln "$TMPDIR"/ln_dir "$TMPDIR"/ln_dir_link
 
+# ── mv ──────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── mv ──────────────────────────────────────"
+
+echo "source content" > "$TMPDIR"/mv_src.txt
+echo "another source" > "$TMPDIR"/mv_src2.txt
+mkdir -p "$TMPDIR"/mv_dir/sub
+echo "nested" > "$TMPDIR"/mv_dir/sub/file.txt
+
+echo "  ── file → file (rename) ──"
+"$MODBOX" mv "$TMPDIR"/mv_src.txt "$TMPDIR"/mv_dst.txt
+# Source should be gone
+if [[ ! -f "$TMPDIR"/mv_src.txt ]]; then
+    pass "mv file → file — source removed"
+else
+    fail "mv file → file — source still exists"
+fi
+# Destination should have the content
+assert_cmd "source content" cat "$TMPDIR"/mv_dst.txt
+
+echo "  ── file → existing directory ──"
+# Recreate source first
+echo "file to dir" > "$TMPDIR"/mv_src.txt
+mkdir -p "$TMPDIR"/mv_dir_target
+"$MODBOX" mv "$TMPDIR"/mv_src.txt "$TMPDIR"/mv_dir_target/ 2>/dev/null || true
+if [[ -f "$TMPDIR"/mv_dir_target/mv_src.txt ]]; then
+    pass "mv file to directory — file found in target dir"
+else
+    fail "mv file to directory — file not found in target dir"
+fi
+if [[ ! -f "$TMPDIR"/mv_src.txt ]]; then
+    pass "mv file to directory — source removed"
+else
+    fail "mv file to directory — source still exists"
+fi
+assert_cmd "file to dir" cat "$TMPDIR"/mv_dir_target/mv_src.txt
+
+echo "  ── directory → directory (rename) ──"
+"$MODBOX" mv "$TMPDIR"/mv_dir "$TMPDIR"/mv_dir_renamed 2>/dev/null || true
+if [[ -d "$TMPDIR"/mv_dir_renamed ]]; then
+    pass "mv directory → directory — renamed dir exists"
+else
+    fail "mv directory → directory — renamed dir not found"
+fi
+if [[ ! -d "$TMPDIR"/mv_dir ]]; then
+    pass "mv directory → directory — source removed"
+else
+    fail "mv directory → directory — source still exists"
+fi
+assert_cmd "nested" cat "$TMPDIR"/mv_dir_renamed/sub/file.txt
+
+echo "  ── directory → existing directory ──"
+mkdir -p "$TMPDIR"/mv_dir2/sub
+echo "nested2" > "$TMPDIR"/mv_dir2/sub/file2.txt
+mkdir -p "$TMPDIR"/mv_parent_dir
+"$MODBOX" mv "$TMPDIR"/mv_dir2 "$TMPDIR"/mv_parent_dir/ 2>/dev/null || true
+if [[ -d "$TMPDIR"/mv_parent_dir/mv_dir2 ]]; then
+    pass "mv directory to existing dir — dir found inside target"
+else
+    fail "mv directory to existing dir — dir not found inside target"
+fi
+assert_cmd "nested2" cat "$TMPDIR"/mv_parent_dir/mv_dir2/sub/file2.txt
+
+echo "  ── multiple files → directory ──"
+echo "multi1" > "$TMPDIR"/mv_multi1.txt
+echo "multi2" > "$TMPDIR"/mv_multi2.txt
+mkdir -p "$TMPDIR"/mv_multi_dst
+"$MODBOX" mv "$TMPDIR"/mv_multi1.txt "$TMPDIR"/mv_multi2.txt "$TMPDIR"/mv_multi_dst/ 2>/dev/null || true
+assert_cmd "multi1" cat "$TMPDIR"/mv_multi_dst/mv_multi1.txt
+assert_cmd "multi2" cat "$TMPDIR"/mv_multi_dst/mv_multi2.txt
+if [[ ! -f "$TMPDIR"/mv_multi1.txt && ! -f "$TMPDIR"/mv_multi2.txt ]]; then
+    pass "mv multiple files — sources removed"
+else
+    fail "mv multiple files — some sources still exist"
+fi
+
+echo "  ── overwrite existing destination ──"
+echo "original content" > "$TMPDIR"/mv_overwrite_dst.txt
+echo "new content" > "$TMPDIR"/mv_overwrite_src.txt
+"$MODBOX" mv "$TMPDIR"/mv_overwrite_src.txt "$TMPDIR"/mv_overwrite_dst.txt
+assert_cmd "new content" cat "$TMPDIR"/mv_overwrite_dst.txt
+if [[ ! -f "$TMPDIR"/mv_overwrite_src.txt ]]; then
+    pass "mv overwrite — source removed"
+else
+    fail "mv overwrite — source still exists"
+fi
+
+echo "  ── error: non-existent source ──"
+assert_cmd_pat_stderr "No such file" mv "$TMPDIR"/mv_nonexistent "$TMPDIR"/mv_err
+
+echo "  ── error: multiple sources with non-directory dest ──"
+echo "a" > "$TMPDIR"/mv_multi_err_a.txt
+echo "b" > "$TMPDIR"/mv_multi_err_b.txt
+echo "not_a_dir" > "$TMPDIR"/mv_not_a_dir.txt
+assert_cmd_pat_stderr "not a directory" mv "$TMPDIR"/mv_multi_err_a.txt "$TMPDIR"/mv_multi_err_b.txt "$TMPDIR"/mv_not_a_dir.txt
+
+echo "  ── error: move directory into itself ──"
+mkdir -p "$TMPDIR"/mv_self/subdir
+assert_cmd_pat_stderr "Invalid argument" mv "$TMPDIR"/mv_self "$TMPDIR"/mv_self/subdir
+
+# Verify source still exists (destination directory is unharmed)
+if [[ -d "$TMPDIR"/mv_self ]]; then
+    pass "mv directory into itself — source preserved"
+else
+    fail "mv directory into itself — source removed"
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""

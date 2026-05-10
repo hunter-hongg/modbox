@@ -7,6 +7,7 @@
 #include "commands/ls.h"
 #include "commands/cp.h"
 #include "commands/ln.h"
+#include "commands/mv.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -18,6 +19,7 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
     g_hash_table_insert(commands, "ls", ls_command);
     g_hash_table_insert(commands, "cp", cp_command);
     g_hash_table_insert(commands, "ln", ln_command);
+    g_hash_table_insert(commands, "mv", mv_command);
 
     if (g_hash_table_contains(commands, command)) {
         command_t cmd = g_hash_table_lookup(commands, command);
