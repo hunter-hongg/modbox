@@ -100,6 +100,8 @@ use `^` and `M-` notation for non-printing characters (except LFD and TAB)
 - `-l`, `--long` — use a long listing format
 - `--author` — with -l, print the author of each file
 - `-b`, `--escape` — print octal escapes (`\ooo`) for non-graphic characters
+- `-B`, `--ignore-backups` — do not list entries ending with `~`
 - `--color=WHEN` — colorize the output; WHEN can be `always`, `auto`, or `never`
+- `--block-size=SIZE` — scale sizes by SIZE when printing them; e.g. `K` for KiB
 - Supports multiple directory arguments
 - Escape helper: `print_escaped_filename()` in `src/commands/ls.c`

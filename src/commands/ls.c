@@ -216,6 +216,7 @@ void ls_command(gint argc, gchar **argv) {
   int show_details = 0;
   int show_author = 0;
   int escape_mode = 0;
+  int ignore_backups = 0;
   color_mode_t color_mode = COLOR_NEVER;
 
   for (int i = 1; i < argc; i++) {
@@ -237,6 +238,9 @@ void ls_command(gint argc, gchar **argv) {
   struct arg_str *color_opt =
       arg_str0(NULL, "color", "WHEN",
                "colorize the output; WHEN can be 'always', 'auto', or 'never'");
+  struct arg_lit *ignore_backups_opt =
+      arg_lit0("B", "ignore-backups",
+               "do not list entries ending with ~");
   struct arg_str *block_size_opt =
       arg_str0(NULL, "block-size", "SIZE",
                "scale sizes by SIZE when printing them; "
@@ -245,9 +249,10 @@ void ls_command(gint argc, gchar **argv) {
       arg_filen(NULL, NULL, "DIR", 0, 100, "directory to list");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {all_opt,        almost_all_opt, long_opt,
-                      author_opt,     escape_opt,     color_opt,
-                      block_size_opt, dir_arg,        end};
+  void *argtable[] = {all_opt,        almost_all_opt,     long_opt,
+                      author_opt,     escape_opt,         color_opt,
+                      ignore_backups_opt, block_size_opt, dir_arg,
+                      end};
 
   int nerrors = arg_parse(argc, argv, argtable);
 
@@ -262,6 +267,7 @@ void ls_command(gint argc, gchar **argv) {
   show_details = (long_opt->count > 0);
   show_author = (author_opt->count > 0);
   escape_mode = (escape_opt->count > 0);
+  ignore_backups = (ignore_backups_opt->count > 0);
 
   if (color_opt->count > 0) {
     const char *val = color_opt->sval[0];
@@ -323,6 +329,12 @@ void ls_command(gint argc, gchar **argv) {
         }
         if (strcmp(entry->d_name, ".") == 0 ||
             strcmp(entry->d_name, "..") == 0) {
+          continue;
+        }
+      }
+      if (ignore_backups) {
+        size_t dlen = strlen(entry->d_name);
+        if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
           continue;
         }
       }
