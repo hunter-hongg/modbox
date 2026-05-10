@@ -165,10 +165,11 @@ void cat_command(gint argc, gchar** argv) {
     struct arg_lit* squeeze_blank_opt = arg_lit0("s", "squeeze-blank", "never more than one single blank line");
     struct arg_lit* show_nonprinting_opt = arg_lit0("v", "show-nonprinting", "use ^ and M- notation, except for LFD and TAB");
     struct arg_lit* show_all_opt = arg_lit0("A", "show-all", "equivalent to -vET");
+    struct arg_lit* show_nonprinting_and_ends_opt = arg_lit0("e", NULL, "equivalent to -vE");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, file_arg, end };
+    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, show_nonprinting_and_ends_opt, file_arg, end };
 
     int nerrors = arg_parse(argc, my_argv, argtable);
 
@@ -190,6 +191,12 @@ void cat_command(gint argc, gchar** argv) {
         show_nonprinting = 1;
         show_ends = 1;
         show_tabs = 1;
+    }
+
+    // -e is equivalent to -vE
+    if (show_nonprinting_and_ends_opt->count > 0) {
+        show_nonprinting = 1;
+        show_ends = 1;
     }
 
     // According to POSIX, -b overrides -n
