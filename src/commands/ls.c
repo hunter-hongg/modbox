@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -211,6 +212,141 @@ static unsigned long parse_block_size(const char* str) {
     return val > 0 ? val : 1;
 }
 
+/** Get the terminal width in columns, falling back to the COLUMNS env var,
+ *  then to a default of 80. */
+static int get_terminal_width(void) {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+        return (int)ws.ws_col;
+    }
+    const char* cols = getenv("COLUMNS");
+    if (cols != NULL) {
+        char* endptr;
+        long val = strtol(cols, &endptr, 10);
+        if (endptr != cols && val > 0 && val < 10000) {
+            return (int)val;
+        }
+    }
+    return 80;
+}
+
+/** Compute the display width of a filename when printed via
+ *  print_escaped_filename() — printable chars count as 1, escaped
+ *  non-printable bytes count as 4 ( "\ooo" ). */
+static int escaped_display_width(const char* s) {
+    int width = 0;
+    for (const unsigned char* p = (const unsigned char*)s; *p != '\0'; p++) {
+        if (*p == '\t' || (*p >= ASCII_SPACE && *p <= ASCII_TILDE)) {
+            width++;
+        } else {
+            width += 4;
+        }
+    }
+    return width;
+}
+
+/** Compute the visual width of a plain (non-escaped) filename. */
+static int plain_display_width(const char* s) {
+    return (int)strlen(s);
+}
+
+/** Print a list of filenames in vertically-sorted columns, like GNU ls -C.
+ *
+ *  The list is assumed to already be sorted.  Terminal width is detected
+ *  via ioctl / $COLUMNS / default 80.
+ */
+static void print_columns(GList* files, int escape_mode, color_mode_t color_mode) {
+    int use_color = should_color(color_mode);
+    int term_width = get_terminal_width();
+    int count = g_list_length(files);
+
+    if (count == 0) {
+        return;
+    }
+
+    /* Find the maximum display width among filenames */
+    int max_width = 0;
+    for (GList* iter = files; iter != NULL; iter = iter->next) {
+        int w = escape_mode ? escaped_display_width((const char*)iter->data)
+                            : plain_display_width((const char*)iter->data);
+        if (w > max_width) {
+            max_width = w;
+        }
+    }
+
+    const int gap = 2;
+    int col_width = max_width + gap;
+    if (col_width > term_width) {
+        col_width = term_width;
+    }
+    int num_cols = term_width / col_width;
+    if (num_cols < 1) {
+        num_cols = 1;
+    }
+    if (num_cols > count) {
+        num_cols = count;
+    }
+    int num_rows = (count + num_cols - 1) / num_cols;
+
+    /* Build an array of filename pointers for indexed access */
+    const char** names = (const char**)g_malloc(sizeof(char*) * (size_t)count);
+    {
+        int idx = 0;
+        for (GList* iter = files; iter != NULL; iter = iter->next) {
+            names[idx++] = (const char*)iter->data;
+        }
+    }
+
+    /* Print in vertical-sorted order (down columns) */
+    for (int row = 0; row < num_rows; row++) {
+        for (int col = 0; col < num_cols; col++) {
+            int index = col * num_rows + row;
+            if (index >= count) {
+                continue;
+            }
+
+            const char* name = names[index];
+            int name_display_w = escape_mode ? escaped_display_width(name)
+                                             : plain_display_width(name);
+
+            /* Determine color if needed */
+            const char* color_code = NULL;
+            if (use_color) {
+                struct stat st;
+                if (lstat(name, &st) == 0) {
+                    color_code = get_file_color(&st);
+                }
+            }
+
+            if (color_code != NULL) {
+                printf("\033[%sm", color_code);
+            }
+            if (escape_mode) {
+                print_escaped_filename(name);
+            } else {
+                printf("%s", name);
+            }
+            if (color_code != NULL) {
+                printf("\033[0m");
+            }
+
+            /* Pad to column width (not needed for the last column) */
+            if (col < num_cols - 1) {
+                int padding = col_width - name_display_w;
+                if (padding < 0) {
+                    padding = 1;
+                }
+                for (int p = 0; p < padding; p++) {
+                    putchar(' ');
+                }
+            }
+        }
+        printf("\n");
+    }
+
+    g_free(names);
+}
+
 void ls_command(gint argc, gchar** argv) {
     int show_all = 0;
     int show_almost_all = 0;
@@ -246,14 +382,16 @@ void ls_command(gint argc, gchar** argv) {
         arg_str0(NULL, "block-size", "SIZE",
                  "scale sizes by SIZE when printing them; "
                  "e.g., 'K' for KiB, 'M' for MiB");
+    struct arg_lit* columns_opt =
+        arg_lit0("C", NULL, "list entries by columns");
     struct arg_file* dir_arg =
         arg_filen(NULL, NULL, "DIR", 0, 100, "directory to list");
     struct arg_end* end = arg_end(20);
 
     void* argtable[] = {all_opt,        almost_all_opt,     long_opt,
                         author_opt,     escape_opt,         color_opt,
-                        ignore_backups_opt, block_size_opt, dir_arg,
-                        end};
+                        ignore_backups_opt, block_size_opt, columns_opt,
+                        dir_arg, end};
 
     int nerrors = arg_parse(argc, argv, argtable);
 
@@ -263,8 +401,9 @@ void ls_command(gint argc, gchar** argv) {
         return;
     }
 
-    show_almost_all = (almost_all_opt->count > 0);
+    int show_columns = (columns_opt->count > 0) && (!show_details);
     show_all = (all_opt->count > 0) && (!show_almost_all); // -A overrides -a
+    show_almost_all = (almost_all_opt->count > 0);
     show_details = (long_opt->count > 0);
     show_author = (author_opt->count > 0);
     escape_mode = (escape_opt->count > 0);
@@ -345,15 +484,23 @@ void ls_command(gint argc, gchar** argv) {
         files = g_list_sort(files, (GCompareFunc)strcmp);
 
         GList* iter = files;
-        while (iter != NULL) {
-            print_file_info((const char*)iter->data, show_details, show_author,
-                            escape_mode, color_mode, block_size, size_suffix);
-            g_free(iter->data);
-            iter = iter->next;
-        }
+        if (show_columns) {
+            print_columns(files, escape_mode, color_mode);
+            while (iter != NULL) {
+                g_free(iter->data);
+                iter = iter->next;
+            }
+        } else {
+            while (iter != NULL) {
+                print_file_info((const char*)iter->data, show_details, show_author,
+                                escape_mode, color_mode, block_size, size_suffix);
+                g_free(iter->data);
+                iter = iter->next;
+            }
 
-        if (!show_details) {
-            printf("\n");
+            if (!show_details) {
+                printf("\n");
+            }
         }
 
         g_list_free(files);
