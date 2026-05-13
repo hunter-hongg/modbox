@@ -165,14 +165,35 @@ void cat_command(gint argc, gchar** argv) {
     struct arg_lit* squeeze_blank_opt = arg_lit0("s", "squeeze-blank", "never more than one single blank line");
     struct arg_lit* show_nonprinting_opt = arg_lit0("v", "show-nonprinting", "use ^ and M- notation, except for LFD and TAB");
     struct arg_lit* show_all_opt = arg_lit0("A", "show-all", "equivalent to -vET");
+    struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* show_nonprinting_and_ends_opt = arg_lit0("e", NULL, "equivalent to -vE");
     struct arg_lit* show_tabs_and_nonprinting_opt = arg_lit0("t", NULL, "equivalent to -vT");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt, file_arg, end };
+    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt, help_opt, file_arg, end };
 
     int nerrors = arg_parse(argc, my_argv, argtable);
+
+    if (help_opt->count > 0) {
+        printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
+        printf("Concatenate FILE(s) to standard output.\n");
+        printf("\n");
+        printf("With no FILE, or when FILE is -, read standard input.\n");
+        printf("\n");
+        printf("  -b, --number-nonblank    number nonempty output lines\n");
+        printf("  -E, --show-ends          display $ at end of each line\n");
+        printf("  -n, --number             number all output lines\n");
+        printf("  -s, --squeeze-blank      never more than one single blank line\n");
+        printf("  -T, --show-tabs          display TAB characters as ^I\n");
+        printf("  -v, --show-nonprinting   use ^ and M- notation, except for LFD and TAB\n");
+        printf("  -e                       equivalent to -vE\n");
+        printf("  -t                       equivalent to -vT\n");
+        printf("  -A, --show-all           equivalent to -vET\n");
+        printf("  -h, --help               display this help and exit\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        goto cleanup;
+    }
 
     if (nerrors > 0) {
         arg_print_errors(stdout, end, argv[0]);
