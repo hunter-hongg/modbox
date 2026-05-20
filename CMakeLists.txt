@@ -19,8 +19,7 @@ include_directories(include)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 
-# 查找 Argtable3 依赖（系统安装）
-list(PREPEND CMAKE_PREFIX_PATH "/usr/lib64/cmake/argtable3")
+# 查找 Argtable3 依赖（vcpkg 管理）
 find_package(Argtable3 CONFIG REQUIRED)
 
 # 添加头文件路径

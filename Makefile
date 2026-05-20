@@ -1,3 +1,5 @@
+VCPKG_ROOT := $(HOME)/vcpkg
+
 all: compile
 
 compile:
@@ -15,12 +17,12 @@ clean:
 
 refresh:
 	rm -rf build target
-	cmake -B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=on
+	cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=on
 	ln -f build/compile_commands.json compile_commands.json
 
 refresh-tidy:
 	rm -rf build target
-	cmake -B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=on -DENABLE_CLANG_TIDY=ON
+	cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=on -DENABLE_CLANG_TIDY=ON
 	ln -f build/compile_commands.json compile_commands.json
 
 .PHONY: all compile lint run clean refresh refresh-tidy
