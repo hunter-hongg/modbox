@@ -225,7 +225,25 @@ echo "  ── multiple directories ──"
 assert_cmd_pat 'regular' ls "$TMPDIR"/ls_dir /tmp 2>/dev/null
 
 echo "  ── non-existent directory error ──"
-assert_cmd_pat "No such file" ls "$TMPDIR"/nonexistent_dir 2>/dev/null
+assert_cmd_pat_stderr "No such file" ls "$TMPDIR"/nonexistent_dir
+
+echo "  ── -d : list directory itself ──"
+assert_cmd_pat '\.$'       ls -d . 2>/dev/null           # just "." (no contents)
+assert_cmd_not_pat 'regular' ls -d . 2>/dev/null          # should NOT list contents
+
+echo "  ── -d -l : long format of directory itself ──"
+assert_cmd_pat '^d'        ls -dl . 2>/dev/null           # starts with 'd' for directory
+assert_cmd_pat '\.$'       ls -dl . 2>/dev/null           # ends with "."
+
+echo "  ── -d with regular file ──"
+assert_cmd_pat 'regular\.txt' ls -d "$TMPDIR"/ls_dir/regular.txt 2>/dev/null
+assert_cmd_not_pat 'No such file' ls -d "$TMPDIR"/ls_dir/regular.txt 2>/dev/null
+
+echo "  ── -d with multiple directories ──"
+assert_cmd_pat 'subdir' ls -d . subdir 2>/dev/null
+
+echo "  ── -d -l with multiple directories ──"
+assert_cmd_pat 'subdir$' ls -dl . subdir 2>/dev/null
 
 cd "$TMPDIR"
 

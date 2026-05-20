@@ -347,6 +347,42 @@ static void print_columns(GList* files, int escape_mode, color_mode_t color_mode
     g_free(names);
 }
 
+/**
+ * Sort a GList of filename strings, print them (either as columns or
+ * individually via print_file_info), then free all associated memory.
+ *
+ * The caller should not reference @a files (or its elements) after this call
+ * — ownership is transferred.
+ */
+static void sort_and_output_files(GList* files, int show_details,
+                                  int show_author, int escape_mode,
+                                  color_mode_t color_mode,
+                                  unsigned long block_size, char size_suffix,
+                                  int use_columns) {
+    if (files == NULL) {
+        return;
+    }
+
+    files = g_list_sort(files, (GCompareFunc)strcmp);
+
+    if (use_columns) {
+        print_columns(files, escape_mode, color_mode);
+    } else {
+        for (GList* iter = files; iter != NULL; iter = iter->next) {
+            print_file_info((const char*)iter->data, show_details, show_author,
+                            escape_mode, color_mode, block_size, size_suffix);
+        }
+        if (!show_details) {
+            printf("\n");
+        }
+    }
+
+    for (GList* iter = files; iter != NULL; iter = iter->next) {
+        g_free(iter->data);
+    }
+    g_list_free(files);
+}
+
 void ls_command(gint argc, gchar** argv) {
     int show_all = 0;
     int show_almost_all = 0;
@@ -354,6 +390,7 @@ void ls_command(gint argc, gchar** argv) {
     int show_author = 0;
     int escape_mode = 0;
     int ignore_backups = 0;
+    int list_dir_contents = 1; /* 1 = list contents of dirs; 0 = list dirs themselves */
     color_mode_t color_mode = COLOR_NEVER;
 
     for (int i = 1; i < argc; i++) {
@@ -382,6 +419,9 @@ void ls_command(gint argc, gchar** argv) {
         arg_str0(NULL, "block-size", "SIZE",
                  "scale sizes by SIZE when printing them; "
                  "e.g., 'K' for KiB, 'M' for MiB");
+    struct arg_lit* directory_opt =
+        arg_lit0("d", "directory",
+                 "list directories themselves, not their contents");
     struct arg_lit* columns_opt =
         arg_lit0("C", NULL, "list entries by columns");
     struct arg_file* dir_arg =
@@ -390,8 +430,8 @@ void ls_command(gint argc, gchar** argv) {
 
     void* argtable[] = {all_opt,        almost_all_opt,     long_opt,
                         author_opt,     escape_opt,         color_opt,
-                        ignore_backups_opt, block_size_opt, columns_opt,
-                        dir_arg, end};
+                        ignore_backups_opt, block_size_opt, directory_opt,
+                        columns_opt,    dir_arg, end};
 
     int nerrors = arg_parse(argc, argv, argtable);
 
@@ -408,6 +448,9 @@ void ls_command(gint argc, gchar** argv) {
     show_author = (author_opt->count > 0);
     escape_mode = (escape_opt->count > 0);
     ignore_backups = (ignore_backups_opt->count > 0);
+    if (directory_opt->count > 0) {
+        list_dir_contents = 0;
+    }
 
     if (color_opt->count > 0) {
         const char* val = color_opt->sval[0];
@@ -452,59 +495,61 @@ void ls_command(gint argc, gchar** argv) {
         dir_arg->filename[0] = ".";
     }
 
-    for (int i = 0; i < dir_arg->count; i++) {
-        DIR* dir = opendir(dir_arg->filename[i]);
-        if (dir == NULL) {
-            printf("ls: %s: No such file or directory\n", dir_arg->filename[i]);
-            continue;
-        }
+    if (list_dir_contents) {
+        /* Normal mode: open each directory and list its contents */
+        for (int i = 0; i < dir_arg->count; i++) {
+            DIR* dir = opendir(dir_arg->filename[i]);
+            if (dir == NULL) {
+                (void)fprintf(stderr, "ls: %s: No such file or directory\n", dir_arg->filename[i]);
+                continue;
+            }
 
-        struct dirent* entry;
+            struct dirent* entry;
+            GList* files = NULL;
+
+            while ((entry = readdir(dir)) != NULL) {
+                if (!show_all && entry->d_name[0] == '.') {
+                    if (!show_almost_all) {
+                        continue;
+                    }
+                    if (strcmp(entry->d_name, ".") == 0 ||
+                        strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                    }
+                }
+                if (ignore_backups) {
+                    size_t dlen = strlen(entry->d_name);
+                    if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
+                        continue;
+                    }
+                }
+                files = g_list_append(files, g_strdup(entry->d_name));
+            }
+
+            sort_and_output_files(files, show_details, show_author,
+                                  escape_mode, color_mode,
+                                  block_size, size_suffix,
+                                  show_columns);
+            closedir(dir);
+        }
+    } else {
+        /* -d mode: list the directory entries themselves, not their contents */
         GList* files = NULL;
-
-        while ((entry = readdir(dir)) != NULL) {
-            if (!show_all && entry->d_name[0] == '.') {
-                if (!show_almost_all) {
-                    continue;
-                }
-                if (strcmp(entry->d_name, ".") == 0 ||
-                    strcmp(entry->d_name, "..") == 0) {
-                    continue;
-                }
+        for (int i = 0; i < dir_arg->count; i++) {
+            struct stat st;
+            if (lstat(dir_arg->filename[i], &st) == -1) {
+                (void)fprintf(stderr,
+                              "ls: cannot access '%s': No such file or directory\n",
+                              dir_arg->filename[i]);
+                continue;
             }
-            if (ignore_backups) {
-                size_t dlen = strlen(entry->d_name);
-                if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
-                    continue;
-                }
-            }
-            files = g_list_append(files, g_strdup(entry->d_name));
+            files = g_list_append(files, g_strdup(dir_arg->filename[i]));
         }
 
-        files = g_list_sort(files, (GCompareFunc)strcmp);
-
-        GList* iter = files;
-        if (show_columns) {
-            print_columns(files, escape_mode, color_mode);
-            while (iter != NULL) {
-                g_free(iter->data);
-                iter = iter->next;
-            }
-        } else {
-            while (iter != NULL) {
-                print_file_info((const char*)iter->data, show_details, show_author,
-                                escape_mode, color_mode, block_size, size_suffix);
-                g_free(iter->data);
-                iter = iter->next;
-            }
-
-            if (!show_details) {
-                printf("\n");
-            }
-        }
-
-        g_list_free(files);
-        closedir(dir);
+        sort_and_output_files(files, show_details, show_author,
+                              escape_mode, color_mode,
+                              block_size, size_suffix,
+                              show_columns || !show_details);
     }
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
