@@ -1,30 +1,47 @@
 #include <argtable3.h>
+#include <errno.h>
 #include <glib.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define MAX_PATH_LEN 4096
+
 /**
- * do_link - Create a hard link from src to dst
- * @src: path to existing source file
+ * do_link - Create a hard link or symbolic link from src to dst
+ * @src: path to source file (for symlinks, need not exist)
  * @dst: path to destination link
  * @is_force: if set, remove dst before linking (when possible)
+ * @is_sym: if set, create a symbolic link instead of a hard link
  *
  * Returns: 0 on success, -1 on error
  */
-static int do_link(const char* src, const char* dst, int is_force) {
-    if (is_force && (access(dst, F_OK) == 0)) {
-        if (unlink(dst) != 0) {
+static int do_link(const char* src, const char* dst, int is_force, int is_sym) {
+    if (is_force) {
+        /* Attempt to remove any existing destination; ignore ENOENT */
+        // NOLINTNEXTLINE(misc-include-cleaner)
+        if (unlink(dst) != 0 && errno != ENOENT) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "ln: failed to remove '%s'\n", dst);
             return -1;
         }
     }
 
-    if (link(src, dst) != 0) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "ln: failed to create link '%s' -> '%s'\n", dst, src);
-        return -1;
+    if (is_sym) {
+        if (symlink(src, dst) != 0) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "ln: failed to create symbolic link '%s' -> '%s': %s\n",
+                          dst, src, strerror(errno));
+            return -1;
+        }
+    } else {
+        if (link(src, dst) != 0) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "ln: failed to create link '%s' -> '%s': %s\n",
+                          dst, src, strerror(errno));
+            return -1;
+        }
     }
 
     return 0;
@@ -36,13 +53,15 @@ void ln_command(gint argc, gchar** argv) {
         arg_lit0("v", "verbose", "explain what is being done");
     struct arg_lit* force_opt =
         arg_lit0("f", "force", "remove existing destination files");
+    struct arg_lit* symbolic_opt =
+        arg_lit0("s", "symbolic", "make symbolic links instead of hard links");
     struct arg_file* src_arg =
         arg_file1(NULL, NULL, "SOURCE", "source file to link to");
     struct arg_file* dst_arg =
         arg_filen(NULL, NULL, "DEST", 1, 1, "destination file or directory");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {verbose_opt, force_opt, src_arg, dst_arg, end};
+    void* argtable[] = {verbose_opt, force_opt, symbolic_opt, src_arg, dst_arg, end};
 
     int nerrors = arg_parse(argc, argv, argtable);
 
@@ -54,26 +73,29 @@ void ln_command(gint argc, gchar** argv) {
 
     int is_verbose = (verbose_opt->count > 0);
     int is_force = (force_opt->count > 0);
+    int is_sym = (symbolic_opt->count > 0);
     const char* src = src_arg->filename[0];
     const char* dst = dst_arg->filename[0];
 
-    /* Check that source exists and is a regular file */
-    struct stat src_stat;
-    if (stat(src, &src_stat) != 0) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "ln: %s: No such file or directory\n", src);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
-    }
-    if (!S_ISREG(src_stat.st_mode)) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "ln: %s: Is not a regular file\n", src);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+    /* For hard links, source must exist and be a regular file */
+    if (!is_sym) {
+        struct stat src_stat;
+        if (stat(src, &src_stat) != 0) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "ln: %s: No such file or directory\n", src);
+            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+            return;
+        }
+        if (!S_ISREG(src_stat.st_mode)) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "ln: %s: Is not a regular file\n", src);
+            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+            return;
+        }
     }
 
     /* Determine the actual destination path */
-    gchar dest_path[4096];
+    gchar dest_path[MAX_PATH_LEN];
     struct stat dst_stat;
     if (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode)) {
         /* Destination is an existing directory: create link with source's basename inside */
@@ -87,7 +109,7 @@ void ln_command(gint argc, gchar** argv) {
         (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
     }
 
-    if (do_link(src, dest_path, is_force) == 0) {
+    if (do_link(src, dest_path, is_force, is_sym) == 0) {
         if (is_verbose) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)printf("'%s' -> '%s'\n", dest_path, src);

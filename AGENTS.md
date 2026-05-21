@@ -103,8 +103,10 @@ set `-DENABLE_CLANG_TIDY=ON` when running CMake (default: OFF)
 ### ln Command Options
 
 - `-f`, `--force` — remove existing destination file before linking
+- `-s`, `--symbolic` — make symbolic links instead of hard links
 - `-v`, `--verbose` — explain what is being done
-- First argument must be an existing regular file
+- For hard links (default): first argument must be an existing regular file
+- For symbolic links (`-s`): first argument can be any path (need not exist)
 - Second argument: if it's an existing directory, creates a link with the source's basename inside that directory; otherwise creates a link at the given path
 
 ### cat Command Options
