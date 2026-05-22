@@ -306,6 +306,50 @@ assert_cmd_pat_stderr "No such file" cp "$TMPDIR"/nonexistent "$TMPDIR"/dest
 echo "  ── error: dir without -r ──"
 assert_cmd_pat_stderr "not a regular" cp "$TMPDIR"/cp_src_dir "$TMPDIR"/cp_no_r
 
+echo "  ── -n : no-clobber skips existing destination ──"
+echo "keep me" > "$TMPDIR"/cp_n_dst.txt
+echo "overwrite" > "$TMPDIR"/cp_n_src.txt
+"$MODBOX" cp -n "$TMPDIR"/cp_n_src.txt "$TMPDIR"/cp_n_dst.txt 2>/dev/null || true
+assert_cmd "keep me" cat "$TMPDIR"/cp_n_dst.txt
+
+echo "  ── -n : no-clobber copies when destination doesn't exist ──"
+echo "new file" > "$TMPDIR"/cp_n_new_src.txt
+"$MODBOX" cp -n "$TMPDIR"/cp_n_new_src.txt "$TMPDIR"/cp_n_new_dst.txt 2>/dev/null || true
+assert_cmd "new file" cat "$TMPDIR"/cp_n_new_dst.txt
+
+echo "  ── -n -r : recursive no-clobber ──"
+mkdir -p "$TMPDIR"/cp_nr_src/sub "$TMPDIR"/cp_nr_dst/sub
+echo "keep" > "$TMPDIR"/cp_nr_dst/sub/existing.txt
+echo "overwrite" > "$TMPDIR"/cp_nr_src/sub/existing.txt
+echo "fresh" > "$TMPDIR"/cp_nr_src/sub/fresh.txt
+"$MODBOX" cp -n -r "$TMPDIR"/cp_nr_src/sub "$TMPDIR"/cp_nr_dst/ 2>/dev/null || true
+assert_cmd "keep" cat "$TMPDIR"/cp_nr_dst/sub/existing.txt
+assert_cmd "fresh" cat "$TMPDIR"/cp_nr_dst/sub/fresh.txt
+
+echo "  ── -f : force overwrites read-only destination ──"
+echo "foriginal" > "$TMPDIR"/cp_f_src.txt
+echo "freadonly" > "$TMPDIR"/cp_f_dst.txt
+chmod 444 "$TMPDIR"/cp_f_dst.txt
+"$MODBOX" cp -f "$TMPDIR"/cp_f_src.txt "$TMPDIR"/cp_f_dst.txt 2>/dev/null || true
+assert_cmd "foriginal" cat "$TMPDIR"/cp_f_dst.txt
+chmod 644 "$TMPDIR"/cp_f_dst.txt 2>/dev/null || true
+
+echo "  ── -f : force on writable file still works ──"
+echo "old" > "$TMPDIR"/cp_fw_dst.txt
+"$MODBOX" cp -f "$TMPDIR"/cp_src.txt "$TMPDIR"/cp_fw_dst.txt 2>/dev/null || true
+assert_cmd "source content" cat "$TMPDIR"/cp_fw_dst.txt
+
+echo "  ── -f : force works when destination doesn't exist ──"
+echo "fresh target" > "$TMPDIR"/cp_f_new_src.txt
+"$MODBOX" cp -f "$TMPDIR"/cp_f_new_src.txt "$TMPDIR"/cp_f_new_dst.txt 2>/dev/null || true
+assert_cmd "fresh target" cat "$TMPDIR"/cp_f_new_dst.txt
+
+echo "  ── -n overrides -f ──"
+echo "noforce" > "$TMPDIR"/cp_nf_dst.txt
+echo "should not appear" > "$TMPDIR"/cp_nf_src.txt
+"$MODBOX" cp -f -n "$TMPDIR"/cp_nf_src.txt "$TMPDIR"/cp_nf_dst.txt 2>/dev/null || true
+assert_cmd "noforce" cat "$TMPDIR"/cp_nf_dst.txt
+
 echo "  ── error: missing destination ──"
 err=$("$MODBOX" cp "$TMPDIR"/cp_src.txt 2>&1 || true)
 if echo "$err" | grep -qiE "missing|expected|requires a value"; then
