@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "commands/cp.h"
+
 /* Buffer size for file copy operations */
 #define COPY_BUF_SIZE 8192
 
@@ -25,17 +27,17 @@
  *
  * Returns: 0 on success, -1 on error
  */
-static int copy_file(const char *src, const char *dst, int is_verbose,
-                     int is_force, int is_no_clobber) {
+static int copy_file(const char *src, const char *dst,
+                     const CpOptions *opts) {
   /* no-clobber: skip if destination already exists */
-  if (is_no_clobber) {
+  if (opts->is_no_clobber) {
     struct stat st;
     if (stat(dst, &st) == 0) {
       return 0;
     }
   }
 
-  if (is_verbose) {
+  if (opts->is_verbose) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)printf("'%s' -> '%s'\n", src, dst);
   }
@@ -49,7 +51,7 @@ static int copy_file(const char *src, const char *dst, int is_verbose,
 
   FILE *fdst = fopen(dst, "wb");
   /* force: if open fails, unlink and retry */
-  if (fdst == NULL && is_force) {
+  if (fdst == NULL && opts->is_force) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)unlink(dst);
     fdst = fopen(dst, "wb");
@@ -104,8 +106,8 @@ static int copy_file(const char *src, const char *dst, int is_verbose,
  * Returns: 0 on success, -1 on error
  */
 // NOLINTNEXTLINE(misc-no-recursion)
-static int copy_recursive(const char *src, const char *dst, int is_verbose,
-                          int is_force, int is_no_clobber) {
+static int copy_recursive(const char *src, const char *dst,
+                          const CpOptions *opts) {
   struct stat src_stat;
   if (stat(src, &src_stat) != 0) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -115,7 +117,7 @@ static int copy_recursive(const char *src, const char *dst, int is_verbose,
 
   /* Regular file: copy directly */
   if (S_ISREG(src_stat.st_mode)) {
-    return copy_file(src, dst, is_verbose, is_force, is_no_clobber);
+    return copy_file(src, dst, opts);
   }
 
   /* Directory: create destination and recurse */
@@ -137,7 +139,7 @@ static int copy_recursive(const char *src, const char *dst, int is_verbose,
         (void)fprintf(stderr, "cp: %s: Cannot create directory\n", dst);
         return -1;
       }
-      if (is_verbose) {
+      if (opts->is_verbose) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)printf("'%s' -> '%s'\n", src, dst);
       }
@@ -165,8 +167,7 @@ static int copy_recursive(const char *src, const char *dst, int is_verbose,
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, entry->d_name);
 
-      if (copy_recursive(src_path, dst_path, is_verbose, is_force,
-                         is_no_clobber) != 0) {
+      if (copy_recursive(src_path, dst_path, opts) != 0) {
         ret = -1;
       }
     }
@@ -209,13 +210,15 @@ void cp_command(gint argc, gchar **argv) {
     return;
   }
 
-  int is_recursive = (recursive_opt->count > 0);
-  int is_verbose = (verbose_opt->count > 0);
-  int is_force = (force_opt->count > 0);
-  int is_no_clobber = (no_clobber_opt->count > 0);
+  CpOptions opts = {0};
+
+  opts.is_recursive = (recursive_opt->count > 0);
+  opts.is_verbose = (verbose_opt->count > 0);
+  opts.is_force = (force_opt->count > 0);
+  opts.is_no_clobber = (no_clobber_opt->count > 0);
   /* no-clobber overrides force */
-  if (is_no_clobber) {
-    is_force = 0;
+  if (opts.is_no_clobber) {
+    opts.is_force = 0;
   }
   int num_files = files_arg->count;
 
@@ -231,7 +234,7 @@ void cp_command(gint argc, gchar **argv) {
   int num_srcs = num_files - 1;
   int ret = 0;
 
-  if (!is_recursive) {
+  if (!opts.is_recursive) {
     /* Non-recursive mode: only regular files, single source */
     if (num_srcs != 1) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -273,7 +276,7 @@ void cp_command(gint argc, gchar **argv) {
       (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
     }
 
-    if (copy_file(src, dest_path, is_verbose, is_force, is_no_clobber) != 0) {
+    if (copy_file(src, dest_path, &opts) != 0) {
       ret = -1;
     }
   } else {
@@ -311,8 +314,7 @@ void cp_command(gint argc, gchar **argv) {
         (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
       }
 
-      if (copy_recursive(src, dest_path, is_verbose, is_force, is_no_clobber) !=
-          0) {
+      if (copy_recursive(src, dest_path, &opts) != 0) {
         ret = -1;
       }
     }

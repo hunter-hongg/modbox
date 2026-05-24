@@ -3,6 +3,12 @@
 
 #include <glib.h>
 
+typedef struct {
+    int is_verbose;
+    int is_force;
+    int is_sym;
+} LnOptions;
+
 void ln_command(gint argc, gchar** argv);
 
 #endif

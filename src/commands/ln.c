@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "commands/ln.h"
+
 #define MAX_PATH_LEN 4096
 
 /**
@@ -17,8 +19,8 @@
  *
  * Returns: 0 on success, -1 on error
  */
-static int do_link(const char* src, const char* dst, int is_force, int is_sym) {
-    if (is_force) {
+static int do_link(const char* src, const char* dst, const LnOptions* opts) {
+    if (opts->is_force) {
         /* Attempt to remove any existing destination; ignore ENOENT */
         // NOLINTNEXTLINE(misc-include-cleaner)
         if (unlink(dst) != 0 && errno != ENOENT) {
@@ -28,7 +30,7 @@ static int do_link(const char* src, const char* dst, int is_force, int is_sym) {
         }
     }
 
-    if (is_sym) {
+    if (opts->is_sym) {
         if (symlink(src, dst) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "ln: failed to create symbolic link '%s' -> '%s': %s\n",
@@ -71,14 +73,16 @@ void ln_command(gint argc, gchar** argv) {
         return;
     }
 
-    int is_verbose = (verbose_opt->count > 0);
-    int is_force = (force_opt->count > 0);
-    int is_sym = (symbolic_opt->count > 0);
+    LnOptions opts = {0};
+
+    opts.is_verbose = (verbose_opt->count > 0);
+    opts.is_force = (force_opt->count > 0);
+    opts.is_sym = (symbolic_opt->count > 0);
     const char* src = src_arg->filename[0];
     const char* dst = dst_arg->filename[0];
 
     /* For hard links, source must exist and be a regular file */
-    if (!is_sym) {
+    if (!opts.is_sym) {
         struct stat src_stat;
         if (stat(src, &src_stat) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -109,8 +113,8 @@ void ln_command(gint argc, gchar** argv) {
         (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
     }
 
-    if (do_link(src, dest_path, is_force, is_sym) == 0) {
-        if (is_verbose) {
+    if (do_link(src, dest_path, &opts) == 0) {
+        if (opts.is_verbose) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)printf("'%s' -> '%s'\n", dest_path, src);
         }

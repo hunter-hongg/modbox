@@ -23,8 +23,6 @@
 /* Default terminal width when neither ioctl nor COLUMNS env is available */
 #define DEFAULT_TERMINAL_WIDTH 80
 
-typedef enum { COLOR_NEVER, COLOR_ALWAYS, COLOR_AUTO } color_mode_t;
-
 static int should_color(color_mode_t mode) {
   switch (mode) {
   case COLOR_ALWAYS:
@@ -69,17 +67,14 @@ static void print_escaped_filename(const char *filename) {
   }
 }
 
-static void print_file_info(const char *filename, int show_details,
-                            int show_author, int escape_mode,
-                            color_mode_t color_mode, unsigned long block_size,
-                            char size_suffix) {
-  int use_color = should_color(color_mode);
+static void print_file_info(const char *filename, const LsOptions *opts) {
+  int use_color = should_color(opts->color_mode);
 
   /* Extract the display name (basename) from the full path */
   const char *display_name = display_name_of(filename);
 
-  if (!show_details && !use_color) {
-    if (escape_mode) {
+  if (!opts->show_details && !use_color) {
+    if (opts->escape_mode) {
       print_escaped_filename(display_name);
     } else {
       printf("%s", display_name);
@@ -90,8 +85,8 @@ static void print_file_info(const char *filename, int show_details,
 
   struct stat st;
   if (lstat(filename, &st) == -1) {
-    if (!show_details) {
-      if (escape_mode) {
+    if (!opts->show_details) {
+      if (opts->escape_mode) {
         print_escaped_filename(display_name);
       } else {
         printf("%s", display_name);
@@ -107,11 +102,11 @@ static void print_file_info(const char *filename, int show_details,
     use_color = (color_code != NULL);
   }
 
-  if (!show_details) {
+  if (!opts->show_details) {
     if (use_color) {
       printf("\033[%sm", color_code);
     }
-    if (escape_mode) {
+    if (opts->escape_mode) {
       print_escaped_filename(display_name);
     } else {
       printf("%s", display_name);
@@ -134,7 +129,7 @@ static void print_file_info(const char *filename, int show_details,
 
   struct passwd *pwd = getpwuid(st.st_uid);
   struct group *grp = getgrgid(st.st_gid);
-  if (show_author) {
+  if (opts->show_author) {
     printf("%s %s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-",
            grp ? grp->gr_name : "-");
   } else {
@@ -142,12 +137,12 @@ static void print_file_info(const char *filename, int show_details,
   }
 
   unsigned long display_size =
-      block_size > 0
-          ? (unsigned long)((st.st_size + ((off_t)block_size / 2))
-                            / (off_t)block_size)
+      opts->block_size > 0
+          ? (unsigned long)((st.st_size + ((off_t)opts->block_size / 2))
+                            / (off_t)opts->block_size)
           : (unsigned long)st.st_size;
-  if (size_suffix != '\0') {
-    printf("%7lu%c ", display_size, size_suffix);
+  if (opts->size_suffix != '\0') {
+    printf("%7lu%c ", display_size, opts->size_suffix);
   } else {
     printf("%8lu ", display_size);
   }
@@ -161,7 +156,7 @@ static void print_file_info(const char *filename, int show_details,
   if (use_color) {
     printf("\033[%sm", color_code);
   }
-  if (escape_mode) {
+  if (opts->escape_mode) {
     print_escaped_filename(display_name);
   } else {
     printf("%s", display_name);
@@ -270,9 +265,8 @@ static int plain_display_width(const char *s) { return (int)strlen(s); }
  *  The list is assumed to already be sorted.  Terminal width is detected
  *  via ioctl / $COLUMNS / default 80.
  */
-static void print_columns(GList *files, int escape_mode,
-                          color_mode_t color_mode) {
-  int use_color = should_color(color_mode);
+static void print_columns(GList *files, const LsOptions *opts) {
+  int use_color = should_color(opts->color_mode);
   int term_width = get_terminal_width();
   int count = (int)g_list_length(files);
 
@@ -284,8 +278,8 @@ static void print_columns(GList *files, int escape_mode,
   int max_width = 0;
   for (GList *iter = files; iter != NULL; iter = iter->next) {
     const char *display_name = display_name_of((const char *)iter->data);
-    int w = escape_mode ? escaped_display_width(display_name)
-                        : plain_display_width(display_name);
+    int w = opts->escape_mode ? escaped_display_width(display_name)
+                              : plain_display_width(display_name);
     if (w > max_width) {
       max_width = w;
     }
@@ -326,8 +320,8 @@ static void print_columns(GList *files, int escape_mode,
       const char *name = names[index];
       const char *display_name = display_name_of(name);
       int name_display_w =
-          escape_mode ? escaped_display_width(display_name)
-                      : plain_display_width(display_name);
+          opts->escape_mode ? escaped_display_width(display_name)
+                            : plain_display_width(display_name);
 
       /* Determine color if needed (use full path for lstat) */
       const char *color_code = NULL;
@@ -341,7 +335,7 @@ static void print_columns(GList *files, int escape_mode,
       if (color_code != NULL) {
         printf("\033[%sm", color_code);
       }
-      if (escape_mode) {
+      if (opts->escape_mode) {
         print_escaped_filename(display_name);
       } else {
         printf("%s", display_name);
@@ -374,25 +368,20 @@ static void print_columns(GList *files, int escape_mode,
  * The caller should not reference @a files (or its elements) after this call
  * — ownership is transferred.
  */
-static void sort_and_output_files(GList *files, int show_details,
-                                  int show_author, int escape_mode,
-                                  color_mode_t color_mode,
-                                  unsigned long block_size, char size_suffix,
-                                  int use_columns) {
+static void sort_and_output_files(GList *files, const LsOptions *opts) {
   if (files == NULL) {
     return;
   }
 
   files = g_list_sort(files, (GCompareFunc)strcmp);
 
-  if (use_columns) {
-    print_columns(files, escape_mode, color_mode);
+  if (opts->show_columns) {
+    print_columns(files, opts);
   } else {
     for (GList *iter = files; iter != NULL; iter = iter->next) {
-      print_file_info((const char *)iter->data, show_details, show_author,
-                      escape_mode, color_mode, block_size, size_suffix);
+      print_file_info((const char *)iter->data, opts);
     }
-    if (!show_details) {
+    if (!opts->show_details) {
       printf("\n");
     }
   }
@@ -405,15 +394,9 @@ static void sort_and_output_files(GList *files, int show_details,
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void ls_command(gint argc, gchar **argv) {
-  int show_all = 0;
-  int show_almost_all = 0;
-  int show_details = 0;
-  int show_author = 0;
-  int escape_mode = 0;
-  int ignore_backups = 0;
-  int list_dir_contents =
-      1; /* 1 = list contents of dirs; 0 = list dirs themselves */
-  color_mode_t color_mode = COLOR_NEVER;
+  LsOptions opts = {0};
+  opts.list_dir_contents = 1; /* default: list directory contents */
+  opts.color_mode = COLOR_NEVER;
 
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--color") == 0) {
@@ -468,25 +451,25 @@ void ls_command(gint argc, gchar **argv) {
     return;
   }
 
-  int show_columns = (columns_opt->count > 0) && (!show_details);
-  show_all = (all_opt->count > 0) && (!show_almost_all); // -A overrides -a
-  show_almost_all = (almost_all_opt->count > 0);
-  show_details = (long_opt->count > 0);
-  show_author = (author_opt->count > 0);
-  escape_mode = (escape_opt->count > 0);
-  ignore_backups = (ignore_backups_opt->count > 0);
+  opts.show_almost_all = (almost_all_opt->count > 0);
+  opts.show_all = (all_opt->count > 0) && (!opts.show_almost_all); // -A overrides -a
+  opts.show_details = (long_opt->count > 0);
+  opts.show_columns = (columns_opt->count > 0) && (!opts.show_details);
+  opts.show_author = (author_opt->count > 0);
+  opts.escape_mode = (escape_opt->count > 0);
+  opts.ignore_backups = (ignore_backups_opt->count > 0);
   if (directory_opt->count > 0) {
-    list_dir_contents = 0;
+    opts.list_dir_contents = 0;
   }
 
   if (color_opt->count > 0) {
     const char *val = color_opt->sval[0];
     if (strcmp(val, "always") == 0) {
-      color_mode = COLOR_ALWAYS;
+      opts.color_mode = COLOR_ALWAYS;
     } else if (strcmp(val, "auto") == 0) {
-      color_mode = COLOR_AUTO;
+      opts.color_mode = COLOR_AUTO;
     } else if (strcmp(val, "never") == 0) {
-      color_mode = COLOR_NEVER;
+      opts.color_mode = COLOR_NEVER;
     } else {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr,
@@ -496,21 +479,18 @@ void ls_command(gint argc, gchar **argv) {
     }
   }
 
-  unsigned long block_size = 0;
-  char size_suffix = '\0';
-
   if (block_size_opt->count > 0) {
-    block_size = parse_block_size(block_size_opt->sval[0]);
+    opts.block_size = parse_block_size(block_size_opt->sval[0]);
     /* Extract the trailing suffix character for display (e.g. "K" from "1K") */
     const char *bs_str = block_size_opt->sval[0];
     size_t bs_len = strlen(bs_str);
     for (size_t j = bs_len; j > 0; j--) {
       if ((bs_str[j - 1] >= 'A' && bs_str[j - 1] <= 'Z') ||
           (bs_str[j - 1] >= 'a' && bs_str[j - 1] <= 'z')) {
-        size_suffix = bs_str[j - 1];
+        opts.size_suffix = bs_str[j - 1];
         /* Convert to uppercase for consistent display */
-        if (size_suffix >= 'a' && size_suffix <= 'z') {
-          size_suffix -= 32;
+        if (opts.size_suffix >= 'a' && opts.size_suffix <= 'z') {
+          opts.size_suffix -= 32;
         }
         break;
       }
@@ -522,7 +502,7 @@ void ls_command(gint argc, gchar **argv) {
     dir_arg->filename[0] = ".";
   }
 
-  if (list_dir_contents) {
+  if (opts.list_dir_contents) {
     /* Normal mode: open each directory and list its contents */
     for (int i = 0; i < dir_arg->count; i++) {
       DIR *dir = opendir(dir_arg->filename[i]);
@@ -537,8 +517,8 @@ void ls_command(gint argc, gchar **argv) {
       GList *files = NULL;
 
       while ((entry = readdir(dir)) != NULL) {
-        if (!show_all && entry->d_name[0] == '.') {
-          if (!show_almost_all) {
+        if (!opts.show_all && entry->d_name[0] == '.') {
+          if (!opts.show_almost_all) {
             continue;
           }
           if (strcmp(entry->d_name, ".") == 0 ||
@@ -546,7 +526,7 @@ void ls_command(gint argc, gchar **argv) {
             continue;
           }
         }
-        if (ignore_backups) {
+        if (opts.ignore_backups) {
           size_t dlen = strlen(entry->d_name);
           if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
             continue;
@@ -561,8 +541,7 @@ void ls_command(gint argc, gchar **argv) {
         files = g_list_append(files, g_strdup(full_path));
       }
 
-      sort_and_output_files(files, show_details, show_author, escape_mode,
-                            color_mode, block_size, size_suffix, show_columns);
+      sort_and_output_files(files, &opts);
       closedir(dir);
     }
   } else {
@@ -580,9 +559,8 @@ void ls_command(gint argc, gchar **argv) {
       files = g_list_append(files, g_strdup(dir_arg->filename[i]));
     }
 
-    sort_and_output_files(files, show_details, show_author, escape_mode,
-                          color_mode, block_size, size_suffix,
-                          show_columns || !show_details);
+    opts.show_columns = opts.show_columns || !opts.show_details;
+    sort_and_output_files(files, &opts);
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));

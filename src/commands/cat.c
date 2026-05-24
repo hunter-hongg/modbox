@@ -3,6 +3,8 @@
 #include <glib.h>
 #include <argtable3.h>
 
+#include "commands/cat.h"
+
 /* Named constants for character ranges used by output_char_visual */
 #define ASCII_DEL          127
 #define ASCII_128          128
@@ -50,7 +52,7 @@ static void output_char_visual(unsigned char c, int show_tabs, int show_nonprint
     putchar(c);
 }
 
-static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show_nonempty_line_numbers, int show_ends, int squeeze_blank, int show_tabs, int show_nonprinting) {
+static int process_file(FILE* fp, int* line_num, const CatOptions* opts) {
     char buf[1024];
     int has_newline = 1;
     int prev_blank = 0;
@@ -59,15 +61,15 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
         has_newline = (len > 0 && buf[len - 1] == '\n');
         int blank = is_blank_line(buf);
 
-        if (squeeze_blank && blank && prev_blank) {
+        if (opts->squeeze_blank && blank && prev_blank) {
             continue;
         }
         prev_blank = blank;
 
         int should_number = 0;
-        if (show_line_numbers) {
+        if (opts->show_line_numbers) {
             should_number = 1;
-        } else if (show_nonempty_line_numbers) {
+        } else if (opts->show_nonempty_line_numbers) {
             should_number = !blank;
         }
 
@@ -75,13 +77,13 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
             printf("%6d  ", (*line_num)++);
         }
 
-        if (show_nonprinting) {
+        if (opts->show_nonprinting) {
             size_t content_len = has_newline ? len - 1 : len;
             for (size_t j = 0; j < content_len; j++) {
-                output_char_visual((unsigned char)buf[j], show_tabs, 1);
+                output_char_visual((unsigned char)buf[j], opts->show_tabs, 1);
             }
             if (has_newline) {
-                if (show_ends) {
+                if (opts->show_ends) {
                     printf("$\n");
                 } else {
                     printf("\n");
@@ -89,7 +91,7 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
             }
         } else {
             int tab_processed = 0;
-            if (show_tabs) {
+            if (opts->show_tabs) {
                 for (size_t j = 0; j < len; j++) {
                     if (buf[j] == '\t') {
                         printf("^I");
@@ -100,7 +102,7 @@ static int process_file(FILE* fp, int* line_num, int show_line_numbers, int show
                 tab_processed = 1;
             }
 
-            if (show_ends && has_newline && !tab_processed) {
+            if (opts->show_ends && has_newline && !tab_processed) {
                 buf[len - 1] = '$';
                 printf("%s\n", buf);
             } else if (!tab_processed) {
@@ -147,12 +149,7 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
 
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void cat_command(gint argc, gchar** argv) {
-    int show_line_numbers = 0;
-    int show_nonempty_line_numbers = 0;
-    int show_ends = 0;
-    int squeeze_blank = 0;
-    int show_tabs = 0;
-    int show_nonprinting = 0;
+    CatOptions opts = {0};
 
     int orig_argc = argc;
     gchar** my_argv = expand_short_options(&argc, argv);
@@ -201,40 +198,40 @@ void cat_command(gint argc, gchar** argv) {
         goto cleanup;
     }
 
-    show_line_numbers = (number_opt->count > 0);
-    show_nonempty_line_numbers = (nonempty_number_opt->count > 0);
-    show_ends = (show_ends_opt->count > 0);
-    show_tabs = (show_tabs_opt->count > 0);
-    squeeze_blank = (squeeze_blank_opt->count > 0);
-    show_nonprinting = (show_nonprinting_opt->count > 0);
+    opts.show_line_numbers = (number_opt->count > 0);
+    opts.show_nonempty_line_numbers = (nonempty_number_opt->count > 0);
+    opts.show_ends = (show_ends_opt->count > 0);
+    opts.show_tabs = (show_tabs_opt->count > 0);
+    opts.squeeze_blank = (squeeze_blank_opt->count > 0);
+    opts.show_nonprinting = (show_nonprinting_opt->count > 0);
 
     // -A (--show-all) is equivalent to -vET
     if (show_all_opt->count > 0) {
-        show_nonprinting = 1;
-        show_ends = 1;
-        show_tabs = 1;
+        opts.show_nonprinting = 1;
+        opts.show_ends = 1;
+        opts.show_tabs = 1;
     }
 
     // -e is equivalent to -vE
     if (show_nonprinting_and_ends_opt->count > 0) {
-        show_nonprinting = 1;
-        show_ends = 1;
+        opts.show_nonprinting = 1;
+        opts.show_ends = 1;
     }
 
     // -t is equivalent to -vT
     if (show_tabs_and_nonprinting_opt->count > 0) {
-        show_nonprinting = 1;
-        show_tabs = 1;
+        opts.show_nonprinting = 1;
+        opts.show_tabs = 1;
     }
 
     // According to POSIX, -b overrides -n
-    if (show_nonempty_line_numbers) {
-        show_line_numbers = 0;
+    if (opts.show_nonempty_line_numbers) {
+        opts.show_line_numbers = 0;
     }
 
     int line_num = 1;
     if (file_arg->count == 0) {
-        process_file(stdin, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank, show_tabs, show_nonprinting);
+        process_file(stdin, &line_num, &opts);
     } else {
         int prev_file_had_newline = 1; // Assume newline present before first file
         for (int i = 0; i < file_arg->count; i++) {
@@ -253,7 +250,7 @@ void cat_command(gint argc, gchar** argv) {
             if (i > 0 && !prev_file_had_newline) {
                 printf("\n");
             }
-            prev_file_had_newline = process_file(fp, &line_num, show_line_numbers, show_nonempty_line_numbers, show_ends, squeeze_blank, show_tabs, show_nonprinting);
+            prev_file_had_newline = process_file(fp, &line_num, &opts);
             // NOLINTNEXTLINE(bugprone-unused-return-value)
             (void)fclose(fp);
         }
