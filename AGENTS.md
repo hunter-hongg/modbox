@@ -34,6 +34,39 @@
 - Uses argtable3 for argument parsing (see `src/commands/cat.c`)
 - Command lookup via GHashTable in `src/main.c`
 
+### Code Convention: 结构体传参
+
+禁止在函数签名中堆砌多个 `int` 布尔标志或零散参数。所有配置类参数必须用结构体打包传递。
+
+**定义模式**（头文件中）：
+
+```c
+typedef struct {
+    int flag_a;
+    int flag_b;
+    unsigned long block_size;
+    // ... 更多字段
+} XxxOptions;
+```
+
+**使用模式**（入口函数中初始化，然后通过 `const XxxOptions*` 单向传递）：
+
+```c
+XxxOptions opts = {0};           // 零初始化
+opts.flag_a = (arg_opt->count > 0);  // 从 argtable3 解析结果赋值
+// ...
+
+some_helper(src, dst, &opts);    // 传指针，不传一堆布尔值
+```
+
+**原则**：
+
+1. 存取值用 `.`，传递用 `const XxxOptions*`——保证只读，不修改配置
+2. 添加新选项只需加结构体字段，**不修改任何函数签名**
+3. 不同数据类型的参数（`int`、`enum`、`unsigned long`、`char`）统一装入结构体，避免顺序搞错
+
+**项目内参考**：`CpOptions`（`include/commands/cp.h`）、`CatOptions`（`include/commands/cat.h`）、`LsOptions`（`include/commands/ls.h`）。
+
 ### Dependencies
 
 - vcpkg (manages argtable3)
