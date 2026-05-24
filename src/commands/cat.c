@@ -196,7 +196,7 @@ void cat_command(gint argc, gchar** argv) {
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stdout, end, argv[0]);
+        arg_print_errors(stderr, end, argv[0]);
         arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         goto cleanup;
     }

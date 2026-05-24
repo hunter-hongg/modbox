@@ -66,7 +66,7 @@ void ln_command(gint argc, gchar** argv) {
     int nerrors = arg_parse(argc, argv, argtable);
 
     if (nerrors > 0) {
-        arg_print_errors(stdout, end, argv[0]);
+        arg_print_errors(stderr, end, argv[0]);
         arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         return;
     }

@@ -15,34 +15,27 @@
 /* Maximum number of file arguments (sources + dest) */
 #define MAX_FILES 101
 
-/* Shared options passed through the copy chain */
-struct cp_options {
-    int is_recursive;
-    int is_verbose;
-    int is_interactive;
-    int is_force;
-    int is_no_clobber;
-};
-
 /**
  * copy_file - Copy contents of src file to dst file
  * @src: path to source file
  * @dst: path to destination file
- * @opts: pointer to shared cp options (must not be NULL)
+ * @is_verbose: print progress messages if non-zero
+ * @is_force: remove existing destination file if non-zero
+ * @is_no_clobber: do not overwrite existing files if non-zero
  *
  * Returns: 0 on success, -1 on error
  */
-static int copy_file(const char *src, const char *dst,
-                     const struct cp_options *opts) {
+static int copy_file(const char *src, const char *dst, int is_verbose,
+                     int is_force, int is_no_clobber) {
   /* no-clobber: skip if destination already exists */
-  if (opts->is_no_clobber) {
+  if (is_no_clobber) {
     struct stat st;
     if (stat(dst, &st) == 0) {
       return 0;
     }
   }
 
-  if (opts->is_verbose) {
+  if (is_verbose) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)printf("'%s' -> '%s'\n", src, dst);
   }
@@ -56,7 +49,7 @@ static int copy_file(const char *src, const char *dst,
 
   FILE *fdst = fopen(dst, "wb");
   /* force: if open fails, unlink and retry */
-  if (fdst == NULL && opts->is_force) {
+  if (fdst == NULL && is_force) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)unlink(dst);
     fdst = fopen(dst, "wb");
@@ -71,6 +64,7 @@ static int copy_file(const char *src, const char *dst,
 
   char buf[COPY_BUF_SIZE];
   size_t nread;
+  // NOLINTNEXTLINE(clang-analyzer-unix.Stream)
   while ((nread = fread(buf, 1, sizeof(buf), fsrc)) > 0) {
     if (fwrite(buf, 1, nread, fdst) != nread) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -103,12 +97,15 @@ static int copy_file(const char *src, const char *dst,
  * copy_recursive - Recursively copy src to dst
  * @src: path to source file or directory
  * @dst: path to destination
- * @opts: pointer to shared cp options (must not be NULL)
+ * @is_verbose: print progress messages if non-zero
+ * @is_force: remove existing destination file if non-zero
+ * @is_no_clobber: do not overwrite existing files if non-zero
  *
  * Returns: 0 on success, -1 on error
  */
-static int copy_recursive(const char *src, const char *dst,
-                          const struct cp_options *opts) {
+// NOLINTNEXTLINE(misc-no-recursion)
+static int copy_recursive(const char *src, const char *dst, int is_verbose,
+                          int is_force, int is_no_clobber) {
   struct stat src_stat;
   if (stat(src, &src_stat) != 0) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -118,7 +115,7 @@ static int copy_recursive(const char *src, const char *dst,
 
   /* Regular file: copy directly */
   if (S_ISREG(src_stat.st_mode)) {
-    return copy_file(src, dst, opts);
+    return copy_file(src, dst, is_verbose, is_force, is_no_clobber);
   }
 
   /* Directory: create destination and recurse */
@@ -140,7 +137,7 @@ static int copy_recursive(const char *src, const char *dst,
         (void)fprintf(stderr, "cp: %s: Cannot create directory\n", dst);
         return -1;
       }
-      if (opts->is_verbose) {
+      if (is_verbose) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)printf("'%s' -> '%s'\n", src, dst);
       }
@@ -168,7 +165,8 @@ static int copy_recursive(const char *src, const char *dst,
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, entry->d_name);
 
-      if (copy_recursive(src_path, dst_path, opts) != 0) {
+      if (copy_recursive(src_path, dst_path, is_verbose, is_force,
+                         is_no_clobber) != 0) {
         ret = -1;
       }
     }
@@ -200,27 +198,24 @@ void cp_command(gint argc, gchar **argv) {
                 "source(s) followed by destination");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {recursive_opt, verbose_opt, force_opt, no_clobber_opt,
-                      files_arg, end};
+  void *argtable[] = {recursive_opt,  verbose_opt, force_opt,
+                      no_clobber_opt, files_arg,   end};
 
   int nerrors = arg_parse(argc, argv, argtable);
 
   if (nerrors > 0) {
-    arg_print_errors(stdout, end, argv[0]);
+    arg_print_errors(stderr, end, argv[0]);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     return;
   }
 
-  struct cp_options opts = {
-      .is_recursive = (recursive_opt->count > 0),
-      .is_verbose = (verbose_opt->count > 0),
-      .is_interactive = 0,
-      .is_force = (force_opt->count > 0),
-      .is_no_clobber = (no_clobber_opt->count > 0),
-  };
+  int is_recursive = (recursive_opt->count > 0);
+  int is_verbose = (verbose_opt->count > 0);
+  int is_force = (force_opt->count > 0);
+  int is_no_clobber = (no_clobber_opt->count > 0);
   /* no-clobber overrides force */
-  if (opts.is_no_clobber) {
-    opts.is_force = 0;
+  if (is_no_clobber) {
+    is_force = 0;
   }
   int num_files = files_arg->count;
 
@@ -236,7 +231,7 @@ void cp_command(gint argc, gchar **argv) {
   int num_srcs = num_files - 1;
   int ret = 0;
 
-  if (!opts.is_recursive) {
+  if (!is_recursive) {
     /* Non-recursive mode: only regular files, single source */
     if (num_srcs != 1) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -278,7 +273,7 @@ void cp_command(gint argc, gchar **argv) {
       (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
     }
 
-    if (copy_file(src, dest_path, &opts) != 0) {
+    if (copy_file(src, dest_path, is_verbose, is_force, is_no_clobber) != 0) {
       ret = -1;
     }
   } else {
@@ -316,7 +311,8 @@ void cp_command(gint argc, gchar **argv) {
         (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
       }
 
-      if (copy_recursive(src, dest_path, &opts) != 0) {
+      if (copy_recursive(src, dest_path, is_verbose, is_force, is_no_clobber) !=
+          0) {
         ret = -1;
       }
     }

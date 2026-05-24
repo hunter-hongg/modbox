@@ -14,15 +14,31 @@ typedef void (*command_t)(gint argc, gchar** argv);
 static void execute_command(gchar* command, gint argc, gchar** argv) {
     GHashTable* commands = g_hash_table_new(g_str_hash, g_str_equal);
 
-    g_hash_table_insert(commands, "help", help_command);
-    g_hash_table_insert(commands, "cat", cat_command);
-    g_hash_table_insert(commands, "ls", ls_command);
-    g_hash_table_insert(commands, "cp", cp_command);
-    g_hash_table_insert(commands, "ln", ln_command);
-    g_hash_table_insert(commands, "mv", mv_command);
+    /* GLib stores values as gpointer (void*). Since POSIX guarantees
+     * that function pointers and void* have the same representation,
+     * these casts are safe despite being technically non-portable to
+     * exotic architectures (e.g. Harvard).
+     *
+     * Alternatives considered:
+     * - Wrapping each command pointer in a struct allocated on the heap:
+     *   avoids the cast but adds allocation overhead and complicates cleanup.
+     * - Using a separate hash table per command or an if-else chain:
+     *   defeats the purpose of dynamic dispatch.
+     * - Disabling -Wpedantic globally: too broad a suppression.
+     * The current approach is the pragmatic trade-off: isolated warning
+     * suppression with a clear rationale. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+    g_hash_table_insert(commands, "help", (gpointer)help_command);
+    g_hash_table_insert(commands, "cat", (gpointer)cat_command);
+    g_hash_table_insert(commands, "ls", (gpointer)ls_command);
+    g_hash_table_insert(commands, "cp", (gpointer)cp_command);
+    g_hash_table_insert(commands, "ln", (gpointer)ln_command);
+    g_hash_table_insert(commands, "mv", (gpointer)mv_command);
 
     if (g_hash_table_contains(commands, command)) {
-        command_t cmd = g_hash_table_lookup(commands, command);
+        command_t cmd = (command_t)(void*)g_hash_table_lookup(commands, command);
+#pragma GCC diagnostic pop
         cmd(argc, argv);
     } else {
         gchar* runname = g_path_get_basename(argv[0]);
