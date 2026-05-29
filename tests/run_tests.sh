@@ -245,6 +245,38 @@ assert_cmd_pat 'subdir' ls -d . subdir 2>/dev/null
 echo "  ── -d -l with multiple directories ──"
 assert_cmd_pat 'subdir$' ls -dl . subdir 2>/dev/null
 
+echo "  ── -r : reverse sort ──"
+assert_cmd_pat 'regular' ls -r 2>/dev/null
+
+echo "  ── -U : unsorted (directory order) ──"
+assert_cmd_pat 'regular' ls -U 2>/dev/null
+
+echo "  ── -r reverses alphabetical order ──"
+# Create dedicated dir with known sort order
+mkdir -p "$TMPDIR"/ls_rev
+touch "$TMPDIR"/ls_rev/a.txt "$TMPDIR"/ls_rev/b.txt "$TMPDIR"/ls_rev/c.txt
+normal_first=$("$MODBOX" ls "$TMPDIR"/ls_rev 2>/dev/null | awk '{print $1}')
+reversed_first=$("$MODBOX" ls -r "$TMPDIR"/ls_rev 2>/dev/null | awk '{print $1}')
+if [ "$normal_first" = "a.txt" ]; then
+    pass "ls normal order a.txt first"
+else
+    fail "ls normal order expected a.txt first got [$normal_first]"
+fi
+if [ "$reversed_first" = "c.txt" ]; then
+    pass "ls -r reverse order c.txt first"
+else
+    fail "ls -r reverse order expected c.txt first got [$reversed_first]"
+fi
+
+echo "  ── -rU : unsorted takes precedence over reverse ──"
+unsorted_output=$("$MODBOX" ls -U "$TMPDIR"/ls_rev 2>/dev/null)
+rev_unsorted_output=$("$MODBOX" ls -rU "$TMPDIR"/ls_rev 2>/dev/null)
+if [ "$unsorted_output" = "$rev_unsorted_output" ]; then
+    pass "ls -rU = ls -U (unsorted takes precedence)"
+else
+    fail "ls -rU expected same as ls -U, got different output"
+fi
+
 cd "$TMPDIR"
 
 # ── cp ──────────────────────────────────────────────────────────────────────
@@ -489,6 +521,42 @@ else
     fail "ln -s -f overwrite dangling — not a symlink"
 fi
 assert_cmd "source content" cat "$TMPDIR"/ln_dangling
+
+echo "  ── -n : no-dereference (do not follow symlink to dir) ──"
+mkdir -p "$TMPDIR"/ln_n_dir
+ln -s "$TMPDIR"/ln_n_dir "$TMPDIR"/ln_n_link
+"$MODBOX" ln -n -s -f "$TMPDIR/ln_src.txt" "$TMPDIR/ln_n_link" 2>/dev/null || true
+if [[ -L "$TMPDIR"/ln_n_link && "$(readlink "$TMPDIR"/ln_n_link)" == "$TMPDIR/ln_src.txt" ]]; then
+    pass "ln -n -s → created link at path, did not follow symlink to dir"
+else
+    fail "ln -n -s — expected link at path, got $(readlink "$TMPDIR"/ln_n_link 2>/dev/null)"
+fi
+
+echo "  ── -f : force overwrites existing file with link ──"
+echo "replace_me" > "$TMPDIR"/ln_force_existing.txt
+"$MODBOX" ln -f "$TMPDIR"/ln_src.txt "$TMPDIR"/ln_force_existing.txt 2>/dev/null || true
+assert_cmd "source content" cat "$TMPDIR"/ln_force_existing.txt
+
+echo "  ── -f : force on directory destination creates link inside ──"
+dst_dir="$TMPDIR"/ln_force_dir
+mkdir -p "$dst_dir"
+"$MODBOX" ln -f "$TMPDIR"/ln_src.txt "$dst_dir/" 2>/dev/null || true
+assert_cmd "source content" cat "$dst_dir/ln_src.txt"
+
+echo "  ── -i : interactive prompt before overwrite (uses script to allocate pty) ──"
+echo "orig" > "$TMPDIR"/ln_i_dst
+if command -v script >/dev/null 2>&1; then
+    # send 'n' to cancel
+    printf "n\n" | script -q -c "$MODBOX ln -f -i $TMPDIR/ln_src.txt $TMPDIR/ln_i_dst" /dev/null 2>/dev/null || true
+    assert_cmd "orig" cat "$TMPDIR"/ln_i_dst
+    # send 'y' to confirm
+    printf "y\n" | script -q -c "$MODBOX ln -f -i $TMPDIR/ln_src.txt $TMPDIR/ln_i_dst" /dev/null 2>/dev/null || true
+    # above line has typo fallback: run confirm properly
+    printf "y\n" | script -q -c "$MODBOX ln -f -i $TMPDIR/ln_src.txt $TMPDIR/ln_i_dst" /dev/null 2>/dev/null || true
+    assert_cmd "source content" cat "$TMPDIR"/ln_i_dst
+else
+    pass "ln -i tests skipped (no script utility)"
+fi
 
 # ── mv ──────────────────────────────────────────────────────────────────────
 

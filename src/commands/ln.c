@@ -24,8 +24,14 @@ static int do_link(const char* src, const char* dst, const LnOptions* opts) {
         /* Attempt to remove any existing destination; ignore ENOENT */
         // NOLINTNEXTLINE(misc-include-cleaner)
         if (unlink(dst) != 0 && errno != ENOENT) {
-            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-            (void)fprintf(stderr, "ln: failed to remove '%s'\n", dst);
+            // NOLINTNEXTLINE(misc-include-cleaner)
+            if (errno == EISDIR) {
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(stderr, "ln: cannot remove '%s': Is a directory\n", dst);
+            } else {
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(stderr, "ln: failed to remove '%s': %s\n", dst, strerror(errno));
+            }
             return -1;
         }
     }
@@ -57,13 +63,17 @@ void ln_command(gint argc, gchar** argv) {
         arg_lit0("f", "force", "remove existing destination files");
     struct arg_lit* symbolic_opt =
         arg_lit0("s", "symbolic", "make symbolic links instead of hard links");
+    struct arg_lit* interactive_opt =
+        arg_lit0("i", "interactive", "prompt before overwrite");
+    struct arg_lit* noderef_opt =
+        arg_lit0("n", "no-dereference", "do not dereference destination if it is a symlink");
     struct arg_file* src_arg =
         arg_file1(NULL, NULL, "SOURCE", "source file to link to");
     struct arg_file* dst_arg =
         arg_filen(NULL, NULL, "DEST", 1, 1, "destination file or directory");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {verbose_opt, force_opt, symbolic_opt, src_arg, dst_arg, end};
+    void* argtable[] = {verbose_opt, force_opt, symbolic_opt, interactive_opt, noderef_opt, src_arg, dst_arg, end};
 
     int nerrors = arg_parse(argc, argv, argtable);
 
@@ -78,6 +88,8 @@ void ln_command(gint argc, gchar** argv) {
     opts.is_verbose = (verbose_opt->count > 0);
     opts.is_force = (force_opt->count > 0);
     opts.is_sym = (symbolic_opt->count > 0);
+    opts.is_interactive = (interactive_opt->count > 0);
+    opts.is_no_deref = (noderef_opt->count > 0);
     const char* src = src_arg->filename[0];
     const char* dst = dst_arg->filename[0];
 
@@ -101,16 +113,63 @@ void ln_command(gint argc, gchar** argv) {
     /* Determine the actual destination path */
     gchar dest_path[MAX_PATH_LEN];
     struct stat dst_stat;
-    if (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode)) {
-        /* Destination is an existing directory: create link with source's basename inside */
+    struct stat ldst_stat;
+    int dst_is_dir = 0;
+    if (lstat(dst, &ldst_stat) == 0) {
+        if (S_ISLNK(ldst_stat.st_mode) && opts.is_no_deref) {
+            dst_is_dir = 0; /* respect -n: do not follow symlink */
+        } else {
+            /* follow symlink or normal file */
+            if (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode)) {
+                dst_is_dir = 1;
+            }
+        }
+    } else {
+        /* lstat failed (dst likely doesn't exist) */
+        dst_is_dir = 0;
+    }
+
+    if (dst_is_dir) {
         gchar* basename = g_path_get_basename(src);
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
         g_free(basename);
     } else {
-        /* Destination is a file path (existing or new): link directly */
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
+    }
+
+    /* Interactive prompt: if -i and the destination exists, ask before proceeding */
+    if (opts.is_interactive) {
+        struct stat exist_stat;
+        if (lstat(dest_path, &exist_stat) == 0) {
+            /* Destination exists; prompt user */
+            // NOLINTNEXTLINE(misc-include-cleaner)
+            FILE* tty = fopen("/dev/tty", "r+");
+            if (tty == NULL) {
+                /* Fallback to stdin/stdout */
+                tty = stdin;
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(stdout, "replace '%s'? [y/N] ", dest_path);
+            } else {
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(tty, "replace '%s'? [y/N] ", dest_path);
+            }
+            int c = fgetc(tty);
+            /* Consume rest of line */
+            if (c != '\n' && c != EOF) {
+                int ch;
+                do { ch = fgetc(tty); } while (ch != '\n' && ch != EOF);
+            }
+            if (tty != stdin) {
+                // NOLINTNEXTLINE(bugprone-unused-return-value)
+                (void)fclose(tty);
+            }
+            if (c != 'y' && c != 'Y') {
+                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+                return;
+            }
+        }
     }
 
     if (do_link(src, dest_path, &opts) == 0) {
@@ -122,4 +181,3 @@ void ln_command(gint argc, gchar** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
-

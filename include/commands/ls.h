@@ -14,6 +14,8 @@ typedef struct {
     int ignore_backups;
     int list_dir_contents;
     int show_columns;
+    int reverse_sort;
+    int unsorted;
     color_mode_t color_mode;
     unsigned long block_size;
     char size_suffix;

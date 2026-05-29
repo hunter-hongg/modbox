@@ -1,7 +1,9 @@
 #include <argtable3.h>
 #include <dirent.h>
+#include <errno.h>
 #include <glib.h>
 #include <grp.h>
+#include <limits.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,7 +87,11 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
 
   struct stat st;
   if (lstat(filename, &st) == -1) {
-    if (!opts->show_details) {
+    if (opts->show_details) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "ls: cannot access '%s': %s\n", filename,
+                    strerror(errno));
+    } else {
       if (opts->escape_mode) {
         print_escaped_filename(display_name);
       } else {
@@ -186,26 +192,32 @@ static unsigned long parse_block_size(const char *str) {
     switch (*endptr) {
     case 'K':
     case 'k':
+      if (val > ULONG_MAX / 1024UL) { val = ULONG_MAX; break; }
       val *= 1024UL;
       break;
     case 'M':
     case 'm':
+      if (val > ULONG_MAX / (1024UL * 1024)) { val = ULONG_MAX; break; }
       val *= 1024UL * 1024;
       break;
     case 'G':
     case 'g':
+      if (val > ULONG_MAX / (1024UL * 1024 * 1024)) { val = ULONG_MAX; break; }
       val *= 1024UL * 1024 * 1024;
       break;
     case 'T':
     case 't':
+      if (val > ULONG_MAX / (1024UL * 1024 * 1024 * 1024)) { val = ULONG_MAX; break; }
       val *= 1024UL * 1024 * 1024 * 1024;
       break;
     case 'P':
     case 'p':
+      if (val > ULONG_MAX / (1024UL * 1024 * 1024 * 1024 * 1024)) { val = ULONG_MAX; break; }
       val *= 1024UL * 1024 * 1024 * 1024 * 1024;
       break;
     case 'E':
     case 'e':
+      if (val > ULONG_MAX / (1024UL * 1024 * 1024 * 1024 * 1024 * 1024)) { val = ULONG_MAX; break; }
       val *= 1024UL * 1024 * 1024 * 1024 * 1024 * 1024;
       break;
     default:
@@ -260,6 +272,16 @@ static int escaped_display_width(const char *s) {
 /** Compute the visual width of a plain (non-escaped) filename. */
 static int plain_display_width(const char *s) { return (int)strlen(s); }
 
+/** Decide whether to use column layout.
+ *  On terminal, unsorted output uses single-column layout (no wrap).
+ *  When piped or redirected, preserve the configured column mode. */
+static int should_use_columns(const LsOptions *opts) {
+    if (opts->unsorted && isatty(STDOUT_FILENO)) {
+        return 0;
+    }
+    return opts->show_columns;
+}
+
 /** Print a list of filenames in vertically-sorted columns, like GNU ls -C.
  *
  *  The list is assumed to already be sorted.  Terminal width is detected
@@ -300,7 +322,7 @@ static void print_columns(GList *files, const LsOptions *opts) {
   int num_rows = (count + num_cols - 1) / num_cols;
 
   /* Build an array of filename pointers for indexed access */
-  const char **names = (const char **)g_malloc(sizeof(char *) * (size_t)count);
+  const char **names = (const char **)g_malloc(sizeof(*names) * (size_t)count);
   {
     int idx = 0;
     for (GList *iter = files; iter != NULL; iter = iter->next) {
@@ -373,9 +395,15 @@ static void sort_and_output_files(GList *files, const LsOptions *opts) {
     return;
   }
 
-  files = g_list_sort(files, (GCompareFunc)strcmp);
+  if (!opts->unsorted) {
+    files = g_list_sort(files, (GCompareFunc)strcmp);
+  }
 
-  if (opts->show_columns) {
+  if (opts->reverse_sort && !opts->unsorted) {
+    files = g_list_reverse(files);
+  }
+
+  if (should_use_columns(opts)) {
     print_columns(files, opts);
   } else {
     for (GList *iter = files; iter != NULL; iter = iter->next) {
@@ -426,6 +454,10 @@ void ls_command(gint argc, gchar **argv) {
   struct arg_lit *directory_opt = arg_lit0(
       "d", "directory", "list directories themselves, not their contents");
   struct arg_lit *columns_opt = arg_lit0("C", NULL, "list entries by columns");
+  struct arg_lit *reverse_opt = arg_lit0("r", "reverse", "reverse order when sorting");
+  struct arg_lit *unsorted_opt = arg_lit0("U", NULL, "do not sort; list entries in directory order");
+  struct arg_lit *help_opt =
+      arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
       arg_filen(NULL, NULL, "DIR", 0, 100, "directory to list");
   struct arg_end *end = arg_end(20);
@@ -440,10 +472,34 @@ void ls_command(gint argc, gchar **argv) {
                       block_size_opt,
                       directory_opt,
                       columns_opt,
+                      reverse_opt,
+                      unsorted_opt,
+                      help_opt,
                       dir_arg,
                       end};
 
   int nerrors = arg_parse(argc, argv, argtable);
+
+  if (help_opt->count > 0) {
+    printf("Usage: %s [OPTION]... [DIR]...\n", argv[0]);
+    printf("List directory contents.\n");
+    printf("\n");
+    printf("  -a, --all             do not ignore entries starting with .\n");
+    printf("  -A, --almost-all      do not list implied . and ..\n");
+    printf("      --author          with -l, print the author of each file\n");
+    printf("  -b, --escape          print octal escapes for non-graphic characters\n");
+    printf("      --block-size=SIZE scale sizes by SIZE when printing them\n");
+    printf("  -B, --ignore-backups  do not list entries ending with ~\n");
+    printf("      --color=WHEN      colorize the output; WHEN can be always, auto, or never\n");
+    printf("  -C                    list entries by columns\n");
+    printf("  -d, --directory       list directories themselves, not their contents\n");
+    printf("  -l, --long            use a long listing format\n");
+    printf("  -r, --reverse         reverse order when sorting\n");
+    printf("  -U                    do not sort; list entries in directory order\n");
+    printf("  -h, --help            display this help and exit\n");
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return;
+  }
 
   if (nerrors > 0) {
     arg_print_errors(stderr, end, argv[0]);
@@ -455,6 +511,8 @@ void ls_command(gint argc, gchar **argv) {
   opts.show_all = (all_opt->count > 0) && (!opts.show_almost_all); // -A overrides -a
   opts.show_details = (long_opt->count > 0);
   opts.show_columns = (columns_opt->count > 0) && (!opts.show_details);
+  opts.reverse_sort = (reverse_opt->count > 0);
+  opts.unsorted = (unsorted_opt->count > 0);
   opts.show_author = (author_opt->count > 0);
   opts.escape_mode = (escape_opt->count > 0);
   opts.ignore_backups = (ignore_backups_opt->count > 0);

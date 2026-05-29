@@ -7,9 +7,10 @@ typedef struct {
     int is_verbose;
     int is_force;
     int is_sym;
+    int is_interactive;
+    int is_no_deref;
 } LnOptions;
 
 void ln_command(gint argc, gchar** argv);
 
 #endif
-
