@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <glib.h>
 #include <argtable3.h>
 
 #include "commands/cat.h"
+#include "commands/pager.h"
 
 /* Named constants for character ranges used by output_char_visual */
 #define ASCII_DEL          127
@@ -16,43 +18,43 @@ static int is_blank_line(const char* buf) {
     return buf[0] == '\n';
 }
 
-static void output_char_visual(unsigned char c, int show_tabs, int show_nonprinting) {
+static void output_char_visual(unsigned char c, int show_tabs, int show_nonprinting, FILE* out) {
     if (show_tabs && c == '\t') {
-        printf("^I");
+        fprintf(out, "^I");
         return;
     }
 
     if (show_nonprinting) {
         if (c == '\n' || c == '\t') {
-            putchar(c);
+            fputc(c, out);
             return;
         }
         if (c < 32) {
-            printf("^%c", c + 64);
+            fprintf(out, "^%c", c + 64);
             return;
         }
         if (c == ASCII_DEL) {
-            printf("^?");
+            fprintf(out, "^?");
             return;
         }
         if (c >= ASCII_128 && c <= ASCII_CP1252_END) {
-            printf("M-^%c", (c - ASCII_128) + 64);
+            fprintf(out, "M-^%c", (c - ASCII_128) + 64);
             return;
         }
         if (c == ASCII_255) {
-            printf("M-^?");
+            fprintf(out, "M-^?");
             return;
         }
         if (c >= ASCII_160) {
-            printf("M-%c", c - ASCII_128);
+            fprintf(out, "M-%c", c - ASCII_128);
             return;
         }
     }
 
-    putchar(c);
+    fputc(c, out);
 }
 
-static int process_file(FILE* fp, int* line_num, const CatOptions* opts) {
+static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* out) {
     char buf[1024];
     int has_newline = 1;
     int prev_blank = 0;
@@ -74,19 +76,19 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts) {
         }
 
         if (should_number) {
-            printf("%6d  ", (*line_num)++);
+            fprintf(out, "%6d  ", (*line_num)++);
         }
 
         if (opts->show_nonprinting) {
             size_t content_len = has_newline ? len - 1 : len;
             for (size_t j = 0; j < content_len; j++) {
-                output_char_visual((unsigned char)buf[j], opts->show_tabs, 1);
+                output_char_visual((unsigned char)buf[j], opts->show_tabs, 1, out);
             }
             if (has_newline) {
                 if (opts->show_ends) {
-                    printf("$\n");
+                    fprintf(out, "$\n");
                 } else {
-                    printf("\n");
+                    fprintf(out, "\n");
                 }
             }
         } else {
@@ -94,9 +96,9 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts) {
             if (opts->show_tabs) {
                 for (size_t j = 0; j < len; j++) {
                     if (buf[j] == '\t') {
-                        printf("^I");
+                        fprintf(out, "^I");
                     } else {
-                        putchar(buf[j]);
+                        fputc(buf[j], out);
                     }
                 }
                 tab_processed = 1;
@@ -104,9 +106,9 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts) {
 
             if (opts->show_ends && has_newline && !tab_processed) {
                 buf[len - 1] = '$';
-                printf("%s\n", buf);
+                fprintf(out, "%s\n", buf);
             } else if (!tab_processed) {
-                printf("%s", buf);
+                fprintf(out, "%s", buf);
             }
         }
     }
@@ -150,6 +152,9 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void cat_command(gint argc, gchar** argv) {
     CatOptions opts = {0};
+    char* pager_buf = NULL;
+    size_t pager_buf_size = 0;
+    FILE* out_fp = stdout;
 
     int orig_argc = argc;
     gchar** my_argv = expand_short_options(&argc, argv);
@@ -162,13 +167,14 @@ void cat_command(gint argc, gchar** argv) {
     struct arg_lit* squeeze_blank_opt = arg_lit0("s", "squeeze-blank", "never more than one single blank line");
     struct arg_lit* show_nonprinting_opt = arg_lit0("v", "show-nonprinting", "use ^ and M- notation, except for LFD and TAB");
     struct arg_lit* show_all_opt = arg_lit0("A", "show-all", "equivalent to -vET");
+    struct arg_lit* less_opt = arg_lit0(NULL, "less", "pager mode (j/k/q navigation)");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* show_nonprinting_and_ends_opt = arg_lit0("e", NULL, "equivalent to -vE");
     struct arg_lit* show_tabs_and_nonprinting_opt = arg_lit0("t", NULL, "equivalent to -vT");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt, help_opt, file_arg, end };
+    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt, less_opt, help_opt, file_arg, end };
 
     int nerrors = arg_parse(argc, my_argv, argtable);
 
@@ -187,6 +193,7 @@ void cat_command(gint argc, gchar** argv) {
         printf("  -e                       equivalent to -vE\n");
         printf("  -t                       equivalent to -vT\n");
         printf("  -A, --show-all           equivalent to -vET\n");
+        printf("      --less               pager mode (j/k/q navigation)\n");
         printf("  -h, --help               display this help and exit\n");
         arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         goto cleanup;
@@ -204,6 +211,7 @@ void cat_command(gint argc, gchar** argv) {
     opts.show_tabs = (show_tabs_opt->count > 0);
     opts.squeeze_blank = (squeeze_blank_opt->count > 0);
     opts.show_nonprinting = (show_nonprinting_opt->count > 0);
+    opts.less_mode = (less_opt->count > 0);
 
     // -A (--show-all) is equivalent to -vET
     if (show_all_opt->count > 0) {
@@ -224,14 +232,21 @@ void cat_command(gint argc, gchar** argv) {
         opts.show_tabs = 1;
     }
 
-    // According to POSIX, -b overrides -n
     if (opts.show_nonempty_line_numbers) {
         opts.show_line_numbers = 0;
     }
 
+    if (opts.less_mode && isatty(STDOUT_FILENO)) {
+        out_fp = open_memstream(&pager_buf, &pager_buf_size);
+        if (out_fp == NULL) {
+            out_fp = stdout;
+            opts.less_mode = 0;
+        }
+    }
+
     int line_num = 1;
     if (file_arg->count == 0) {
-        process_file(stdin, &line_num, &opts);
+        process_file(stdin, &line_num, &opts, out_fp);
     } else {
         int prev_file_had_newline = 1; // Assume newline present before first file
         for (int i = 0; i < file_arg->count; i++) {
@@ -242,21 +257,38 @@ void cat_command(gint argc, gchar** argv) {
                 fp = fopen(file_arg->filename[i], "r");
             }
             if (fp == NULL) {
-                printf("cat: %s: No such file or directory\n", file_arg->filename[i]);
+                fprintf(stderr, "cat: %s: No such file or directory\n", file_arg->filename[i]);
                 prev_file_had_newline = 1; // Assume newline present after error message
                 continue;
             }
-            // If previous file did not end with newline, add one
             if (i > 0 && !prev_file_had_newline) {
-                printf("\n");
+                fprintf(out_fp, "\n");
             }
-            prev_file_had_newline = process_file(fp, &line_num, &opts);
+            prev_file_had_newline = process_file(fp, &line_num, &opts, out_fp);
             // NOLINTNEXTLINE(bugprone-unused-return-value)
             (void)fclose(fp);
         }
     }
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+
+    if (out_fp != stdout) {
+        fclose(out_fp);
+        if (pager_buf != NULL) {
+            GPtrArray* lines = g_ptr_array_new();
+            gchar** parts = g_strsplit(pager_buf, "\n", -1);
+            for (int i = 0; parts[i] != NULL; i++) {
+                g_ptr_array_add(lines, g_strdup(parts[i]));
+            }
+            g_strfreev(parts);
+            if (lines->len > 0 && strcmp((char*)g_ptr_array_index(lines, lines->len - 1), "") == 0) {
+                g_ptr_array_remove_index(lines, lines->len - 1);
+            }
+            pager_run(lines);
+            g_ptr_array_free(lines, 1);
+            free(pager_buf);
+        }
+    }
 
 cleanup:
     if (expanded) {

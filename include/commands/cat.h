@@ -10,6 +10,7 @@ typedef struct {
     int squeeze_blank;
     int show_tabs;
     int show_nonprinting;
+    int less_mode;
 } CatOptions;
 
 void cat_command(gint argc, gchar** argv);

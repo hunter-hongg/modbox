@@ -158,8 +158,11 @@ assert_cmd "a^Ib" cat -vT - <<< $'a\tb'
 echo "  ── all-blank with -b produces no output ──"
 assert_cmd "" cat -b "$TMPDIR"/blanks.txt
 
+echo "  ── --less (non-TTY) behaves like normal cat ──"
+assert_cmd "$(printf 'hello\nworld\n')" cat --less "$TMPDIR"/simple.txt
+
 echo "  ── error: non-existent file ──"
-assert_cmd_pat "No such file" cat "$TMPDIR"/nonexistent.txt
+assert_cmd_pat_stderr "No such file" cat "$TMPDIR"/nonexistent.txt
 
 # ── ls ──────────────────────────────────────────────────────────────────────
 
