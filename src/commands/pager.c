@@ -14,10 +14,11 @@
 
 static struct termios orig_termios;
 static int termios_saved = 0;
+static int pager_kbd_fd = -1;
 
 static void pager_restore_terminal(void) {
-    if (termios_saved) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+    if (termios_saved && pager_kbd_fd >= 0) {
+        tcsetattr(pager_kbd_fd, TCSAFLUSH, &orig_termios);
         termios_saved = 0;
     }
 }
@@ -33,9 +34,11 @@ static int pager_enable_raw_mode(int fd) {
     if (tcgetattr(fd, &orig_termios) < 0) {
         return -1;
     }
+    pager_kbd_fd = fd;
     termios_saved = 1;
     raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
+    raw.c_iflag &= ~(IXON | ICRNL);
     raw.c_cc[VMIN] = 1;
     raw.c_cc[VTIME] = 0;
     if (tcsetattr(fd, TCSAFLUSH, &raw) < 0) {
@@ -117,6 +120,7 @@ void pager_run(GPtrArray* lines) {
         int percent = (total > 0) ? (cursor * 100 / (total - 1)) : 0;
         printf("\033[7m--modbox-- line %d of %d (%d%%) -- j:down k:up q:quit\033[0m",
                cursor + 1, total, percent);
+        fflush(stdout);
 
         char c;
         if (read(kbd_fd, &c, 1) != 1) {

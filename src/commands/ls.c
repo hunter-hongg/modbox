@@ -25,6 +25,9 @@
 /* Default terminal width when neither ioctl nor COLUMNS env is available */
 #define DEFAULT_TERMINAL_WIDTH 80
 
+/* Gap between columns in columnar output (spaces) */
+#define COLUMN_GAP 2
+
 static int should_color(color_mode_t mode) {
   switch (mode) {
   case COLOR_ALWAYS:
@@ -307,7 +310,7 @@ static void print_columns(GList *files, const LsOptions *opts) {
     }
   }
 
-  const int gap = 2;
+  const int gap = COLUMN_GAP;
   int col_width = max_width + gap;
   if (col_width > term_width) {
     col_width = term_width;

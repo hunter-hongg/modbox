@@ -379,6 +379,52 @@ echo "fresh target" > "$TMPDIR"/cp_f_new_src.txt
 "$MODBOX" cp -f "$TMPDIR"/cp_f_new_src.txt "$TMPDIR"/cp_f_new_dst.txt 2>/dev/null || true
 assert_cmd "fresh target" cat "$TMPDIR"/cp_f_new_dst.txt
 
+echo "  ── -i : interactive prompt — answer 'n' skips, 'y' overwrites ──"
+echo "i_orig" > "$TMPDIR"/cp_i_dst.txt
+echo "i_new" > "$TMPDIR"/cp_i_src.txt
+if command -v script >/dev/null 2>&1; then
+    printf "n\n" | script -q -c "$MODBOX cp -i $TMPDIR/cp_i_src.txt $TMPDIR/cp_i_dst.txt" /dev/null 2>/dev/null || true
+    assert_cmd "i_orig" cat "$TMPDIR"/cp_i_dst.txt
+    printf "y\n" | script -q -c "$MODBOX cp -i $TMPDIR/cp_i_src.txt $TMPDIR/cp_i_dst.txt" /dev/null 2>/dev/null || true
+    assert_cmd "i_new" cat "$TMPDIR"/cp_i_dst.txt
+else
+    pass "cp -i tests skipped (no script utility)"
+fi
+
+echo "  ── -i : interactive overwrites when destination doesn't exist ──"
+echo "i_new2" > "$TMPDIR"/cp_i_src2.txt
+"$MODBOX" cp -i "$TMPDIR"/cp_i_src2.txt "$TMPDIR"/cp_i_new_dst.txt 2>/dev/null || true
+assert_cmd "i_new2" cat "$TMPDIR"/cp_i_new_dst.txt
+
+echo "  ── -u : copy when destination doesn't exist ──"
+echo "u_new" > "$TMPDIR"/cp_u_src.txt
+"$MODBOX" cp -u "$TMPDIR"/cp_u_src.txt "$TMPDIR"/cp_u_dst1.txt 2>/dev/null || true
+assert_cmd "u_new" cat "$TMPDIR"/cp_u_dst1.txt
+
+echo "  ── -u : copy when source is newer than destination ──"
+echo "u_old" > "$TMPDIR"/cp_u_dst2.txt
+sleep 1.1
+echo "u_newer" > "$TMPDIR"/cp_u_src2.txt
+"$MODBOX" cp -u "$TMPDIR"/cp_u_src2.txt "$TMPDIR"/cp_u_dst2.txt 2>/dev/null || true
+assert_cmd "u_newer" cat "$TMPDIR"/cp_u_dst2.txt
+
+echo "  ── -u : skip when source is older than destination ──"
+echo "u_new_src" > "$TMPDIR"/cp_u_src3.txt
+sleep 1.1
+echo "u_older_dst" > "$TMPDIR"/cp_u_dst3.txt
+"$MODBOX" cp -u "$TMPDIR"/cp_u_src3.txt "$TMPDIR"/cp_u_dst3.txt 2>/dev/null || true
+assert_cmd "u_older_dst" cat "$TMPDIR"/cp_u_dst3.txt
+
+echo "  ── -u -r : recursive update ──"
+mkdir -p "$TMPDIR"/cp_ur_src/sub "$TMPDIR"/cp_ur_dst/sub
+echo "keep" > "$TMPDIR"/cp_ur_dst/sub/existing.txt
+sleep 1.1
+echo "fresher" > "$TMPDIR"/cp_ur_src/sub/existing.txt
+echo "newfile" > "$TMPDIR"/cp_ur_src/sub/new.txt
+"$MODBOX" cp -u -r "$TMPDIR"/cp_ur_src/sub "$TMPDIR"/cp_ur_dst/ 2>/dev/null || true
+assert_cmd "fresher" cat "$TMPDIR"/cp_ur_dst/sub/existing.txt
+assert_cmd "newfile" cat "$TMPDIR"/cp_ur_dst/sub/new.txt
+
 echo "  ── -n overrides -f ──"
 echo "noforce" > "$TMPDIR"/cp_nf_dst.txt
 echo "should not appear" > "$TMPDIR"/cp_nf_src.txt
@@ -553,8 +599,6 @@ if command -v script >/dev/null 2>&1; then
     printf "n\n" | script -q -c "$MODBOX ln -f -i $TMPDIR/ln_src.txt $TMPDIR/ln_i_dst" /dev/null 2>/dev/null || true
     assert_cmd "orig" cat "$TMPDIR"/ln_i_dst
     # send 'y' to confirm
-    printf "y\n" | script -q -c "$MODBOX ln -f -i $TMPDIR/ln_src.txt $TMPDIR/ln_i_dst" /dev/null 2>/dev/null || true
-    # above line has typo fallback: run confirm properly
     printf "y\n" | script -q -c "$MODBOX ln -f -i $TMPDIR/ln_src.txt $TMPDIR/ln_i_dst" /dev/null 2>/dev/null || true
     assert_cmd "source content" cat "$TMPDIR"/ln_i_dst
 else

@@ -27,12 +27,50 @@
  *
  * Returns: 0 on success, -1 on error
  */
+static gboolean prompt_overwrite(const char *dst) {
+  FILE *tty = fopen("/dev/tty", "r+");
+  if (tty == NULL) {
+    tty = stdin;
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+    (void)fprintf(stdout, "cp: overwrite '%s'? ", dst);
+  } else {
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+    (void)fprintf(tty, "cp: overwrite '%s'? ", dst);
+  }
+  int c = fgetc(tty);
+  if (c != '\n' && c != EOF) {
+    int ch;
+    do { ch = fgetc(tty); } while (ch != '\n' && ch != EOF);
+  }
+  if (tty != stdin) {
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)fclose(tty);
+  }
+  return (c == 'y' || c == 'Y');
+}
+
 static int copy_file(const char *src, const char *dst,
                      const CpOptions *opts) {
+  struct stat dst_exist_stat;
+  int dst_exists = (stat(dst, &dst_exist_stat) == 0);
+
   /* no-clobber: skip if destination already exists */
-  if (opts->is_no_clobber) {
-    struct stat st;
-    if (stat(dst, &st) == 0) {
+  if (opts->is_no_clobber && dst_exists) {
+    return 0;
+  }
+
+  /* update: skip if destination exists and is newer than source */
+  if (opts->is_update && dst_exists) {
+    struct stat src_stat;
+    if (stat(src, &src_stat) == 0 &&
+        src_stat.st_mtime <= dst_exist_stat.st_mtime) {
+      return 0;
+    }
+  }
+
+  /* interactive: prompt before overwrite */
+  if (opts->is_interactive && dst_exists) {
+    if (!prompt_overwrite(dst)) {
       return 0;
     }
   }
@@ -192,6 +230,11 @@ void cp_command(gint argc, gchar **argv) {
       arg_lit0("f", "force", "remove existing destination file");
   struct arg_lit *no_clobber_opt =
       arg_lit0("n", "no-clobber", "do not overwrite existing files");
+  struct arg_lit *interactive_opt =
+      arg_lit0("i", "interactive", "prompt before overwrite");
+  struct arg_lit *update_opt =
+      arg_lit0("u", "update",
+               "copy only when source is newer than destination");
   /* Collect all remaining positional arguments in one file arg group,
    * then split them into sources and destination manually. */
   struct arg_file *files_arg =
@@ -200,7 +243,8 @@ void cp_command(gint argc, gchar **argv) {
   struct arg_end *end = arg_end(20);
 
   void *argtable[] = {recursive_opt,  verbose_opt, force_opt,
-                      no_clobber_opt, files_arg,   end};
+                      no_clobber_opt, interactive_opt, update_opt,
+                      files_arg,     end};
 
   int nerrors = arg_parse(argc, argv, argtable);
 
@@ -216,9 +260,12 @@ void cp_command(gint argc, gchar **argv) {
   opts.is_verbose = (verbose_opt->count > 0);
   opts.is_force = (force_opt->count > 0);
   opts.is_no_clobber = (no_clobber_opt->count > 0);
-  /* no-clobber overrides force */
+  opts.is_interactive = (interactive_opt->count > 0);
+  opts.is_update = (update_opt->count > 0);
+  /* no-clobber overrides force and interactive */
   if (opts.is_no_clobber) {
     opts.is_force = 0;
+    opts.is_interactive = 0;
   }
   int num_files = files_arg->count;
 
