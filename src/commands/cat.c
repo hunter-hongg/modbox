@@ -1,18 +1,23 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <glib.h>
 #include <argtable3.h>
 
 #include "commands/cat.h"
 #include "commands/pager.h"
+#include "commands/cat/helpers.h"
+#include "commands/cat/blame.h"
+#include "commands/cat/highlight.h"
+#include "commands/cat/diff.h"
 
-/* Named constants for character ranges used by output_char_visual */
 #define ASCII_DEL          127
 #define ASCII_128          128
 #define ASCII_CP1252_END   159
 #define ASCII_160          160
 #define ASCII_255          255
+#define ARG_END_SIZE       30
 
 static int is_blank_line(const char* buf) {
     return buf[0] == '\n';
@@ -20,38 +25,44 @@ static int is_blank_line(const char* buf) {
 
 static void output_char_visual(unsigned char c, int show_tabs, int show_nonprinting, FILE* out) {
     if (show_tabs && c == '\t') {
-        fprintf(out, "^I");
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)fprintf(out, "^I");
         return;
     }
 
     if (show_nonprinting) {
         if (c == '\n' || c == '\t') {
-            fputc(c, out);
+            (void)fputc(c, out);
             return;
         }
         if (c < 32) {
-            fprintf(out, "^%c", c + 64);
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(out, "^%c", c + 64);
             return;
         }
         if (c == ASCII_DEL) {
-            fprintf(out, "^?");
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(out, "^?");
             return;
         }
         if (c >= ASCII_128 && c <= ASCII_CP1252_END) {
-            fprintf(out, "M-^%c", (c - ASCII_128) + 64);
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(out, "M-^%c", (c - ASCII_128) + 64);
             return;
         }
         if (c == ASCII_255) {
-            fprintf(out, "M-^?");
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(out, "M-^?");
             return;
         }
         if (c >= ASCII_160) {
-            fprintf(out, "M-%c", c - ASCII_128);
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(out, "M-%c", c - ASCII_128);
             return;
         }
     }
 
-    fputc(c, out);
+    (void)fputc(c, out);
 }
 
 static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* out) {
@@ -76,7 +87,8 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
         }
 
         if (should_number) {
-            fprintf(out, "%6d  ", (*line_num)++);
+            format_line_number(*line_num, opts->number_format, out);
+            (*line_num)++;
         }
 
         if (opts->show_nonprinting) {
@@ -86,9 +98,11 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
             }
             if (has_newline) {
                 if (opts->show_ends) {
-                    fprintf(out, "$\n");
+                    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                    (void)fprintf(out, "$\n");
                 } else {
-                    fprintf(out, "\n");
+                    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                    (void)fprintf(out, "\n");
                 }
             }
         } else {
@@ -96,9 +110,10 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
             if (opts->show_tabs) {
                 for (size_t j = 0; j < len; j++) {
                     if (buf[j] == '\t') {
-                        fprintf(out, "^I");
+                        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                        (void)fprintf(out, "^I");
                     } else {
-                        fputc(buf[j], out);
+                        (void)fputc(buf[j], out);
                     }
                 }
                 tab_processed = 1;
@@ -106,9 +121,11 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
 
             if (opts->show_ends && has_newline && !tab_processed) {
                 buf[len - 1] = '$';
-                fprintf(out, "%s\n", buf);
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(out, "%s\n", buf);
             } else if (!tab_processed) {
-                fprintf(out, "%s", buf);
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(out, "%s", buf);
             }
         }
     }
@@ -129,7 +146,7 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
         return argv;
     }
 
-    gchar** new_argv = (gchar**)g_malloc(new_argc * sizeof(gchar*));
+    gchar** new_argv = (gchar**)g_malloc((size_t)new_argc * sizeof(gchar*));
     int j = 0;
     for (int i = 0; i < *argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
@@ -149,7 +166,125 @@ static gchar** expand_short_options(int* argc, gchar** argv) {
     return new_argv;
 }
 
-// NOLINTNEXTLINE(misc-use-internal-linkage)
+static void run_pipeline(const char* path, const CatOptions* opts, int* line_num, FILE* out) {
+    int from_stdin = (path == NULL);
+
+    if (opts->diff_file && !from_stdin) {
+        if (opts->header_mode) { print_header(path, out); }
+        run_diff(path, opts->diff_file, out);
+        return;
+    }
+
+    GPtrArray* lines;
+    if (from_stdin) {
+        lines = read_stdin_to_lines();
+    } else {
+        lines = read_file_to_lines(path);
+    }
+    if (!lines) {
+        if (!from_stdin) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "cat: %s: No such file or directory\n", path);
+        }
+        return;
+    }
+
+    if (opts->header_mode && !from_stdin) {
+        print_header(path, out);
+    }
+
+    BlameInfo* blame = NULL;
+    int blame_count = 0;
+    if (opts->blame_mode && !from_stdin) {
+        blame = parse_blame(path, &blame_count);
+    }
+
+    GPtrArray* cur = lines;
+
+    if (opts->squeeze_blank) {
+        GPtrArray* filtered = squeeze_blank_lines(cur);
+        free_pipeline_lines(cur);
+        cur = filtered;
+    }
+
+    if (opts->range_start || opts->range_end) {
+        GPtrArray* filtered = slice_range(cur, opts->range_start, opts->range_end);
+        free_pipeline_lines(cur);
+        cur = filtered;
+    }
+
+    if (opts->head_lines) {
+        GPtrArray* filtered = slice_head(cur, opts->head_lines);
+        free_pipeline_lines(cur);
+        cur = filtered;
+    }
+
+    if (opts->tail_lines) {
+        GPtrArray* filtered = slice_tail(cur, opts->tail_lines);
+        free_pipeline_lines(cur);
+        cur = filtered;
+    }
+
+    GArray* match_indices = NULL;
+    if (opts->grep_pattern) {
+        match_indices = find_matching_indices(cur, opts->grep_pattern);
+        if (opts->context_lines > 0) {
+            GArray* expanded = expand_indices(cur, match_indices, opts->context_lines);
+            // NOLINTNEXTLINE(misc-include-cleaner)
+            g_array_free(match_indices, TRUE);
+            match_indices = expanded;
+        }
+        GPtrArray* filtered = extract_lines(cur, match_indices);
+        free_pipeline_lines(cur);
+        cur = filtered;
+    }
+
+    const char* ext = NULL;
+    if (opts->highlight_mode && !from_stdin) {
+        ext = get_file_extension(path);
+    }
+
+    for (unsigned int i = 0; i < cur->len; i++) {
+        PipelineLine* pl = (PipelineLine*)g_ptr_array_index(cur, i);
+        int blank = (pl->text[0] == '\n');
+        int show_num = 0;
+
+        if (opts->show_line_numbers) {
+            show_num = 1;
+        } else if (opts->show_nonempty_line_numbers) {
+            show_num = !blank;
+        }
+
+        if (opts->blame_mode && blame && pl->orig_index < blame_count) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(out, "%.7s  %-12.12s  %-10.10s  |  ",
+                    blame[pl->orig_index].commit,
+                    blame[pl->orig_index].author,
+                    blame[pl->orig_index].date);
+        }
+
+        if (show_num) {
+            format_line_number(*line_num, opts->number_format, out);
+            (*line_num)++;
+        }
+
+        if (opts->highlight_mode && isatty(STDOUT_FILENO) && ext) {
+            print_highlighted(pl->text, ext, out);
+        } else {
+            output_line_visual(pl->text, opts, out);
+        }
+    }
+
+    if (opts->show_stats) {
+        print_stats(cur, out);
+    }
+
+    if (match_indices) { g_array_free(match_indices, TRUE); }
+    free_pipeline_lines(cur);
+    if (blame) { free_blame(blame, blame_count); }
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity, misc-use-internal-linkage)
 void cat_command(gint argc, gchar** argv) {
     CatOptions opts = {0};
     char* pager_buf = NULL;
@@ -171,10 +306,30 @@ void cat_command(gint argc, gchar** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* show_nonprinting_and_ends_opt = arg_lit0("e", NULL, "equivalent to -vE");
     struct arg_lit* show_tabs_and_nonprinting_opt = arg_lit0("t", NULL, "equivalent to -vT");
-    struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
-    struct arg_end* end = arg_end(20);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt, squeeze_blank_opt, show_nonprinting_opt, show_all_opt, show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt, less_opt, help_opt, file_arg, end };
+    struct arg_lit* blame_opt = arg_lit0(NULL, "blame", "show git blame per line");
+    struct arg_lit* highlight_opt = arg_lit0(NULL, "highlight", "syntax highlight output");
+    struct arg_lit* header_opt = arg_lit0(NULL, "header", "show file metadata banner");
+    struct arg_str* diff_opt = arg_str0(NULL, "diff", "FILE", "unified diff between file and FILE");
+    struct arg_str* range_opt = arg_str0(NULL, "range", "N-M", "show only lines N through M");
+    struct arg_str* grep_opt = arg_str0(NULL, "grep", "PATTERN", "keep lines matching extended regex");
+    struct arg_int* context_opt = arg_int0(NULL, "context", "N", "show N context lines around --grep matches");
+    struct arg_int* head_opt = arg_int0(NULL, "head", "N", "show first N lines only");
+    struct arg_int* tail_opt = arg_int0(NULL, "tail", "N", "show last N lines only");
+    struct arg_str* number_format_opt = arg_str0(NULL, "number-format", "FMT", "line number format: decimal, hex, octal");
+    struct arg_lit* stats_opt = arg_lit0(NULL, "stats", "show line/word/char count");
+
+    struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
+    struct arg_end* end = arg_end(ARG_END_SIZE);
+
+    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt,
+        squeeze_blank_opt, show_nonprinting_opt, show_all_opt,
+        show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt,
+        less_opt, help_opt,
+        blame_opt, highlight_opt, header_opt, diff_opt,
+        range_opt, grep_opt, context_opt, head_opt, tail_opt,
+        number_format_opt, stats_opt,
+        file_arg, end };
 
     int nerrors = arg_parse(argc, my_argv, argtable);
 
@@ -184,6 +339,7 @@ void cat_command(gint argc, gchar** argv) {
         printf("\n");
         printf("With no FILE, or when FILE is -, read standard input.\n");
         printf("\n");
+        printf("Standard options:\n");
         printf("  -b, --number-nonblank    number nonempty output lines\n");
         printf("  -E, --show-ends          display $ at end of each line\n");
         printf("  -n, --number             number all output lines\n");
@@ -194,6 +350,21 @@ void cat_command(gint argc, gchar** argv) {
         printf("  -t                       equivalent to -vT\n");
         printf("  -A, --show-all           equivalent to -vET\n");
         printf("      --less               pager mode (j/k/q navigation)\n");
+        printf("\n");
+        printf("Dev tools:\n");
+        printf("      --blame              show git blame per line\n");
+        printf("      --highlight          syntax highlight output by file extension\n");
+        printf("      --header             show file metadata banner before content\n");
+        printf("      --diff=FILE          unified diff between file and FILE\n");
+        printf("\n");
+        printf("Content navigation:\n");
+        printf("      --range=N-M          show only lines N through M\n");
+        printf("      --grep=PATTERN       keep lines matching extended regex\n");
+        printf("      --context=N          show N context lines around --grep matches\n");
+        printf("      --head=N             show first N lines only\n");
+        printf("      --tail=N             show last N lines only\n");
+        printf("      --number-format=FMT  line number format: decimal|hex|octal\n");
+        printf("      --stats              show line/word/char count\n");
         printf("  -h, --help               display this help and exit\n");
         arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         goto cleanup;
@@ -213,20 +384,43 @@ void cat_command(gint argc, gchar** argv) {
     opts.show_nonprinting = (show_nonprinting_opt->count > 0);
     opts.less_mode = (less_opt->count > 0);
 
-    // -A (--show-all) is equivalent to -vET
+    opts.blame_mode = (blame_opt->count > 0);
+    opts.highlight_mode = (highlight_opt->count > 0);
+    opts.header_mode = (header_opt->count > 0);
+    opts.diff_file = (char*)(diff_opt->count > 0 ? diff_opt->sval[0] : NULL);
+    opts.grep_pattern = (char*)(grep_opt->count > 0 ? grep_opt->sval[0] : NULL);
+    opts.context_lines = (context_opt->count > 0 ? context_opt->ival[0] : 0);
+    opts.head_lines = (head_opt->count > 0 ? head_opt->ival[0] : 0);
+    opts.tail_lines = (tail_opt->count > 0 ? tail_opt->ival[0] : 0);
+    opts.show_stats = (stats_opt->count > 0);
+
+    if (range_opt->count > 0) {
+        int s = 0;
+        int e = 0;
+        // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion,cert-err34-c,clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        if (sscanf(range_opt->sval[0], "%d-%d", &s, &e) >= 1) {
+            opts.range_start = s;
+            opts.range_end = e;
+        }
+    }
+
+    if (number_format_opt->count > 0) {
+        const char* fmt = number_format_opt->sval[0];
+        if (strcmp(fmt, "hex") == 0) { opts.number_format = 1; }
+        else if (strcmp(fmt, "octal") == 0) { opts.number_format = 2; }
+    }
+
     if (show_all_opt->count > 0) {
         opts.show_nonprinting = 1;
         opts.show_ends = 1;
         opts.show_tabs = 1;
     }
 
-    // -e is equivalent to -vE
     if (show_nonprinting_and_ends_opt->count > 0) {
         opts.show_nonprinting = 1;
         opts.show_ends = 1;
     }
 
-    // -t is equivalent to -vT
     if (show_tabs_and_nonprinting_opt->count > 0) {
         opts.show_nonprinting = 1;
         opts.show_tabs = 1;
@@ -235,6 +429,12 @@ void cat_command(gint argc, gchar** argv) {
     if (opts.show_nonempty_line_numbers) {
         opts.show_line_numbers = 0;
     }
+
+    int use_buffer = opts.blame_mode || opts.highlight_mode || opts.header_mode ||
+                     opts.diff_file || opts.range_start || opts.range_end ||
+                     opts.grep_pattern || opts.context_lines > 0 ||
+                     opts.head_lines > 0 || opts.tail_lines > 0 ||
+                     opts.show_stats || opts.number_format > 0;
 
     if (opts.less_mode && isatty(STDOUT_FILENO)) {
         out_fp = open_memstream(&pager_buf, &pager_buf_size);
@@ -246,46 +446,62 @@ void cat_command(gint argc, gchar** argv) {
 
     int line_num = 1;
     if (file_arg->count == 0) {
-        process_file(stdin, &line_num, &opts, out_fp);
+        if (use_buffer) {
+            run_pipeline(NULL, &opts, &line_num, out_fp);
+        } else {
+            process_file(stdin, &line_num, &opts, out_fp);
+        }
     } else {
-        int prev_file_had_newline = 1; // Assume newline present before first file
+        int prev_file_had_newline = 1;
         for (int i = 0; i < file_arg->count; i++) {
-            FILE* fp;
-            if (strcmp(file_arg->filename[i], "-") == 0) {
-                fp = stdin;
+            if (use_buffer) {
+                if (i > 0 && !prev_file_had_newline) {
+                    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                    (void)fprintf(out_fp, "\n");
+                }
+                run_pipeline(file_arg->filename[i], &opts, &line_num, out_fp);
+                prev_file_had_newline = 1;
             } else {
-                fp = fopen(file_arg->filename[i], "r");
+                FILE* fp;
+                if (strcmp(file_arg->filename[i], "-") == 0) {
+                    fp = stdin;
+                } else {
+                    fp = fopen(file_arg->filename[i], "r");
+                }
+                if (fp == NULL) {
+                    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                    (void)fprintf(stderr, "cat: %s: No such file or directory\n", file_arg->filename[i]);
+                    prev_file_had_newline = 1;
+                    continue;
+                }
+                if (i > 0 && !prev_file_had_newline) {
+                    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                    (void)fprintf(out_fp, "\n");
+                }
+                prev_file_had_newline = process_file(fp, &line_num, &opts, out_fp);
+                // NOLINTNEXTLINE(bugprone-unused-return-value)
+                (void)fclose(fp);
             }
-            if (fp == NULL) {
-                fprintf(stderr, "cat: %s: No such file or directory\n", file_arg->filename[i]);
-                prev_file_had_newline = 1; // Assume newline present after error message
-                continue;
-            }
-            if (i > 0 && !prev_file_had_newline) {
-                fprintf(out_fp, "\n");
-            }
-            prev_file_had_newline = process_file(fp, &line_num, &opts, out_fp);
-            // NOLINTNEXTLINE(bugprone-unused-return-value)
-            (void)fclose(fp);
         }
     }
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     if (out_fp != stdout) {
-        fclose(out_fp);
+        // NOLINTNEXTLINE(bugprone-unused-return-value)
+        (void)fclose(out_fp);
         if (pager_buf != NULL) {
-            GPtrArray* lines = g_ptr_array_new();
+            GPtrArray* pager_lines = g_ptr_array_new();
             gchar** parts = g_strsplit(pager_buf, "\n", -1);
             for (int i = 0; parts[i] != NULL; i++) {
-                g_ptr_array_add(lines, g_strdup(parts[i]));
+                g_ptr_array_add(pager_lines, g_strdup(parts[i]));
             }
             g_strfreev(parts);
-            if (lines->len > 0 && strcmp((char*)g_ptr_array_index(lines, lines->len - 1), "") == 0) {
-                g_ptr_array_remove_index(lines, lines->len - 1);
+            if (pager_lines->len > 0 && strcmp((char*)g_ptr_array_index(pager_lines, pager_lines->len - 1), "") == 0) {
+                g_ptr_array_remove_index(pager_lines, pager_lines->len - 1);
             }
-            pager_run(lines);
-            g_ptr_array_free(lines, 1);
+            pager_run(pager_lines);
+            g_ptr_array_free(pager_lines, 1);
             free(pager_buf);
         }
     }

@@ -164,6 +164,82 @@ assert_cmd "$(printf 'hello\nworld\n')" cat --less "$TMPDIR"/simple.txt
 echo "  ── error: non-existent file ──"
 assert_cmd_pat_stderr "No such file" cat "$TMPDIR"/nonexistent.txt
 
+echo "  ── --head=N : show first N lines ──"
+printf 'a\nb\nc\nd\ne\n' > "$TMPDIR"/head.txt
+assert_cmd "$(printf 'a\nb\nc\n')" cat --head=3 "$TMPDIR"/head.txt
+
+echo "  ── --tail=N : show last N lines ──"
+assert_cmd "$(printf 'c\nd\ne\n')" cat --tail=3 "$TMPDIR"/head.txt
+
+echo "  ── --range=N-M : show lines N-M ──"
+assert_cmd "$(printf 'b\nc\nd\n')" cat --range=2-4 "$TMPDIR"/head.txt
+
+echo "  ── --range=N- : show from N to end ──"
+assert_cmd "$(printf 'd\ne\n')" cat --range=4- "$TMPDIR"/head.txt
+
+printf 'hello world\nfoo bar\nbaz qux\nhello again\n' > "$TMPDIR"/grep.txt
+
+echo "  ── --grep=PATTERN : filter lines ──"
+assert_cmd "$(printf 'hello world\nhello again\n')" cat --grep='hello' "$TMPDIR"/grep.txt
+
+echo "  ── --grep + --context : show context around matches ──"
+assert_cmd "$(printf 'foo bar\nbaz qux\nhello again\n')" cat --grep='baz' --context=1 "$TMPDIR"/grep.txt
+
+echo "  ── --number-format=hex : hex line numbers ──"
+printf 'a\nb\n' > "$TMPDIR"/hexnum.txt
+assert_cmd "$(printf '0x0001  a\n0x0002  b\n')" cat -n --number-format=hex "$TMPDIR"/hexnum.txt
+
+echo "  ── --number-format=octal : octal line numbers ──"
+assert_cmd "$(printf '000001  a\n000002  b\n')" cat -n --number-format=octal "$TMPDIR"/hexnum.txt
+
+echo "  ── --header : show file metadata banner ──"
+assert_cmd_pat 'Mode:' cat --header "$TMPDIR"/simple.txt
+assert_cmd_pat 'Size:' cat --header "$TMPDIR"/simple.txt
+assert_cmd_pat 'Modified:' cat --header "$TMPDIR"/simple.txt
+
+echo "  ── --stats : show line/word/char count ──"
+assert_cmd_pat 'lines.*words.*characters' cat --stats "$TMPDIR"/simple.txt
+
+echo "  ── --head + --range combined ──"
+printf '1\n2\n3\n4\n5\n6\n7\n8\n' > "$TMPDIR"/comb.txt
+assert_cmd "$(printf '3\n4\n5\n')" cat --range=3-6 --head=3 "$TMPDIR"/comb.txt
+
+echo "  ── --range + --grep combined ──"
+printf 'aa\nbb\ncc\naa\nbb\ncc\n' > "$TMPDIR"/rangegrep.txt
+assert_cmd "$(printf 'aa\n')" cat --range=4-6 --grep='aa' "$TMPDIR"/rangegrep.txt
+
+echo "  ── --diff : unified diff between two files ──"
+printf 'a\nb\nc\n' > "$TMPDIR"/diff1.txt
+printf 'a\nd\nc\n' > "$TMPDIR"/diff2.txt
+assert_cmd_pat '^---' cat --diff="$TMPDIR"/diff2.txt "$TMPDIR"/diff1.txt
+assert_cmd_pat '^\+d' cat --diff="$TMPDIR"/diff2.txt "$TMPDIR"/diff1.txt
+
+echo "  ── --blame : git blame per line ──"
+BNAME="blame_test_$$"
+mkdir -p "$TMPDIR"/blame_repo
+cd "$TMPDIR"/blame_repo
+git init -q
+git config user.email "test@test.com"
+git config user.name "Tester"
+printf 'first line\nsecond line\n' > "$BNAME".txt
+git add "$BNAME".txt
+git commit -q -m "initial" --date="2026-05-30 12:00:00"
+assert_cmd_pat '[0-9a-f]{7}' cat --blame "$BNAME".txt
+assert_cmd_pat 'Tester' cat --blame "$BNAME".txt
+cd "$TMPDIR"
+
+echo "  ── --highlight : auto-disable ANSI when piped (not a TTY) ──"
+printf '#include <stdio.h>\nint main(void) { return 0; }\n' > "$TMPDIR"/hl_test.c
+OUTPUT=$("$MODBOX" cat --highlight "$TMPDIR"/hl_test.c 2>/dev/null || true)
+if echo "$OUTPUT" | grep -q $'\033'; then
+    fail "cat --highlight (piped) — expected no ANSI codes, got them"
+else
+    pass "cat --highlight (piped) — ANSI codes correctly disabled"
+fi
+
+echo "  ── --highlight + --header combined ──"
+assert_cmd_pat 'Mode:' cat --header --highlight "$TMPDIR"/simple.txt
+
 # ── ls ──────────────────────────────────────────────────────────────────────
 
 echo ""
