@@ -297,6 +297,21 @@ assert_cmd_pat '\\001' ls -b 2>/dev/null
 echo "  ── --color=always ──"
 assert_cmd_pat $'\x1b\[' ls --color=always 2>/dev/null
 
+echo "  ── --colorful ──"
+assert_cmd_pat $'\x1b\[' ls --colorful 2>/dev/null
+
+echo "  ── --colorful -l : long format multi-color ──"
+assert_cmd_pat $'\x1b\[' ls --colorful -l 2>/dev/null
+
+echo "  ── --colorful -l has more ANSI than --color=always -l ──"
+colorful_count=$("$MODBOX" ls --colorful -l 2>/dev/null | grep -o $'\x1b\[' | wc -l)
+always_count=$("$MODBOX" ls --color=always -l 2>/dev/null | grep -o $'\x1b\[' | wc -l)
+if [ "$colorful_count" -gt "$always_count" ]; then
+    pass "ls --colorful -l → $colorful_count ANSI > --color=always -l → $always_count"
+else
+    fail "ls --colorful -l → $colorful_count ANSI, expected > $always_count"
+fi
+
 echo "  ── --block-size ──"
 assert_cmd_pat 'reg' ls -l --block-size=K 2>/dev/null
 

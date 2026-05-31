@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -27,6 +28,15 @@
 
 /* Gap between columns in columnar output (spaces) */
 #define COLUMN_GAP 2
+
+/* Size thresholds for colorful size display */
+#define ONE_GIB 1073741824L
+#define ONE_MIB 1048576L
+
+/* File-age thresholds (seconds) for colorful date display */
+#define AGE_12H 43200
+#define AGE_24H 86400
+#define AGE_72H 259200
 
 static int should_color(color_mode_t mode) {
   switch (mode) {
@@ -79,45 +89,177 @@ static void print_escaped_filename(const char *filename) {
   }
 }
 
-static void print_long_format(const char *display_name, const struct stat *st,
-                               const LsOptions *opts,
-                               const char *color_code,
-                               const char *classify_suffix) {
+static char file_type_char(mode_t mode) {
+  if (S_ISDIR(mode)) { return 'd'; }
+  if (S_ISLNK(mode)) { return 'l'; }
+  if (S_ISBLK(mode)) { return 'b'; }
+  if (S_ISCHR(mode)) { return 'c'; }
+  if (S_ISSOCK(mode)) { return 's'; }
+  if (S_ISFIFO(mode)) { return 'p'; }
+  return '-';
+}
+
+static const char *file_type_color(mode_t mode) {
+  if (S_ISDIR(mode)) { return "\033[1;34m"; }
+  if (S_ISLNK(mode)) { return "\033[1;36m"; }
+  if (S_ISBLK(mode) || S_ISCHR(mode)) { return "\033[1;33m"; }
+  if (S_ISSOCK(mode)) { return "\033[35m"; }
+  if (S_ISFIFO(mode)) { return "\033[33m"; }
+  return "";
+}
+
+static void print_colored_triad(mode_t mode, int bit_r, int bit_w, int bit_x,
+                                int special_bit, char special_set_char,
+                                char special_unset_char) {
+  printf("\033[37m%c\033[0m", mode & bit_r ? 'r' : '-');
+  printf("\033[33m%c\033[0m", mode & bit_w ? 'w' : '-');
+  if (mode & special_bit) {
+    printf("\033[1;31m%c\033[0m", mode & bit_x ? special_set_char : special_unset_char);
+  } else {
+    printf("\033[1;32m%c\033[0m", mode & bit_x ? 'x' : '-');
+  }
+}
+
+static void print_colorful_permissions(const struct stat *st) {
+  printf("%s", file_type_color(st->st_mode));
+  putchar(file_type_char(st->st_mode));
+  printf("\033[0m");
+  print_colored_triad(st->st_mode, S_IRUSR, S_IWUSR, S_IXUSR, S_ISUID, 's', 'S');
+  print_colored_triad(st->st_mode, S_IRGRP, S_IWGRP, S_IXGRP, S_ISGID, 's', 'S');
+  print_colored_triad(st->st_mode, S_IROTH, S_IWOTH, S_IXOTH, S_ISVTX, 't', 'T');
+  printf(" ");
+}
+
+static void print_plain_permissions(const struct stat *st) {
   printf("%c%c%c%c%c%c%c%c%c ", S_ISDIR(st->st_mode) ? 'd' : '-',
          st->st_mode & S_IRUSR ? 'r' : '-', st->st_mode & S_IWUSR ? 'w' : '-',
          st->st_mode & S_IXUSR ? 'x' : '-', st->st_mode & S_IRGRP ? 'r' : '-',
          st->st_mode & S_IWGRP ? 'w' : '-', st->st_mode & S_IXGRP ? 'x' : '-',
          st->st_mode & S_IROTH ? 'r' : '-', st->st_mode & S_IWOTH ? 'w' : '-');
+}
 
-  // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-  printf("%4ld ", (long)st->st_nlink);
-
+static void print_owner_group(const struct stat *st, const LsOptions *opts) {
+  int colorful = opts->colorful;
   struct passwd *pwd = getpwuid(st->st_uid);
   struct group *grp = getgrgid(st->st_gid);
   if (opts->show_author) {
-    printf("%s %s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-",
-           grp ? grp->gr_name : "-");
+    if (colorful) {
+      printf("\033[1;33m");
+    }
+    printf("%s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-");
+    if (colorful) {
+      printf("\033[0m");
+    }
+    if (colorful) {
+      printf("\033[1;36m");
+    }
+    printf("%s ", grp ? grp->gr_name : "-");
+    if (colorful) {
+      printf("\033[0m");
+    }
   } else {
-    printf("%s %s ", pwd ? pwd->pw_name : "-", grp ? grp->gr_name : "-");
+    if (colorful) {
+      printf("\033[1;33m");
+    }
+    printf("%s ", pwd ? pwd->pw_name : "-");
+    if (colorful) {
+      printf("\033[0m");
+    }
+    if (colorful) {
+      printf("\033[1;36m");
+    }
+    printf("%s ", grp ? grp->gr_name : "-");
+    if (colorful) {
+      printf("\033[0m");
+    }
   }
+}
 
-  unsigned long display_size =
-      opts->block_size > 0
-          ? (unsigned long)((st->st_size + ((off_t)opts->block_size / 2))
-                            / (off_t)opts->block_size)
-          : (unsigned long)st->st_size;
+static void print_size_with_color(unsigned long raw, unsigned long display_size,
+                                   const LsOptions *opts) {
+  if (opts->colorful) {
+    if (raw > ONE_GIB) {
+      printf("\033[1;31m");
+    } else if (raw > ONE_MIB) {
+      printf("\033[33m");
+    } else {
+      printf("\033[37m");
+    }
+  }
   if (opts->size_suffix != '\0') {
     printf("%7lu%c ", display_size, opts->size_suffix);
   } else {
     printf("%8lu ", display_size);
   }
+  if (opts->colorful) {
+    printf("\033[0m");
+  }
+}
 
+static void print_date_with_color(const struct stat *st) {
+  time_t now = time(NULL);
+  double diff = difftime(now, st->st_mtime);
+  if (diff < AGE_12H) {
+    printf("\033[1;32m");
+  } else if (diff < AGE_24H) {
+    printf("\033[32m");
+  } else if (diff < AGE_72H) {
+    printf("\033[36m");
+  } else {
+    printf("\033[2;37m");
+  }
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+static void print_long_format(const char *display_name, const struct stat *st,
+                                const LsOptions *opts,
+                                const char *color_code,
+                                const char *classify_suffix) {
+  int colorful = opts->colorful;
+
+  // ── Permissions ──
+  if (colorful) {
+    print_colorful_permissions(st);
+  } else {
+    print_plain_permissions(st);
+  }
+
+  // ── Link count ──
+  if (colorful) {
+    printf("\033[33m");
+  }
+  // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+  printf("%4ld ", (long)st->st_nlink);
+  if (colorful) {
+    printf("\033[0m");
+  }
+
+  // ── Owner & Group ──
+  print_owner_group(st, opts);
+
+  // ── Size ──
+  unsigned long raw = (unsigned long)st->st_size;
+  unsigned long display_size =
+      opts->block_size > 0
+          ? (unsigned long)((st->st_size + ((off_t)opts->block_size / 2))
+                            / (off_t)opts->block_size)
+          : raw;
+  print_size_with_color(raw, display_size, opts);
+
+  // ── Date ──
   char time_buf[20];
   // NOLINTNEXTLINE(bugprone-unused-return-value)
   (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M",
                  localtime(&st->st_mtime));
+  if (colorful) {
+    print_date_with_color(st);
+  }
   printf("%s ", time_buf);
+  if (colorful) {
+    printf("\033[0m");
+  }
 
+  // ── Filename ──
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
   }
@@ -507,6 +649,8 @@ void ls_command(gint argc, gchar **argv) {
   struct arg_lit *one_column_opt = arg_lit0("1", NULL, "list one file per line");
   struct arg_lit *classify_opt =
       arg_lit0("F", "classify", "append indicator (one of */@) to entries");
+  struct arg_lit *colorful_opt =
+      arg_lit0(NULL, "colorful", "multi-color output (like eza/lsd)");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
@@ -527,6 +671,7 @@ void ls_command(gint argc, gchar **argv) {
                       unsorted_opt,
                       one_column_opt,
                       classify_opt,
+                      colorful_opt,
                       help_opt,
                       dir_arg,
                       end};
@@ -548,6 +693,7 @@ void ls_command(gint argc, gchar **argv) {
     printf("  -C                    list entries by columns\n");
     printf("  -d, --directory       list directories themselves, not their contents\n");
     printf("  -F, --classify        append indicator (one of */@) to entries\n");
+    printf("      --colorful        multi-color output (like eza/lsd)\n");
     printf("  -l, --long            use a long listing format\n");
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
@@ -571,6 +717,10 @@ void ls_command(gint argc, gchar **argv) {
     opts.show_columns = 0;
   }
   opts.classify = (classify_opt->count > 0);
+  opts.colorful = (colorful_opt->count > 0);
+  if (opts.colorful) {
+    opts.color_mode = COLOR_ALWAYS;
+  }
   opts.reverse_sort = (reverse_opt->count > 0);
   opts.unsorted = (unsorted_opt->count > 0);
   opts.show_author = (author_opt->count > 0);
