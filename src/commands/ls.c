@@ -39,7 +39,7 @@ static int should_color(color_mode_t mode) {
   }
 }
 
-static const char *get_file_color(struct stat *st) {
+static const char *get_file_color(const struct stat *st) {
   if (S_ISDIR(st->st_mode)) {
     return "01;34";
   }
@@ -53,9 +53,9 @@ static const char *get_file_color(struct stat *st) {
 }
 
 static const char *get_classify_indicator(struct stat *st) {
-  if (S_ISLNK(st->st_mode)) return "@";
-  if (S_ISDIR(st->st_mode)) return "/";
-  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) return "*";
+  if (S_ISLNK(st->st_mode)) { return "@"; }
+  if (S_ISDIR(st->st_mode)) { return "/"; }
+  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) { return "*"; }
   return "";
 }
 
@@ -77,6 +77,60 @@ static void print_escaped_filename(const char *filename) {
       printf("\\%03o", (int)*p);
     }
   }
+}
+
+static void print_long_format(const char *display_name, const struct stat *st,
+                               const LsOptions *opts,
+                               const char *color_code,
+                               const char *classify_suffix) {
+  printf("%c%c%c%c%c%c%c%c%c ", S_ISDIR(st->st_mode) ? 'd' : '-',
+         st->st_mode & S_IRUSR ? 'r' : '-', st->st_mode & S_IWUSR ? 'w' : '-',
+         st->st_mode & S_IXUSR ? 'x' : '-', st->st_mode & S_IRGRP ? 'r' : '-',
+         st->st_mode & S_IWGRP ? 'w' : '-', st->st_mode & S_IXGRP ? 'x' : '-',
+         st->st_mode & S_IROTH ? 'r' : '-', st->st_mode & S_IWOTH ? 'w' : '-');
+
+  // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+  printf("%4ld ", (long)st->st_nlink);
+
+  struct passwd *pwd = getpwuid(st->st_uid);
+  struct group *grp = getgrgid(st->st_gid);
+  if (opts->show_author) {
+    printf("%s %s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-",
+           grp ? grp->gr_name : "-");
+  } else {
+    printf("%s %s ", pwd ? pwd->pw_name : "-", grp ? grp->gr_name : "-");
+  }
+
+  unsigned long display_size =
+      opts->block_size > 0
+          ? (unsigned long)((st->st_size + ((off_t)opts->block_size / 2))
+                            / (off_t)opts->block_size)
+          : (unsigned long)st->st_size;
+  if (opts->size_suffix != '\0') {
+    printf("%7lu%c ", display_size, opts->size_suffix);
+  } else {
+    printf("%8lu ", display_size);
+  }
+
+  char time_buf[20];
+  // NOLINTNEXTLINE(bugprone-unused-return-value)
+  (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M",
+                 localtime(&st->st_mtime));
+  printf("%s ", time_buf);
+
+  if (color_code != NULL) {
+    printf("\033[%sm", color_code);
+  }
+  if (opts->escape_mode) {
+    print_escaped_filename(display_name);
+  } else {
+    printf("%s", display_name);
+  }
+  printf("%s", classify_suffix);
+  if (color_code != NULL) {
+    printf("\033[0m");
+  }
+  printf("\n");
 }
 
 static void print_file_info(const char *filename, const LsOptions *opts) {
@@ -144,54 +198,7 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
     return;
   }
 
-  printf("%c%c%c%c%c%c%c%c%c ", S_ISDIR(st.st_mode) ? 'd' : '-',
-         st.st_mode & S_IRUSR ? 'r' : '-', st.st_mode & S_IWUSR ? 'w' : '-',
-         st.st_mode & S_IXUSR ? 'x' : '-', st.st_mode & S_IRGRP ? 'r' : '-',
-         st.st_mode & S_IWGRP ? 'w' : '-', st.st_mode & S_IXGRP ? 'x' : '-',
-         st.st_mode & S_IROTH ? 'r' : '-', st.st_mode & S_IWOTH ? 'w' : '-');
-
-  // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-  printf("%4ld ", (long)st.st_nlink);
-
-  struct passwd *pwd = getpwuid(st.st_uid);
-  struct group *grp = getgrgid(st.st_gid);
-  if (opts->show_author) {
-    printf("%s %s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-",
-           grp ? grp->gr_name : "-");
-  } else {
-    printf("%s %s ", pwd ? pwd->pw_name : "-", grp ? grp->gr_name : "-");
-  }
-
-  unsigned long display_size =
-      opts->block_size > 0
-          ? (unsigned long)((st.st_size + ((off_t)opts->block_size / 2))
-                            / (off_t)opts->block_size)
-          : (unsigned long)st.st_size;
-  if (opts->size_suffix != '\0') {
-    printf("%7lu%c ", display_size, opts->size_suffix);
-  } else {
-    printf("%8lu ", display_size);
-  }
-
-  char time_buf[20];
-  // NOLINTNEXTLINE(bugprone-unused-return-value)
-  (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M",
-                 localtime(&st.st_mtime));
-  printf("%s ", time_buf);
-
-  if (use_color) {
-    printf("\033[%sm", color_code);
-  }
-  if (opts->escape_mode) {
-    print_escaped_filename(display_name);
-  } else {
-    printf("%s", display_name);
-  }
-  printf("%s", classify_suffix);
-  if (use_color) {
-    printf("\033[0m");
-  }
-  printf("\n");
+  print_long_format(display_name, &st, opts, color_code, classify_suffix);
 }
 
 static unsigned long parse_block_size(const char *str) {
@@ -312,6 +319,55 @@ static int should_use_columns(const LsOptions *opts) {
  *  The list is assumed to already be sorted.  Terminal width is detected
  *  via ioctl / $COLUMNS / default 80.
  */
+static void print_one_entry(const char *name, int col, int num_cols,
+                             int col_width, const LsOptions *opts,
+                             int use_color) {
+  const char *display_name = display_name_of(name);
+  int name_display_w =
+      opts->escape_mode ? escaped_display_width(display_name)
+                        : plain_display_width(display_name);
+  if (opts->classify) {
+    name_display_w += 1;
+  }
+
+  const char *color_code = NULL;
+  const char *classify_suffix = "";
+  if (use_color || opts->classify) {
+    struct stat st;
+    if (lstat(name, &st) == 0) {
+      if (use_color) {
+        color_code = get_file_color(&st);
+      }
+      if (opts->classify) {
+        classify_suffix = get_classify_indicator(&st);
+      }
+    }
+  }
+
+  if (color_code != NULL) {
+    printf("\033[%sm", color_code);
+  }
+  if (opts->escape_mode) {
+    print_escaped_filename(display_name);
+  } else {
+    printf("%s", display_name);
+  }
+  printf("%s", classify_suffix);
+  if (color_code != NULL) {
+    printf("\033[0m");
+  }
+
+  if (col < num_cols - 1) {
+    int padding = col_width - name_display_w;
+    if (padding < 0) {
+      padding = 1;
+    }
+    for (int p = 0; p < padding; p++) {
+      putchar(' ');
+    }
+  }
+}
+
 static void print_columns(GList *files, const LsOptions *opts) {
   int use_color = should_color(opts->color_mode);
   int term_width = get_terminal_width();
@@ -366,54 +422,8 @@ static void print_columns(GList *files, const LsOptions *opts) {
         continue;
       }
 
-      // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign, clang-analyzer-security.ArrayBound)
-      const char *name = names[index];
-      const char *display_name = display_name_of(name);
-      int name_display_w =
-          opts->escape_mode ? escaped_display_width(display_name)
-                            : plain_display_width(display_name);
-      if (opts->classify) {
-        name_display_w += 1;
-      }
-
-      /* Determine color and classify suffix if needed (use full path for lstat) */
-      const char *color_code = NULL;
-      const char *classify_suffix = "";
-      if (use_color || opts->classify) {
-        struct stat st;
-        if (lstat(name, &st) == 0) {
-          if (use_color) {
-            color_code = get_file_color(&st);
-          }
-          if (opts->classify) {
-            classify_suffix = get_classify_indicator(&st);
-          }
-        }
-      }
-
-      if (color_code != NULL) {
-        printf("\033[%sm", color_code);
-      }
-      if (opts->escape_mode) {
-        print_escaped_filename(display_name);
-      } else {
-        printf("%s", display_name);
-      }
-      printf("%s", classify_suffix);
-      if (color_code != NULL) {
-        printf("\033[0m");
-      }
-
-      /* Pad to column width (not needed for the last column) */
-      if (col < num_cols - 1) {
-        int padding = col_width - name_display_w;
-        if (padding < 0) {
-          padding = 1;
-        }
-        for (int p = 0; p < padding; p++) {
-          putchar(' ');
-        }
-      }
+      // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign, clang-analyzer-security.ArrayBound, clang-analyzer-core.CallAndMessage)
+      print_one_entry(names[index], col, num_cols, col_width, opts, use_color);
     }
     printf("\n");
   }

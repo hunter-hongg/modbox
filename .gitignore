@@ -2,3 +2,4 @@
 build/
 target/
 .sisyphus/
+compile_commands.json
