@@ -52,6 +52,13 @@ static const char *get_file_color(struct stat *st) {
   return NULL;
 }
 
+static const char *get_classify_indicator(struct stat *st) {
+  if (S_ISLNK(st->st_mode)) return "@";
+  if (S_ISDIR(st->st_mode)) return "/";
+  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) return "*";
+  return "";
+}
+
 /** Extract the display name (basename) from a possibly-full path.
  *  Returns a pointer into the original string (no allocation). */
 static const char *display_name_of(const char *path) {
@@ -74,17 +81,22 @@ static void print_escaped_filename(const char *filename) {
 
 static void print_file_info(const char *filename, const LsOptions *opts) {
   int use_color = should_color(opts->color_mode);
-
-  /* Extract the display name (basename) from the full path */
   const char *display_name = display_name_of(filename);
+  const char *classify_suffix = "";
 
   if (!opts->show_details && !use_color) {
+    if (opts->classify) {
+      struct stat st;
+      if (lstat(filename, &st) == 0) {
+        classify_suffix = get_classify_indicator(&st);
+      }
+    }
     if (opts->escape_mode) {
       print_escaped_filename(display_name);
     } else {
       printf("%s", display_name);
     }
-    printf("  ");
+    printf("%s%s", classify_suffix, opts->show_one_column ? "\n" : "  ");
     return;
   }
 
@@ -100,9 +112,13 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
       } else {
         printf("%s", display_name);
       }
-      printf("  ");
+      printf("%s", opts->show_one_column ? "\n" : "  ");
     }
     return;
+  }
+
+  if (opts->classify) {
+    classify_suffix = get_classify_indicator(&st);
   }
 
   const char *color_code = NULL;
@@ -120,10 +136,11 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
     } else {
       printf("%s", display_name);
     }
+    printf("%s", classify_suffix);
     if (use_color) {
       printf("\033[0m");
     }
-    printf("  ");
+    printf("%s", opts->show_one_column ? "\n" : "  ");
     return;
   }
 
@@ -170,6 +187,7 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
   } else {
     printf("%s", display_name);
   }
+  printf("%s", classify_suffix);
   if (use_color) {
     printf("\033[0m");
   }
@@ -277,8 +295,12 @@ static int plain_display_width(const char *s) { return (int)strlen(s); }
 
 /** Decide whether to use column layout.
  *  On terminal, unsorted output uses single-column layout (no wrap).
- *  When piped or redirected, preserve the configured column mode. */
+ *  When piped or redirected, preserve the configured column mode.
+ *  -1 forces single-column output. */
 static int should_use_columns(const LsOptions *opts) {
+    if (opts->show_one_column) {
+        return 0;
+    }
     if (opts->unsorted && isatty(STDOUT_FILENO)) {
         return 0;
     }
@@ -305,6 +327,9 @@ static void print_columns(GList *files, const LsOptions *opts) {
     const char *display_name = display_name_of((const char *)iter->data);
     int w = opts->escape_mode ? escaped_display_width(display_name)
                               : plain_display_width(display_name);
+    if (opts->classify) {
+      w += 1;
+    }
     if (w > max_width) {
       max_width = w;
     }
@@ -347,13 +372,22 @@ static void print_columns(GList *files, const LsOptions *opts) {
       int name_display_w =
           opts->escape_mode ? escaped_display_width(display_name)
                             : plain_display_width(display_name);
+      if (opts->classify) {
+        name_display_w += 1;
+      }
 
-      /* Determine color if needed (use full path for lstat) */
+      /* Determine color and classify suffix if needed (use full path for lstat) */
       const char *color_code = NULL;
-      if (use_color) {
+      const char *classify_suffix = "";
+      if (use_color || opts->classify) {
         struct stat st;
         if (lstat(name, &st) == 0) {
-          color_code = get_file_color(&st);
+          if (use_color) {
+            color_code = get_file_color(&st);
+          }
+          if (opts->classify) {
+            classify_suffix = get_classify_indicator(&st);
+          }
         }
       }
 
@@ -365,6 +399,7 @@ static void print_columns(GList *files, const LsOptions *opts) {
       } else {
         printf("%s", display_name);
       }
+      printf("%s", classify_suffix);
       if (color_code != NULL) {
         printf("\033[0m");
       }
@@ -412,7 +447,7 @@ static void sort_and_output_files(GList *files, const LsOptions *opts) {
     for (GList *iter = files; iter != NULL; iter = iter->next) {
       print_file_info((const char *)iter->data, opts);
     }
-    if (!opts->show_details) {
+    if (!opts->show_details && !opts->show_one_column) {
       printf("\n");
     }
   }
@@ -459,6 +494,9 @@ void ls_command(gint argc, gchar **argv) {
   struct arg_lit *columns_opt = arg_lit0("C", NULL, "list entries by columns");
   struct arg_lit *reverse_opt = arg_lit0("r", "reverse", "reverse order when sorting");
   struct arg_lit *unsorted_opt = arg_lit0("U", NULL, "do not sort; list entries in directory order");
+  struct arg_lit *one_column_opt = arg_lit0("1", NULL, "list one file per line");
+  struct arg_lit *classify_opt =
+      arg_lit0("F", "classify", "append indicator (one of */@) to entries");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
@@ -477,6 +515,8 @@ void ls_command(gint argc, gchar **argv) {
                       columns_opt,
                       reverse_opt,
                       unsorted_opt,
+                      one_column_opt,
+                      classify_opt,
                       help_opt,
                       dir_arg,
                       end};
@@ -494,8 +534,10 @@ void ls_command(gint argc, gchar **argv) {
     printf("      --block-size=SIZE scale sizes by SIZE when printing them\n");
     printf("  -B, --ignore-backups  do not list entries ending with ~\n");
     printf("      --color=WHEN      colorize the output; WHEN can be always, auto, or never\n");
+    printf("  -1                    list one file per line\n");
     printf("  -C                    list entries by columns\n");
     printf("  -d, --directory       list directories themselves, not their contents\n");
+    printf("  -F, --classify        append indicator (one of */@) to entries\n");
     printf("  -l, --long            use a long listing format\n");
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
@@ -514,6 +556,11 @@ void ls_command(gint argc, gchar **argv) {
   opts.show_all = (all_opt->count > 0) && (!opts.show_almost_all); // -A overrides -a
   opts.show_details = (long_opt->count > 0);
   opts.show_columns = (columns_opt->count > 0) && (!opts.show_details);
+  opts.show_one_column = (one_column_opt->count > 0);
+  if (opts.show_one_column) {
+    opts.show_columns = 0;
+  }
+  opts.classify = (classify_opt->count > 0);
   opts.reverse_sort = (reverse_opt->count > 0);
   opts.unsorted = (unsorted_opt->count > 0);
   opts.show_author = (author_opt->count > 0);

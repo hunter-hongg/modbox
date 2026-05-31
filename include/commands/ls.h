@@ -16,6 +16,8 @@ typedef struct {
     int show_columns;
     int reverse_sort;
     int unsorted;
+    int show_one_column;
+    int classify;
     color_mode_t color_mode;
     unsigned long block_size;
     char size_suffix;

@@ -356,6 +356,53 @@ else
     fail "ls -rU expected same as ls -U, got different output"
 fi
 
+echo "  ── -1 : one file per line ──"
+# Output should have one file per line (count lines)
+one_output=$("$MODBOX" ls -1 "$TMPDIR"/ls_dir 2>/dev/null)
+one_lines=$(echo "$one_output" | wc -l)
+# There are 6 entries in ls_dir (excluding . and ..)
+if [ "$one_lines" -ge 4 ]; then
+    pass "ls -1 → $one_lines lines (at least 4 entries)"
+else
+    fail "ls -1 → only $one_lines lines, expected >= 4"
+fi
+
+echo "  ── -1 with single file shows one line ──"
+one_single=$("$MODBOX" ls -1 "$TMPDIR"/ls_dir/regular.txt 2>/dev/null)
+one_single_lines=$(echo "$one_single" | wc -l)
+if [ "$one_single_lines" -eq 1 ]; then
+    pass "ls -1 single file → 1 line"
+else
+    fail "ls -1 single file → $one_single_lines lines, expected 1"
+fi
+
+# Create a symlink for -F testing
+ln -sf "$TMPDIR"/ls_dir/subdir "$TMPDIR"/ls_dir/symlink_to_dir
+
+echo "  ── -F : classify — dir gets / ──"
+assert_cmd_pat 'subdir/' ls -F "$TMPDIR"/ls_dir 2>/dev/null
+
+echo "  ── -F : classify — executable gets * ──"
+assert_cmd_pat 'exec\.sh\*' ls -F "$TMPDIR"/ls_dir 2>/dev/null
+
+echo "  ── -F : classify — symlink gets @ ──"
+assert_cmd_pat 'symlink_to_dir@' ls -F "$TMPDIR"/ls_dir 2>/dev/null
+
+echo "  ── -F : classify — regular file has no suffix ──"
+assert_cmd_pat 'regular\.txt[^*/@]' ls -F "$TMPDIR"/ls_dir 2>/dev/null
+
+echo "  ── -1F : one per line with classify ──"
+one_f_output=$("$MODBOX" ls -1F "$TMPDIR"/ls_dir 2>/dev/null)
+one_f_lines=$(echo "$one_f_output" | wc -l)
+if echo "$one_f_output" | grep -qE 'subdir/'; then
+    pass "ls -1F → one per line with classify indicator"
+else
+    fail "ls -1F — expected subdir/ in output"
+fi
+
+echo "  ── -F -l : long format with classify ──"
+assert_cmd_pat 'subdir/' ls -Fl "$TMPDIR"/ls_dir 2>/dev/null
+
 cd "$TMPDIR"
 
 # ── cp ──────────────────────────────────────────────────────────────────────
