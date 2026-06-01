@@ -1,8 +1,10 @@
 #ifndef CAT_BLAME_H
 #define CAT_BLAME_H
 
+#define COMMIT_SHA_BUF_SIZE 9
+
 typedef struct {
-    char commit[9];
+    char commit[COMMIT_SHA_BUF_SIZE];
     char author[32];
     char date[16];
 } BlameInfo;

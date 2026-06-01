@@ -1,32 +1,21 @@
 #include <argtable3.h>
 #include <dirent.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <glib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "commands/cp.h"
 
-/* Buffer size for file copy operations */
 #define COPY_BUF_SIZE 8192
-
-/* Default permissions for created directories */
 #define DIR_MODE 0755
-
-/* Maximum number of file arguments (sources + dest) */
 #define MAX_FILES 101
+#define PERM_MASK 07777
 
-/**
- * copy_file - Copy contents of src file to dst file
- * @src: path to source file
- * @dst: path to destination file
- * @is_verbose: print progress messages if non-zero
- * @is_force: remove existing destination file if non-zero
- * @is_no_clobber: do not overwrite existing files if non-zero
- *
- * Returns: 0 on success, -1 on error
- */
 static gboolean prompt_overwrite(const char *dst) {
   FILE *tty = fopen("/dev/tty", "r+");
   if (tty == NULL) {
@@ -49,8 +38,34 @@ static gboolean prompt_overwrite(const char *dst) {
   return (c == 'y' || c == 'Y');
 }
 
+static void apply_preserved_attrs(const struct stat *src_stat,
+                                  const char *dst, int fd) {
+  // NOLINTNEXTLINE(bugprone-unused-return-value)
+  (void)fchown(fd, src_stat->st_uid, src_stat->st_gid);
+  // NOLINTNEXTLINE(bugprone-unused-return-value)
+  (void)fchmod(fd, src_stat->st_mode & PERM_MASK);
+  struct timespec times[2];
+  times[0] = src_stat->st_atim;
+  times[1] = src_stat->st_mtim;
+  // NOLINTNEXTLINE(bugprone-unused-return-value)
+  (void)utimensat(AT_FDCWD, dst, times, 0);
+}
+
 static int copy_file(const char *src, const char *dst,
                      const CpOptions *opts) {
+  struct stat src_stat_buf;
+  const struct stat *src_stat;
+  if (opts->src_stat != NULL) {
+    src_stat = opts->src_stat;
+  } else {
+    if (stat(src, &src_stat_buf) != 0) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+      return -1;
+    }
+    src_stat = &src_stat_buf;
+  }
+
   struct stat dst_exist_stat;
   int dst_exists = (stat(dst, &dst_exist_stat) == 0);
 
@@ -61,9 +76,7 @@ static int copy_file(const char *src, const char *dst,
 
   /* update: skip if destination exists and is newer than source */
   if (opts->is_update && dst_exists) {
-    struct stat src_stat;
-    if (stat(src, &src_stat) == 0 &&
-        src_stat.st_mtime <= dst_exist_stat.st_mtime) {
+    if (src_stat->st_mtime <= dst_exist_stat.st_mtime) {
       return 0;
     }
   }
@@ -128,21 +141,20 @@ static int copy_file(const char *src, const char *dst,
 
   // NOLINTNEXTLINE(bugprone-unused-return-value)
   (void)fclose(fsrc);
+
+  if (opts->is_preserve) {
+    // Flush stdio buffer first so fclose() won't trigger a final write(2)
+    // that would overwrite the mtime we're about to set via utimensat.
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)fflush(fdst);
+    apply_preserved_attrs(src_stat, dst, fileno(fdst));
+  }
+
   // NOLINTNEXTLINE(bugprone-unused-return-value)
   (void)fclose(fdst);
   return 0;
 }
 
-/**
- * copy_recursive - Recursively copy src to dst
- * @src: path to source file or directory
- * @dst: path to destination
- * @is_verbose: print progress messages if non-zero
- * @is_force: remove existing destination file if non-zero
- * @is_no_clobber: do not overwrite existing files if non-zero
- *
- * Returns: 0 on success, -1 on error
- */
 // NOLINTNEXTLINE(misc-no-recursion)
 static int copy_recursive(const char *src, const char *dst,
                           const CpOptions *opts) {
@@ -155,7 +167,9 @@ static int copy_recursive(const char *src, const char *dst,
 
   /* Regular file: copy directly */
   if (S_ISREG(src_stat.st_mode)) {
-    return copy_file(src, dst, opts);
+    CpOptions local_opts = *opts;
+    local_opts.src_stat = &src_stat;
+    return copy_file(src, dst, &local_opts);
   }
 
   /* Directory: create destination and recurse */
@@ -180,6 +194,10 @@ static int copy_recursive(const char *src, const char *dst,
       if (opts->is_verbose) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)printf("'%s' -> '%s'\n", src, dst);
+      }
+      if (opts->is_preserve) {
+        // NOLINTNEXTLINE(bugprone-unused-return-value)
+        (void)chmod(dst, src_stat.st_mode & PERM_MASK);
       }
     }
 
@@ -211,6 +229,16 @@ static int copy_recursive(const char *src, const char *dst,
     }
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)closedir(dir);
+
+    /* Preserve directory timestamps after all children are written */
+    if (opts->is_preserve && !dst_exists) {
+      struct timespec times[2];
+      times[0] = src_stat.st_atim;
+      times[1] = src_stat.st_mtim;
+      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      (void)utimensat(AT_FDCWD, dst, times, 0);
+    }
+
     return ret;
   }
 
@@ -220,7 +248,7 @@ static int copy_recursive(const char *src, const char *dst,
   return -1;
 }
 
-// NOLINTNEXTLINE(misc-use-internal-linkage)
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void cp_command(gint argc, gchar **argv) {
   struct arg_lit *recursive_opt =
       arg_lit0("r", "recursive", "copy directories recursively");
@@ -235,15 +263,20 @@ void cp_command(gint argc, gchar **argv) {
   struct arg_lit *update_opt =
       arg_lit0("u", "update",
                "copy only when source is newer than destination");
-  /* Collect all remaining positional arguments in one file arg group,
-   * then split them into sources and destination manually. */
+  struct arg_lit *preserve_opt =
+      arg_lit0("p", "preserve",
+               "preserve mode, ownership, timestamps");
+  struct arg_str *target_dir_opt =
+      arg_str0("t", "target-directory", "DIRECTORY",
+               "copy all sources into DIRECTORY");
   struct arg_file *files_arg =
-      arg_filen(NULL, NULL, "SOURCE... DEST", 2, MAX_FILES,
+      arg_filen(NULL, NULL, "SOURCE... DEST", 1, MAX_FILES,
                 "source(s) followed by destination");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {recursive_opt,  verbose_opt, force_opt,
+  void *argtable[] = {recursive_opt, verbose_opt, force_opt,
                       no_clobber_opt, interactive_opt, update_opt,
+                      preserve_opt, target_dir_opt,
                       files_arg,     end};
 
   int nerrors = arg_parse(argc, argv, argtable);
@@ -262,28 +295,64 @@ void cp_command(gint argc, gchar **argv) {
   opts.is_no_clobber = (no_clobber_opt->count > 0);
   opts.is_interactive = (interactive_opt->count > 0);
   opts.is_update = (update_opt->count > 0);
+  opts.is_preserve = (preserve_opt->count > 0);
+  opts.target_dir = (target_dir_opt->count > 0)
+                        ? target_dir_opt->sval[0]
+                        : NULL;
+
   /* no-clobber overrides force and interactive */
   if (opts.is_no_clobber) {
     opts.is_force = 0;
     opts.is_interactive = 0;
   }
-  int num_files = files_arg->count;
 
-  if (num_files < 2) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "cp: missing destination operand\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+  int num_files = files_arg->count;
+  const char *dst = NULL;
+
+  if (opts.target_dir != NULL) {
+    /* -t: all positional args are sources, dest from option */
+    dst = opts.target_dir;
+
+    /* Verify -t target is an existing directory */
+    struct stat tgt_stat;
+    if (stat(dst, &tgt_stat) != 0) {
+      const char *msg = (errno == ENOENT)
+          ? "No such file or directory" : "is not a directory";
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "cp: target '%s': %s\n", dst, msg);
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+    if (!S_ISDIR(tgt_stat.st_mode)) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "cp: target '%s' is not a directory\n", dst);
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+
+    if (num_files < 1) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "cp: missing file operand\n");
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+  } else {
+    if (num_files < 2) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "cp: missing destination operand\n");
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+    /* Last argument is destination, all preceding are sources */
+    dst = files_arg->filename[num_files - 1];
   }
 
-  /* Last argument is destination, all preceding are sources */
-  const char *dst = files_arg->filename[num_files - 1];
-  int num_srcs = num_files - 1;
+  int num_srcs = (opts.target_dir != NULL) ? num_files : num_files - 1;
   int ret = 0;
 
   if (!opts.is_recursive) {
-    /* Non-recursive mode: only regular files, single source */
-    if (num_srcs != 1) {
+    /* Non-recursive mode: only regular files */
+    if (!opts.target_dir && num_srcs != 1) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr,
                     "cp: expected one source file (use -r for recursive)\n");
@@ -291,40 +360,41 @@ void cp_command(gint argc, gchar **argv) {
       return;
     }
 
-    const char *src = files_arg->filename[0];
+    for (int i = 0; i < num_srcs; i++) {
+      const char *src = files_arg->filename[i];
 
-    /* Check source exists and is a regular file */
-    struct stat src_stat;
-    if (stat(src, &src_stat) != 0) {
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
-    }
-    if (!S_ISREG(src_stat.st_mode)) {
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)fprintf(stderr, "cp: %s: Is not a regular file\n", src);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
-    }
+      struct stat src_stat;
+      if (stat(src, &src_stat) != 0) {
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+        ret = -1;
+        continue;
+      }
+      if (!S_ISREG(src_stat.st_mode)) {
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)fprintf(stderr, "cp: %s: Is not a regular file\n", src);
+        ret = -1;
+        continue;
+      }
 
-    /* Check if destination is an existing directory */
-    struct stat dst_stat;
-    gchar dest_path[4096];
-    if (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode)) {
-      /* Copy into directory: dest/basename(src) */
-      gchar *basename = g_path_get_basename(src);
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
-      g_free(basename);
-    } else {
-      /* Copy to the given path */
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
-    }
+      struct stat dst_stat;
+      gchar dest_path[4096];
+      if (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode)) {
+        /* Copy into directory: dest/basename(src) */
+        gchar *basename = g_path_get_basename(src);
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
+        g_free(basename);
+      } else {
+        /* Copy to the given path */
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
+      }
 
-    if (copy_file(src, dest_path, &opts) != 0) {
-      ret = -1;
+      opts.src_stat = &src_stat;
+      if (copy_file(src, dest_path, &opts) != 0) {
+        ret = -1;
+      }
     }
   } else {
     /* Recursive mode */
@@ -368,5 +438,5 @@ void cp_command(gint argc, gchar **argv) {
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-  (void)ret; /* result tracked for future expansion */
+  (void)ret;
 }
