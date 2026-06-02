@@ -825,6 +825,35 @@ mkdir -p "$dst_dir"
 "$MODBOX" ln -f "$TMPDIR"/ln_src.txt "$dst_dir/" 2>/dev/null || true
 assert_cmd "source content" cat "$dst_dir/ln_src.txt"
 
+echo "  ── -L : logical — dereference symlink source before hard link ──"
+echo "symlink_target" > "$TMPDIR"/ln_L_target.txt
+ln -sf "$TMPDIR"/ln_L_target.txt "$TMPDIR"/ln_L_sym.txt
+"$MODBOX" ln -L "$TMPDIR"/ln_L_sym.txt "$TMPDIR"/ln_L_hard.txt 2>/dev/null || true
+if [[ -f "$TMPDIR"/ln_L_hard.txt && ! -L "$TMPDIR"/ln_L_hard.txt ]]; then
+    pass "ln -L → created regular file (not symlink)"
+else
+    fail "ln -L — expected regular file, got symlink or missing"
+fi
+assert_cmd "symlink_target" cat "$TMPDIR"/ln_L_hard.txt
+
+echo "  ── -L with -s: no effect (symlink ignores -L) ──"
+echo "L_with_s" > "$TMPDIR"/ln_Ls_target.txt
+"$MODBOX" ln -L -s "$TMPDIR"/ln_Ls_target.txt "$TMPDIR"/ln_Ls_sym.txt 2>/dev/null || true
+if [[ -L "$TMPDIR"/ln_Ls_sym.txt ]]; then
+    pass "ln -L -s → symlink created (not affected by -L)"
+else
+    fail "ln -L -s — expected symlink"
+fi
+assert_cmd "L_with_s" cat "$TMPDIR"/ln_Ls_sym.txt
+
+echo "  ── -L -v : verbose shows original source path ──"
+out=$("$MODBOX" ln -L -v "$TMPDIR"/ln_L_sym.txt "$TMPDIR"/ln_Lv_hard.txt 2>/dev/null || true)
+if echo "$out" | grep -qE "ln_Lv_hard.*->"; then
+    pass "ln -L -v → verbose output"
+else
+    fail "ln -L -v — expected verbose output, got [$out]"
+fi
+
 echo "  ── -i : interactive prompt before overwrite (uses script to allocate pty) ──"
 echo "orig" > "$TMPDIR"/ln_i_dst
 if command -v script >/dev/null 2>&1; then

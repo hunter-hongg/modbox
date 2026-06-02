@@ -316,6 +316,7 @@ void cp_command(gint argc, gchar **argv) {
     /* Verify -t target is an existing directory */
     struct stat tgt_stat;
     if (stat(dst, &tgt_stat) != 0) {
+      // NOLINTNEXTLINE(misc-include-cleaner)
       const char *msg = (errno == ENOENT)
           ? "No such file or directory" : "is not a directory";
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)

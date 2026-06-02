@@ -9,6 +9,7 @@ typedef struct {
     int is_sym;
     int is_interactive;
     int is_no_deref;
+    int is_logical;
 } LnOptions;
 
 void ln_command(gint argc, gchar** argv);
