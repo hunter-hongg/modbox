@@ -76,13 +76,27 @@ static const char *get_classify_indicator(struct stat *st) {
 /** Return a UTF-8 Nerd Font icon string for the given file stat,
  *  matching lsd's icon set exactly. */
 static const char *get_file_icon(const struct stat *st) {
-  if (S_ISDIR(st->st_mode))  return "\xEF\x84\x95"; //  folder
-  if (S_ISLNK(st->st_mode)) return "\xEF\x92\x82"; //  symlink
-  if (S_ISSOCK(st->st_mode)) return "\xF3\xB0\x86\xA8"; // 󰆨 socket
-  if (S_ISFIFO(st->st_mode)) return "\xF3\xB0\x88\xB2"; // 󰈲 pipe
-  if (S_ISBLK(st->st_mode)) return "\xF3\xB0\x9C\xAB"; // 󰜫 block device
-  if (S_ISCHR(st->st_mode)) return "\xEE\x98\x81"; //  char device
-  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) return "\xEF\x92\x89"; //  executable
+  if (S_ISDIR(st->st_mode)) {
+    return "\xEF\x84\x95"; //  folder
+  }
+  if (S_ISLNK(st->st_mode)) {
+    return "\xEF\x92\x82"; //  symlink
+  }
+  if (S_ISSOCK(st->st_mode)) {
+    return "\xF3\xB0\x86\xA8"; // 󰆨 socket
+  }
+  if (S_ISFIFO(st->st_mode)) {
+    return "\xF3\xB0\x88\xB2"; // 󰈲 pipe
+  }
+  if (S_ISBLK(st->st_mode)) {
+    return "\xF3\xB0\x9C\xAB"; // 󰜫 block device
+  }
+  if (S_ISCHR(st->st_mode)) {
+    return "\xEE\x98\x81"; //  char device
+  }
+  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
+    return "\xEF\x92\x89"; //  executable
+  }
   return "\xEF\x80\x96"; //  regular file
 }
 

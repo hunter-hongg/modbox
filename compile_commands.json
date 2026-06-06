@@ -37,6 +37,12 @@
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/grep.c.o -c /home/hunter/projects/modbox/src/commands/grep.c",
+  "file": "/home/hunter/projects/modbox/src/commands/grep.c",
+  "output": "CMakeFiles/modbox.dir/src/commands/grep.c.o"
+},
+{
+  "directory": "/home/hunter/projects/modbox/build",
   "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/help.c.o -c /home/hunter/projects/modbox/src/commands/help.c",
   "file": "/home/hunter/projects/modbox/src/commands/help.c",
   "output": "CMakeFiles/modbox.dir/src/commands/help.c.o"
