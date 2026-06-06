@@ -69,6 +69,23 @@ static const char *get_classify_indicator(struct stat *st) {
   return "";
 }
 
+/** Display width of one icon (in terminal columns).
+ *  Nerd Font icons are monospace; typically 1 column wide. */
+#define ICON_DISPLAY_WIDTH 1
+
+/** Return a UTF-8 Nerd Font icon string for the given file stat,
+ *  matching lsd's icon set exactly. */
+static const char *get_file_icon(const struct stat *st) {
+  if (S_ISDIR(st->st_mode))  return "\xEF\x84\x95"; //  folder
+  if (S_ISLNK(st->st_mode)) return "\xEF\x92\x82"; //  symlink
+  if (S_ISSOCK(st->st_mode)) return "\xF3\xB0\x86\xA8"; // 󰆨 socket
+  if (S_ISFIFO(st->st_mode)) return "\xF3\xB0\x88\xB2"; // 󰈲 pipe
+  if (S_ISBLK(st->st_mode)) return "\xF3\xB0\x9C\xAB"; // 󰜫 block device
+  if (S_ISCHR(st->st_mode)) return "\xEE\x98\x81"; //  char device
+  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) return "\xEF\x92\x89"; //  executable
+  return "\xEF\x80\x96"; //  regular file
+}
+
 /** Extract the display name (basename) from a possibly-full path.
  *  Returns a pointer into the original string (no allocation). */
 static const char *display_name_of(const char *path) {
@@ -260,6 +277,9 @@ static void print_long_format(const char *display_name, const struct stat *st,
   }
 
   // ── Filename ──
+  if (opts->show_icons) {
+    printf("%s ", get_file_icon(st));
+  }
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
   }
@@ -281,11 +301,16 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
   const char *classify_suffix = "";
 
   if (!opts->show_details && !use_color) {
-    if (opts->classify) {
-      struct stat st;
-      if (lstat(filename, &st) == 0) {
+    struct stat st;
+    int have_stat = 0;
+    if (opts->classify || opts->show_icons) {
+      have_stat = (lstat(filename, &st) == 0);
+      if (have_stat && opts->classify) {
         classify_suffix = get_classify_indicator(&st);
       }
+    }
+    if (opts->show_icons && have_stat) {
+      printf("%s ", get_file_icon(&st));
     }
     if (opts->escape_mode) {
       print_escaped_filename(display_name);
@@ -324,6 +349,9 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
   }
 
   if (!opts->show_details) {
+    if (opts->show_icons) {
+      printf("%s ", get_file_icon(&st));
+    }
     if (use_color) {
       printf("\033[%sm", color_code);
     }
@@ -471,12 +499,17 @@ static void print_one_entry(const char *name, int col, int num_cols,
   if (opts->classify) {
     name_display_w += 1;
   }
+  if (opts->show_icons) {
+    name_display_w += ICON_DISPLAY_WIDTH + 1; // icon + space
+  }
 
   const char *color_code = NULL;
   const char *classify_suffix = "";
-  if (use_color || opts->classify) {
-    struct stat st;
-    if (lstat(name, &st) == 0) {
+  struct stat st;
+  int have_stat = 0;
+  if (use_color || opts->classify || opts->show_icons) {
+    have_stat = (lstat(name, &st) == 0);
+    if (have_stat) {
       if (use_color) {
         color_code = get_file_color(&st);
       }
@@ -486,6 +519,9 @@ static void print_one_entry(const char *name, int col, int num_cols,
     }
   }
 
+  if (opts->show_icons && have_stat) {
+    printf("%s ", get_file_icon(&st));
+  }
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
   }
@@ -527,6 +563,9 @@ static void print_columns(GList *files, const LsOptions *opts) {
                               : plain_display_width(display_name);
     if (opts->classify) {
       w += 1;
+    }
+    if (opts->show_icons) {
+      w += ICON_DISPLAY_WIDTH + 1; // icon + space
     }
     if (w > max_width) {
       max_width = w;
@@ -651,6 +690,8 @@ void ls_command(gint argc, gchar **argv) {
       arg_lit0("F", "classify", "append indicator (one of */@) to entries");
   struct arg_lit *colorful_opt =
       arg_lit0(NULL, "colorful", "multi-color output (like eza/lsd)");
+  struct arg_lit *icons_opt =
+      arg_lit0(NULL, "icons", "display icons before file names (like lsd)");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
@@ -672,6 +713,7 @@ void ls_command(gint argc, gchar **argv) {
                       one_column_opt,
                       classify_opt,
                       colorful_opt,
+                      icons_opt,
                       help_opt,
                       dir_arg,
                       end};
@@ -694,6 +736,7 @@ void ls_command(gint argc, gchar **argv) {
     printf("  -d, --directory       list directories themselves, not their contents\n");
     printf("  -F, --classify        append indicator (one of */@) to entries\n");
     printf("      --colorful        multi-color output (like eza/lsd)\n");
+    printf("      --icons           display icons before file names (like lsd)\n");
     printf("  -l, --long            use a long listing format\n");
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
@@ -718,6 +761,7 @@ void ls_command(gint argc, gchar **argv) {
   }
   opts.classify = (classify_opt->count > 0);
   opts.colorful = (colorful_opt->count > 0);
+  opts.show_icons = (icons_opt->count > 0);
   if (opts.colorful) {
     opts.color_mode = COLOR_ALWAYS;
   }
