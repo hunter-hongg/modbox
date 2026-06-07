@@ -14,6 +14,7 @@ void output_help(gchar *argv0, gchar *progname) {
     printf("  help  Display this help message\n");
     printf("  ln    Create hard links between files\n");
     printf("  ls    List directory contents\n");
+    printf("  find  Search for files in a directory hierarchy\n");
     printf("  grep  Search for patterns in files\n");
     printf("  mv    Move (rename) files\n");
     printf("\n");

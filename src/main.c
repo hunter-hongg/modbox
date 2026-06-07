@@ -10,6 +10,7 @@
 #include "commands/mv.h"
 #include "commands/grep.h"
 #include "commands/rg.h"
+#include "commands/find.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -38,6 +39,7 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
     g_hash_table_insert(commands, "ln", (gpointer)ln_command);
     g_hash_table_insert(commands, "mv", (gpointer)mv_command);
     g_hash_table_insert(commands, "grep", (gpointer)grep_command);
+    g_hash_table_insert(commands, "find", (gpointer)find_command);
     g_hash_table_insert(commands, "rg", (gpointer)rg_command);
 
     if (g_hash_table_contains(commands, command)) {
