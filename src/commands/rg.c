@@ -8,14 +8,7 @@
 #include <unistd.h>
 
 #include "commands/rg.h"
-
-/* Regex compile flags */
-#define RG_REGEX_FLAGS_DEFAULT (G_REGEX_OPTIMIZE)
-#define RG_REGEX_FLAGS_CASELESS (G_REGEX_CASELESS | G_REGEX_OPTIMIZE)
-
-/* Word boundary pattern (GRegex PCRE syntax) */
-#define RG_WORD_BOUNDARY_BEFORE "(?<![[:alnum:]_])"
-#define RG_WORD_BOUNDARY_AFTER "(?![[:alnum:]_])"
+#include "commands/search_common.h"
 
 /* Maximum number of file arguments for argtable */
 #define RG_MAX_FILES 200
@@ -78,113 +71,6 @@ static int is_pattern_lowercase(const gchar *pattern) {
     return 1;
 }
 
-/** Build a GRegex from the user's pattern, applying options. */
-static GRegex *rg_compile_pattern(const RgOptions *opts, GError **error) {
-    GRegexCompileFlags flags = RG_REGEX_FLAGS_DEFAULT;
-
-    // Determine case sensitivity
-    if (opts->case_sensitive) {
-        // -s: force case-sensitive, do nothing
-    } else if (opts->ignore_case ||
-               (opts->smart_case && is_pattern_lowercase(opts->pattern))) {
-        // -i or -S (default): case-insensitive
-        flags |= RG_REGEX_FLAGS_CASELESS;
-    }
-
-    gchar *effective_pattern = NULL;
-    GRegex *re = NULL;
-
-    if (opts->line_regexp) {
-        effective_pattern = g_strdup_printf("^(?:%s)$", opts->pattern);
-    } else if (opts->word_regexp) {
-        effective_pattern = g_strdup_printf(
-            RG_WORD_BOUNDARY_BEFORE "(?:%s)" RG_WORD_BOUNDARY_AFTER,
-            opts->pattern);
-    } else {
-        effective_pattern = g_strdup(opts->pattern);
-    }
-
-    re = g_regex_new(effective_pattern, flags, (GRegexMatchFlags)0, error);
-    g_free(effective_pattern);
-    return re;
-}
-
-/** Check word boundary at match position (for fixed-string mode). */
-static gboolean rg_check_word_boundary(const gchar *haystack,
-                                        // NOLINTNEXTLINE(misc-include-cleaner)
-                                        gsize match_start, gsize match_end,
-                                        gsize haystack_len) {
-    gboolean word_ok = TRUE;
-    if (match_start > 0) {
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        guchar prev = (guchar)haystack[match_start - 1];
-        if (g_ascii_isalnum(prev) || prev == '_') {
-            word_ok = FALSE;
-        }
-    }
-    if (match_end < haystack_len) {
-        guchar next = (guchar)haystack[match_end];
-        if (g_ascii_isalnum(next) || next == '_') {
-            word_ok = FALSE;
-        }
-    }
-    return word_ok;
-}
-
-/** Check line boundary (whole line match, fixed-string mode). */
-static gboolean rg_check_line_boundary(gsize match_start, gsize match_end,
-                                        gsize line_len) {
-    return (match_start == 0 && match_end == line_len);
-}
-
-/** Core fixed string search loop. Returns TRUE if match found. */
-static gboolean rg_search_fixed_loop(const gchar *haystack,
-                                      const gchar *pattern,
-                                      gsize haystack_len,
-                                      gsize *match_start, gsize *match_end,
-                                      gboolean is_ci, const RgOptions *opts) {
-    (void)is_ci;
-    gsize pat_len = strlen(pattern);
-    const gchar *found = haystack;
-    while ((found = strstr(found, pattern)) != NULL) {
-        *match_start = (gsize)(found - haystack);
-        *match_end = *match_start + pat_len;
-        gboolean ok = TRUE;
-        if (opts->word_regexp) {
-            ok = rg_check_word_boundary(haystack, *match_start, *match_end,
-                                         haystack_len);
-        }
-        if (opts->line_regexp) {
-            ok = ok && rg_check_line_boundary(*match_start, *match_end,
-                                               haystack_len);
-        }
-        if (ok) {
-            return TRUE;
-        }
-        found++;
-    }
-    return FALSE;
-}
-
-/** Fixed-string match with optional case-insensitivity. */
-static gboolean rg_match_fixed(const RgOptions *opts, const gchar *line,
-                                gsize line_len, gboolean is_ci) {
-    gsize ms;
-    gsize me;
-    if (is_ci) {
-        // NOLINTNEXTLINE(misc-include-cleaner)
-        gchar *lower_line = g_utf8_strdown(line, (gssize)line_len);
-        gchar *lower_pat = g_utf8_strdown(opts->pattern, -1);
-        gboolean found = rg_search_fixed_loop(
-            lower_line, lower_pat, line_len, &ms, &me, TRUE, opts);
-        g_free(lower_line);
-        g_free(lower_pat);
-        return found;
-    }
-    return rg_search_fixed_loop(line, opts->pattern, line_len,
-                                 &ms, &me, FALSE, opts);
-}
-
 /** Determine if case-insensitive match should be used. */
 static gboolean rg_should_ci(const RgOptions *opts) {
     if (opts->case_sensitive) {
@@ -197,70 +83,6 @@ static gboolean rg_should_ci(const RgOptions *opts) {
         return is_pattern_lowercase(opts->pattern);
     }
     return FALSE;
-}
-
-/** Print a match line with optional color. For -o mode, prints each match. */
-static void rg_print_match(const gchar *line, gsize line_len, int show_ln,
-                            int ln, const gchar *prefix, int use_color,
-                            const GRegex *re, const RgOptions *opts,
-                            gboolean is_fixed, gboolean is_ci) {
-    (void)is_ci;
-    if (opts->only_matching) {
-        if (is_fixed) {
-            if (use_color) {
-                printf("\033[01;31m%s\033[0m\n", opts->pattern);
-            } else {
-                printf("%s\n", opts->pattern);
-            }
-        } else {
-            GMatchInfo *match_info;
-            g_regex_match(re, line, (GRegexMatchFlags)0, &match_info);
-            while (g_match_info_matches(match_info)) {
-                gint start;
-                gint end;
-                g_match_info_fetch_pos(match_info, 0, &start, &end);
-                int slen = (int)(end - start);
-                if (use_color) {
-                    printf("\033[01;31m%.*s\033[0m\n", slen, line + start);
-                } else {
-                    printf("%.*s\n", slen, line + start);
-                }
-                g_match_info_next(match_info, NULL);
-            }
-            g_match_info_free(match_info);
-        }
-        return;
-    }
-
-    // Build prefix: [prefix:]linenum:
-    // Print prefix first
-    if (prefix != NULL) {
-        printf("%s:", prefix);
-    }
-    if (show_ln) {
-        printf("%d:", ln);
-    }
-
-    // Line content with optional highlighting
-    if (use_color && !is_fixed && re != NULL) {
-        GMatchInfo *match_info;
-        g_regex_match(re, line, (GRegexMatchFlags)0, &match_info);
-        gsize last_end = 0;
-        while (g_match_info_matches(match_info)) {
-            gint start;
-            gint end;
-            g_match_info_fetch_pos(match_info, 0, &start, &end);
-            printf("%.*s\033[01;31m%.*s\033[0m",
-                   (int)(start - (gint)last_end),
-                   line + last_end, (int)(end - start), line + start);
-            last_end = (gsize)end;
-            g_match_info_next(match_info, NULL);
-        }
-        printf("%s\n", line + last_end);
-        g_match_info_free(match_info);
-    } else {
-        printf("%.*s\n", (int)line_len, line);
-    }
 }
 
 /** Print context separator. */
@@ -297,9 +119,7 @@ static int rg_search_file(const gchar *path, gboolean is_stdin,
         }
     }
 
-    int use_color = (opts->color_mode == RG_COLOR_ALWAYS ||
-                     (opts->color_mode == RG_COLOR_AUTO &&
-                      isatty(STDOUT_FILENO)));
+    int use_color = search_should_color((SearchColorMode)(int)opts->color_mode);
     int show_ln = opts->line_number && !opts->no_line_number;
 
     /* Determine if we need a filename prefix:
@@ -343,7 +163,10 @@ static int rg_search_file(const gchar *path, gboolean is_stdin,
 
         gboolean matched = FALSE;
         if (is_fixed) {
-            matched = rg_match_fixed(opts, line, len, is_ci);
+            matched = search_match_fixed(opts->pattern, line, len,
+                                          is_ci,
+                                          opts->word_regexp,
+                                          opts->line_regexp);
         } else {
             matched = g_regex_match(re, line, (GRegexMatchFlags)0, NULL);
         }
@@ -406,9 +229,10 @@ static int rg_search_file(const gchar *path, gboolean is_stdin,
                 goto cleanup;
             }
 
-            rg_print_match(line, len, show_ln, line_count,
-                           use_prefix ? display_name : NULL,
-                           use_color, re, opts, is_fixed, is_ci);
+            search_print_match(line, len, show_ln, line_count,
+                               use_prefix ? display_name : NULL,
+                               use_color, re, opts->pattern,
+                               opts->only_matching, is_fixed);
 
             pending_after = context_after;
 
@@ -776,7 +600,15 @@ void rg_command(gint argc, gchar **argv) {
     GRegex *re = NULL;
     GError *re_error = NULL;
     if (!is_fixed) {
-        re = rg_compile_pattern(&opts, &re_error);
+        GRegexCompileFlags flags = SEARCH_REGEX_FLAGS_DEFAULT;
+        if (opts.case_sensitive) {
+            // force case-sensitive: use default flags only
+        } else if (opts.ignore_case ||
+                   (opts.smart_case && is_pattern_lowercase(opts.pattern))) {
+            flags |= SEARCH_REGEX_FLAGS_CASELESS;
+        }
+        re = search_compile_pattern(opts.pattern, opts.word_regexp,
+                                     opts.line_regexp, flags, &re_error);
         if (re == NULL) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "rg: invalid pattern '%s': %s\n",

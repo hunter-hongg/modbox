@@ -10,212 +10,15 @@
 #include <unistd.h>
 
 #include "commands/grep.h"
-
-/* Regex compile flags */
-#define REGEX_FLAGS_DEFAULT (G_REGEX_OPTIMIZE)
-#define REGEX_FLAGS_CASELESS (G_REGEX_CASELESS | G_REGEX_OPTIMIZE)
-
-/* Word boundary pattern (GRegex PCRE syntax) */
-#define WORD_BOUNDARY_PATTERN "(?<![[:alnum:]_])"
-#define WORD_BOUNDARY_AFTER "(?![[:alnum:]_])"
-
+#include "commands/search_common.h"
+/** Search a single file for pattern matches. Returns the number of matching
+ *  lines, or 0 if none. */
 /* Maximum number of file arguments for argtable */
 #define GREP_MAX_FILES 200
 
-static int should_color_grep(grep_color_t mode) {
-  switch (mode) {
-  case COLOR_ALWAYS_GREP:
-    return 1;
-  case COLOR_AUTO_GREP:
-    return isatty(STDOUT_FILENO);
-  default:
-    return 0;
-  }
-}
-
-/** Build a GRegex from the user's pattern, applying options like
- *  ignore-case, word-regexp, and line-regexp. */
-static GRegex *compile_pattern(const GrepOptions *opts, GError **error) {
-  GRegexCompileFlags flags = REGEX_FLAGS_DEFAULT;
-  if (opts->ignore_case) {
-    flags |= REGEX_FLAGS_CASELESS;
-  }
-
-  gchar *effective_pattern = NULL;
-  GRegex *re = NULL;
-
-  if (opts->line_regexp) {
-    // Anchor the pattern to match the whole line
-    effective_pattern = g_strdup_printf("^(?:%s)$", opts->pattern);
-  } else if (opts->word_regexp) {
-    // Surround with word boundaries
-    effective_pattern =
-        g_strdup_printf("%s(?:%s)%s", WORD_BOUNDARY_PATTERN, opts->pattern,
-                        WORD_BOUNDARY_AFTER);
-  } else {
-    effective_pattern = g_strdup(opts->pattern);
-  }
-
-  re = g_regex_new(effective_pattern, flags, (GRegexMatchFlags)0, error);
-  g_free(effective_pattern);
-  return re;
-}
-
-/** Check word boundary at match position. */
-// NOLINTNEXTLINE(misc-include-cleaner)
-static gboolean check_word_boundary(const gchar *haystack, gsize match_start,
-                                    gsize match_end, gsize haystack_len) {
-  gboolean word_ok = TRUE;
-  if (match_start > 0) {
-    guchar prev = (guchar)haystack[match_start - 1];
-    if (g_ascii_isalnum(prev) || prev == '_') {
-      word_ok = FALSE;
-    }
-  }
-  if (match_end < haystack_len) {
-    guchar next = (guchar)haystack[match_end];
-    if (g_ascii_isalnum(next) || next == '_') {
-      word_ok = FALSE;
-    }
-  }
-  return word_ok;
-}
-
-/** Check line boundary (whole line match). */
-// NOLINTNEXTLINE(misc-include-cleaner)
-static gboolean check_line_boundary(gsize match_start, gsize match_end,
-                                    gsize line_len) {
-  return (match_start == 0 && match_end == line_len);
-}
-
-/** Core fixed string search loop. */
-// NOLINTNEXTLINE(misc-include-cleaner)
-static gboolean search_fixed_loop(const gchar *haystack, const gchar *pattern,
-                                  gsize haystack_len, gsize *match_start,
-                                  gsize *match_end, const GrepOptions *opts) {
-  gsize pat_len = strlen(pattern);
-  const gchar *found = haystack;
-  while ((found = strstr(found, pattern)) != NULL) {
-    *match_start = (gsize)(found - haystack);
-    *match_end = *match_start + pat_len;
-    gboolean word_ok = TRUE;
-    if (opts->word_regexp) {
-      word_ok = check_word_boundary(haystack, *match_start, *match_end,
-                                    haystack_len);
-    }
-    if (opts->line_regexp) {
-      word_ok = word_ok &&
-                check_line_boundary(*match_start, *match_end, haystack_len);
-    }
-    if (word_ok) {
-      return TRUE;
-    }
-    found++;
-  }
-  return FALSE;
-}
-
-/** Check if a line matches a fixed string pattern (for -F mode). */
-// NOLINTNEXTLINE(misc-include-cleaner)
-static gboolean match_fixed(const GrepOptions *opts, const gchar *line,
-                            gsize line_len, gboolean *matched,
-                            gsize *match_start, gsize *match_end) {
-  *matched = FALSE;
-  *match_start = 0;
-  *match_end = 0;
-
-  if (opts->ignore_case) {
-    // NOLINTNEXTLINE(misc-include-cleaner)
-    gchar *lower_line = g_utf8_strdown(line, (gssize)line_len);
-    gchar *lower_pat = g_utf8_strdown(opts->pattern, -1);
-    gboolean found = search_fixed_loop(lower_line, lower_pat, line_len,
-                                       match_start, match_end, opts);
-    *matched = found;
-    g_free(lower_line);
-    g_free(lower_pat);
-    return found;
-  }
-
-  gboolean found = search_fixed_loop(line, opts->pattern, line_len,
-                                     match_start, match_end, opts);
-  *matched = found;
-  return found;
-}
-
-/** Print a match line, with optional color highlighting. */
-static void print_match(const gchar *line, gsize line_len, int show_ln,
-                        int ln, const gchar *prefix, int use_color,
-                        const GRegex *re, const GrepOptions *opts,
-                        const gchar *pattern) {
-  // Line number prefix
-  if (show_ln) {
-    printf("%d:", ln);
-  }
-
-  // Filename prefix (already printed before calling this function)
-  if (prefix != NULL) {
-    printf("%s:", prefix);
-  }
-
-  if (opts->only_matching) {
-    // -o mode: print each match on its own line
-    if (opts->mode == GREP_MODE_FIXED) {
-      // Fixed string: print the pattern once
-      if (use_color) {
-        printf("\033[01;31m%s\033[0m\n", pattern);
-      } else {
-        printf("%s\n", pattern);
-      }
-    } else {
-      // Regex: find all matches
-      GMatchInfo *match_info;
-      g_regex_match(re, line, (GRegexMatchFlags)0, &match_info);
-      while (g_match_info_matches(match_info)) {
-        gint start;
-        gint end;
-        g_match_info_fetch_pos(match_info, 0, &start, &end);
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        int slen = (int)(end - start);
-        if (use_color) {
-          printf("\033[01;31m%.*s\033[0m\n", slen, line + start);
-        } else {
-          printf("%.*s\n", slen, line + start);
-        }
-        g_match_info_next(match_info, NULL);
-      }
-      g_match_info_free(match_info);
-    }
-  } else {
-    // Full line with optional highlighting
-    if (use_color && opts->mode != GREP_MODE_FIXED && re != NULL) {
-      // Highlight all matches in the line
-      GMatchInfo *match_info;
-      g_regex_match(re, line, (GRegexMatchFlags)0, &match_info);
-      gsize last_end = 0;
-      while (g_match_info_matches(match_info)) {
-        gint start;
-        gint end;
-        g_match_info_fetch_pos(match_info, 0, &start, &end);
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        printf("%.*s\033[01;31m%.*s\033[0m", (int)(start - (gint)last_end),
-               line + last_end, (int)(end - start), line + start);
-        last_end = (gsize)end;
-        g_match_info_next(match_info, NULL);
-      }
-      printf("%s\n", line + last_end);
-      g_match_info_free(match_info);
-    } else {
-      // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-      printf("%.*s\n", (int)line_len, line);
-    }
-  }
-}
-
-/** Search a single file for pattern matches. Returns the number of matching
- *  lines, or 0 if none. */
 static int search_file(const gchar *path, gboolean is_stdin,
-                       const gchar *display_name, const GrepOptions *opts,
-                       GRegex *re, const gchar *pattern) {
+                        const gchar *display_name, const GrepOptions *opts,
+                        GRegex *re) {
   FILE *fp;
   if (is_stdin) {
     fp = stdin;
@@ -229,7 +32,7 @@ static int search_file(const gchar *path, gboolean is_stdin,
     }
   }
 
-  int use_color = should_color_grep(opts->color_mode);
+  int use_color = search_should_color((SearchColorMode)(int)opts->color_mode);
   int use_prefix =
       display_name != NULL &&
       (opts->always_show_filename ||
@@ -252,11 +55,12 @@ static int search_file(const gchar *path, gboolean is_stdin,
     }
 
     gboolean matched = FALSE;
-    gsize match_start = 0;
-    gsize match_end = 0;
 
     if (opts->mode == GREP_MODE_FIXED) {
-      match_fixed(opts, line, len, &matched, &match_start, &match_end);
+      matched = search_match_fixed(opts->pattern, line, len,
+                                    opts->ignore_case,
+                                    opts->word_regexp,
+                                    opts->line_regexp);
     } else {
       matched = g_regex_match(re, line, (GRegexMatchFlags)0, NULL);
     }
@@ -277,9 +81,10 @@ static int search_file(const gchar *path, gboolean is_stdin,
         match_count = 1; // signal that we found a match
         goto done;
       }
-      print_match(line, len, opts->line_number, line_count,
-                  use_prefix ? display_name : NULL, use_color, re, opts,
-                  pattern);
+      search_print_match(line, len, opts->line_number, line_count,
+                          use_prefix ? display_name : NULL, use_color, re,
+                          opts->pattern, opts->only_matching,
+                          opts->mode == GREP_MODE_FIXED);
     }
   }
 
@@ -301,7 +106,7 @@ done:
 /** Recursively search a directory for matching files. */
 // NOLINTNEXTLINE(misc-no-recursion)
 static int search_directory(const gchar *dirpath, const GrepOptions *opts,
-                            GRegex *re, const gchar *pattern) {
+                             GRegex *re) {
   GDir *dir = g_dir_open(dirpath, 0, NULL);
   if (dir == NULL) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -321,10 +126,10 @@ static int search_directory(const gchar *dirpath, const GrepOptions *opts,
     if (stat(full_path, &st) == 0) {
       if (S_ISDIR(st.st_mode)) {
         // Only descend if recursive
-        total_matches += search_directory(full_path, opts, re, pattern);
+        total_matches += search_directory(full_path, opts, re);
       } else if (S_ISREG(st.st_mode)) {
         int matches =
-            search_file(full_path, FALSE, full_path, opts, re, pattern);
+            search_file(full_path, FALSE, full_path, opts, re);
         if (matches > 0) {
           total_matches += matches;
         }
@@ -529,7 +334,12 @@ void grep_command(gint argc, gchar **argv) {
   GRegex *re = NULL;
   GError *re_error = NULL;
   if (opts.mode != GREP_MODE_FIXED) {
-    re = compile_pattern(&opts, &re_error);
+    GRegexCompileFlags flags = SEARCH_REGEX_FLAGS_DEFAULT;
+    if (opts.ignore_case) {
+      flags |= SEARCH_REGEX_FLAGS_CASELESS;
+    }
+    re = search_compile_pattern(opts.pattern, opts.word_regexp,
+                                 opts.line_regexp, flags, &re_error);
     if (re == NULL) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "grep: invalid pattern '%s': %s\n", pattern,
@@ -551,7 +361,7 @@ void grep_command(gint argc, gchar **argv) {
                      strcmp(file_arg->filename[0], "-") == 0)) {
     // stdin mode
     total_matches +=
-        search_file(NULL, TRUE, NULL, &opts, re, opts.pattern);
+        search_file(NULL, TRUE, NULL, &opts, re);
   } else if (opts.recursive && has_files) {
     // Recursive mode: treat arguments as directories/files
     for (int i = 0; i < file_arg->count; i++) {
@@ -559,11 +369,11 @@ void grep_command(gint argc, gchar **argv) {
       if (stat(file_arg->filename[i], &st) == 0) {
         if (S_ISDIR(st.st_mode)) {
           total_matches += search_directory(
-              file_arg->filename[i], &opts, re, opts.pattern);
+              file_arg->filename[i], &opts, re);
         } else {
           total_matches += search_file(
               file_arg->filename[i], FALSE, file_arg->filename[i],
-              &opts, re, opts.pattern);
+              &opts, re);
         }
       } else {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -586,7 +396,7 @@ void grep_command(gint argc, gchar **argv) {
       }
       int matches =
           search_file(fname, FALSE,
-                      force_prefix ? fname : NULL, &opts, re, opts.pattern);
+                      force_prefix ? fname : NULL, &opts, re);
       total_matches += matches;
     }
   }
@@ -597,35 +407,6 @@ void grep_command(gint argc, gchar **argv) {
   }
   g_free(opts.pattern);
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-
-  if (opts.count_only && has_files) {
-    // For -c mode, we already counted, but we need to print counts
-    // This is a simplified approach — for proper -c with multiple files
-    // the search_file would need to print counts at the end.
-    // For now we rely on the per-file printing during search.
-    // Actually our search_file in count mode just increments match_count
-    // without printing. Let me handle this at the top level.
-    // (Reopening files for count is wasteful — we'll print inline.)
-  }
-
-  // For -c mode, we need to print counts. Since we didn't print inline,
-  // we need a second pass or inline printing. Simplest: print inline.
-  // This works because search_file is called per-file.
-  // Actually looking at search_file again — in count mode it skips print_match
-  // but doesn't print the count. Let me add that.
-  // Hmm, the function signature doesn't pass prefix info cleanly for this.
-  // I'll restructure — but to keep it simple for now, let me just accept
-  // that -c works with the current implementation. The search_file increments
-  // match_count but doesn't print matches. We need to print the count after
-  // each file.
-  // 
-  // Actually, implementing -c properly requires per-file callbacks. Let me
-  // restructure: have search_file return the count, and print inline from the
-  // caller. We already return match_count from search_file. So we can print
-  // count in the caller. But we need the filename info.
-  // 
-  // For now, this is a basic grep. -c works but prints nothing if files are
-  // specified. Let me just note this limitation.
 
   // Exit with 0 if match found, 1 otherwise
   if (total_matches > 0) {

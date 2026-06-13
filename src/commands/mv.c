@@ -194,26 +194,42 @@ static int copy_recursive_for_mv(const char *src, const char *dst) {
 static gboolean prompt_overwrite(const char *dst) {
   FILE *in = stdin;
   FILE *out = stdout;
+  int in_opened = 0;
+  int out_opened = 0;
+
   if (isatty(STDIN_FILENO)) {
     in = fopen("/dev/tty", "r");
+    if (in != NULL) {
+      in_opened = 1;
+    }
   }
   if (isatty(STDOUT_FILENO)) {
     out = fopen("/dev/tty", "w");
+    if (out != NULL) {
+      out_opened = 1;
+    }
   }
-  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-  (void)fprintf(out, "mv: overwrite '%s'? ", dst);
-  if (out != stdout && out != stderr) {
-    (void)fclose(out);
+
+  if (out != NULL) {
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+    (void)fprintf(out, "mv: overwrite '%s'? ", dst);
   }
-  int c = fgetc(in);
-  if (c != '\n' && c != EOF) {
-    int ch;
-    do { ch = fgetc(in); } while (ch != '\n' && ch != EOF);
+
+  int c = EOF;
+  if (in != NULL) {
+    c = fgetc(in);
+    if (c != '\n' && c != EOF) {
+      int ch;
+      do { ch = fgetc(in); } while (ch != '\n' && ch != EOF);
+    }
   }
-  if (in != stdin) {
+
+  if (in_opened && in != NULL) {
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(in);
   }
-  if (out != stdout && out != stderr) {
+  if (out_opened && out != NULL) {
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(out);
   }
   return (c == 'y' || c == 'Y');
