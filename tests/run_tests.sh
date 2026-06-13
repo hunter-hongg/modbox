@@ -955,6 +955,45 @@ else
     fail "mv overwrite — source still exists"
 fi
 
+echo "  ── -n: no-clobber does not overwrite ──"
+echo "keep me" > "$TMPDIR"/mv_n_src.txt
+echo "original" > "$TMPDIR"/mv_n_dst.txt
+"$MODBOX" mv -n "$TMPDIR"/mv_n_src.txt "$TMPDIR"/mv_n_dst.txt
+assert_cmd "original" cat "$TMPDIR"/mv_n_dst.txt
+if [[ -f "$TMPDIR"/mv_n_src.txt ]]; then
+    pass "mv -n — src preserved (not overwritten)"
+else
+    fail "mv -n — src removed despite no-clobber"
+fi
+
+echo "  ── -n: no-clobber overrides -i ──"
+echo "keep too" > "$TMPDIR"/mv_ni_src.txt
+echo "orig too" > "$TMPDIR"/mv_ni_dst.txt
+echo "n" | "$MODBOX" mv -ni "$TMPDIR"/mv_ni_src.txt "$TMPDIR"/mv_ni_dst.txt
+assert_cmd "orig too" cat "$TMPDIR"/mv_ni_dst.txt
+
+echo "  ── -i: interactive prompts on overwrite ──"
+echo "interactive content" > "$TMPDIR"/mv_i_src.txt
+echo "original content" > "$TMPDIR"/mv_i_dst.txt
+echo "n" | "$MODBOX" mv -i "$TMPDIR"/mv_i_src.txt "$TMPDIR"/mv_i_dst.txt
+assert_cmd "original content" cat "$TMPDIR"/mv_i_dst.txt
+if [[ -f "$TMPDIR"/mv_i_src.txt ]]; then
+    pass "mv -i — src preserved when answering n"
+else
+    fail "mv -i — src removed despite answering n"
+fi
+
+echo "  ── -i: interactive allows overwrite on y ──"
+echo "will be moved" > "$TMPDIR"/mv_iy_src.txt
+echo "will be replaced" > "$TMPDIR"/mv_iy_dst.txt
+echo "y" | "$MODBOX" mv -i "$TMPDIR"/mv_iy_src.txt "$TMPDIR"/mv_iy_dst.txt
+assert_cmd "will be moved" cat "$TMPDIR"/mv_iy_dst.txt
+if [[ ! -f "$TMPDIR"/mv_iy_src.txt ]]; then
+    pass "mv -i — src removed when answering y"
+else
+    fail "mv -i — src still present after answering y"
+fi
+
 echo "  ── error: non-existent source ──"
 assert_cmd_pat_stderr "No such file" mv "$TMPDIR"/mv_nonexistent "$TMPDIR"/mv_err
 

@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "commands/mv.h"
+
 /* Buffer size for file copy operations (cross-filesystem fallback) */
 #define COPY_BUF_SIZE 8192
 
@@ -185,19 +187,67 @@ static int copy_recursive_for_mv(const char *src, const char *dst) {
 }
 
 /**
+ * prompt_overwrite - Ask user whether to overwrite destination.
+ *
+ * Returns: TRUE if user says yes, FALSE otherwise
+ */
+static gboolean prompt_overwrite(const char *dst) {
+  FILE *in = stdin;
+  FILE *out = stdout;
+  if (isatty(STDIN_FILENO)) {
+    in = fopen("/dev/tty", "r");
+  }
+  if (isatty(STDOUT_FILENO)) {
+    out = fopen("/dev/tty", "w");
+  }
+  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+  (void)fprintf(out, "mv: overwrite '%s'? ", dst);
+  if (out != stdout && out != stderr) {
+    (void)fclose(out);
+  }
+  int c = fgetc(in);
+  if (c != '\n' && c != EOF) {
+    int ch;
+    do { ch = fgetc(in); } while (ch != '\n' && ch != EOF);
+  }
+  if (in != stdin) {
+    (void)fclose(in);
+  }
+  if (out != stdout && out != stderr) {
+    (void)fclose(out);
+  }
+  return (c == 'y' || c == 'Y');
+}
+
+/**
  * move_entry - Move/rename a file or directory from src to dst.
  * Uses rename() for same-filesystem moves; falls back to copy+remove
  * for cross-filesystem moves.
  *
  * Returns: 0 on success, -1 on error
  */
-static int move_entry(const char *src, const char *dst) {
+static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
   /* Quick check: if source does not exist, report error */
   struct stat src_stat;
   if (stat(src, &src_stat) != 0) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "mv: %s: No such file or directory\n", src);
     return -1;
+  }
+
+  /* Check if destination exists */
+  struct stat dst_stat;
+  int dst_exists = (stat(dst, &dst_stat) == 0);
+
+  if (dst_exists) {
+    if (opts->is_no_clobber) {
+      return 0;
+    }
+    if (opts->is_interactive) {
+      if (!prompt_overwrite(dst)) {
+        return 0;
+      }
+    }
   }
 
   /* Try rename() first (fast path, same filesystem) */
@@ -230,6 +280,10 @@ static int move_entry(const char *src, const char *dst) {
 
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void mv_command(gint argc, gchar **argv) {
+  struct arg_lit *interactive_opt =
+      arg_lit0("i", "interactive", "prompt before overwrite");
+  struct arg_lit *no_clobber_opt =
+      arg_lit0("n", "no-clobber", "do not overwrite existing files");
   /* Collect all remaining positional arguments in one file arg group,
    * then split them into sources and destination manually. */
   struct arg_file *files_arg =
@@ -237,7 +291,7 @@ void mv_command(gint argc, gchar **argv) {
                 "source(s) followed by destination");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {files_arg, end};
+  void *argtable[] = {interactive_opt, no_clobber_opt, files_arg, end};
 
   int nerrors = arg_parse(argc, argv, argtable);
 
@@ -245,6 +299,15 @@ void mv_command(gint argc, gchar **argv) {
     arg_print_errors(stderr, end, argv[0]);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     return;
+  }
+
+  MvOptions opts = {0};
+  opts.is_interactive = (interactive_opt->count > 0);
+  opts.is_no_clobber = (no_clobber_opt->count > 0);
+
+  /* no-clobber overrides interactive */
+  if (opts.is_no_clobber) {
+    opts.is_interactive = 0;
   }
 
   int num_files = files_arg->count;
@@ -320,7 +383,7 @@ void mv_command(gint argc, gchar **argv) {
       free(resolved_dst);
     }
 
-    move_entry(src, dest_path);
+    move_entry(src, dest_path, &opts);
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));

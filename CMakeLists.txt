@@ -18,12 +18,20 @@ include_directories(include)
 # 查找依赖
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
+find_package(Argtable3 CONFIG QUIET)
 
-# 查找 Argtable3 依赖（vcpkg 管理）
-find_package(Argtable3 CONFIG REQUIRED)
+if(NOT Argtable3_FOUND)
+  pkg_check_modules(ARGTABLE3 REQUIRED argtable3)
+endif()
 
 # 添加头文件路径
 include_directories(${GLIB_INCLUDE_DIRS})
+if(ARGTABLE3_INCLUDE_DIRS)
+  include_directories(${ARGTABLE3_INCLUDE_DIRS})
+endif()
+if(ARGTABLE3_LIBRARY_DIRS)
+  link_directories(${ARGTABLE3_LIBRARY_DIRS})
+endif()
 
 # 生成可执行文件modbox
 add_executable(${PROJECT_NAME} ${SRC_FILES})
@@ -31,8 +39,12 @@ add_executable(${PROJECT_NAME} ${SRC_FILES})
 # 链接库
 target_link_libraries(${PROJECT_NAME}
     ${GLIB_LIBRARIES}
-    argtable3::argtable3
 )
+if(Argtable3_FOUND)
+    target_link_libraries(${PROJECT_NAME} argtable3::argtable3)
+else()
+    target_link_libraries(${PROJECT_NAME} ${ARGTABLE3_LIBRARIES})
+endif()
 
 
 # 导出 compile_commands.json（供 clang-tidy 使用）

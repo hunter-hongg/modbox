@@ -1,91 +1,91 @@
 [
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cat.c.o -c /home/hunter/projects/modbox/src/commands/cat.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/cat.c.o -c /home/hunter/projects/modbox/src/commands/cat.c",
   "file": "/home/hunter/projects/modbox/src/commands/cat.c",
   "output": "CMakeFiles/modbox.dir/src/commands/cat.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cat/blame.c.o -c /home/hunter/projects/modbox/src/commands/cat/blame.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/cat/blame.c.o -c /home/hunter/projects/modbox/src/commands/cat/blame.c",
   "file": "/home/hunter/projects/modbox/src/commands/cat/blame.c",
   "output": "CMakeFiles/modbox.dir/src/commands/cat/blame.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cat/diff.c.o -c /home/hunter/projects/modbox/src/commands/cat/diff.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/cat/diff.c.o -c /home/hunter/projects/modbox/src/commands/cat/diff.c",
   "file": "/home/hunter/projects/modbox/src/commands/cat/diff.c",
   "output": "CMakeFiles/modbox.dir/src/commands/cat/diff.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cat/helpers.c.o -c /home/hunter/projects/modbox/src/commands/cat/helpers.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/cat/helpers.c.o -c /home/hunter/projects/modbox/src/commands/cat/helpers.c",
   "file": "/home/hunter/projects/modbox/src/commands/cat/helpers.c",
   "output": "CMakeFiles/modbox.dir/src/commands/cat/helpers.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cat/highlight.c.o -c /home/hunter/projects/modbox/src/commands/cat/highlight.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/cat/highlight.c.o -c /home/hunter/projects/modbox/src/commands/cat/highlight.c",
   "file": "/home/hunter/projects/modbox/src/commands/cat/highlight.c",
   "output": "CMakeFiles/modbox.dir/src/commands/cat/highlight.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/cp.c.o -c /home/hunter/projects/modbox/src/commands/cp.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/cp.c.o -c /home/hunter/projects/modbox/src/commands/cp.c",
   "file": "/home/hunter/projects/modbox/src/commands/cp.c",
   "output": "CMakeFiles/modbox.dir/src/commands/cp.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/find.c.o -c /home/hunter/projects/modbox/src/commands/find.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/find.c.o -c /home/hunter/projects/modbox/src/commands/find.c",
   "file": "/home/hunter/projects/modbox/src/commands/find.c",
   "output": "CMakeFiles/modbox.dir/src/commands/find.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/grep.c.o -c /home/hunter/projects/modbox/src/commands/grep.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/grep.c.o -c /home/hunter/projects/modbox/src/commands/grep.c",
   "file": "/home/hunter/projects/modbox/src/commands/grep.c",
   "output": "CMakeFiles/modbox.dir/src/commands/grep.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/help.c.o -c /home/hunter/projects/modbox/src/commands/help.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/help.c.o -c /home/hunter/projects/modbox/src/commands/help.c",
   "file": "/home/hunter/projects/modbox/src/commands/help.c",
   "output": "CMakeFiles/modbox.dir/src/commands/help.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/ln.c.o -c /home/hunter/projects/modbox/src/commands/ln.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/ln.c.o -c /home/hunter/projects/modbox/src/commands/ln.c",
   "file": "/home/hunter/projects/modbox/src/commands/ln.c",
   "output": "CMakeFiles/modbox.dir/src/commands/ln.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/ls.c.o -c /home/hunter/projects/modbox/src/commands/ls.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/ls.c.o -c /home/hunter/projects/modbox/src/commands/ls.c",
   "file": "/home/hunter/projects/modbox/src/commands/ls.c",
   "output": "CMakeFiles/modbox.dir/src/commands/ls.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/mv.c.o -c /home/hunter/projects/modbox/src/commands/mv.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/mv.c.o -c /home/hunter/projects/modbox/src/commands/mv.c",
   "file": "/home/hunter/projects/modbox/src/commands/mv.c",
   "output": "CMakeFiles/modbox.dir/src/commands/mv.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/pager.c.o -c /home/hunter/projects/modbox/src/commands/pager.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/pager.c.o -c /home/hunter/projects/modbox/src/commands/pager.c",
   "file": "/home/hunter/projects/modbox/src/commands/pager.c",
   "output": "CMakeFiles/modbox.dir/src/commands/pager.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/commands/rg.c.o -c /home/hunter/projects/modbox/src/commands/rg.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/commands/rg.c.o -c /home/hunter/projects/modbox/src/commands/rg.c",
   "file": "/home/hunter/projects/modbox/src/commands/rg.c",
   "output": "CMakeFiles/modbox.dir/src/commands/rg.c.o"
 },
 {
   "directory": "/home/hunter/projects/modbox/build",
-  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-6 -isystem /home/hunter/vcpkg/installed/x64-linux/include  -o CMakeFiles/modbox.dir/src/main.c.o -c /home/hunter/projects/modbox/src/main.c",
+  "command": "/usr/bin/cc  -I/home/hunter/projects/modbox/include -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/include/glib-2.0 -I/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.1/lib/glib-2.0/include -I/home/linuxbrew/.linuxbrew/Cellar/pcre2/10.47_1/include -I/home/linuxbrew/.linuxbrew/Cellar/argtable3/3.3.1_1/include  -o CMakeFiles/modbox.dir/src/main.c.o -c /home/hunter/projects/modbox/src/main.c",
   "file": "/home/hunter/projects/modbox/src/main.c",
   "output": "CMakeFiles/modbox.dir/src/main.c.o"
 }
