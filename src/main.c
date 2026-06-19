@@ -5,12 +5,14 @@
 #include "commands/help.h"
 #include "commands/cat.h"
 #include "commands/ls.h"
+#include "commands/lsc.h"
 #include "commands/cp.h"
 #include "commands/ln.h"
 #include "commands/mv.h"
 #include "commands/grep.h"
 #include "commands/rg.h"
 #include "commands/find.h"
+#include "commands/fd.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -41,6 +43,8 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
     g_hash_table_insert(commands, "grep", (gpointer)grep_command);
     g_hash_table_insert(commands, "find", (gpointer)find_command);
     g_hash_table_insert(commands, "rg", (gpointer)rg_command);
+    g_hash_table_insert(commands, "lsc", (gpointer)lsc_command);
+    g_hash_table_insert(commands, "fd", (gpointer)fd_command);
 
     if (g_hash_table_contains(commands, command)) {
         command_t cmd = (command_t)(void*)g_hash_table_lookup(commands, command);
