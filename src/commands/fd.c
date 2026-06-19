@@ -136,7 +136,7 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
         }
 
         int matches_type = 1;
-        if (opts->type_filter != 0 && !S_ISDIR(st.st_mode)) {
+        if (opts->type_filter != 0) {
             matches_type = match_type(st.st_mode, opts->type_filter);
         }
         if (opts->type_filter == 'e') {
