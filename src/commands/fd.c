@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "commands/fd.h"
@@ -92,6 +93,9 @@ static int fd_should_ci(const FdOptions *opts) {
     return 0;
 }
 
+static void fd_exec_file(const gchar *fullpath, FdOptions *opts);
+static void fd_exec_finalize(FdOptions *opts);
+
 // NOLINTNEXTLINE(misc-no-recursion)
 static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
                     int is_ci, int is_glob, int depth) {
@@ -169,6 +173,9 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
 
         if (pattern_match) {
             match_count++;
+            if (opts->has_exec) {
+                fd_exec_file(full_path, opts);
+            }
             if (!opts->has_exec) {
                 if (opts->print0) {
                     printf("%s%c", full_path, '\0');
@@ -197,6 +204,79 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
 
     (void)closedir(dir);
     return match_count;
+}
+
+static void fd_exec_file(const gchar *fullpath, FdOptions *opts) {
+    if (opts->exec_batch) {
+        g_ptr_array_add(opts->exec_paths, g_strdup(fullpath));
+        return;
+    }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        GPtrArray *args = g_ptr_array_new();
+        int has_subst = 0;
+        for (guint i = 0; i < opts->exec_args->len; i++) {
+            const gchar *a = (const gchar *)g_ptr_array_index(opts->exec_args, i);
+            if (strcmp(a, "{}") == 0) {
+                g_ptr_array_add(args, (gpointer)fullpath);
+                has_subst = 1;
+            } else {
+                g_ptr_array_add(args, (gpointer)a);
+            }
+        }
+        if (!has_subst) {
+            g_ptr_array_add(args, (gpointer)fullpath);
+        }
+        g_ptr_array_add(args, NULL);
+        (void)execvp((const gchar *)g_ptr_array_index(args, 0),
+                      (char *const *)args->pdata);
+        (void)fprintf(stderr, "fd: %s: %s\n",
+                      (const gchar *)g_ptr_array_index(args, 0), strerror(errno));
+        _exit(127);
+    } else if (pid > 0) {
+        int status;
+        (void)waitpid(pid, &status, 0);
+    } else {
+        (void)fprintf(stderr, "fd: fork failed: %s\n", strerror(errno));
+    }
+}
+
+static void fd_exec_finalize(FdOptions *opts) {
+    if (!opts->has_exec || !opts->exec_batch || opts->exec_paths->len == 0) return;
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        GPtrArray *args = g_ptr_array_new();
+        int has_subst = 0;
+        for (guint i = 0; i < opts->exec_args->len; i++) {
+            const gchar *a = (const gchar *)g_ptr_array_index(opts->exec_args, i);
+            if (strcmp(a, "{}") == 0) {
+                for (guint j = 0; j < opts->exec_paths->len; j++) {
+                    g_ptr_array_add(args, g_ptr_array_index(opts->exec_paths, j));
+                }
+                has_subst = 1;
+            } else {
+                g_ptr_array_add(args, (gpointer)a);
+            }
+        }
+        if (!has_subst) {
+            for (guint j = 0; j < opts->exec_paths->len; j++) {
+                g_ptr_array_add(args, g_ptr_array_index(opts->exec_paths, j));
+            }
+        }
+        g_ptr_array_add(args, NULL);
+        (void)execvp((const gchar *)g_ptr_array_index(args, 0),
+                      (char *const *)args->pdata);
+        (void)fprintf(stderr, "fd: %s: %s\n",
+                      (const gchar *)g_ptr_array_index(args, 0), strerror(errno));
+        _exit(127);
+    } else if (pid > 0) {
+        int status;
+        (void)waitpid(pid, &status, 0);
+    } else {
+        (void)fprintf(stderr, "fd: fork failed: %s\n", strerror(errno));
+    }
 }
 
 // NOLINTNEXTLINE(readability-function-size)
@@ -414,6 +494,7 @@ void fd_command(gint argc, gchar **argv) {
         }
     }
 
+    fd_exec_finalize(&opts);
     if (re) g_regex_unref(re);
     g_free(opts.pattern);
     if (opts.extensions) g_ptr_array_free(opts.extensions, TRUE);
