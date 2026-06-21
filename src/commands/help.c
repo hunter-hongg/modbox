@@ -14,9 +14,11 @@ void output_help(gchar *argv0, gchar *progname) {
     printf("  help  Display this help message\n");
     printf("  ln    Create hard links between files\n");
     printf("  ls    List directory contents\n");
+    printf("  lsc   Alias for ls --colorful --icons\n");
     printf("  find  Search for files in a directory hierarchy\n");
     printf("  grep  Search for patterns in files\n");
     printf("  mv    Move (rename) files\n");
+    printf("  tac   Reverse a file line by line\n");
     printf("\n");
     printf("Run \"%s help <command>\" or \"%s <command> --help\" for detailed "
            "help on a specific command.\n",

@@ -37,11 +37,9 @@ static int match_type(mode_t mode, char type_filter) {
     }
 }
 
-static int is_empty_file(const gchar *path, mode_t mode) {
+static int is_empty_file(const gchar *path, mode_t mode, const struct stat *st_in) {
     if (S_ISREG(mode)) {
-        struct stat st;
-        if (stat(path, &st) != 0) return 0;
-        return st.st_size == 0;
+        return st_in ? (st_in->st_size == 0) : 0;
     }
     if (S_ISDIR(mode)) {
         DIR *dir = opendir(path);
@@ -73,15 +71,14 @@ static int match_extension(const gchar *name, GPtrArray *exts) {
     return 0;
 }
 
-static int match_exclude(const gchar *path, const gchar *name, GPtrArray *excludes) {
-    if (excludes == NULL || excludes->len == 0) return 0;
-    for (guint i = 0; i < excludes->len; i++) {
-        const gchar *pat = (const gchar *)g_ptr_array_index(excludes, i);
-        GPatternSpec *spec = g_pattern_spec_new(pat);
-        int m = (int)g_pattern_spec_match_string(spec, path) ||
-                (int)g_pattern_spec_match_string(spec, name);
-        g_pattern_spec_free(spec);
-        if (m) return 1;
+static int match_exclude(const gchar *path, const gchar *name, GPtrArray *specs) {
+    if (specs == NULL || specs->len == 0) return 0;
+    for (guint i = 0; i < specs->len; i++) {
+        GPatternSpec *spec = (GPatternSpec *)g_ptr_array_index(specs, i);
+        if (g_pattern_spec_match_string(spec, path) ||
+            g_pattern_spec_match_string(spec, name)) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -108,11 +105,8 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
     }
 
     int match_count = 0;
-    int use_color = 0;
-    if (opts->color_mode == FD_COLOR_ALWAYS ||
-        (opts->color_mode == FD_COLOR_AUTO && isatty(STDOUT_FILENO))) {
-        use_color = 1;
-    }
+    int use_color = (opts->color_mode == FD_COLOR_ALWAYS ||
+                     (opts->color_mode == FD_COLOR_AUTO && isatty(STDOUT_FILENO)));
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -123,24 +117,35 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
 
         gchar *full_path = g_build_filename(dirpath, entry->d_name, NULL);
 
-        struct stat st;
-        int rc = opts->follow ? stat(full_path, &st) : lstat(full_path, &st);
-        if (rc != 0) {
+        /* Always lstat first for type detection (needed for symlink filter
+           even with -L, where stat() follows the link). Then optionally
+           follow with stat() for recursion decisions. */
+        struct stat lst, st;
+        int rc_lst = lstat(full_path, &lst);
+        if (rc_lst != 0) {
             g_free(full_path);
             continue;
         }
+        if (opts->follow) {
+            if (stat(full_path, &st) != 0) st = lst;
+        } else {
+            st = lst;
+        }
 
-        if (match_exclude(full_path, entry->d_name, opts->exclude)) {
+        /* Use lstat result for type filter — catches symlinks even with -L */
+        mode_t check_mode = opts->follow ? lst.st_mode : st.st_mode;
+
+        if (match_exclude(full_path, entry->d_name, opts->exclude_specs)) {
             g_free(full_path);
             continue;
         }
 
         int matches_type = 1;
         if (opts->type_filter != 0) {
-            matches_type = match_type(st.st_mode, opts->type_filter);
+            matches_type = match_type(check_mode, opts->type_filter);
         }
         if (opts->type_filter == 'e') {
-            matches_type = is_empty_file(full_path, st.st_mode);
+            matches_type = is_empty_file(full_path, check_mode, &st);
         }
 
         int matches_ext = 1;
@@ -175,14 +180,13 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
             match_count++;
             if (opts->has_exec) {
                 fd_exec_file(full_path, opts);
-            }
-            if (!opts->has_exec) {
+            } else {
                 if (opts->print0) {
                     printf("%s%c", full_path, '\0');
                 } else if (use_color) {
                     if (S_ISDIR(st.st_mode)) {
                         printf("\033[01;34m%s\033[0m\n", full_path);
-                    } else if (S_ISLNK(st.st_mode)) {
+                    } else if (S_ISLNK(lst.st_mode)) {
                         printf("\033[01;36m%s\033[0m\n", full_path);
                     } else if (st.st_mode & 0111) {
                         printf("\033[01;32m%s\033[0m\n", full_path);
@@ -196,7 +200,12 @@ static int fd_walk(const gchar *dirpath, FdOptions *opts, GRegex *re,
         }
 
         if (S_ISDIR(st.st_mode)) {
-            match_count += fd_walk(full_path, opts, re, is_ci, is_glob, depth + 1);
+            int sub = fd_walk(full_path, opts, re, is_ci, is_glob, depth + 1);
+            match_count += sub;
+            /* Clamp after recursive add to avoid max-results overshoot */
+            if (opts->max_results > 0 && match_count > opts->max_results) {
+                match_count = opts->max_results;
+            }
         }
 
         g_free(full_path);
@@ -410,8 +419,12 @@ void fd_command(gint argc, gchar **argv) {
 
     if (exclude_opt->count > 0) {
         opts.exclude = g_ptr_array_new();
+        opts.exclude_specs = g_ptr_array_new_with_free_func((GDestroyNotify)g_pattern_spec_free);
         for (int i = 0; i < exclude_opt->count; i++) {
-            g_ptr_array_add(opts.exclude, (gpointer)g_strdup(exclude_opt->sval[i]));
+            const gchar *pat_str = exclude_opt->sval[i];
+            g_ptr_array_add(opts.exclude, (gpointer)g_strdup(pat_str));
+            g_ptr_array_add(opts.exclude_specs,
+                            g_pattern_spec_new(pat_str));
         }
     }
 
@@ -499,12 +512,10 @@ void fd_command(gint argc, gchar **argv) {
     g_free(opts.pattern);
     if (opts.extensions) g_ptr_array_free(opts.extensions, TRUE);
     if (opts.exclude) g_ptr_array_free(opts.exclude, TRUE);
+    if (opts.exclude_specs) g_ptr_array_free(opts.exclude_specs, TRUE);
     if (opts.exec_args) g_ptr_array_free(opts.exec_args, TRUE);
     if (opts.exec_paths) g_ptr_array_free(opts.exec_paths, TRUE);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
-    if (total_matches >= 0) {
-        exit(total_matches > 0 ? 0 : 1);
-    }
-    exit(2);
+    exit(total_matches > 0 ? 0 : 1);
 }

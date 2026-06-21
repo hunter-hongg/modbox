@@ -26,6 +26,7 @@ typedef struct {
     gchar *pattern;
     GPtrArray *extensions;
     GPtrArray *exclude;
+    GPtrArray *exclude_specs;   /* pre-compiled GPatternSpec* for exclude */
     int has_exec;
     int exec_batch;
     GPtrArray *exec_args;

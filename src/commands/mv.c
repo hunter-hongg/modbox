@@ -255,14 +255,34 @@ static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
   struct stat dst_stat;
   int dst_exists = (stat(dst, &dst_stat) == 0);
 
+  /* -u (update): only move if SOURCE is newer than DEST or DEST missing */
+  if (opts->is_update && dst_exists) {
+    if (src_stat.st_mtime <= dst_stat.st_mtime) {
+      return 0;
+    }
+  }
+
   if (dst_exists) {
     if (opts->is_no_clobber) {
       return 0;
     }
-    if (opts->is_interactive) {
+    /* -f (force) overrides -i (interactive) */
+    if (opts->is_interactive && !opts->is_force) {
       if (!prompt_overwrite(dst)) {
         return 0;
       }
+    }
+    /* -b (backup): move existing destination to DEST~ */
+    if (opts->is_backup) {
+      gchar *backup_path = g_strdup_printf("%s~", dst);
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)rename(dst, backup_path);
+      g_free(backup_path);
+    }
+    /* -f (force): remove existing destination before rename */
+    if (opts->is_force) {
+      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      (void)unlink(dst);
     }
   }
 
@@ -294,22 +314,60 @@ static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
   return -1;
 }
 
-// NOLINTNEXTLINE(misc-use-internal-linkage)
+// NOLINTNEXTLINE(misc-use-internal-linkage,readability-function-cognitive-complexity)
 void mv_command(gint argc, gchar **argv) {
   struct arg_lit *interactive_opt =
       arg_lit0("i", "interactive", "prompt before overwrite");
   struct arg_lit *no_clobber_opt =
       arg_lit0("n", "no-clobber", "do not overwrite existing files");
-  /* Collect all remaining positional arguments in one file arg group,
-   * then split them into sources and destination manually. */
+  struct arg_lit *force_opt =
+      arg_lit0("f", "force", "remove existing destination, never prompt");
+  struct arg_lit *verbose_opt =
+      arg_lit0("v", "verbose", "explain what is being done");
+  struct arg_lit *update_opt =
+      arg_lit0("u", "update", "move only when SOURCE is newer than DEST");
+  struct arg_lit *backup_opt =
+      arg_lit0("b", "backup", "back up existing destination files (append ~)");
+  struct arg_str *target_dir_opt =
+      arg_str0("t", "target-directory", "DIRECTORY",
+               "move all sources into DIRECTORY");
+  struct arg_lit *no_target_dir_opt =
+      arg_lit0("T", "no-target-directory",
+               "treat DEST as a normal file, not a directory");
+  struct arg_lit *help_opt =
+      arg_lit0("h", "help", "display this help and exit");
   struct arg_file *files_arg =
-      arg_filen(NULL, NULL, "SOURCE... DEST", 2, MAX_FILES,
+      arg_filen(NULL, NULL, "SOURCE... DEST", 0, MAX_FILES,
                 "source(s) followed by destination");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {interactive_opt, no_clobber_opt, files_arg, end};
+  void *argtable[] = {interactive_opt, no_clobber_opt, force_opt,
+                      verbose_opt, update_opt, backup_opt,
+                      target_dir_opt, no_target_dir_opt,
+                      help_opt,
+                      files_arg, end};
 
   int nerrors = arg_parse(argc, argv, argtable);
+
+  if (help_opt->count > 0) {
+    printf("Usage: %s [OPTION]... SOURCE DEST\n", argv[0]);
+    printf("  or:  %s [OPTION]... SOURCE... DIRECTORY\n", argv[0]);
+    printf("  or:  %s [OPTION]... -t DIRECTORY SOURCE...\n", argv[0]);
+    printf("Move (rename) SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n");
+    printf("\n");
+    printf("Options:\n");
+    printf("  -f, --force            remove existing destination, never prompt\n");
+    printf("  -i, --interactive      prompt before overwrite\n");
+    printf("  -n, --no-clobber       do not overwrite existing files\n");
+    printf("  -u, --update           move only when SOURCE is newer than DEST\n");
+    printf("  -v, --verbose          explain what is being done\n");
+    printf("  -b, --backup           back up existing destination files (append ~)\n");
+    printf("  -t, --target-directory=DIR  move all sources into DIRECTORY\n");
+    printf("  -T, --no-target-directory   treat DEST as a normal file\n");
+    printf("  -h, --help             display this help and exit\n");
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return;
+  }
 
   if (nerrors > 0) {
     arg_print_errors(stderr, end, argv[0]);
@@ -320,28 +378,82 @@ void mv_command(gint argc, gchar **argv) {
   MvOptions opts = {0};
   opts.is_interactive = (interactive_opt->count > 0);
   opts.is_no_clobber = (no_clobber_opt->count > 0);
+  opts.is_force = (force_opt->count > 0);
+  opts.is_verbose = (verbose_opt->count > 0);
+  opts.is_update = (update_opt->count > 0);
+  opts.is_backup = (backup_opt->count > 0);
+  opts.target_dir = (target_dir_opt->count > 0) ? target_dir_opt->sval[0] : NULL;
+  opts.no_target_dir = (no_target_dir_opt->count > 0);
 
   /* no-clobber overrides interactive */
   if (opts.is_no_clobber) {
     opts.is_interactive = 0;
+    opts.is_force = 0;
+  }
+  /* force overrides interactive */
+  if (opts.is_force) {
+    opts.is_interactive = 0;
   }
 
   int num_files = files_arg->count;
+  const char *dst = NULL;
+  int num_srcs = 0;
 
-  if (num_files < 2) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "mv: missing destination operand\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+  if (opts.target_dir != NULL) {
+    /* -t: all positional args are sources, dest from option */
+    dst = opts.target_dir;
+
+    /* Verify -t target is an existing directory */
+    struct stat tgt_stat;
+    if (stat(dst, &tgt_stat) != 0) {
+      // NOLINTNEXTLINE(misc-include-cleaner)
+      const char *msg = (errno == ENOENT)
+          ? "No such file or directory" : "is not a directory";
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "mv: target '%s': %s\n", dst, msg);
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+    if (!S_ISDIR(tgt_stat.st_mode)) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "mv: target '%s' is not a directory\n", dst);
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+    num_srcs = num_files;
+    if (num_srcs < 1) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "mv: missing file operand\n");
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+  } else {
+    if (num_files < 2) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "mv: missing destination operand\n");
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+    /* Last argument is destination, all preceding are sources */
+    dst = files_arg->filename[num_files - 1];
+    num_srcs = num_files - 1;
   }
-
-  /* Last argument is destination, all preceding are sources */
-  const char *dst = files_arg->filename[num_files - 1];
-  int num_srcs = num_files - 1;
 
   /* Check if destination is an existing directory */
   struct stat dst_stat;
   int dst_is_dir = (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode));
+
+  /* -T: treat DEST as normal file, error if multiple sources */
+  if (opts.no_target_dir) {
+    if (num_srcs > 1) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)fprintf(stderr, "mv: extra operand '%s'\n",
+                    files_arg->filename[1]);
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      return;
+    }
+    dst_is_dir = 0;
+  }
 
   /* Multiple sources: destination must be an existing directory */
   if (num_srcs > 1 && !dst_is_dir) {
@@ -378,7 +490,6 @@ void mv_command(gint argc, gchar **argv) {
 
     /* Prevent moving a directory into itself */
     if (S_ISDIR(src_stat.st_mode) && dst_is_dir) {
-      /* Check if dest_path is inside src (would be a recursive move) */
       gchar *resolved_src = realpath(src, NULL);
       gchar *resolved_dst = realpath(dest_path, NULL);
       if (resolved_src != NULL && resolved_dst != NULL) {
@@ -399,7 +510,10 @@ void mv_command(gint argc, gchar **argv) {
       free(resolved_dst);
     }
 
-    move_entry(src, dest_path, &opts);
+    if (move_entry(src, dest_path, &opts) == 0 && opts.is_verbose) {
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      (void)printf("'%s' -> '%s'\n", src, dest_path);
+    }
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));

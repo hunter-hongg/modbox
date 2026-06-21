@@ -1014,6 +1014,91 @@ else
     fail "mv directory into itself — source removed"
 fi
 
+echo "  ── -f: force overwrite existing destination ──"
+echo "forced content" > "$TMPDIR"/mv_f_src.txt
+echo "original" > "$TMPDIR"/mv_f_dst.txt
+"$MODBOX" mv -f "$TMPDIR"/mv_f_src.txt "$TMPDIR"/mv_f_dst.txt
+assert_cmd "forced content" cat "$TMPDIR"/mv_f_dst.txt
+
+echo "  ── -v: verbose output ──"
+echo "verbose src" > "$TMPDIR"/mv_v_src.txt
+out=$("$MODBOX" mv -v "$TMPDIR"/mv_v_src.txt "$TMPDIR"/mv_v_dst.txt 2>/dev/null || true)
+if echo "$out" | grep -qE "' -> '"; then
+    pass "mv -v → verbose output shows '->'"
+else
+    fail "mv -v — expected '->' in output, got [$out]"
+fi
+assert_cmd "verbose src" cat "$TMPDIR"/mv_v_dst.txt
+
+echo "  ── -u: update when source is newer ──"
+echo "newer content" > "$TMPDIR"/mv_u_newer_src.txt
+echo "older content" > "$TMPDIR"/mv_u_newer_dst.txt
+touch -t 202001010000 "$TMPDIR"/mv_u_newer_dst.txt
+sleep 1
+"$MODBOX" mv -u "$TMPDIR"/mv_u_newer_src.txt "$TMPDIR"/mv_u_newer_dst.txt
+assert_cmd "newer content" cat "$TMPDIR"/mv_u_newer_dst.txt
+if [[ ! -f "$TMPDIR"/mv_u_newer_src.txt ]]; then
+    pass "mv -u (source newer) — src removed"
+else
+    fail "mv -u (source newer) — src still exists"
+fi
+
+echo "  ── -u: skip when source is older ──"
+echo "skip src" > "$TMPDIR"/mv_u_skip_src.txt
+echo "keep dst" > "$TMPDIR"/mv_u_skip_dst.txt
+touch -t 202001010000 "$TMPDIR"/mv_u_skip_src.txt
+"$MODBOX" mv -u "$TMPDIR"/mv_u_skip_src.txt "$TMPDIR"/mv_u_skip_dst.txt
+assert_cmd "keep dst" cat "$TMPDIR"/mv_u_skip_dst.txt
+if [[ -f "$TMPDIR"/mv_u_skip_src.txt ]]; then
+    pass "mv -u (source older) — src preserved"
+else
+    fail "mv -u (source older) — src removed despite -u"
+fi
+
+echo "  ── -b: backup existing destination ──"
+echo "new data" > "$TMPDIR"/mv_b_src.txt
+echo "backup data" > "$TMPDIR"/mv_b_dst.txt
+"$MODBOX" mv -b "$TMPDIR"/mv_b_src.txt "$TMPDIR"/mv_b_dst.txt
+assert_cmd "new data" cat "$TMPDIR"/mv_b_dst.txt
+assert_cmd "backup data" cat "$TMPDIR"/mv_b_dst.txt~
+
+echo "  ── -t: target-directory ──"
+echo "t1" > "$TMPDIR"/mv_t_a.txt
+echo "t2" > "$TMPDIR"/mv_t_b.txt
+mkdir -p "$TMPDIR"/mv_t_dir
+"$MODBOX" mv -t "$TMPDIR"/mv_t_dir "$TMPDIR"/mv_t_a.txt "$TMPDIR"/mv_t_b.txt
+assert_cmd "t1" cat "$TMPDIR"/mv_t_dir/mv_t_a.txt
+assert_cmd "t2" cat "$TMPDIR"/mv_t_dir/mv_t_b.txt
+if [[ ! -f "$TMPDIR"/mv_t_a.txt && ! -f "$TMPDIR"/mv_t_b.txt ]]; then
+    pass "mv -t — sources removed"
+else
+    fail "mv -t — sources still exist"
+fi
+
+echo "  ── -t: error when target does not exist ──"
+echo "x" > "$TMPDIR"/mv_t_err.txt
+assert_cmd_pat_stderr "No such file" mv -t "$TMPDIR"/mv_t_nonexistent "$TMPDIR"/mv_t_err.txt
+
+echo "  ── -t: error when target is not a directory ──"
+echo "not_a_dir" > "$TMPDIR"/mv_t_notdir
+assert_cmd_pat_stderr "not a directory" mv -t "$TMPDIR"/mv_t_notdir "$TMPDIR"/mv_t_err.txt
+
+echo "  ── -f overrides -i (no prompt) ──"
+echo "fi content" > "$TMPDIR"/mv_fi_src.txt
+echo "fi original" > "$TMPDIR"/mv_fi_dst.txt
+echo "n" | "$MODBOX" mv -fi "$TMPDIR"/mv_fi_src.txt "$TMPDIR"/mv_fi_dst.txt
+assert_cmd "fi content" cat "$TMPDIR"/mv_fi_dst.txt
+
+echo "  ── -n overrides -f (no-clobber wins over force) ──"
+echo "nf content" > "$TMPDIR"/mv_nf_src.txt
+echo "nf original" > "$TMPDIR"/mv_nf_dst.txt
+"$MODBOX" mv -nf "$TMPDIR"/mv_nf_src.txt "$TMPDIR"/mv_nf_dst.txt
+assert_cmd "nf original" cat "$TMPDIR"/mv_nf_dst.txt
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' mv --help
+
+
 # ── grep ──────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -1444,7 +1529,7 @@ echo "  ── -t x: executables ──"
 assert_cmd_pat 'exec_script' fd -t x 'exec' "$TMPDIR"/fd_dir
 
 echo "  ── -t e: empty files ──"
-assert_cmd_pat 'empty_file' fd -t e 'empty' "$TMPDIR"/fd_dir
+assert_cmd_pat 'empty_file\.txt' fd -t e 'empty' "$TMPDIR"/fd_dir
 
 echo "  ── -e extension filter ──"
 assert_cmd_pat 'main\.rs' fd -e rs 'main' "$TMPDIR"/fd_dir
@@ -1561,6 +1646,256 @@ mkdir -p "$TMPDIR"/fd_follow/sub
 printf 'followed\n' > "$TMPDIR"/fd_follow/sub/target.txt
 ln -sf "$TMPDIR"/fd_follow "$TMPDIR"/fd_follow_link
 assert_cmd_pat 'target' fd -L 'target' "$TMPDIR"/fd_follow_link
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  sort
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── sort ──────────────────────────────────────"
+
+printf 'banana\napple\ncherry\ndate\n' > "$TMPDIR"/sort_alpha
+echo "  ── basic sort ──"
+assert_cmd "$(printf 'apple\nbanana\ncherry\ndate\n')" sort "$TMPDIR"/sort_alpha
+
+echo "  ── reverse sort ──"
+assert_cmd "$(printf 'date\ncherry\nbanana\napple\n')" sort -r "$TMPDIR"/sort_alpha
+
+echo "  ── numeric sort ──"
+printf '10\n2\n30\n1\n20\n' > "$TMPDIR"/sort_num
+assert_cmd "$(printf '1\n2\n10\n20\n30\n')" sort -n "$TMPDIR"/sort_num
+
+echo "  ── ignore case ──"
+printf 'Alpha\nBRAVO\ncharlie\nalpha\n' > "$TMPDIR"/sort_case
+# After -f: Alpha/alpha equal, BRAVO equal to itself, charlie > alpha
+# Output: Alpha, alpha, BRAVO, charlie (Alpha/alpha tiebroken by strcmp)
+assert_cmd_pat '^Alpha$' sort -f "$TMPDIR"/sort_case
+assert_cmd_pat 'charlie$' sort -f "$TMPDIR"/sort_case
+
+echo "  ── unique ──"
+printf 'apple\nbanana\napple\ncherry\nbanana\n' > "$TMPDIR"/sort_uniq
+assert_cmd "$(printf 'apple\nbanana\ncherry\n')" sort -u "$TMPDIR"/sort_uniq
+
+echo "  ── check sorted ──"
+printf 'apple\nbanana\ncherry\n' > "$TMPDIR"/sort_ok
+assert_cmd "" sort -c "$TMPDIR"/sort_ok
+
+echo "  ── check unsorted ──"
+printf 'apple\ncherry\nbanana\n' > "$TMPDIR"/sort_bad
+assert_cmd_pat_stderr 'disorder' sort -c "$TMPDIR"/sort_bad
+# sort -c should exit non-zero for unsorted input; we rely on test harness
+# We check via 'disorder' pattern on stderr
+
+echo "  ── check unique strict ──"
+assert_cmd_pat_stderr 'disorder' sort -c -u "$TMPDIR"/sort_uniq
+
+echo "  ── key field sort ──"
+printf 'b 3\na 2\na 1\n' > "$TMPDIR"/sort_key
+assert_cmd "$(printf 'a 1\na 2\nb 3\n')" sort -k 1,1 -k 2,2n "$TMPDIR"/sort_key
+
+echo "  ── key with separator ──"
+printf 'b:3\na:2\nc:1\n' > "$TMPDIR"/sort_t
+assert_cmd "$(printf 'a:2\nb:3\nc:1\n')" sort -t : -k 1,1 "$TMPDIR"/sort_t
+
+echo "  ── stable sort ──"
+printf 'a 2\na 1\nb 3\n' > "$TMPDIR"/sort_stable
+# Stable: equal-key lines keep input order (a 2 before a 1)
+assert_cmd "$(printf 'a 2\na 1\nb 3\n')" sort -k 1,1 -s "$TMPDIR"/sort_stable
+# Non-stable: tiebreaker by full line (a 1 before a 2)
+assert_cmd "$(printf 'a 1\na 2\nb 3\n')" sort -k 1,1 "$TMPDIR"/sort_stable
+
+echo "  ── output to file ──"
+printf 'c\na\nb\n' > "$TMPDIR"/sort_in
+"$MODBOX" sort -o "$TMPDIR"/sort_out "$TMPDIR"/sort_in 2>/dev/null || true
+assert_cmd "$(printf 'a\nb\nc\n')" sort "$TMPDIR"/sort_out
+
+echo "  ── ignore leading blanks ──"
+printf '  b\n a\n  a\nc\n' > "$TMPDIR"/sort_blank
+assert_cmd "$(printf ' a\n  a\n  b\nc\n')" sort -b "$TMPDIR"/sort_blank
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' sort --help
+
+echo "  ── stdin ──"
+result=$("$MODBOX" sort < "$TMPDIR"/sort_alpha 2>/dev/null || true)
+expected="$(printf 'apple\nbanana\ncherry\ndate')"
+if [[ "$result" == "$expected" ]]; then
+    pass "sort (stdin)"
+else
+    fail "sort (stdin) — expected [$expected] got [$result]"
+fi
+
+echo "  ── multiple files ──"
+printf 'c\na\n' > "$TMPDIR"/sort_mf1
+printf 'b\nd\n' > "$TMPDIR"/sort_mf2
+assert_cmd "$(printf 'a\nb\nc\nd\n')" sort "$TMPDIR"/sort_mf1 "$TMPDIR"/sort_mf2
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  rev
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── rev ──────────────────────────────────────"
+
+echo "  ── basic reverse ──"
+printf 'abc\nhello world\n12345\n' > "$TMPDIR"/rev_basic
+assert_cmd "$(printf 'cba\ndlrow olleh\n54321\n')" rev "$TMPDIR"/rev_basic
+
+echo "  ── stdin ──"
+result=$(printf 'abc\nhello world\n12345\n' | "$MODBOX" rev 2>/dev/null || true)
+expected="$(printf 'cba\ndlrow olleh\n54321')"
+if [[ "$result" == "$expected" ]]; then
+    pass "rev (stdin)"
+else
+    fail "rev (stdin) — expected [$expected] got [$result]"
+fi
+
+echo "  ── single character ──"
+printf 'a\n' > "$TMPDIR"/rev_single
+assert_cmd "$(printf 'a\n')" rev "$TMPDIR"/rev_single
+
+echo "  ── empty line ──"
+printf '\n' > "$TMPDIR"/rev_empty
+assert_cmd "$(printf '\n')" rev "$TMPDIR"/rev_empty
+
+echo "  ── palindrome ──"
+printf 'racecar\n' > "$TMPDIR"/rev_pal
+assert_cmd "$(printf 'racecar\n')" rev "$TMPDIR"/rev_pal
+
+echo "  ── multiple files ──"
+printf 'ab\n' > "$TMPDIR"/rev_mf1
+printf 'cd\n' > "$TMPDIR"/rev_mf2
+assert_cmd "$(printf 'ba\ndc\n')" rev "$TMPDIR"/rev_mf1 "$TMPDIR"/rev_mf2
+
+echo "  ── stdin via - ──"
+result=$(printf 'xyz' | "$MODBOX" rev - 2>/dev/null || true)
+if [[ "$result" == "zyx" ]]; then
+    pass "rev - (stdin via -)"
+else
+    fail "rev - (stdin via -) — expected [zyx] got [$result]"
+fi
+
+echo "  ── non-existent file ──"
+assert_cmd_pat_stderr 'No such file' rev "$TMPDIR"/rev_nonexistent
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' rev --help
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  du
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── du ──────────────────────────────────────"
+
+# Setup test directory
+mkdir -p "$TMPDIR"/du_dir/sub
+printf 'hello' > "$TMPDIR"/du_dir/a.txt
+printf 'world' > "$TMPDIR"/du_dir/sub/b.txt
+
+echo "  ── basic du (default 1K blocks) ──"
+assert_cmd_pat 'du_dir$' du "$TMPDIR"/du_dir
+assert_cmd_pat 'du_dir/sub$' du "$TMPDIR"/du_dir
+
+echo "  ── -b: bytes ──"
+assert_cmd_pat 'du_dir$' du -b "$TMPDIR"/du_dir
+
+echo "  ── -h: human-readable ──"
+assert_cmd_pat 'K' du -h "$TMPDIR"/du_dir
+
+echo "  ── -s: summarize ──"
+result=$("$MODBOX" du -s "$TMPDIR"/du_dir 2>/dev/null | wc -l)
+if [[ "$result" == "1" ]]; then
+    pass "du -s → exactly 1 line"
+else
+    fail "du -s — expected 1 line, got $result"
+fi
+
+echo "  ── -a: all files ──"
+assert_cmd_pat 'a.txt' du -a "$TMPDIR"/du_dir 2>/dev/null
+assert_cmd_pat 'b.txt' du -a "$TMPDIR"/du_dir 2>/dev/null
+
+echo "  ── -c: total ──"
+assert_cmd_pat 'total' du -c "$TMPDIR"/du_dir "$TMPDIR"/du_dir/sub 2>/dev/null
+
+echo "  ── -d 0: max-depth 0 ──"
+assert_cmd_not_pat 'du_dir/sub' du -d 0 "$TMPDIR"/du_dir 2>/dev/null
+
+echo "  ── -k: 1K blocks ──"
+assert_cmd_pat 'du_dir$' du -k "$TMPDIR"/du_dir
+
+echo "  ── --si ──"
+assert_cmd_pat 'du_dir$' du --si "$TMPDIR"/du_dir
+
+echo "  ── --exclude ──"
+assert_cmd_pat 'du_dir$' du --exclude='*.txt' "$TMPDIR"/du_dir
+
+echo "  ── -t: threshold ──"
+assert_cmd_pat 'du_dir$' du -t 1K "$TMPDIR"/du_dir
+
+echo "  ── --time ──"
+assert_cmd_pat 'du_dir$' du --time "$TMPDIR"/du_dir 2>/dev/null
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' du --help
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  dust
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── dust ─────────────────────────────────────"
+
+mkdir -p "$TMPDIR"/dust_dir/sub
+printf 'hello' > "$TMPDIR"/dust_dir/a.txt
+printf 'world' > "$TMPDIR"/dust_dir/sub/b.txt
+
+echo "  ── basic dust ──"
+assert_cmd_pat '█' dust "$TMPDIR"/dust_dir
+
+echo "  ── -c: no color ──"
+assert_cmd_pat '%' dust -c "$TMPDIR"/dust_dir
+
+echo "  ── -d 0: depth 0 ──"
+assert_cmd_not_pat 'sub' dust -c -d 0 "$TMPDIR"/dust_dir
+
+echo "  ── -n: max lines ──"
+result=$("$MODBOX" dust -c -n 1 "$TMPDIR"/dust_dir 2>/dev/null | wc -l)
+if [[ "$result" == "1" ]]; then
+    pass "dust -n 1 → exactly 1 line"
+else
+    fail "dust -n 1 — expected 1 line, got $result"
+fi
+
+echo "  ── -a: all files ──"
+assert_cmd_pat 'a.txt' dust -c -a "$TMPDIR"/dust_dir
+
+echo "  ── -b: bytes ──"
+assert_cmd_pat '█' dust -c -b "$TMPDIR"/dust_dir
+
+echo "  ── -H: si ──"
+assert_cmd_pat 'kB' dust -c -H "$TMPDIR"/dust_dir
+
+echo "  ── -X: exclude ──"
+assert_cmd_pat '0%' dust -c -X '*.txt' "$TMPDIR"/dust_dir
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' dust --help
+
+echo "  ── ascending order (smallest first) ──"
+# First line should be subdir (smallest), last line the root (largest)
+lines=$("$MODBOX" dust -c "$TMPDIR"/dust_dir 2>/dev/null)
+first=$(echo "$lines" | head -1)
+last=$(echo "$lines" | tail -1)
+if echo "$first" | grep -q 'dust_dir/sub$' && echo "$last" | grep -q 'dust_dir$'; then
+    pass "dust → subdir first (smallest), root last (largest)"
+else
+    fail "dust — expected subdir first, root last"
+fi
+
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 
