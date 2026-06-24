@@ -1990,6 +1990,152 @@ echo "  ── -n +N beyond EOF (produce nothing) ──"
 assert_cmd "" tail -n +99 "$TMPDIR"/head_lines
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  mkdir
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── mkdir ────────────────────────────────────"
+
+echo "  ── basic create ──"
+assert_cmd "" mkdir "$TMPDIR"/mkdir_new
+
+echo "  ── already exists ──"
+assert_cmd_pat_stderr "File exists" mkdir "$TMPDIR"/mkdir_new
+
+echo "  ── -p parents ──"
+assert_cmd "" mkdir -p "$TMPDIR"/mkdir_a/mkdir_b/mkdir_c
+
+echo "  ── -p existing ──"
+assert_cmd "" mkdir -p "$TMPDIR"/mkdir_new
+
+echo "  ── -v verbose ──"
+assert_cmd_pat "created directory" mkdir -v "$TMPDIR"/mkdir_verb
+
+echo "  ── -m mode ──"
+assert_cmd "" mkdir -m 0700 "$TMPDIR"/mkdir_mode
+# Verify mode
+mode=$(stat -c '%a' "$TMPDIR"/mkdir_mode 2>/dev/null)
+if [ "$mode" = "700" ]; then
+    pass "mkdir -m 0700 → mode 700"
+else
+    fail "mkdir -m 0700 → expected mode 700 got [$mode]"
+fi
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' mkdir --help
+
+echo "  ── multiple dirs ──"
+assert_cmd "" mkdir "$TMPDIR"/mkdir_m1 "$TMPDIR"/mkdir_m2
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  rm
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── rm ───────────────────────────────────────"
+
+echo "  ── single file ──"
+touch "$TMPDIR"/rm_file
+assert_cmd "" rm "$TMPDIR"/rm_file
+if [ ! -f "$TMPDIR"/rm_file ]; then
+    pass "rm removed file"
+else
+    fail "rm did not remove file"
+fi
+
+echo "  ── -f nonexistent (no error) ──"
+assert_cmd "" rm -f "$TMPDIR"/rm_nonexistent
+
+echo "  ── -r recursive ──"
+mkdir -p "$TMPDIR"/rm_dir/sub
+touch "$TMPDIR"/rm_dir/sub/file
+assert_cmd "" rm -r "$TMPDIR"/rm_dir
+if [ ! -d "$TMPDIR"/rm_dir ]; then
+    pass "rm -r removed directory tree"
+else
+    fail "rm -r did not remove directory tree"
+fi
+
+echo "  ── -v verbose ──"
+touch "$TMPDIR"/rm_verb
+assert_cmd_pat "removed" rm -v "$TMPDIR"/rm_verb
+
+echo "  ── -d empty dir ──"
+mkdir "$TMPDIR"/rm_empty
+assert_cmd "" rm -d "$TMPDIR"/rm_empty
+
+echo "  ── multiple files ──"
+touch "$TMPDIR"/rm_a "$TMPDIR"/rm_b
+assert_cmd "" rm "$TMPDIR"/rm_a "$TMPDIR"/rm_b
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' rm --help
+
+echo "  ── dir without -r (error) ──"
+mkdir "$TMPDIR"/rm_nr_dir
+assert_cmd_pat_stderr "Is a directory" rm "$TMPDIR"/rm_nr_dir
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  touch
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── touch ────────────────────────────────────"
+
+echo "  ── create new file ──"
+assert_cmd "" touch "$TMPDIR"/touch_new
+test -f "$TMPDIR"/touch_new && pass "touch_new exists" || fail "touch_new not created"
+
+echo "  ── update existing ──"
+touch -t 202001010000 "$TMPDIR"/touch_new
+assert_cmd "" touch "$TMPDIR"/touch_new
+now=$(date +%Y)
+mtime_year=$(stat -c '%y' "$TMPDIR"/touch_new | cut -d- -f1)
+if [ "$mtime_year" = "$(date +%Y)" ]; then
+    pass "touch updated mtime to current year"
+else
+    fail "touch — expected mtime year $(date +%Y) got [$mtime_year]"
+fi
+
+echo "  ── -c no-create (nonexistent) ──"
+assert_cmd "" touch -c "$TMPDIR"/touch_noc
+test -f "$TMPDIR"/touch_noc && fail "touch -c created file" || pass "touch -c did not create"
+
+echo "  ── -r reference ──"
+touch "$TMPDIR"/touch_ref
+touch -t 202101010000 "$TMPDIR"/touch_ref
+touch "$TMPDIR"/touch_target
+assert_cmd "" touch -r "$TMPDIR"/touch_ref "$TMPDIR"/touch_target
+ref_mtime=$(stat -c '%Y' "$TMPDIR"/touch_ref)
+tgt_mtime=$(stat -c '%Y' "$TMPDIR"/touch_target)
+if [ "$ref_mtime" = "$tgt_mtime" ]; then
+    pass "touch -r copied timestamps"
+else
+    fail "touch -r — expected mtime [$ref_mtime] got [$tgt_mtime]"
+fi
+
+echo "  ── -a only access time ──"
+touch -t 202201010000 "$TMPDIR"/touch_atime
+sleep 1
+assert_cmd "" touch -a "$TMPDIR"/touch_atime
+atime=$(stat -c '%X' "$TMPDIR"/touch_atime)
+mtime=$(stat -c '%Y' "$TMPDIR"/touch_atime)
+if [ "$atime" != "$mtime" ]; then
+    pass "touch -a changed atime only"
+else
+    fail "touch -a — atime and mtime are equal [$atime]"
+fi
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' touch --help
+
+echo "  ── multiple files ──"
+assert_cmd "" touch "$TMPDIR"/touch_x "$TMPDIR"/touch_y
+
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""

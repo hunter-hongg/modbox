@@ -20,6 +20,9 @@
 #include "commands/dust.h"
 #include "commands/head.h"
 #include "commands/tail.h"
+#include "commands/rm.h"
+#include "commands/mkdir.h"
+#include "commands/touch.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -59,6 +62,9 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
     g_hash_table_insert(commands, "dust", (gpointer)dust_command);
     g_hash_table_insert(commands, "head", (gpointer)head_command);
     g_hash_table_insert(commands, "tail", (gpointer)tail_command);
+    g_hash_table_insert(commands, "rm", (gpointer)rm_command);
+    g_hash_table_insert(commands, "mkdir", (gpointer)mkdir_command);
+    g_hash_table_insert(commands, "touch", (gpointer)touch_command);
 
     if (g_hash_table_contains(commands, command)) {
         command_t cmd = (command_t)(void*)g_hash_table_lookup(commands, command);
