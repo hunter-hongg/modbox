@@ -1932,6 +1932,17 @@ assert_cmd_not_pat '==>' head -q "$TMPDIR"/head_lines "$TMPDIR"/head_lines 2>/de
 echo "  ── help ──"
 assert_cmd_pat 'Usage:' head --help
 
+echo "  ── empty file ──"
+: > "$TMPDIR"/head_empty
+assert_cmd "" head "$TMPDIR"/head_empty
+
+echo "  ── -n +N (from line N) ──"
+assert_cmd "$(printf 'line5\nline6\nline7\nline8\nline9\nline10\nline11\nline12\n')" head -n +5 "$TMPDIR"/head_lines
+
+echo "  ── -z (NUL terminated) ──"
+printf 'a\0b\0c\0' > "$TMPDIR"/head_nul
+assert_cmd "$(printf 'a\0b\0')" head -z -n 2 "$TMPDIR"/head_nul
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  tail
@@ -1968,6 +1979,15 @@ assert_cmd_not_pat '==>' tail -q "$TMPDIR"/head_lines "$TMPDIR"/head_lines 2>/de
 
 echo "  ── help ──"
 assert_cmd_pat 'Usage:' tail --help
+
+echo "  ── empty file ──"
+assert_cmd "" tail "$TMPDIR"/head_empty
+
+echo "  ── -z (NUL terminated) ──"
+assert_cmd "$(printf 'b\0c\0')" tail -z -n 2 "$TMPDIR"/head_nul
+
+echo "  ── -n +N beyond EOF (produce nothing) ──"
+assert_cmd "" tail -n +99 "$TMPDIR"/head_lines
 
 
 # ── Summary ─────────────────────────────────────────────────────────────────

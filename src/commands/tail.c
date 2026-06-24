@@ -19,6 +19,7 @@ static void print_header(const char *fname, FILE *out) {
 
 typedef struct {
     gchar **buf;    /* array of N strings */
+    gint64 *lens;   /* length of each entry (delimiter included) */
     gint64 size;    /* capacity */
     gint64 pos;     /* next write position */
     gint64 count;   /* number of items written */
@@ -27,15 +28,17 @@ typedef struct {
 static RingBuf *ring_new(gint64 n) {
     RingBuf *rb = g_malloc(sizeof(RingBuf));
     rb->buf = g_malloc0((size_t)n * sizeof(gchar *));
+    rb->lens = g_malloc0((size_t)n * sizeof(gint64));
     rb->size = n;
     rb->pos = 0;
     rb->count = 0;
     return rb;
 }
 
-static void ring_add(RingBuf *rb, const gchar *line) {
+static void ring_add(RingBuf *rb, const gchar *line, gint64 len) {
     if (rb->buf[rb->pos]) g_free(rb->buf[rb->pos]);
-    rb->buf[rb->pos] = g_strdup(line);
+    rb->buf[rb->pos] = g_memdup2(line, (gsize)len);
+    rb->lens[rb->pos] = len;
     rb->pos = (rb->pos + 1) % rb->size;
     if (rb->count < rb->size) rb->count++;
 }
@@ -46,7 +49,7 @@ static void ring_flush(RingBuf *rb, FILE *out) {
         gint64 idx = (start + i) % rb->size;
         if (rb->buf[idx]) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-            (void)fprintf(out, "%s", rb->buf[idx]);
+            (void)fwrite(rb->buf[idx], 1, (size_t)rb->lens[idx], out);
         }
     }
 }
@@ -56,6 +59,7 @@ static void ring_free(RingBuf *rb) {
         if (rb->buf[i]) g_free(rb->buf[i]);
     }
     g_free(rb->buf);
+    g_free(rb->lens);
     g_free(rb);
 }
 
@@ -65,13 +69,23 @@ static void tail_lines(FILE *fp, gint64 count, int delim, FILE *out) {
     if (count <= 0) return;
 
     RingBuf *rb = ring_new(count);
-    gchar buf[8192];
+    GString *line = g_string_sized_new(256);
+    int c;
 
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    while (fgets(buf, (int)sizeof(buf), fp)) {
-        ring_add(rb, buf);
+    while ((c = fgetc(fp)) != EOF) {
+        g_string_append_c(line, (gchar)c);
+        if (c == delim) {
+            ring_add(rb, line->str, (gint64)line->len);
+            g_string_set_size(line, 0);
+        }
     }
 
+    /* Emit unterminated tail if file doesn't end with delimiter */
+    if (line->len > 0) {
+        ring_add(rb, line->str, (gint64)line->len);
+    }
+
+    g_string_free(line, TRUE);
     ring_flush(rb, out);
     ring_free(rb);
 }
@@ -322,6 +336,7 @@ void tail_command(gint argc, gchar **argv) {
             if (follow_active && opened) {
                 /* Follow mode for this file (only one file supported) */
                 follow_file(fname, fp, opts.sleep_interval, opts.follow_retry);
+                (void)fclose(fp);
             } else if (opened) {
                 (void)fclose(fp);
             }

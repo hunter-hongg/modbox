@@ -209,24 +209,15 @@ void head_command(gint argc, gchar **argv) {
                     if (c == delim) skip--;
                 }
 
-                /* Count remaining for header check */
-                long remaining = 0;
-                {
-                    long pos = ftell(fp);
-                    if (pos >= 0) {
-                        (void)fseek(fp, 0, SEEK_END);
-                        remaining = ftell(fp) - pos;
-                        (void)fseek(fp, pos, SEEK_SET);
+                /* Check if any content remains after skipping */
+                if (!feof(fp)) {
+                    if (show_header) {
+                        if (i > 0) (void)fputc('\n', stdout);
+                        print_header(fname, stdout);
                     }
+                    int c;
+                    while ((c = fgetc(fp)) != EOF) (void)fputc(c, stdout);
                 }
-
-                if (show_header && remaining > 0) {
-                    if (i > 0) (void)fputc('\n', stdout);
-                    print_header(fname, stdout);
-                }
-
-                int c;
-                while ((c = fgetc(fp)) != EOF) (void)fputc(c, stdout);
             } else {
                 head_lines_file(fname, fp, opts.lines, delim, &opts, i, file_count, stdout);
             }
