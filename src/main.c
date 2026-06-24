@@ -18,6 +18,8 @@
 #include "commands/rev.h"
 #include "commands/du.h"
 #include "commands/dust.h"
+#include "commands/head.h"
+#include "commands/tail.h"
 
 typedef void (*command_t)(gint argc, gchar** argv);
 
@@ -55,6 +57,8 @@ static void execute_command(gchar* command, gint argc, gchar** argv) {
     g_hash_table_insert(commands, "rev", (gpointer)rev_command);
     g_hash_table_insert(commands, "du", (gpointer)du_command);
     g_hash_table_insert(commands, "dust", (gpointer)dust_command);
+    g_hash_table_insert(commands, "head", (gpointer)head_command);
+    g_hash_table_insert(commands, "tail", (gpointer)tail_command);
 
     if (g_hash_table_contains(commands, command)) {
         command_t cmd = (command_t)(void*)g_hash_table_lookup(commands, command);
