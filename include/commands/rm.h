@@ -9,6 +9,7 @@ typedef struct {
     int is_interactive;
     int is_verbose;
     int remove_empty_dirs;
+    int is_trash;
 } RmOptions;
 
 void rm_command(gint argc, gchar** argv);

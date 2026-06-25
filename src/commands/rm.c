@@ -6,9 +6,194 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "commands/rm.h"
+
+#define TRASH_DIR ".trash"
+
+/* ── Trash helpers ──────────────────────────────────────────────────── */
+
+static int ensure_trash_dir(const char *trash_dir) {
+  struct stat st;
+  if (stat(trash_dir, &st) == 0) {
+    if (S_ISDIR(st.st_mode)) return 0;
+    errno = ENOTDIR;
+    return -1;
+  }
+  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+  return mkdir(trash_dir, 0700);
+}
+
+static gchar *resolve_trash_path(const char *path, const char *home) {
+
+  gchar *trash_dir = g_build_filename(home, TRASH_DIR, NULL);
+  gchar *base = g_path_get_basename(path);
+  gchar *dest = g_build_filename(trash_dir, base, NULL);
+
+  if (access(dest, F_OK) != 0) {
+    /* No collision — use it */
+    g_free(base);
+    g_free(trash_dir);
+    return dest;
+  }
+
+  /* Collision — try numbered variants */
+  for (int i = 1; i < 10000; i++) {
+    g_free(dest);
+    gchar *numbered = g_strdup_printf("%s.%d", base, i);
+    dest = g_build_filename(trash_dir, numbered, NULL);
+    g_free(numbered);
+
+    if (access(dest, F_OK) != 0) {
+      g_free(base);
+      g_free(trash_dir);
+      return dest;
+    }
+  }
+
+  /* Last resort: timestamp + random suffix */
+  g_free(dest);
+  time_t now = time(NULL);
+  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.rand)
+  gchar *stamped = g_strdup_printf("%s.%ld.%d", base, (long)now, rand());
+  dest = g_build_filename(trash_dir, stamped, NULL);
+  g_free(stamped);
+
+  g_free(base);
+  g_free(trash_dir);
+  return dest;
+}
+
+static int copy_file_to_trash(const char *src, const char *dest) {
+  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+  FILE *fsrc = fopen(src, "rb");
+  if (fsrc == NULL) return -1;
+
+  // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+  FILE *fdst = fopen(dest, "wb");
+  if (fdst == NULL) {
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)fclose(fsrc);
+    return -1;
+  }
+
+  char buf[8192];
+  size_t nread;
+  // NOLINTNEXTLINE(clang-analyzer-unix.Stream)
+  while ((nread = fread(buf, 1, sizeof(buf), fsrc)) > 0) {
+    if (fwrite(buf, 1, nread, fdst) != nread) {
+      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      (void)fclose(fsrc);
+      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      (void)fclose(fdst);
+      return -1;
+    }
+  }
+
+  if (ferror(fsrc)) {
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)fclose(fsrc);
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)fclose(fdst);
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)unlink(dest);
+    return -1;
+  }
+
+  // NOLINTNEXTLINE(bugprone-unused-return-value)
+  (void)fclose(fsrc);
+  // NOLINTNEXTLINE(bugprone-unused-return-value)
+  (void)fclose(fdst);
+  return 0;
+}
+
+// NOLINTNEXTLINE(misc-no-recursion)
+static int move_to_trash(const char *path, const RmOptions *opts) {
+  struct stat st;
+  if (lstat(path, &st) != 0) return -1;
+
+  const char *home = getenv("HOME");
+  if (home == NULL) return -1;
+
+  gchar *trash_dir = g_build_filename(home, TRASH_DIR, NULL);
+  if (ensure_trash_dir(trash_dir) != 0) {
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+    (void)fprintf(stderr, "rm: cannot create trash directory '%s': %s\n",
+                  trash_dir, strerror(errno));
+    g_free(trash_dir);
+    return -1;
+  }
+  g_free(trash_dir);
+
+  gchar *dest = resolve_trash_path(path, home);
+  if (dest == NULL) return -1;
+
+  int ret = 0;
+
+  if (S_ISDIR(st.st_mode)) {
+    /* Try rename first (same filesystem) */
+    ret = rename(path, dest);
+    if (ret != 0 && errno == EXDEV) {
+      /* Cross-filesystem: create dest dir, recurse */
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      if (mkdir(dest, 0700) != 0) {
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)fprintf(stderr, "rm: cannot trash '%s': %s\n", path,
+                      strerror(errno));
+        g_free(dest);
+        return -1;
+      }
+
+      DIR *dir = opendir(path);
+      if (dir == NULL) {
+        g_free(dest);
+        return -1;
+      }
+
+      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      struct dirent *entry;
+      while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0) {
+          continue;
+        }
+        gchar *child_src = g_build_filename(path, entry->d_name, NULL);
+        if (move_to_trash(child_src, opts) != 0) ret = -1;
+        g_free(child_src);
+      }
+      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      (void)closedir(dir);
+
+      // NOLINTNEXTLINE(bugprone-unused-return-value)
+      (void)rmdir(path);
+    }
+  } else {
+    /* Regular file or symlink */
+    ret = rename(path, dest);
+    if (ret != 0 && errno == EXDEV) {
+      /* Cross-filesystem: copy then unlink */
+      if (copy_file_to_trash(path, dest) == 0) {
+        // NOLINTNEXTLINE(bugprone-unused-return-value)
+        (void)unlink(path);
+        ret = 0;
+      } else {
+        ret = -1;
+      }
+    }
+  }
+
+  if (ret == 0 && opts->is_verbose) {
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+    (void)printf("trashed '%s' -> '%s'\n", path, dest);
+  }
+
+  g_free(dest);
+  return ret;
+}
+
+/* ── Prompt helpers ─────────────────────────────────────────────────── */
 
 static gboolean prompt_remove(const char *path) {
   FILE *in = stdin;
@@ -32,6 +217,8 @@ static gboolean prompt_remove(const char *path) {
   if (out != NULL) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(out, "rm: remove '%s'? ", path);
+    // NOLINTNEXTLINE(bugprone-unused-return-value)
+    (void)fflush(out);
   }
 
   int c = EOF;
@@ -55,17 +242,18 @@ static gboolean prompt_remove(const char *path) {
 }
 
 // NOLINTNEXTLINE(misc-no-recursion)
-static int remove_recursive(const char *path, const RmOptions *opts) {
-  struct stat st;
-  if (lstat(path, &st) != 0) {
-    return -1;
+static int remove_entry(const char *path, const RmOptions *opts) {
+  /* Trash mode: move to ~/.trash instead of unlinking */
+  if (opts->is_trash) {
+    return move_to_trash(path, opts);
   }
+
+  struct stat st;
+  if (lstat(path, &st) != 0) return -1;
 
   if (S_ISDIR(st.st_mode)) {
     DIR *dir = opendir(path);
-    if (dir == NULL) {
-      return -1;
-    }
+    if (dir == NULL) return -1;
 
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     struct dirent *entry;
@@ -76,7 +264,7 @@ static int remove_recursive(const char *path, const RmOptions *opts) {
       }
 
       gchar *child = g_build_filename(path, entry->d_name, NULL);
-      if (remove_recursive(child, opts) != 0) {
+      if (remove_entry(child, opts) != 0) {
         ret = -1;
       }
       g_free(child);
@@ -125,32 +313,35 @@ static int remove_file(const char *path, const RmOptions *opts) {
     return -1;
   }
 
-  /* Interactive prompt */
+    /* Interactive prompt */
   if (opts->is_interactive) {
-    if (S_ISDIR(st.st_mode)) {
-      if (!prompt_remove(path)) {
-        return 0;
-      }
-    } else {
-      if (!prompt_remove(path)) {
-        return 0;
-      }
+    if (!prompt_remove(path)) {
+      return 0;
     }
   }
 
   if (S_ISDIR(st.st_mode)) {
-    if (remove_recursive(path, opts) != 0) {
+    if (remove_entry(path, opts) != 0) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "rm: cannot remove '%s': %s\n", path,
                     strerror(errno));
       return -1;
     }
   } else {
-    if (unlink(path) != 0) {
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)fprintf(stderr, "rm: cannot remove '%s': %s\n", path,
-                    strerror(errno));
-      return -1;
+    if (opts->is_trash) {
+      if (move_to_trash(path, opts) != 0) {
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)fprintf(stderr, "rm: cannot trash '%s': %s\n", path,
+                      strerror(errno));
+        return -1;
+      }
+    } else {
+      if (unlink(path) != 0) {
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+        (void)fprintf(stderr, "rm: cannot remove '%s': %s\n", path,
+                      strerror(errno));
+        return -1;
+      }
     }
   }
 
@@ -183,6 +374,8 @@ void rm_command(gint argc, gchar **argv) {
       arg_lit0(NULL, "no-preserve-root", "do not treat '/' specially");
   struct arg_lit *preserve_root_opt =
       arg_lit0(NULL, "preserve-root", "do not remove '/' (default)");
+  struct arg_lit *trash_opt =
+      arg_lit0(NULL, "trash", "move files to ~/.trash instead of deleting");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *files_arg =
@@ -192,7 +385,7 @@ void rm_command(gint argc, gchar **argv) {
   void *argtable[] = {recursive_opt, force_opt, interactive_opt,
                       verbose_opt, dir_opt,
                       one_file_system_opt, no_preserve_root_opt,
-                      preserve_root_opt, help_opt,
+                      preserve_root_opt, trash_opt, help_opt,
                       files_arg, end};
 
   int nerrors = arg_parse(argc, argv, argtable);
@@ -209,6 +402,7 @@ void rm_command(gint argc, gchar **argv) {
     printf("      --one-file-system  skip directories on different file systems\n");
     printf("      --no-preserve-root  do not treat '/' specially\n");
     printf("      --preserve-root    do not remove '/' (default)\n");
+    printf("      --trash         move files to ~/.trash instead of deleting\n");
     printf("  -h, --help          display this help and exit\n");
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     return;
@@ -226,11 +420,14 @@ void rm_command(gint argc, gchar **argv) {
   opts.is_interactive = (interactive_opt->count > 0);
   opts.is_verbose = (verbose_opt->count > 0);
   opts.remove_empty_dirs = (dir_opt->count > 0);
+  opts.is_trash = (trash_opt->count > 0);
 
   /* -f overrides -i */
   if (opts.is_force) {
     opts.is_interactive = 0;
   }
+
+  /* Default: no prompting — use -i for interactive confirmation */
 
   int num_files = files_arg->count;
 
