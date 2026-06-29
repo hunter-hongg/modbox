@@ -1,14 +1,6 @@
 ---
-# clang-tidy configuration for modbox (C/GLib project)
-#
-# Options:
-#   InheritParentConfig: false — ignore any parent .clang-tidy files
-#   Checks: enabled/disabled check groups
-#   CheckOptions: per-check configuration overrides
-
+# clang-tidy configuration for modbox (C++20 project)
 InheritParentConfig: false
-
-# 只报告项目自身源码和头文件中的诊断，过滤系统头文件（如 GLib）
 HeaderFilterRegex: '^(src|include)/'
 
 Checks: >
@@ -70,28 +62,21 @@ Checks: >
   -readability-uniqueptr-delete-release
 
 CheckOptions:
-  # Allow GLib-style short type names like gchar*, gint, gpointer
   - key: readability-identifier-length.MinimumVariableNameLength
     value: 1
   - key: readability-identifier-length.MinimumParameterNameLength
     value: 1
   - key: readability-identifier-length.MinimumLoopCounterNameLength
     value: 0
-  # Raise complexity threshold for GLib-heavy functions
   - key: readability-function-cognitive-complexity.Threshold
     value: 50
-  # Raise line threshold for generated / config code
   - key: readability-function-size.LineThreshold
     value: 300
-  # Allow common integer literals used in C
   - key: readability-magic-numbers.IgnoredIntegerValues
     value: '0;1;2;3;4;8;10;12;16;20;32;64;100;128;255;1024;4096'
   - key: readability-magic-numbers.IgnoredFloatingPointValues
     value: '0;1'
-  # Mark NULL macro so modernize-use-nullptr ignores it
   - key: modernize-use-nullptr.NullMacros
     value: 'NULL'
-  # Allow common posix/glib return values to be unchecked
   - key: bugprone-unused-return-value.CheckedFunctions
-    value: '::fclose;::fflush;::free;::g_free;::g_list_free;::g_hash_table_destroy;::arg_freetable'
-
+    value: '::fclose;::fflush;::free;::arg_freetable'

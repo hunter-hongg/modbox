@@ -9,160 +9,55 @@
 - `make clean` - remove `build` and `target` directories
 - `make refresh` - full rebuild (clean + regenerate CMake)
 
+### Code Convention
+
+- C++20 standard
+- All source files are `.cpp`, all headers are `.hpp`
+- Options structs use default member initializers (C++20)
+- Config structs passed as `const XxxOptions*`
+- No GLib dependency — uses C++ STL exclusively
+  - `std::vector` for dynamic arrays (replaces `GPtrArray`, `GArray`, `GByteArray`)
+  - `std::unordered_map` for hash maps (replaces `GHashTable`)
+  - `std::string` for strings (replaces `gchar*` + manual memory management)
+  - `std::regex` for regex (replaces `GRegex`)
+  - `std::filesystem` for path manipulation (replaces `g_path_get_basename`, `g_build_filename`)
+- Standard C types: `int` for `gint`, `size_t` for `gsize`, `int64_t` for `gint64`, `uint64_t` for `guint64`, `bool` for `gboolean`
+- Memory management: `new`/`delete` or RAII containers (no `g_malloc`/`g_free`)
+- Uses argtable3 for argument parsing
+- POSIX APIs (fopen, stat, readdir, etc.) used directly
+
 ### Adding Commands
 
-1. Create header: `include/commands/<cmd>.h`
-
-   ```c
-   #ifndef <CMD>_H
-   #define <CMD>_H
-   #include <glib.h>
-   void <cmd>_command(gint argc, gchar** argv);
-   #endif
-   ```
-
-2. Implement: `src/commands/<cmd>.c`
-3. Register in `src/main.c`:
-
-   ```c
+1. Create header: `include/commands/<cmd>.hpp`
+2. Implement: `src/commands/<cmd>.cpp`
+3. Register in `src/main.cpp`:
+   ```cpp
    g_hash_table_insert(commands, "<cmd>", <cmd>_command);
+   ```
+   Replace with unordered_map:
+   ```cpp
+   commands["<cmd>"] = <cmd>_command;
    ```
 
 ### Command Interface
 
-- Signature: `void command(gint argc, gchar** argv)`
-- Uses argtable3 for argument parsing (see `src/commands/cat.c`)
-- Command lookup via GHashTable in `src/main.c`
-
-### Code Convention: 结构体传参
-
-禁止在函数签名中堆砌多个 `int` 布尔标志或零散参数。所有配置类参数必须用结构体打包传递。
-
-**定义模式**（头文件中）：
-
-```c
-typedef struct {
-    int flag_a;
-    int flag_b;
-    unsigned long block_size;
-    // ... 更多字段
-} XxxOptions;
-```
-
-**使用模式**（入口函数中初始化，然后通过 `const XxxOptions*` 单向传递）：
-
-```c
-XxxOptions opts = {0};           // 零初始化
-opts.flag_a = (arg_opt->count > 0);  // 从 argtable3 解析结果赋值
-// ...
-
-some_helper(src, dst, &opts);    // 传指针，不传一堆布尔值
-```
-
-**原则**：
-
-1. 存取值用 `.`，传递用 `const XxxOptions*`——保证只读，不修改配置
-2. 添加新选项只需加结构体字段，**不修改任何函数签名**
-3. 不同数据类型的参数（`int`、`enum`、`unsigned long`、`char`）统一装入结构体，避免顺序搞错
-
-**项目内参考**：`CpOptions`（`include/commands/cp.h`）、`CatOptions`（`include/commands/cat.h`）、`LsOptions`（`include/commands/ls.h`）。
+- Signature: `void command(int argc, char** argv)`
+- Uses argtable3 for argument parsing
+- Command lookup via `std::unordered_map` in `src/main.cpp`
 
 ### Dependencies
 
 - vcpkg (manages argtable3)
-- System glib-2.0
-- clang-tidy (optional, for static analysis)
+- No glib dependency
 - CMake toolchain hardcoded to `$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake`
 
 ### Static Analysis (clang-tidy)
 
 - Configured via `.clang-tidy` at project root
-- Enabled checks:
-`clang-analyzer-*`, `bugprone-*`, `cert-*`,
-`misc-*`, `readability-*`, `modernize-*`, `portability-*`
-- C++-only checks are explicitly disabled; GLib naming conventions are respected
-- **Suppressing GLib noise**: `.clang-tidy` sets `HeaderFilterRegex: '^(src|include)/'`
-  so clang-tidy only reports diagnostics from project files, not from GLib system headers
-- The `lint` make target and build-time analysis (`ENABLE_CLANG_TIDY=ON`) both pass
-  `--system-headers=false` to skip GLib system headers
+- The `lint` make target and build-time analysis both pass `--system-headers=false`
 
-### Fixing clang-tidy Warnings
+### Running Tests
 
-- **Magic numbers** (`readability-magic-numbers`): Define named `#define` constants at the top of the file (e.g. `ASCII_DEL 127`).
-- **Braces** (`readability-braces-around-statements`): Always use braces for single-statement `if`/`else` bodies.
-- **Unused return values** (`cert-err33-c`, `bugprone-unused-return-value`): Cast to `(void)` and add `// NOLINTNEXTLINE(bugprone-unused-return-value)`.
-- **Unused parameters** (`misc-unused-parameters`): Add `(void)param_name;` at the top of the function body.
-- **Narrowing conversions** (`bugprone-narrowing-conversions`): Use explicit `(int)` cast when assigning `size_t` to `int`.
-- **Multi-level pointer conversions** (`bugprone-multi-level-implicit-pointer-conversion`): Use explicit casts (e.g. `(gchar**)g_malloc(...)`, `(gpointer)my_argv`).
-- **Include cleanups** (`misc-include-cleaner`): Add direct includes for functions used (e.g. `#include <string.h>` for `strcmp`, `#include <time.h>` for `strftime`/`localtime`).
-- **Unused includes**: Remove headers that are not directly used in a translation unit.
-- **Static linkage** (`misc-use-internal-linkage`): If a function is only used within its TU, make it `static`. If it's referenced via function pointer from another TU, add `// NOLINTNEXTLINE(misc-use-internal-linkage)` and keep external linkage.
-- **Security API warnings** (`clang-analyzer-security.insecureAPI.*`): Add `// NOLINTNEXTLINE(...)` comment above the call when the function is safe in context (e.g. `fprintf(stderr, ...)`).
-
-### Running Static Analysis
-
-- `make lint` — runs clang-tidy on all source files
-requires `compile_commands.json`, generated by `make refresh`
-- `cmake --build build --target lint` — alternative invocation
-- Enable build-time analysis:
-set `-DENABLE_CLANG_TIDY=ON` when running CMake (default: OFF)
-
-### Notes
-
-- Build output: `./target/modbox`
-- Entry point: `src/main.c` (command dispatch)
-- Current commands: help, cat, ls, cp, mv, ln, grep
-- **Running tests**: `bash tests/run_tests.sh` — see below for details
-
-### Tests
-
-- **Test suite**: `tests/run_tests.sh` — a self-contained Bash test script with helpers:
-  - `assert_cmd EXPECTED_OUTPUT args...` — compares stdout exactly
-  - `assert_cmd_pat PATTERN args...` — checks stdout for regex pattern
-  - `assert_cmd_not_pat PATTERN args...` — checks stdout lacks regex pattern
-  - `assert_cmd_pat_stderr PATTERN args...` — checks stderr for regex pattern
-- Run with: `bash tests/run_tests.sh`
+- `bash tests/run_tests.sh` — self-contained Bash test script
 - Exit code 0 = all pass, exit code 1 = some fail
-
-### mv Command
-
-- Positional args only: `SOURCE... DEST` (2–101 args)
-- Supports moving regular files and directories (recursive)
-- Uses `rename()` first (same-filesystem); falls back to copy+unlink (cross-filesystem)
-- Multiple sources: destination must be an existing directory
-- Moving a directory into itself produces: `mv: cannot move '...' to '...': Invalid argument`
-- Error messages printed to stderr
-
-### ln Command Options
-
-- `-f`, `--force` — remove existing destination file before linking
-- `-s`, `--symbolic` — make symbolic links instead of hard links
-- `-v`, `--verbose` — explain what is being done
-- For hard links (default): first argument must be an existing regular file
-- For symbolic links (`-s`): first argument can be any path (need not exist)
-- Second argument: if it's an existing directory, creates a link with the source's basename inside that directory; otherwise creates a link at the given path
-
-### cat Command Options
-
-- `-n`, `--number` — number all output lines
-- `-b`, `--number-nonblank` — number nonempty output lines
-- `-E`, `--show-ends` — display `$` at end of each line
-- `-T`, `--show-tabs` — display TAB characters as `^I`
-- `-s`, `--squeeze-blank` — never more than one single blank line
-- `-v`, `--show-nonprinting` —
-use `^` and `M-` notation for non-printing characters (except LFD and TAB)
-- Options can be combined (e.g., `-vTE`), via `expand_short_options` in `src/commands/cat.c`
-- Visual character output helper: `output_char_visual()` in `src/commands/cat.c`
-
-### ls Command Options
-
-- `-a`, `--all` — do not ignore entries starting with `.`
-- `-A`, `--almost-all` — do not list implied `.` and `..`
-- `-l`, `--long` — use a long listing format
-- `--author` — with -l, print the author of each file
-- `-b`, `--escape` — print octal escapes (`\ooo`) for non-graphic characters
-- `-B`, `--ignore-backups` — do not list entries ending with `~`
-- `--color=WHEN` — colorize the output; WHEN can be `always`, `auto`, or `never`
-- `--block-size=SIZE` — scale sizes by SIZE when printing them; e.g. `K` for KiB
-- Supports multiple directory arguments
-- Escape helper: `print_escaped_filename()` in `src/commands/ls.c`
+- Test helpers: `assert_cmd`, `assert_cmd_pat`, `assert_cmd_not_pat`, `assert_cmd_pat_stderr`

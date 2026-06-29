@@ -2321,6 +2321,262 @@ echo "  ── error: nonexistent file"
 assert_cmd_pat_stderr 'No such file' nl "$TMPDIR"/nl_nonexistent
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  lsc
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── lsc ──────────────────────────────────────"
+
+mkdir -p "$TMPDIR"/lsc_dir
+touch "$TMPDIR"/lsc_dir/regular.txt
+touch "$TMPDIR"/lsc_dir/exec.sh
+chmod +x "$TMPDIR"/lsc_dir/exec.sh
+mkdir "$TMPDIR"/lsc_dir/subdir
+touch "$TMPDIR"/lsc_dir/.hidden
+
+echo "  ── basic lsc (colorful + icons) ──"
+assert_cmd_pat 'regular\.txt' lsc "$TMPDIR"/lsc_dir
+
+echo "  ── lsc shows icons ──"
+assert_cmd_pat $'\xef\x80\x96' lsc "$TMPDIR"/lsc_dir 2>/dev/null  #  file icon
+
+echo "  ── lsc shows ANSI color codes ──"
+assert_cmd_pat $'\x1b\[' lsc "$TMPDIR"/lsc_dir 2>/dev/null
+
+echo "  ── lsc -l : long format with colors ──"
+assert_cmd_pat 'regular\.txt' lsc -l "$TMPDIR"/lsc_dir 2>/dev/null
+assert_cmd_pat '^[-d]' lsc -l "$TMPDIR"/lsc_dir 2>/dev/null
+
+echo "  ── lsc -a : show all (including hidden) ──"
+assert_cmd_pat '\.hidden' lsc -a "$TMPDIR"/lsc_dir 2>/dev/null
+
+echo "  ── lsc -A : almost all — no . .. ──"
+assert_cmd_pat '\.hidden' lsc -A "$TMPDIR"/lsc_dir 2>/dev/null
+assert_cmd_not_pat '(^| )\.\.?  *' lsc -A "$TMPDIR"/lsc_dir 2>/dev/null
+
+echo "  ── lsc -F : classify with indicators ──"
+assert_cmd_pat 'subdir/' lsc -F "$TMPDIR"/lsc_dir 2>/dev/null
+assert_cmd_pat 'exec\.sh\*' lsc -F "$TMPDIR"/lsc_dir 2>/dev/null
+
+echo "  ── lsc -r : reverse sort ──"
+assert_cmd_pat 'regular' lsc -r "$TMPDIR"/lsc_dir 2>/dev/null
+
+echo "  ── lsc --help shows usage ──"
+assert_cmd_pat 'Usage:' lsc --help 2>/dev/null
+
+echo "  ── lsc non-existent directory error ──"
+assert_cmd_pat_stderr 'No such file' lsc "$TMPDIR"/lsc_nonexistent
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  tac
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── tac ──────────────────────────────────────"
+
+printf 'line1\nline2\nline3\n' > "$TMPDIR"/tac_basic
+printf 'a\n\n\nc\n' > "$TMPDIR"/tac_blanks
+printf 'single line\n' > "$TMPDIR"/tac_single
+: > "$TMPDIR"/tac_empty
+
+echo "  ── basic reverse lines ──"
+assert_cmd "$(printf 'line3\nline2\nline1\n')" tac "$TMPDIR"/tac_basic
+
+echo "  ── single line ──"
+assert_cmd "$(printf 'single line\n')" tac "$TMPDIR"/tac_single
+
+echo "  ── empty file ──"
+assert_cmd "" tac "$TMPDIR"/tac_empty
+
+echo "  ── stdin ──"
+result=$(printf 'a\nb\nc\n' | "$MODBOX" tac 2>/dev/null || true)
+expected="$(printf 'c\nb\na')"
+if [[ "$result" == "$expected" ]]; then
+    pass "tac (stdin)"
+else
+    fail "tac (stdin) — expected [$expected] got [$result]"
+fi
+
+echo "  ── multiple files ──"
+printf '1\n2\n' > "$TMPDIR"/tac_mf1
+printf 'a\nb\n' > "$TMPDIR"/tac_mf2
+assert_cmd "$(printf '2\n1\nb\na\n')" tac "$TMPDIR"/tac_mf1 "$TMPDIR"/tac_mf2
+
+echo "  ── -s : custom separator (trailing) ──"
+# With -s, each record includes the separator. Reversing reverses the records.
+printf 'a:b:c:' > "$TMPDIR"/tac_sep
+assert_cmd "$(printf 'c:b:a:')" tac -s : "$TMPDIR"/tac_sep
+
+echo "  ── -b : before mode (separator before each chunk) ──"
+printf 'a:b:c:' > "$TMPDIR"/tac_before
+assert_cmd "$(printf ':c:ba')" tac -b -s : "$TMPDIR"/tac_before
+
+echo "  ── -r : regex separator ──"
+printf 'aXXbXXc' > "$TMPDIR"/tac_regex
+assert_cmd "$(printf 'cbXXaXX')" tac -r -s 'X+' "$TMPDIR"/tac_regex
+
+echo "  ── non-existent file ──"
+assert_cmd_pat_stderr 'No such file' tac "$TMPDIR"/tac_nonexistent
+
+echo "  ── --help shows usage ──"
+assert_cmd_pat 'Usage:' tac --help
+
+echo "  ── blank lines reversed ──"
+assert_cmd "$(printf 'c\n\n\na\n')" tac "$TMPDIR"/tac_blanks
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  diff
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── diff ──────────────────────────────────────"
+
+printf 'a\nb\nc\n' > "$TMPDIR"/diff_a
+printf 'a\nd\nc\n' > "$TMPDIR"/diff_b
+printf 'a\nb\nc\n' > "$TMPDIR"/diff_identical
+
+echo "  ── normal diff (files differ) ──"
+assert_cmd_pat '2c2' diff "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '< b' diff "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '> d' diff "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+
+echo "  ── identical files produce no output ──"
+assert_cmd "" diff "$TMPDIR"/diff_a "$TMPDIR"/diff_identical
+
+echo "  ── -q : brief (report if files differ) ──"
+assert_cmd_pat 'differ' diff -q "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+# -q on identical files should produce no output
+assert_cmd "" diff -q "$TMPDIR"/diff_a "$TMPDIR"/diff_identical
+
+echo "  ── -s : report identical files ──"
+assert_cmd_pat 'identical' diff -s "$TMPDIR"/diff_a "$TMPDIR"/diff_identical 2>/dev/null
+
+echo "  ── -u : unified format ──"
+assert_cmd_pat '^---' diff -u "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '^\+\+\+' diff -u "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '^@@' diff -u "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '^-b' diff -u "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '^\+d' diff -u "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+
+echo "  ── -c : context format ──"
+assert_cmd_pat '^\*\*\*' diff -c "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '^---' diff -c "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+assert_cmd_pat '! b' diff -c "$TMPDIR"/diff_a "$TMPDIR"/diff_b 2>/dev/null
+
+echo "  ── -i : ignore case ──"
+printf 'Hello\nWorld\n' > "$TMPDIR"/diff_hi
+printf 'hello\nworld\n' > "$TMPDIR"/diff_lo
+assert_cmd "" diff -i "$TMPDIR"/diff_hi "$TMPDIR"/diff_lo
+assert_cmd_pat '1,2c1,2' diff "$TMPDIR"/diff_hi "$TMPDIR"/diff_lo 2>/dev/null  # without -i, different
+
+echo "  ── -w : ignore all whitespace ──"
+printf 'a\nb  c\n' > "$TMPDIR"/diff_ws1
+printf 'a\nb c\n' > "$TMPDIR"/diff_ws2
+assert_cmd "" diff -w "$TMPDIR"/diff_ws1 "$TMPDIR"/diff_ws2
+
+echo "  ── -b : ignore space change ──"
+printf 'a\nb  c\n' > "$TMPDIR"/diff_sp1
+printf 'a\nb c\n' > "$TMPDIR"/diff_sp2
+assert_cmd "" diff -b "$TMPDIR"/diff_sp1 "$TMPDIR"/diff_sp2
+
+echo "  ── stdin via - ──"
+printf 'a\ny\nc\n' | assert_cmd_pat '2c2' diff - "$TMPDIR"/diff_a 2>/dev/null
+
+echo "  ── non-existent file ──"
+assert_cmd_pat_stderr 'No such file' diff "$TMPDIR"/diff_a "$TMPDIR"/diff_nonexistent
+
+echo "  ── --help shows usage ──"
+assert_cmd_pat 'Usage:' diff --help
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  comm
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── comm ──────────────────────────────────────"
+
+printf 'apple\nbanana\ncherry\n' > "$TMPDIR"/comm_f1
+printf 'banana\ncherry\ndate\n'   > "$TMPDIR"/comm_f2
+printf 'APPLE\nBANANA\n'          > "$TMPDIR"/comm_case1
+printf 'apple\nbanana\n'          > "$TMPDIR"/comm_case2
+printf 'b\na\n' > "$TMPDIR"/comm_unsorted1
+printf 'b\na\n' > "$TMPDIR"/comm_unsorted2
+
+echo "  ── basic comm (3 columns) ──"
+# Column 1: lines only in file1, col2: only in file2, col3: in both
+assert_cmd_pat 'apple' comm "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_pat 'date'  comm "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_pat 'cherry' comm "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -1 : suppress column 1 ──"
+assert_cmd_not_pat 'apple' comm -1 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_pat 'date' comm -1 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -2 : suppress column 2 ──"
+assert_cmd_pat 'apple' comm -2 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_not_pat 'date' comm -2 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -3 : suppress column 3 ──"
+assert_cmd_pat 'apple' comm -3 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_pat 'date'  comm -3 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_not_pat 'cherry' comm -3 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -12 : show only column 3 ──"
+assert_cmd_pat 'cherry' comm -12 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_not_pat 'apple' comm -12 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_not_pat 'date'  comm -12 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -13 : show only column 2 ──"
+assert_cmd_pat 'date' comm -13 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_not_pat 'cherry' comm -13 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -23 : show only column 1 ──"
+assert_cmd_pat 'apple' comm -23 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+assert_cmd_not_pat 'cherry' comm -23 "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2
+
+echo "  ── -i : ignore case ──"
+# With -i, APPLE matches apple, BANANA matches banana.
+# Column 3 prints the line from FILE1 (uppercase by default).
+assert_cmd_pat 'APPLE' comm -i "$TMPDIR"/comm_case1 "$TMPDIR"/comm_case2
+assert_cmd_pat 'BANANA' comm -i "$TMPDIR"/comm_case1 "$TMPDIR"/comm_case2
+# Without -i they would all be in separate columns (case differs)
+
+echo "  ── --output-delimiter ──"
+result=$("$MODBOX" comm --output-delimiter='|' "$TMPDIR"/comm_f1 "$TMPDIR"/comm_f2 2>/dev/null || true)
+if echo "$result" | grep -q '|'; then
+    pass "comm --output-delimiter='|' → output contains pipes"
+else
+    fail "comm --output-delimiter='|' — expected pipes in output, got [$result]"
+fi
+
+echo "  ── non-existent file ──"
+assert_cmd_pat_stderr 'No such file' comm "$TMPDIR"/comm_nonexistent "$TMPDIR"/comm_f2
+
+echo "  ── unsorted file error ──"
+assert_cmd_pat_stderr 'not in sorted order' comm "$TMPDIR"/comm_unsorted1 "$TMPDIR"/comm_f1
+# Both need to be sorted, so unsorted2 should also trigger error
+assert_cmd_pat_stderr 'not in sorted order' comm "$TMPDIR"/comm_f1 "$TMPDIR"/comm_unsorted2
+
+echo "  ── --nocheck-order (skip sort check) ──"
+# With --nocheck-order, unsorted input should not produce an error
+result=$("$MODBOX" comm --nocheck-order "$TMPDIR"/comm_unsorted1 "$TMPDIR"/comm_unsorted2 2>/dev/null || true)
+if [[ -n "$result" && "$result" != *"not in sorted order"* ]]; then
+    pass "comm --nocheck-order → no sort error (output produced)"
+else
+    fail "comm --nocheck-order — expected output without sort error, got [$result]"
+fi
+
+echo "  ── stdin via - ──"
+printf 'banana\ncherry\n' | assert_cmd_pat 'apple' comm "$TMPDIR"/comm_f1 - 2>/dev/null
+
+echo "  ── --help shows usage ──"
+assert_cmd_pat 'Usage:' comm --help
+
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 echo ""
