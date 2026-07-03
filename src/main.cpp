@@ -29,6 +29,10 @@
 #include "commands/nl.hpp"
 #include "commands/diff.hpp"
 #include "commands/comm.hpp"
+#include "commands/uname.hpp"
+#include "commands/whoami.hpp"
+#include "commands/expand.hpp"
+#include "commands/unexpand.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -59,6 +63,10 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"nl", nl_command},
         {"diff", diff_command},
         {"comm", comm_command},
+        {"uname", uname_command},
+        {"whoami", whoami_command},
+        {"expand", expand_command},
+        {"unexpand", unexpand_command},
     };
 
     auto it = commands.find(command);

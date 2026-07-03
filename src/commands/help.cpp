@@ -31,7 +31,9 @@ void output_help(const char* argv0, const char* progname) {
         printf("  tac    Concatenate and print files in reverse\n");
         printf("  tail   Output the last part of files\n");
         printf("  touch  Change file timestamps\n");
-        printf("  uniq   Report or omit repeated lines\n");
+        printf("  uname  Print system information\n");
+  printf("  uniq   Report or omit repeated lines\n");
+  printf("  whoami Print the current effective user name\n");
         printf("\n");
         printf("Run \"%s help <command>\" or \"%s <command> --help\" for detailed help on a specific command.\n", argv0, argv0);
     } else {
