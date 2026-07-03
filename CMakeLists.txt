@@ -13,17 +13,30 @@ file(GLOB_RECURSE SRC_FILES
 
 include_directories(include)
 
+find_package(PkgConfig REQUIRED)
+
+# Ensure linuxbrew pkgconfig path is discoverable.
+set(ENV{PKG_CONFIG_PATH} "/home/linuxbrew/.linuxbrew/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+
+# Argtable3
 find_package(Argtable3 CONFIG QUIET)
 if(NOT Argtable3_FOUND)
-    find_package(PkgConfig REQUIRED)
     pkg_check_modules(ARGTABLE3 REQUIRED argtable3)
 endif()
-
 if(ARGTABLE3_INCLUDE_DIRS)
     include_directories(${ARGTABLE3_INCLUDE_DIRS})
 endif()
 if(ARGTABLE3_LIBRARY_DIRS)
     link_directories(${ARGTABLE3_LIBRARY_DIRS})
+endif()
+
+# ftxui
+pkg_check_modules(FTXUI REQUIRED ftxui)
+if(FTXUI_INCLUDE_DIRS)
+    include_directories(${FTXUI_INCLUDE_DIRS})
+endif()
+if(FTXUI_LIBRARY_DIRS)
+    link_directories(${FTXUI_LIBRARY_DIRS})
 endif()
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})
@@ -33,6 +46,8 @@ if(Argtable3_FOUND)
 else()
     target_link_libraries(${PROJECT_NAME} ${ARGTABLE3_LIBRARIES})
 endif()
+
+target_link_libraries(${PROJECT_NAME} ${FTXUI_LIBRARIES})
 
 # C++20 std::filesystem needs linking on some platforms
 if(UNIX AND NOT APPLE)

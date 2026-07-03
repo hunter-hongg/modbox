@@ -33,6 +33,9 @@
 #include "commands/whoami.hpp"
 #include "commands/expand.hpp"
 #include "commands/unexpand.hpp"
+#include "commands/top.hpp"
+#include "commands/htop.hpp"
+#include "commands/mtop.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -67,6 +70,9 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"whoami", whoami_command},
         {"expand", expand_command},
         {"unexpand", unexpand_command},
+        {"top", top_command},
+        {"htop", htop_command},
+        {"mtop", mtop_command},
     };
 
     auto it = commands.find(command);

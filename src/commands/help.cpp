@@ -17,7 +17,8 @@ void output_help(const char* argv0, const char* progname) {
         printf("  find   Search for files in a directory hierarchy\n");
         printf("  grep   Search for patterns in files\n");
         printf("  head   Output the first part of files\n");
-        printf("  help   Display this help message\n");
+  printf("  help   Display this help message\n");
+  printf("  htop   Interactive process viewer (htop-style TUI)\n");
         printf("  ln     Create hard/symbolic links between files\n");
         printf("  ls     List directory contents\n");
         printf("  lsc    Alias for ls --colorful --icons\n");
@@ -29,8 +30,9 @@ void output_help(const char* argv0, const char* progname) {
         printf("  rm     Remove files or directories\n");
         printf("  sort   Sort lines of text files\n");
         printf("  tac    Concatenate and print files in reverse\n");
-        printf("  tail   Output the last part of files\n");
-        printf("  touch  Change file timestamps\n");
+  printf("  tail   Output the last part of files\n");
+  printf("  top    Display Linux processes\n");
+  printf("  touch  Change file timestamps\n");
         printf("  uname  Print system information\n");
   printf("  uniq   Report or omit repeated lines\n");
   printf("  whoami Print the current effective user name\n");
