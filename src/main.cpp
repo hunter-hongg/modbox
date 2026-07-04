@@ -44,6 +44,8 @@
 #include "commands/split.hpp"
 #include "commands/csplit.hpp"
 #include "commands/ptx.hpp"
+#include "commands/cut.hpp"
+#include "commands/tr.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -89,6 +91,8 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"mtop", mtop_command},
         {"split", split_command},
         {"csplit", csplit_command},
+        {"cut", cut_command},
+        {"tr", tr_command},
     };
 
     auto it = commands.find(command);
