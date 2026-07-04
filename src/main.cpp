@@ -7,6 +7,8 @@
 #include "commands/help.hpp"
 #include "commands/cat.hpp"
 #include "commands/ls.hpp"
+#include "commands/dir.hpp"
+#include "commands/vdir.hpp"
 #include "commands/lsc.hpp"
 #include "commands/cp.hpp"
 #include "commands/ln.hpp"
@@ -44,6 +46,8 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"help", help_command},
         {"cat", cat_command},
         {"ls", ls_command},
+        {"dir", dir_command},
+        {"vdir", vdir_command},
         {"cp", cp_command},
         {"ln", ln_command},
         {"mv", mv_command},
