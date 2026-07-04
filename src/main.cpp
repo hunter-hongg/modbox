@@ -19,6 +19,7 @@
 #include "commands/fd.hpp"
 #include "commands/tac.hpp"
 #include "commands/sort.hpp"
+#include "commands/shuf.hpp"
 #include "commands/rev.hpp"
 #include "commands/du.hpp"
 #include "commands/dust.hpp"
@@ -27,7 +28,9 @@
 #include "commands/rm.hpp"
 #include "commands/mkdir.hpp"
 #include "commands/touch.hpp"
+#include "commands/tsort.hpp"
 #include "commands/uniq.hpp"
+#include "commands/paste.hpp"
 #include "commands/nl.hpp"
 #include "commands/diff.hpp"
 #include "commands/comm.hpp"
@@ -38,6 +41,9 @@
 #include "commands/top.hpp"
 #include "commands/htop.hpp"
 #include "commands/mtop.hpp"
+#include "commands/split.hpp"
+#include "commands/csplit.hpp"
+#include "commands/ptx.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -58,6 +64,7 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"fd", fd_command},
         {"tac", tac_command},
         {"sort", sort_command},
+        {"shuf", shuf_command},
         {"rev", rev_command},
         {"du", du_command},
         {"dust", dust_command},
@@ -66,8 +73,11 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"rm", rm_command},
         {"mkdir", mkdir_command},
         {"touch", touch_command},
+        {"tsort", tsort_command},
         {"uniq", uniq_command},
+        {"paste", paste_command},
         {"nl", nl_command},
+        {"ptx", ptx_command},
         {"diff", diff_command},
         {"comm", comm_command},
         {"uname", uname_command},
@@ -77,6 +87,8 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"top", top_command},
         {"htop", htop_command},
         {"mtop", mtop_command},
+        {"split", split_command},
+        {"csplit", csplit_command},
     };
 
     auto it = commands.find(command);

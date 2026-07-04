@@ -131,6 +131,27 @@ Options:
 - `-s`, `--symbolic` - Make symbolic links instead of hard links
 - `-v`, `--verbose` - Explain what is being done
 
+### ptx
+
+Generate a permuted index (KWIC - Key Word In Context) for files.
+
+```
+modbox ptx [OPTIONS] [FILE...]
+```
+
+Options:
+- `-A`, `--auto-reference` - Generate automatic references (filename:lineno)
+- `-R`, `--right-side-refs` - Put references on right side of output
+- `-G`, `--traditional` - Traditional mode (System V compatibility)
+- `-t`, `--typeset-mode` - Typeset mode
+- `-r`, `--references` - Use input references
+- `-w`, `--width=N` - Output width (default 72)
+- `-g`, `--gap-size=N` - Gap size between fields (default 3)
+- `-S`, `--sentence-regexp=REGEXP` - Sentence regular expression
+- `-b`, `--break-file=FILE` - Break file
+- `-i`, `--ignore-file=FILE` - Ignore file
+- `-o`, `--only-file=FILE` - Only file
+
 ## Building
 
 ### Prerequisites
@@ -329,7 +350,7 @@ modbox follows these principles:
 
 ## Current Status
 
-- ✅ Implemented commands: help, cat, ls, cp, mv, ln, grep
+- ✅ Implemented commands: help, cat, ls, cp, mv, ln, grep, ptx, and 25+ more
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing

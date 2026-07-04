@@ -1768,7 +1768,146 @@ fi
 echo "  ── multiple files ──"
 printf 'c\na\n' > "$TMPDIR"/sort_mf1
 printf 'b\nd\n' > "$TMPDIR"/sort_mf2
-assert_cmd "$(printf 'a\nb\nc\nd\n')" sort "$TMPDIR"/sort_mf1 "$TMPDIR"/sort_mf2
+    assert_cmd "$(printf 'a\nb\nc\nd\n')" sort "$TMPDIR"/sort_mf1 "$TMPDIR"/sort_mf2
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  shuf
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── shuf ──────────────────────────────────────"
+
+shuf_data="$TMPDIR/shuf_data.txt"
+printf 'one\ntwo\nthree\nfour\nfive\n' > "$shuf_data"
+
+echo "  ── -e echo mode (permutation check) ──"
+result=$("$MODBOX" shuf -e a b c 2>/dev/null || true)
+sorted=$(echo "$result" | sort)
+expected="$(printf 'a\nb\nc')"
+if [[ "$sorted" == "$expected" ]]; then
+    pass "shuf -e a b c"
+else
+    fail "shuf -e a b c — sorted output expected [$expected] got [$sorted]"
+fi
+
+echo "  ── -e -n head-count ──"
+result=$("$MODBOX" shuf -e a b c d e -n 3 2>/dev/null || true)
+count=$(echo "$result" | wc -l)
+if [[ "$count" -eq 3 ]]; then
+    pass "shuf -e a b c d e -n 3 (count=$count)"
+else
+    fail "shuf -e a b c d e -n 3 — expected 3 lines, got $count"
+fi
+# Verify all lines come from input set
+while IFS= read -r line; do
+    case "$line" in
+        a|b|c|d|e) ;;
+        *) fail "shuf -e -n 3 — unexpected line [$line]" ;;
+    esac
+done <<< "$result"
+
+echo "  ── -e -r -n repeat mode ──"
+result=$("$MODBOX" shuf -e x y z -r -n 8 2>/dev/null || true)
+count=$(echo "$result" | wc -l)
+if [[ "$count" -eq 8 ]]; then
+    pass "shuf -e x y z -r -n 8 (count=$count)"
+else
+    fail "shuf -e x y z -r -n 8 — expected 8 lines, got $count"
+fi
+while IFS= read -r line; do
+    case "$line" in
+        x|y|z) ;;
+        *) fail "shuf -e -r -n 8 — unexpected line [$line]" ;;
+    esac
+done <<< "$result"
+
+echo "  ── -i input-range -n head-count ──"
+result=$("$MODBOX" shuf -i 1-100 -n 10 2>/dev/null || true)
+count=$(echo "$result" | wc -l)
+if [[ "$count" -eq 10 ]]; then
+    pass "shuf -i 1-100 -n 10 (count=$count)"
+else
+    fail "shuf -i 1-100 -n 10 — expected 10 lines, got $count"
+fi
+while IFS= read -r line; do
+    if [[ "$line" -lt 1 || "$line" -gt 100 ]]; then
+        fail "shuf -i 1-100 -n 10 — value [$line] out of range"
+    fi
+done <<< "$result"
+
+echo "  ── -i input-range permutation ──"
+result=$("$MODBOX" shuf -i 1-5 2>/dev/null || true)
+sorted=$(echo "$result" | sort -n)
+expected="$(printf '1\n2\n3\n4\n5')"
+if [[ "$sorted" == "$expected" ]]; then
+    pass "shuf -i 1-5"
+else
+    fail "shuf -i 1-5 — sorted output expected [$expected] got [$sorted]"
+fi
+
+echo "  ── stdin (pipe) ──"
+result=$(printf 'alpha\nbeta\ngamma\n' | "$MODBOX" shuf -n 2 2>/dev/null || true)
+count=$(echo "$result" | wc -l)
+if [[ "$count" -eq 2 ]]; then
+    pass "shuf -n 2 (stdin, count=$count)"
+else
+    fail "shuf -n 2 (stdin) — expected 2 lines, got $count"
+fi
+while IFS= read -r line; do
+    case "$line" in
+        alpha|beta|gamma) ;;
+        *) fail "shuf (stdin) — unexpected line [$line]" ;;
+    esac
+done <<< "$result"
+
+echo "  ── file input ──"
+result=$("$MODBOX" shuf -n 3 "$shuf_data" 2>/dev/null || true)
+count=$(echo "$result" | wc -l)
+if [[ "$count" -eq 3 ]]; then
+    pass "shuf -n 3 $shuf_data (count=$count)"
+else
+    fail "shuf -n 3 $shuf_data — expected 3 lines, got $count"
+fi
+while IFS= read -r line; do
+    case "$line" in
+        one|two|three|four|five) ;;
+        *) fail "shuf file — unexpected line [$line]" ;;
+    esac
+done <<< "$result"
+
+echo "  ── -o output file ──"
+"$MODBOX" shuf -e p q r -o "$TMPDIR"/shuf_out.txt 2>/dev/null || true
+if [[ -f "$TMPDIR"/shuf_out.txt ]]; then
+    result=$(cat "$TMPDIR"/shuf_out.txt)
+    sorted=$(echo "$result" | sort)
+    expected="$(printf 'p\nq\nr')"
+    if [[ "$sorted" == "$expected" ]]; then
+        pass "shuf -o output file"
+    else
+        fail "shuf -o output file — sorted output expected [$expected] got [$sorted]"
+    fi
+else
+    fail "shuf -o output file — file not created"
+fi
+
+echo "  ── -e no args (error) ──"
+assert_cmd_pat_stderr 'no input lines' shuf -e
+
+echo "  ── -e -i conflict (error) ──"
+assert_cmd_pat_stderr 'cannot combine' shuf -e -i 1-5
+
+echo "  ── -i + file conflict (error) ──"
+assert_cmd_pat_stderr 'cannot combine' shuf -i 1-5 "$shuf_data"
+
+echo "  ── -i invalid range (error) ──"
+assert_cmd_pat_stderr 'invalid input range' shuf -i 5-3
+
+echo "  ── non-existent file (error) ──"
+assert_cmd_pat_stderr 'No such file' shuf "$TMPDIR"/shuf_nonexistent
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' shuf --help
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2234,6 +2373,61 @@ assert_cmd_pat 'Usage:' touch --help
 
 echo "  ── multiple files ──"
 assert_cmd "" touch "$TMPDIR"/touch_x "$TMPDIR"/touch_y
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  tsort
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── tsort ──────────────────────────────────────"
+
+echo "  ── --help ──"
+assert_cmd_pat 'Usage:' tsort --help
+
+echo "  ── basic linear chain ──"
+printf 'a b\nb c\nc d\n' | assert_cmd "$(printf 'a\nb\nc\nd\n')" tsort
+
+echo "  ── multiple independent chains ──"
+printf 'a b\nc d\n' | assert_cmd "$(printf 'a\nc\nb\nd\n')" tsort
+
+echo "  ── diamond ──"
+printf 'a b\na c\nb d\nc d\n' | assert_cmd "$(printf 'a\nb\nc\nd\n')" tsort
+
+echo "  ── cycle detection ──"
+result=$(printf 'a b\nb c\nc a\n' | "$MODBOX" tsort 2>&1 || true)
+expected=$(printf 'tsort: input contains a cycle\na\nb\nc\n')
+if [ "$result" = "$expected" ]; then
+    pass "tsort (cycle)"
+else
+    fail "tsort (cycle) — expected [$(echo "$expected" | head -c 40)] got [$(echo "$result" | head -c 40)]"
+fi
+
+echo "  ── cycle exit code 1 ──"
+if printf 'a b\nb a\n' | "$MODBOX" tsort >/dev/null 2>&1; then
+    fail "tsort (cycle exit) — expected exit 1, got 0"
+else
+    pass "tsort (cycle exit 1)"
+fi
+
+echo "  ── file input ──"
+printf 'x y\ny z\n' > "$TMPDIR"/tsort_file
+assert_cmd "$(printf 'x\ny\nz\n')" tsort "$TMPDIR"/tsort_file
+
+echo "  ── single item (odd tokens) ──"
+printf 'a\n' | assert_cmd "a" tsort
+
+echo "  ── single pair ──"
+printf 'first second\n' | assert_cmd "$(printf 'first\nsecond\n')" tsort
+
+echo "  ── stdin (using -) ──"
+printf 'p q\n' | assert_cmd "$(printf 'p\nq\n')" tsort -
+
+echo "  ── empty input ──"
+printf '' | assert_cmd "" tsort
+
+echo "  ── error: nonexistent file ──"
+assert_cmd_pat_stderr "cannot open" tsort "$TMPDIR"/tsort_nonexistent
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2805,6 +2999,346 @@ assert_cmd "$(whoami)" whoami
 echo "  ── --help shows usage ──"
 assert_cmd_pat 'Usage:' whoami --help
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  split
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── split ────────────────────────────────────"
+
+printf 'line1\nline2\nline3\nline4\nline5\n' > "$TMPDIR"/split5.txt
+printf 'line1\nline2\n' > "$TMPDIR"/split_2lines.txt
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' split --help
+
+echo "  ── default: 1000 lines, single file ──"
+cd "$TMPDIR"
+rm -f xaa
+"$MODBOX" split split5.txt 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\nline3\nline4\nline5\n')" cat xaa
+rm -f xaa
+cd - > /dev/null
+
+echo "  ── -l 2 lines, alpha suffixes ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -l 2 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\n')" cat xaa
+assert_cmd "$(printf 'line3\nline4\n')" cat xab
+assert_cmd "$(printf 'line5\n')" cat xac
+rm -f xaa xab xac
+cd - > /dev/null
+
+echo "  ── -l 2, -d numeric suffixes ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -l 2 -d 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\n')" cat x00
+assert_cmd "$(printf 'line3\nline4\n')" cat x01
+rm -f x00 x01 x02
+cd - > /dev/null
+
+echo "  ── --verbose ──"
+cd "$TMPDIR"
+assert_cmd_pat_stderr 'creating file' split split5.txt -l 5 --verbose
+rm -f xaa
+cd - > /dev/null
+
+echo "  ── -b 8 bytes ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -b 8 -d 2>/dev/null
+assert_cmd "$(printf 'line1\nli')" cat x00
+assert_cmd "$(printf 'ne2\nline')" cat x01
+assert_cmd "$(printf '3\nline4\n')" cat x02
+assert_cmd "$(printf 'line5\n')" cat x03
+rm -f x00 x01 x02 x03
+cd - > /dev/null
+
+echo "  ── custom prefix ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -l 2 -d mypre 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\n')" cat mypre00
+assert_cmd "$(printf 'line3\nline4\n')" cat mypre01
+rm -f mypre00 mypre01 mypre02
+cd - > /dev/null
+
+echo "  ── -a suffix length ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -l 2 -d -a 3 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\n')" cat x000
+rm -f x000 x001 x002
+cd - > /dev/null
+
+echo "  ── stdin ──"
+cd "$TMPDIR"
+printf 'a\nb\nc\n' | "$MODBOX" split -l 2 -d 2>/dev/null
+assert_cmd "$(printf 'a\nb\n')" cat x00
+assert_cmd "$(printf 'c\n')" cat x01
+rm -f x00 x01
+cd - > /dev/null
+
+echo "  ── -n N (chunks by bytes) ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -n 2 -d 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\nlin')" cat x00
+assert_cmd "$(printf 'e3\nline4\nline5\n')" cat x01
+rm -f x00 x01
+cd - > /dev/null
+
+echo "  ── -n l/N (chunks by lines) ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -n l/2 -d 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\nline3\n')" cat x00
+assert_cmd "$(printf 'line4\nline5\n')" cat x01
+rm -f x00 x01
+cd - > /dev/null
+
+echo "  ── -C line-bytes ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -C 6 -d 2>/dev/null
+# each line is 6 bytes ("lineN\n"), so each file gets one line
+assert_cmd "$(printf 'line1\n')" cat x00
+assert_cmd "$(printf 'line2\n')" cat x01
+assert_cmd "$(printf 'line3\n')" cat x02
+assert_cmd "$(printf 'line4\n')" cat x03
+assert_cmd "$(printf 'line5\n')" cat x04
+rm -f x00 x01 x02 x03 x04
+cd - > /dev/null
+
+echo "  ── --additional-suffix ──"
+cd "$TMPDIR"
+"$MODBOX" split split_2lines.txt -l 1 -d --additional-suffix=.txt 2>/dev/null
+assert_cmd "$(printf 'line1\n')" cat x00.txt
+assert_cmd "$(printf 'line2\n')" cat x01.txt
+rm -f x00.txt x01.txt
+cd - > /dev/null
+
+echo "  ── -x hex suffixes ──"
+cd "$TMPDIR"
+"$MODBOX" split split5.txt -l 2 -x 2>/dev/null
+assert_cmd "$(printf 'line1\nline2\n')" cat x00
+assert_cmd "$(printf 'line3\nline4\n')" cat x01
+rm -f x00 x01 x02
+cd - > /dev/null
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  csplit
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "── csplit ───────────────────────────────────"
+
+printf 'a\nb\nc\nd\ne\nf\ng\n' > "$TMPDIR"/csplit7.txt
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' csplit --help
+
+echo "  ── /REGEXP/ (include match) ──"
+cd "$TMPDIR"
+"$MODBOX" csplit csplit7.txt /d/ 2>/dev/null
+assert_cmd "$(printf 'a\nb\nc\nd\n')" cat xx00
+assert_cmd "$(printf 'e\nf\ng\n')" cat xx01
+rm -f xx00 xx01
+cd - > /dev/null
+
+echo "  ── %%REGEXP%% (exclude match) ──"
+cd "$TMPDIR"
+"$MODBOX" csplit csplit7.txt %c% 2>/dev/null
+assert_cmd "$(printf 'a\nb\n')" cat xx00
+assert_cmd "$(printf 'd\ne\nf\ng\n')" cat xx01
+rm -f xx00 xx01
+cd - > /dev/null
+
+echo "  ── line number ──"
+cd "$TMPDIR"
+"$MODBOX" csplit csplit7.txt 3 2>/dev/null
+assert_cmd "$(printf 'a\nb\nc\n')" cat xx00
+assert_cmd "$(printf 'd\ne\nf\ng\n')" cat xx01
+rm -f xx00 xx01
+cd - > /dev/null
+
+echo "  ── multiple patterns ──"
+cd "$TMPDIR"
+"$MODBOX" csplit csplit7.txt /c/ /f/ 2>/dev/null
+assert_cmd "$(printf 'a\nb\nc\n')" cat xx00
+assert_cmd "$(printf 'd\ne\nf\n')" cat xx01
+assert_cmd "$(printf 'g\n')" cat xx02
+rm -f xx00 xx01 xx02
+cd - > /dev/null
+
+echo "  ── {N} repeat ──"
+cd "$TMPDIR"
+"$MODBOX" csplit csplit7.txt /c/ '{1}' 2>/dev/null
+# /c/ matches line 3, then repeats once, matches /c/ again? no, there's only one "c"
+# so it splits at /c/ (line 3) then tries again and fails, remainder goes to last
+assert_cmd "$(printf 'a\nb\nc\n')" cat xx00
+assert_cmd "$(printf 'd\ne\nf\ng\n')" cat xx01
+rm -f xx00 xx01
+cd - > /dev/null
+
+echo "  ── -f prefix ──"
+cd "$TMPDIR"
+"$MODBOX" csplit -f mypre csplit7.txt /d/ 2>/dev/null
+assert_cmd "$(printf 'a\nb\nc\nd\n')" cat mypre00
+assert_cmd "$(printf 'e\nf\ng\n')" cat mypre01
+rm -f mypre00 mypre01
+cd - > /dev/null
+
+echo "  ── -n digits ──"
+cd "$TMPDIR"
+"$MODBOX" csplit -n 3 csplit7.txt /d/ 2>/dev/null
+assert_cmd "$(printf 'a\nb\nc\nd\n')" cat xx000
+assert_cmd "$(printf 'e\nf\ng\n')" cat xx001
+rm -f xx000 xx001
+cd - > /dev/null
+
+echo "  ── -b suffix-format ──"
+cd "$TMPDIR"
+"$MODBOX" csplit -b '%03d' csplit7.txt /d/ 2>/dev/null
+assert_cmd "$(printf 'a\nb\nc\nd\n')" cat xx000
+assert_cmd "$(printf 'e\nf\ng\n')" cat xx001
+rm -f xx000 xx001
+cd - > /dev/null
+
+echo "  ── -s quiet (no size output) ──"
+cd "$TMPDIR"
+quiet_out=$("$MODBOX" csplit -s csplit7.txt /d/ 2>/dev/null)
+if [[ -z "$quiet_out" ]]; then
+    pass "csplit -s csplit7.txt /d/"
+else
+    fail "csplit -s csplit7.txt /d/ — expected empty stdout, got [$quiet_out]"
+fi
+rm -f xx00 xx01
+cd - > /dev/null
+
+# ── paste ─────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── paste ─────────────────────────────────────"
+
+printf 'a\nb\nc\n' > "$TMPDIR"/paste_f1.txt
+printf '1\n2\n3\n' > "$TMPDIR"/paste_f2.txt
+printf 'x\ny\nz\n' > "$TMPDIR"/paste_f3.txt
+printf 'single\n' > "$TMPDIR"/paste_single.txt
+printf '' > "$TMPDIR"/paste_empty.txt
+
+echo "  ── basic parallel ──"
+assert_cmd "$(printf 'a\t1\nb\t2\nc\t3\n')" paste "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── three files ──"
+assert_cmd "$(printf 'a\t1\tx\nb\t2\ty\nc\t3\tz\n')" paste "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt "$TMPDIR"/paste_f3.txt
+
+echo "  ── serial ──"
+assert_cmd "$(printf 'a\tb\tc\n1\t2\t3\n')" paste -s "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── serial three files ──"
+assert_cmd "$(printf 'a\tb\tc\n1\t2\t3\nx\ty\tz\n')" paste -s "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt "$TMPDIR"/paste_f3.txt
+
+echo "  ── custom delimiter ──"
+assert_cmd "$(printf 'a:1\nb:2\nc:3\n')" paste -d: "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── multi-char delimiter cycle ──"
+assert_cmd "$(printf 'a:1,x\nb:2,y\nc:3,z\n')" paste -d ':,' "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt "$TMPDIR"/paste_f3.txt
+
+echo "  ── pipe delimiter (special char) ──"
+assert_cmd "$(printf 'a|1\nb|2\nc|3\n')" paste -d '|' "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── stdin via - ──"
+assert_cmd "$(printf 'hello\ta\nworld\tb\n\tc\n')" paste - "$TMPDIR"/paste_f1.txt <<<"$(printf 'hello\nworld')"
+
+echo "  ── no files reads stdin ──"
+assert_cmd "$(printf 'one\ntwo\nthree')" paste <<<"$(printf 'one\ntwo\nthree')"
+
+echo "  ── single file (passthrough) ──"
+assert_cmd "$(printf 'a\nb\nc\n')" paste "$TMPDIR"/paste_f1.txt
+
+echo "  ── single file serial ──"
+assert_cmd "$(printf 'a\tb\tc')" paste -s "$TMPDIR"/paste_f1.txt
+
+echo "  ── empty file ──"
+assert_cmd "" paste "$TMPDIR"/paste_empty.txt
+
+echo "  ── empty file parallel ──"
+assert_cmd "$(printf '\ta\n\tb\n\tc')" paste "$TMPDIR"/paste_empty.txt "$TMPDIR"/paste_f1.txt
+
+echo "  ── uneven line counts ──"
+printf 'p\nq\n' > "$TMPDIR"/paste_short.txt
+assert_cmd "$(printf 'a\tp\nb\tq\nc\t\n')" paste "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_short.txt
+
+echo "  ── serial uneven lines ──"
+printf 'a\nb\n' > "$TMPDIR"/paste_ser_short.txt
+assert_cmd "$(printf 'a\tb\n1\t2\t3')" paste -s "$TMPDIR"/paste_ser_short.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── zero-terminated ──"
+printf 'a\nb\n' | "$MODBOX" paste -z - "$TMPDIR"/paste_single.txt > "$TMPDIR"/paste_zout.bin 2>/dev/null || true
+if od -c "$TMPDIR"/paste_zout.bin | grep -q '\\0'; then
+    pass "paste -z → NUL delimited"
+else
+    fail "paste -z — expected NUL in output"
+fi
+
+echo "  ── zero-terminated output structure ──"
+printf 'a\nb\n' > "$TMPDIR"/paste_zf1.txt
+printf '1\n2\n' > "$TMPDIR"/paste_zf2.txt
+"$MODBOX" paste -z "$TMPDIR"/paste_zf1.txt "$TMPDIR"/paste_zf2.txt > "$TMPDIR"/paste_zout2.bin 2>/dev/null || true
+# Expect 2 NULs: a<tab>1<NUL>b<tab>2<NUL>
+field_count=$(tr -d -c '\0' < "$TMPDIR"/paste_zout2.bin | wc -c)
+if [ "$field_count" -eq 2 ]; then
+    pass "paste -z two files → 2 NUL delimiters"
+else
+    fail "paste -z two files — expected 2 NUL chars, got $field_count"
+fi
+
+echo "  ── nonexistent file ──"
+assert_cmd_pat_stderr "No such file" paste "$TMPDIR"/paste_nonexistent.txt "$TMPDIR"/paste_f1.txt
+
+echo "  ── multiple nonexistent files ──"
+assert_cmd_pat_stderr "No such file" paste "$TMPDIR"/paste_nonexistent.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── help ──"
+assert_cmd_pat 'Usage:' paste --help
+
+echo "  ── version ──"
+assert_cmd_pat 'modbox' paste --version
+
+echo "  ── -d empty delimiter ──"
+assert_cmd "$(printf 'a1\nb2\nc3\n')" paste -d '' "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── -d empty delimiter with three files ──"
+assert_cmd "$(printf 'a1x\nb2y\nc3z\n')" paste -d '' "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt "$TMPDIR"/paste_f3.txt
+
+echo "  ── serial with custom delimiter ──"
+assert_cmd "$(printf 'a:b:c\n1:2:3\n')" paste -s -d: "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+echo "  ── serial with multi-char delimiter cycle ──"
+assert_cmd "$(printf 'a,b-c\n1,2-3\n')" paste -s -d ',-' "$TMPDIR"/paste_f1.txt "$TMPDIR"/paste_f2.txt
+
+# ── ptx ──────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "── ptx ──────────────────────────────────────"
+
+echo "  ── basic ptx ──"
+printf 'The quick brown fox jumps over the lazy dog\n' > "$TMPDIR"/ptx1.txt
+assert_cmd_pat 'fox' ptx "$TMPDIR"/ptx1.txt
+assert_cmd_pat 'dog' ptx "$TMPDIR"/ptx1.txt
+assert_cmd_pat 'quick' ptx "$TMPDIR"/ptx1.txt
+
+echo "  ── ptx with auto reference ──"
+assert_cmd_pat 'ptx1.txt' ptx -A "$TMPDIR"/ptx1.txt
+
+echo "  ── ptx with width option ──"
+assert_cmd_pat 'fox' ptx -w 60 "$TMPDIR"/ptx1.txt
+
+echo "  ── ptx from stdin ──"
+assert_cmd_pat 'fox' ptx <<<"The quick brown fox jumps over the lazy dog"
+
+echo "  ── ptx help ──"
+assert_cmd_pat 'Usage:' ptx --help
+
+echo "  ── ptx non-existent file ──"
+assert_cmd_pat_stderr "No such file" ptx "$TMPDIR"/nonexistent.txt
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 

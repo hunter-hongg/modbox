@@ -20,6 +20,7 @@ Commands:
 | `ln`     | Create hard or symbolic links                 |
 | `ls`     | List directory contents                       |
 | `mv`     | Move (rename) files                           |
+| `ptx`    | Generate a permuted index (KWIC index)        |
 | `rg`     | Recursive pattern search (ripgrep-style)      |
 
 ---
@@ -402,6 +403,52 @@ modbox mv *.log logs/
 - Multiple SOURCEs require DEST to be an existing directory.
 - Moving a directory into itself is rejected with: `mv: cannot move '...' to '...': Invalid argument`.
 - `-i`, `-n`, `-f`, `-v` flags are not yet implemented.
+
+---
+
+## ptx
+
+Generate a permuted index (KWIC - Key Word In Context) for files.
+
+### Synopsis
+
+```
+modbox ptx [OPTION]... [FILE]...
+```
+
+### Options
+
+| Option | Description |
+| ------ | ----------- |
+| `-A`, `--auto-reference` | Generate automatic references (filename:lineno) |
+| `-R`, `--right-side-refs` | Put references on right side of output |
+| `-G`, `--traditional` | Traditional mode (System V compatibility) |
+| `-t`, `--typeset-mode` | Typeset mode |
+| `-r`, `--references` | Use input references |
+| `-w`, `--width=N` | Output width (default 72) |
+| `-g`, `--gap-size=N` | Gap size between fields (default 3) |
+| `-S`, `--sentence-regexp=REGEXP` | Sentence regular expression |
+| `-b`, `--break-file=FILE` | Break file |
+| `-i`, `--ignore-file=FILE` | Ignore file |
+| `-o`, `--only-file=FILE` | Only file |
+| `-h`, `--help` | Display help and exit |
+
+### Examples
+
+```bash
+modbox ptx file.txt
+modbox ptx -A file.txt
+modbox ptx -w 80 file.txt
+modbox ptx -R file.txt
+echo "The quick brown fox" | modbox ptx
+```
+
+### Notes
+
+- With no FILE, reads from standard input.
+- Each word in the input becomes a keyword in the output, surrounded by its left and right context.
+- Keywords are sorted alphabetically in the output.
+- The `-A` option adds filename and line number references to each entry.
 
 ---
 
