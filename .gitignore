@@ -5,3 +5,6 @@ target/
 compile_commands.json
 .reasonix/
 .codegraph/
+.devin/
+.qoder/
+.claude/

@@ -46,6 +46,8 @@
 #include "commands/ptx.hpp"
 #include "commands/cut.hpp"
 #include "commands/tr.hpp"
+#include "commands/sed.hpp"
+#include "commands/ps.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -93,6 +95,8 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"csplit", csplit_command},
         {"cut", cut_command},
         {"tr", tr_command},
+        {"sed", sed_command},
+        {"ps", ps_command},
     };
 
     auto it = commands.find(command);
