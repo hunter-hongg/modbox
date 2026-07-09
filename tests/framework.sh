@@ -9,8 +9,15 @@ set -o nounset
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODBOX=$(readlink -f "$SCRIPT_DIR/../target/modbox")
-PASS_COUNT=0
-FAIL_COUNT=0
+# Only initialize counters if not already set (allows multiple sources without reset)
+set +o nounset  # Temporarily disable nounset for variable existence check
+if [[ -z "${PASS_COUNT+x}" ]]; then
+    PASS_COUNT=0
+fi
+if [[ -z "${FAIL_COUNT+x}" ]]; then
+    FAIL_COUNT=0
+fi
+set -o nounset  # Re-enable nounset
 TMPDIR=$(mktemp -d /tmp/modbox_test.XXXXXX)
 trap 'rm -rf "$TMPDIR"' EXIT
 MY_UID=$(id -u)

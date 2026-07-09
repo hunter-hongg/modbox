@@ -50,6 +50,7 @@
 #include "commands/cut.hpp"
 #include "commands/tr.hpp"
 #include "commands/sed.hpp"
+#include "commands/sh.hpp"
 #include "commands/ps.hpp"
 #include "commands/sha256sum.hpp"
 #include "commands/sha1sum.hpp"
@@ -60,6 +61,9 @@
 #include "commands/base64.hpp"
 #include "commands/base32.hpp"
 #include "commands/zoxide.hpp"
+#include "commands/install.hpp"
+#include "commands/link.hpp"
+#include "commands/unlink.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -81,6 +85,7 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"tac", tac_command},
         {"sort", sort_command},
         {"shuf", shuf_command},
+        {"sh", sh_command},
         {"rev", rev_command},
         {"du", du_command},
         {"dust", dust_command},
@@ -121,6 +126,9 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"base64", base64_command},
         {"base32", base32_command},
         {"zoxide", zoxide_command},
+        {"install", install_command},
+        {"link", link_command},
+        {"unlink", unlink_command},
     };
 
     auto it = commands.find(command);
