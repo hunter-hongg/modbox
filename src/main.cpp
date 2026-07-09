@@ -27,10 +27,13 @@
 #include "commands/tail.hpp"
 #include "commands/rm.hpp"
 #include "commands/mkdir.hpp"
+#include "commands/mkfifo.hpp"
+#include "commands/mknod.hpp"
 #include "commands/touch.hpp"
 #include "commands/tsort.hpp"
 #include "commands/uniq.hpp"
 #include "commands/paste.hpp"
+#include "commands/prompts.hpp"
 #include "commands/nl.hpp"
 #include "commands/diff.hpp"
 #include "commands/comm.hpp"
@@ -48,6 +51,15 @@
 #include "commands/tr.hpp"
 #include "commands/sed.hpp"
 #include "commands/ps.hpp"
+#include "commands/sha256sum.hpp"
+#include "commands/sha1sum.hpp"
+#include "commands/md5sum.hpp"
+#include "commands/chmod.hpp"
+#include "commands/chown.hpp"
+#include "commands/chgrp.hpp"
+#include "commands/base64.hpp"
+#include "commands/base32.hpp"
+#include "commands/zoxide.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -76,10 +88,13 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"tail", tail_command},
         {"rm", rm_command},
         {"mkdir", mkdir_command},
+        {"mkfifo", mkfifo_command},
+        {"mknod", mknod_command},
         {"touch", touch_command},
         {"tsort", tsort_command},
         {"uniq", uniq_command},
         {"paste", paste_command},
+        {"prompts", prompts_command},
         {"nl", nl_command},
         {"ptx", ptx_command},
         {"diff", diff_command},
@@ -97,6 +112,15 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"tr", tr_command},
         {"sed", sed_command},
         {"ps", ps_command},
+        {"sha256sum", sha256sum_command},
+        {"sha1sum", sha1sum_command},
+        {"md5sum", md5sum_command},
+        {"chmod", chmod_command},
+        {"chown", chown_command},
+        {"chgrp", chgrp_command},
+        {"base64", base64_command},
+        {"base32", base32_command},
+        {"zoxide", zoxide_command},
     };
 
     auto it = commands.find(command);

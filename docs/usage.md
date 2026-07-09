@@ -13,16 +13,18 @@ Commands:
 | Command  | Purpose                                       |
 | -------- | --------------------------------------------- |
 | `cat`    | Concatenate files and print to standard output |
-| `cp`     | Copy files and directories                    |
-| `find`   | Search for files in a directory hierarchy                 |
-| `grep`   | Search for patterns in files                  |
-| `help`   | List available commands                       |
-| `ln`     | Create hard or symbolic links                 |
-| `ls`     | List directory contents                       |
-| `mv`     | Move (rename) files                           |
-| `ptx`    | Generate a permuted index (KWIC index)        |
-| `rg`     | Recursive pattern search (ripgrep-style)      |
-
+| `chgrp`  | Change group ownership                         |
+| `chmod`  | Change file mode bits                          |
+| `chown`  | Change file owner and group                    |
+| `cp`     | Copy files and directories                     |
+| `find`   | Search for files in a directory hierarchy      |
+| `grep`   | Search for patterns in files                   |
+| `help`   | List available commands                        |
+| `ln`     | Create hard or symbolic links                  |
+| `ls`     | List directory contents                        |
+| `mv`     | Move (rename) files                            |
+| `ptx`    | Generate a permuted index (KWIC index)         |
+| `rg`     | Recursive pattern search (ripgrep-style)       |
 ---
 
 ## cat

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
 project(modbox LANGUAGES CXX)
 
+# Set toolchain file only if it exists
+if(EXISTS "$ENV{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -39,6 +44,15 @@ if(FTXUI_LIBRARY_DIRS)
     link_directories(${FTXUI_LIBRARY_DIRS})
 endif()
 
+# OpenSSL
+pkg_check_modules(OPENSSL REQUIRED openssl)
+if(OPENSSL_INCLUDE_DIRS)
+    include_directories(${OPENSSL_INCLUDE_DIRS})
+endif()
+if(OPENSSL_LIBRARY_DIRS)
+    link_directories(${OPENSSL_LIBRARY_DIRS})
+endif()
+
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 if(Argtable3_FOUND)
@@ -48,6 +62,7 @@ else()
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${FTXUI_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${OPENSSL_LIBRARIES})
 
 # C++20 std::filesystem needs linking on some platforms
 if(UNIX AND NOT APPLE)

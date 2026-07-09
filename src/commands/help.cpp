@@ -8,6 +8,9 @@ void output_help(const char* argv0, const char* progname) {
         printf("\n");
         printf("Available commands:\n");
         printf("  cat    Concatenate files and print on the standard output\n");
+        printf("  chmod  Change file mode bits\n");
+        printf("  chgrp  Change group ownership\n");
+        printf("  chown  Change file owner and group\n");
         printf("  comm   Compare two sorted files line by line\n");
         printf("  cp     Copy files and directories\n");
         printf("  diff   Compare files line by line\n");
@@ -37,6 +40,7 @@ void output_help(const char* argv0, const char* progname) {
         printf("  uname  Print system information\n");
         printf("  uniq   Report or omit repeated lines\n");
         printf("  whoami Print the current effective user name\n");
+        printf("  zoxide Smart directory jumping based on frecency\n");
         printf("\n");
         printf("Run \"%s help <command>\" or \"%s <command> --help\" for detailed help on a specific command.\n", argv0, argv0);
     } else {
