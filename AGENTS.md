@@ -61,3 +61,7 @@
 - `bash tests/run_tests.sh` — self-contained Bash test script
 - Exit code 0 = all pass, exit code 1 = some fail
 - Test helpers: `assert_cmd`, `assert_cmd_pat`, `assert_cmd_not_pat`, `assert_cmd_pat_stderr`
+
+### Special Notes
+
+- `tests/test_sh.sh` has been removed intentionally — do NOT add a `sh` command test back.

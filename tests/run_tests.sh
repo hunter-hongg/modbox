@@ -7,6 +7,10 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Redirect stdin from /dev/null so commands that read stdin (e.g. `awk -`,
+# `cat` with no file) don't block waiting on the terminal.
+exec 0</dev/null
+
 # Source framework (defines MODBOX, TMPDIR, helpers, counters)
 source "$SCRIPT_DIR/framework.sh"
 

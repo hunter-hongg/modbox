@@ -60,10 +60,12 @@
 #include "commands/chgrp.hpp"
 #include "commands/base64.hpp"
 #include "commands/base32.hpp"
+#include "commands/awk.hpp"
 #include "commands/zoxide.hpp"
 #include "commands/install.hpp"
 #include "commands/link.hpp"
 #include "commands/unlink.hpp"
+#include "commands/test.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -129,6 +131,9 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"install", install_command},
         {"link", link_command},
         {"unlink", unlink_command},
+        {"awk", awk_command},
+        {"test", test_command},
+        {"[", test_command},
     };
 
     auto it = commands.find(command);
