@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "commands/help.hpp"
+#include "commands/dd.hpp"
 #include "commands/cat.hpp"
 #include "commands/ls.hpp"
 #include "commands/dir.hpp"
@@ -20,6 +21,7 @@
 #include "commands/tac.hpp"
 #include "commands/sort.hpp"
 #include "commands/shuf.hpp"
+#include "commands/seq.hpp"
 #include "commands/rev.hpp"
 #include "commands/du.hpp"
 #include "commands/dust.hpp"
@@ -66,6 +68,20 @@
 #include "commands/link.hpp"
 #include "commands/unlink.hpp"
 #include "commands/test.hpp"
+#include "commands/yes.hpp"
+#include "commands/expr.hpp"
+#include "commands/factor.hpp"
+#include "commands/stat.hpp"
+#include "commands/sync.hpp"
+#include "commands/tee.hpp"
+#include "commands/pwd.hpp"
+#include "commands/stty.hpp"
+#include "commands/tty.hpp"
+#include "commands/numfmt.hpp"
+#include "commands/sleep.hpp"
+#include "commands/nice.hpp"
+#include "commands/nohup.hpp"
+#include "commands/time.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -77,6 +93,7 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"dir", dir_command},
         {"vdir", vdir_command},
         {"cp", cp_command},
+        {"dd", dd_command},
         {"ln", ln_command},
         {"mv", mv_command},
         {"grep", grep_command},
@@ -87,6 +104,7 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"tac", tac_command},
         {"sort", sort_command},
         {"shuf", shuf_command},
+        {"seq", seq_command},
         {"sh", sh_command},
         {"rev", rev_command},
         {"du", du_command},
@@ -134,6 +152,20 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"awk", awk_command},
         {"test", test_command},
         {"[", test_command},
+        {"yes", yes_command},
+        {"expr", expr_command},
+        {"factor", factor_command},
+        {"stat", stat_command},
+        {"sync", sync_command},
+        {"tee", tee_command},
+        {"pwd", pwd_command},
+        {"stty", stty_command},
+        {"tty", tty_command},
+        {"numfmt", numfmt_command},
+        {"sleep", sleep_command},
+        {"nice", nice_command},
+        {"nohup", nohup_command},
+        {"time", time_command},
     };
 
     auto it = commands.find(command);

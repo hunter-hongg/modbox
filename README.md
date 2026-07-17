@@ -4,20 +4,29 @@ A minimalist multi-call binary providing concise core Unix tool alternatives, in
 
 ## Overview
 
-modbox is a lightweight, self-contained utility that combines multiple Unix commands into a single executable. This approach reduces disk space and memory footprint while providing essential functionality for system administration and development tasks.
+modbox is a lightweight, self-contained utility that combines multiple Unix commands into a single C++20 executable. This approach reduces disk space and memory footprint while providing essential functionality for system administration and development tasks.
 
-Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism to handle different commands within the same binary. When invoked as `modbox cat`, it behaves like the `cat` command; when invoked as `modbox help`, it displays help information. Additionally, modbox can create symlinks to individual command names, allowing direct invocation like `/path/to/cat` or `help`.
+Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism to handle different commands within the same binary. When invoked as `modbox cat`, it behaves like the `cat` command; when invoked as `modbox help`, it displays help information. Additionally, modbox can be invoked through symlinks to individual command names, allowing direct invocation like `/path/to/cat` or `help`.
 
 ## Features
 
 - **Multi-call binary architecture**: All commands contained in a single executable
-- **Command dispatch via hash table**: O(1) command lookup using GLib's GHashTable
+- **Command dispatch via unordered_map**: O(1) command lookup using `std::unordered_map`
+- **Modern C++20**: Uses the C++ STL exclusively — no GLib dependency
 - **GNU-style argument parsing**: Uses argtable3 for robust CLI option handling
-- **Minimal dependencies**: Only requires GLib and argtable3
+- **Minimal dependencies**: Only requires argtable3 and the C++ standard library
 - **Static analysis support**: Built-in clang-tidy integration
 - **Comprehensive test suite**: Bash-based testing framework
 
 ## Available Commands
+
+modbox currently provides the following commands (68 in total):
+
+`awk`, `base32`, `base64`, `cat`, `chgrp`, `chmod`, `chown`, `comm`, `cp`, `csplit`, `cut`, `dd`, `diff`, `dir`, `du`, `dust`, `expand`, `fd`, `find`, `grep`, `head`, `help`, `htop`, `install`, `link`, `ln`, `ls`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mtop`, `mv`, `nl`, `pager`, `paste`, `prompts`, `ps`, `ptx`, `rev`, `rg`, `rm`, `sed`, `sh`, `sha1sum`, `sha256sum`, `shuf`, `sort`, `split`, `stat`, `tac`, `tail`, `test`, `top`, `touch`, `tr`, `tsort`, `uname`, `unexpand`, `uniq`, `unlink`, `vdir`, `whoami`, `zoxide`
+
+> Note: `[` is aliased to `test`.
+
+Run `modbox help <command>` for usage of a specific command.
 
 ### help
 
@@ -63,7 +72,7 @@ Options:
 
 ### grep
 
-Search for patterns in files. Similar to GNU grep with basic regex (GRegex/PCRE-like), ERE, and fixed-string modes.
+Search for patterns in files. Supports basic regex, extended regex (ERE), and fixed-string modes.
 
 ```
 modbox grep [OPTIONS] PATTERN [FILE...]
@@ -152,15 +161,39 @@ Options:
 - `-i`, `--ignore-file=FILE` - Ignore file
 - `-o`, `--only-file=FILE` - Only file
 
+### stat
+
+Display file or file system status, following GNU coreutils `stat` behavior.
+
+```
+modbox stat [OPTIONS] [FILE...]
+```
+
+Options:
+- `-L`, `--dereference` - Follow symbolic links (report the target)
+- `-f`, `--file-system` - Display file system status instead of file status
+- `-t`, `--terse` - Print the information in terse form
+- `-c`, `--format=FORMAT` - Use the specified FORMAT instead of the default
+- `--printf=FORMAT` - Like `--format`, but interpret backslash escapes and omit the trailing newline
+- `--version` - Output version information and exit
+
+With no `-c`/`--printf`/`--format`, `stat` uses the default verbose format.
+Common format directives include `%n` (name), `%s` (size), `%a` (octal access
+rights), `%A` (human-readable permissions), `%F` (file type), `%i` (inode),
+`%h` (link count), `%U`/`%G` (owner/group names), and `%x`/`%y`/`%z` (access,
+modify, change times).
+
 ## Building
 
 ### Prerequisites
 
-- CMake 3.10+
-- GLib 2.0
-- argtable3 (via vcpkg)
-- C compiler (GCC or Clang)
-- vcpkg (for dependency management)
+- C++20 compiler (GCC or Clang)
+- argtable3, ftxui, openssl (resolved automatically via `pkg-config`)
+- clang-tidy (optional, for static analysis)
+
+The build uses a pure `Makefile` (no CMake). Dependencies are discovered
+through `pkg-config`; the linuxbrew pkg-config path is added automatically
+so the bundled linuxbrew libraries are found.
 
 ### Build Steps
 
@@ -171,7 +204,7 @@ make
 # Build and run
 make run
 
-# Full rebuild (clean + regenerate CMake)
+# Full rebuild (clean + rebuild)
 make refresh
 
 # Clean build artifacts
@@ -181,16 +214,29 @@ make clean
 make lint
 ```
 
+Build options:
+
+```bash
+# Debug build (adds -g -O0)
+make DEBUG=1
+
+# Build with clang-tidy analysis on every translation unit
+make TIDY=1
+# or: make refresh-tidy
+```
+
 ### Build Output
 
-The compiled binary is placed at `./target/modbox`.
+The compiled binary is placed at `./target/modbox`. Object files and
+per-source `.d` dependency files live under `./build`; `compile_commands.json`
+is generated at the project root for clang-tidy and editors.
 
 ### Dependencies
 
-- vcpkg (manages argtable3)
-- System glib-2.0
+- argtable3, ftxui, openssl via `pkg-config`
+- C++ standard library (no GLib dependency)
 - clang-tidy (optional, for static analysis)
-- CMake toolchain hardcoded to `$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake`
+- No CMake / vcpkg required
 
 ## Testing
 
@@ -214,9 +260,9 @@ Built-in clang-tidy integration with comprehensive checks:
 # Run static analysis on all source files
 make lint
 
-# Or enable build-time analysis
-cmake -DENABLE_CLANG_TIDY=ON ..
-make
+# Build-time analysis (clang-tidy runs during compilation)
+make TIDY=1
+# or: make refresh-tidy
 ```
 
 Enabled checks include:
@@ -225,19 +271,34 @@ Enabled checks include:
 
 ## Code Conventions
 
-### Struct Parameters
+### Language and Standard Library
 
-Configuration parameters must be passed via structs:
+- C++20 standard
+- All source files are `.cpp`, all headers are `.hpp`
+- No GLib dependency — uses C++ STL exclusively
+  - `std::vector` for dynamic arrays (replaces `GPtrArray`, `GArray`, `GByteArray`)
+  - `std::unordered_map` for hash maps (replaces `GHashTable`)
+  - `std::string` for strings (replaces `gchar*` + manual memory management)
+  - `std::regex` for regex (replaces `GRegex`)
+  - `std::filesystem` for path manipulation (replaces `g_path_get_basename`, `g_build_filename`)
+- Standard C types: `int` for `gint`, `size_t` for `gsize`, `int64_t` for `gint64`, `uint64_t` for `guint64`, `bool` for `gboolean`
+- Memory management: `new`/`delete` or RAII containers (no `g_malloc`/`g_free`)
+- Uses argtable3 for argument parsing
+- POSIX APIs (fopen, stat, readdir, etc.) used directly
 
-```c
-typedef struct {
-    int flag_a;
-    int flag_b;
-    unsigned long block_size;
-} XxxOptions;
+### Options Structs
+
+Options structs use default member initializers (C++20). Config structs are passed by pointer (`const XxxOptions*`):
+
+```cpp
+struct XxxOptions {
+    bool flag_a = false;
+    bool flag_b = false;
+    unsigned long block_size = 0;
+};
 
 // Usage
-XxxOptions opts = {0};
+XxxOptions opts;
 opts.flag_a = (arg_opt->count > 0);
 some_helper(src, dst, &opts);
 ```
@@ -246,73 +307,46 @@ some_helper(src, dst, &opts);
 
 Add direct includes for functions used:
 
-```c
-#include <string.h>  // for strcmp
-#include <time.h>    // for strftime
+```cpp
+#include <cstring>   // for std::strcmp
+#include <ctime>     // for std::strftime
 ```
-
-## Building
-
-### Prerequisites
-
-- CMake 3.10+
-- GLib 2.0
-- argtable3
-- C compiler (GCC or Clang)
-
-### Build Steps
-
-```bash
-# Standard build
-make
-
-# Or manually with CMake
-mkdir build && cd build
-cmake ..
-make
-
-# Run the binary
-./target/modbox
-
-# Full rebuild
-make refresh
-```
-
-### Build Output
-
-The compiled binary is placed at `./target/modbox`.
 
 ## Architecture
 
 ### Command Registration
 
-Commands are registered in a hash table at runtime:
+Commands are registered in a `std::unordered_map` at runtime:
 
-```c
-GHashTable* commands = g_hash_table_new(g_str_hash, g_str_equal);
-g_hash_table_insert(commands, "help", help_command);
-g_hash_table_insert(commands, "cat", cat_command);
-g_hash_table_insert(commands, "ls", ls_command);
-g_hash_table_insert(commands, "cp", cp_command);
-g_hash_table_insert(commands, "mv", mv_command);
-g_hash_table_insert(commands, "ln", ln_command);
+```cpp
+using CommandFunc = void (*)(int, char**);
+
+static const std::unordered_map<std::string, CommandFunc> commands = {
+    {"help", help_command},
+    {"cat", cat_command},
+    {"ls", ls_command},
+    {"cp", cp_command},
+    {"mv", mv_command},
+    {"ln", ln_command},
+    // ...
+};
 ```
 
 ### Command Interface
 
 Each command follows a standard function signature:
 
-```c
-typedef void (*command_t)(gint argc, gchar** argv);
+```cpp
+void command(int argc, char** argv);
 ```
 
 ### Argument Parsing
 
 Uses argtable3 for POSIX/GNU-compatible argument parsing:
 
-```c
+```cpp
 struct arg_lit* number_opt = arg_lit0("n", "number", "number all output lines");
-struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
+struct arg_file* file_arg = arg_filen(nullptr, nullptr, "FILE", 0, 100, "file to read");
 ```
 
 ## Extending modbox
@@ -320,22 +354,20 @@ struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read"
 To add a new command:
 
 1. Create a header file in `include/commands/`:
-   ```c
-   #ifndef NEWCMD_H
-   #define NEWCMD_H
-   
-   #include <glib.h>
-   
-   void newcmd_command(gint argc, gchar** argv);
-   
+   ```cpp
+   #ifndef NEWCMD_HPP
+   #define NEWCMD_HPP
+
+   void newcmd_command(int argc, char** argv);
+
    #endif
    ```
 
-2. Create the implementation in `src/commands/newcmd.c`
+2. Create the implementation in `src/commands/newcmd.cpp`
 
-3. Register the command in `src/main.c`:
-   ```c
-   g_hash_table_insert(commands, "newcmd", newcmd_command);
+3. Register the command in `src/main.cpp`:
+   ```cpp
+   commands["newcmd"] = newcmd_command;
    ```
 
 ## Design Philosophy
@@ -345,12 +377,12 @@ modbox follows these principles:
 - **Simplicity**: Minimal code, straightforward implementation
 - **Composability**: Multiple commands in one binary
 - **Standards compliance**: GNU-style options where appropriate
-- **Lean dependencies**: Only essential libraries required
+- **Lean dependencies**: Only essential libraries required (C++ STL + argtable3)
 - **Code quality**: Static analysis and comprehensive testing
 
 ## Current Status
 
-- ✅ Implemented commands: help, cat, ls, cp, mv, ln, grep, ptx, and 25+ more
+- ✅ Implemented commands: 68 commands including help, cat, ls, cp, mv, ln, grep, ptx, stat, and more
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing
@@ -360,7 +392,6 @@ modbox follows these principles:
 ## See Also
 
 - [BusyBox](https://www.busybox.net/) - The original multi-call binary
-- [GLib](https://developer.gnome.org/glib/) - Utility library
 - [argtable3](https://argtable.org/) - Command-line parser
 - [vcpkg](https://vcpkg.io/) - C++ package manager
 

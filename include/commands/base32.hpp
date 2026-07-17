@@ -4,3 +4,4 @@
 void base32_command(int argc, char** argv);
 
 #endif
+
