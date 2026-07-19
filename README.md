@@ -20,9 +20,9 @@ Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism t
 
 ## Available Commands
 
-modbox currently provides the following commands (68 in total):
+modbox currently provides the following commands (91 in total):
 
-`awk`, `base32`, `base64`, `cat`, `chgrp`, `chmod`, `chown`, `comm`, `cp`, `csplit`, `cut`, `dd`, `diff`, `dir`, `du`, `dust`, `expand`, `fd`, `find`, `grep`, `head`, `help`, `htop`, `install`, `link`, `ln`, `ls`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mtop`, `mv`, `nl`, `pager`, `paste`, `prompts`, `ps`, `ptx`, `rev`, `rg`, `rm`, `sed`, `sh`, `sha1sum`, `sha256sum`, `shuf`, `sort`, `split`, `stat`, `tac`, `tail`, `test`, `top`, `touch`, `tr`, `tsort`, `uname`, `unexpand`, `uniq`, `unlink`, `vdir`, `whoami`, `zoxide`
+`arch`, `awk`, `base32`, `base64`, `basename`, `cat`, `chgrp`, `chmod`, `chown`, `comm`, `cp`, `csplit`, `cut`, `date`, `dd`, `diff`, `dir`, `dirname`, `du`, `dust`, `echo`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `find`, `grep`, `head`, `help`, `htop`, `id`, `install`, `link`, `ln`, `ls`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mtop`, `mv`, `nice`, `nl`, `nohup`, `numfmt`, `pager`, `paste`, `printf`, `prompts`, `ps`, `ptx`, `pwd`, `rev`, `rg`, `rm`, `sed`, `seq`, `sh`, `sha1sum`, `sha256sum`, `shuf`, `sleep`, `sort`, `split`, `stat`, `stty`, `sync`, `tac`, `tail`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `true`, `tsort`, `tty`, `uname`, `unexpand`, `uniq`, `unlink`, `vdir`, `wc`, `whoami`, `yes`, `zoxide`
 
 > Note: `[` is aliased to `test`.
 
@@ -382,7 +382,7 @@ modbox follows these principles:
 
 ## Current Status
 
-- ✅ Implemented commands: 68 commands including help, cat, ls, cp, mv, ln, grep, ptx, stat, and more
+- ✅ Implemented commands: 91 commands including help, cat, ls, cp, mv, ln, grep, ptx, stat, and more
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing

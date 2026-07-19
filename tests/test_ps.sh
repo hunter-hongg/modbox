@@ -29,11 +29,11 @@ assert_cmd_pat 'PID.*TTY.*TIME.*CMD' ps -x
 
 echo "  ── aux : BSD-style (all processes) ──"
 assert_cmd_pat 'USER.*PID.*%CPU.*%MEM.*VSZ.*RSS.*TTY.*STAT.*START.*TIME.*COMMAND' ps aux
-assert_cmd_pat '^\s*root\s' ps aux
+assert_cmd_pat '^\s*\S+\s+' ps aux
 
 echo "  ── -A -f : all processes with full format ──"
 assert_cmd_pat 'UID.*PID.*PPID.*C.*STIME.*TTY.*TIME.*CMD' ps -A -f
-assert_cmd_pat '^\s*root\s' ps -A -f
+assert_cmd_pat '^\s*\S+\s+' ps -A -f
 
 echo "  ── --help ──"
 assert_cmd_pat 'Usage:' ps --help

@@ -82,6 +82,18 @@
 #include "commands/nice.hpp"
 #include "commands/nohup.hpp"
 #include "commands/time.hpp"
+#include "commands/timeout.hpp"
+#include "commands/wc.hpp"
+#include "commands/date.hpp"
+#include "commands/echo.hpp"
+#include "commands/env.hpp"
+#include "commands/printf.hpp"
+#include "commands/id.hpp"
+#include "commands/true.hpp"
+#include "commands/false.hpp"
+#include "commands/arch.hpp"
+#include "commands/basename.hpp"
+#include "commands/dirname.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -166,6 +178,18 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"nice", nice_command},
         {"nohup", nohup_command},
         {"time", time_command},
+         {"timeout", timeout_command},
+         {"wc", wc_command},
+         {"date", date_command},
+        {"echo", echo_command},
+        {"env", env_command},
+        {"printf", printf_command},
+        {"id", id_command},
+        {"true", true_command},
+        {"false", false_command},
+        {"arch", arch_command},
+        {"basename", basename_command},
+        {"dirname", dirname_command},
     };
 
     auto it = commands.find(command);

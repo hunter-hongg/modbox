@@ -45,6 +45,7 @@ void output_help(const char* argv0, const char* progname) {
         printf("  tac    Concatenate and print files in reverse\n");
         printf("  tail   Output the last part of files\n");
         printf("  time   Run a command and report timing statistics\n");
+        printf("  timeout  Run a command with a time limit\n");
         printf("  top    Display Linux processes\n");
         printf("  touch  Change file timestamps\n");
         printf("  tty    Print the file name of the terminal on standard input\n");
