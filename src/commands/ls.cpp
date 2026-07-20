@@ -691,6 +691,13 @@ std::vector<std::string> collect_entries(const char* dirpath, const LsOptions* o
     return files;
 }
 
+static int can_read_dir(const char* dirpath) {
+    DIR* dir = opendir(dirpath);
+    if (dir == NULL) return 0;
+    closedir(dir);
+    return 1;
+}
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void ls_command(int argc, char **argv) {
   LsOptions opts = {0};
@@ -857,10 +864,8 @@ void ls_command(int argc, char **argv) {
   }
 
   if (opts.list_dir_contents) {
-    /* Normal mode: open each directory and list its contents */
     for (int i = 0; i < dir_arg->count; i++) {
-      DIR *dir = opendir(dir_arg->filename[i]);
-      if (dir == NULL) {
+      if (!can_read_dir(dir_arg->filename[i])) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "ls: %s: No such file or directory\n",
                       dir_arg->filename[i]);
@@ -869,7 +874,6 @@ void ls_command(int argc, char **argv) {
 
       std::vector<std::string> files = collect_entries(dir_arg->filename[i], &opts);
       sort_and_output_files(files, &opts);
-      closedir(dir);
     }
   } else {
     /* -d mode: list the directory entries themselves, not their contents */
