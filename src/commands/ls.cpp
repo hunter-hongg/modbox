@@ -658,9 +658,8 @@ static void sort_and_output_files(std::vector<std::string>& files, const LsOptio
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-std::vector<std::string> collect_entries(const char* dirpath, const LsOptions* opts) {
+static std::vector<std::string> collect_entries(DIR* dir, const char* dirpath, const LsOptions* opts) {
     std::vector<std::string> files;
-    DIR* dir = opendir(dirpath);
     if (dir == NULL) {
         return files;
     }
@@ -683,19 +682,15 @@ std::vector<std::string> collect_entries(const char* dirpath, const LsOptions* o
             }
         }
         char full_path[4096];
+        // Store full path so lstat works correctly for color and long format,
+        // regardless of the current working directory.
+        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(full_path, sizeof(full_path), "%s/%s", dirpath, entry->d_name);
         files.push_back(full_path);
     }
 
     closedir(dir);
     return files;
-}
-
-static int can_read_dir(const char* dirpath) {
-    DIR* dir = opendir(dirpath);
-    if (dir == NULL) return 0;
-    closedir(dir);
-    return 1;
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -865,14 +860,15 @@ void ls_command(int argc, char **argv) {
 
   if (opts.list_dir_contents) {
     for (int i = 0; i < dir_arg->count; i++) {
-      if (!can_read_dir(dir_arg->filename[i])) {
+      DIR* dir = opendir(dir_arg->filename[i]);
+      if (dir == NULL) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "ls: %s: No such file or directory\n",
-                      dir_arg->filename[i]);
+        (void)fprintf(stderr, "ls: %s: %s\n",
+                      dir_arg->filename[i], strerror(errno));
         continue;
       }
 
-      std::vector<std::string> files = collect_entries(dir_arg->filename[i], &opts);
+      std::vector<std::string> files = collect_entries(dir, dir_arg->filename[i], &opts);
       sort_and_output_files(files, &opts);
     }
   } else {

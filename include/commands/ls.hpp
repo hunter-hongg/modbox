@@ -28,6 +28,4 @@ struct LsOptions {
 
 void ls_command(int argc, char** argv);
 
-std::vector<std::string> collect_entries(const char* dirpath, const LsOptions* opts);
-
 #endif
