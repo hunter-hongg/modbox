@@ -224,5 +224,7 @@ void ls_tui_command(int argc, char** argv, const LsOptions* opts) {
   auto component = std::make_shared<LsfComponent>(ctx);
   screen.Loop(component);
 
-  (void)ctx.quit_requested;
+  if (ctx.quit_requested) {
+    printf("%s\n", ctx.current_dir.c_str());
+  }
 }
