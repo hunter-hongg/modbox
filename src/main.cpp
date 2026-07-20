@@ -94,6 +94,9 @@
 #include "commands/arch.hpp"
 #include "commands/basename.hpp"
 #include "commands/dirname.hpp"
+#include "commands/rmdir.hpp"
+#include "commands/mktemp.hpp"
+#include "commands/fmt.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -188,9 +191,12 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"true", true_command},
         {"false", false_command},
         {"arch", arch_command},
-        {"basename", basename_command},
-        {"dirname", dirname_command},
-    };
+{"basename", basename_command},
+{"dirname", dirname_command},
+{"rmdir", rmdir_command},
+{"mktemp", mktemp_command},
+{"fmt", fmt_command},
+};
 
     auto it = commands.find(command);
     if (it != commands.end()) {
