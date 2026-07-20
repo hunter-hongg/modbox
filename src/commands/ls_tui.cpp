@@ -120,6 +120,84 @@ std::vector<TuiEntry> tui_collect_entries(const char* dirpath) {
   return result;
 }
 
+static std::string read_file_preview(const char* path, int max_lines) {
+    FILE* f = fopen(path, "r");
+    if (!f) return "(unreadable)";
+    std::string result;
+    char buf[4096];
+    int lines = 0;
+    while (lines < max_lines && fgets(buf, sizeof(buf), f)) {
+        result += buf;
+        lines++;
+    }
+    if (!feof(f)) result += "\n[… truncated]";
+    fclose(f);
+    return result;
+}
+
+static std::vector<std::string> split_lines(const std::string& s) {
+    std::vector<std::string> out;
+    size_t start = 0;
+    size_t pos = 0;
+    while (pos < s.size()) {
+        if (s[pos] == '\n') {
+            out.push_back(s.substr(start, pos - start));
+            start = pos + 1;
+        }
+        pos++;
+    }
+    out.push_back(s.substr(start));
+    return out;
+}
+
+static Element render_preview(TuiCtx& ctx) {
+    if (ctx.entries.empty()) {
+        return text("No entries") | dim | center;
+    }
+    const auto& e = ctx.entries[ctx.selected];
+
+    std::vector<Element> lines;
+    lines.push_back(text(e.display_name) | bold | hcenter);
+    lines.push_back(separator());
+
+    lines.push_back(text("Perms: " + e.perm_str + "  Owner: " + e.owner + ":" + e.group));
+    lines.push_back(text("Size: " + fmt_size(e.size) + "  Mtime: " + e.mtime_str));
+    lines.push_back(separator());
+
+    if (e.is_dir) {
+        auto children = tui_collect_entries(e.path.c_str());
+        for (const auto& c : children) {
+            std::string prefix = c.is_dir ? "\xEF\x84\x95 " : "  ";
+            lines.push_back(text(prefix + c.display_name));
+        }
+        if (children.empty()) {
+            lines.push_back(text("(empty directory)") | dim);
+        }
+    } else if (e.is_symlink) {
+        char target[4096];
+        ssize_t n = readlink(e.path.c_str(), target, sizeof(target) - 1);
+        if (n >= 0) {
+            target[n] = '\0';
+            lines.push_back(text("Symlink \u2192 " + std::string(target)));
+        }
+        struct stat st;
+        if (stat(e.path.c_str(), &st) == 0) {
+            lines.push_back(text("Target type: " + std::string(
+                S_ISDIR(st.st_mode) ? "directory" : "file")));
+        }
+    } else {
+        std::string preview = read_file_preview(e.path.c_str(), 200);
+        auto lines_vec = split_lines(preview);
+        std::vector<Element> preview_elements;
+        for (const auto& l : lines_vec) {
+            preview_elements.push_back(text(l));
+        }
+        lines.push_back(vbox(preview_elements) | flex | yframe);
+    }
+
+    return vbox(lines) | flex | xframe;
+}
+
 class LsfComponent : public ComponentBase {
   TuiCtx& ctx_;
 
@@ -160,9 +238,10 @@ public:
     right.push_back(text("Preview pane (coming soon)") | dim);
 
     Elements body;
+    Element preview = render_preview(ctx_);
     body.push_back(hbox({
       vbox(left) | vscroll_indicator | yframe | flex,
-      vbox(right) | flex | xframe,
+      preview,
     }) | flex);
 
     Elements footer;
