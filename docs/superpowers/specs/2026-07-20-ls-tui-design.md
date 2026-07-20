@@ -23,7 +23,7 @@ modbox has implemented ~95 coreutils commands. The next phase is differentiation
 - **New:** `src/commands/ls_tui.cpp` — ftxui browser app (entry collection, rendering, event loop).
 - **New:** `src/commands/lf.cpp` — alias wrapper, injects `--tui` and delegates to `ls_command`.
 - **Refactor:** `src/commands/ls.cpp` — extract entry-collection logic (readdir + filters + lstat) into a shared helper `collect_entries()` (static in `ls.hpp` or a small `ls_common.cpp`). `ls_command` and `ls_tui` both use it. No behavior change.
-- **New:** `modbox lf init <shell>` subcommand — installs a shell function that does `cd "$(cat $XDG_RUNTIME_DIR/modbox-lf-cwd)"` after `modbox lf` exits. Mirrors `prompts init` pattern.
+- **New:** `modbox lf init <shell>` subcommand — installs a shell function that captures stdout from `modbox lf --tui` and `cd`s to it. Mirrors `prompts init` pattern.
 - **New:** test cases in `tests/run_tests.sh`.
 
 ## TUI layout
@@ -59,16 +59,17 @@ Truncated previews show "[… truncated]". Rendered via ftxui `Paragraph`.
 ## CWD-on-quit
 
 Flow:
-1. TUI writes last directory to temp file (`$XDG_RUNTIME_DIR/modbox-lf-cwd`, fallback `/tmp/modbox-lf-cwd`).
-2. User hits `q` → TUI exits.
-3. `modbox lf` is normally invoked through a shell function, not bare binary. The function runs:
+1. TUI prints last directory to stdout when user hits `q`.
+2. `modbox lf` is normally invoked through a shell function, not bare binary. The function runs:
    ```bash
-   __modbox_lf_last=$(command modbox lf --internal-cwd-file "$MODBOX_LF_CWD_FILE" "$@")
-   cd "$__modbox_lf_last"
+   __dir=$(command modbox lf --tui "$@" 2>/dev/null)
+   if [ -n "$__dir" ] && [ "$__dir" != "$(pwd)" ]; then
+       cd "$__dir"
+   fi
    ```
-4. `modbox lf init <shell>` prints this function + sets `MODBOX_LF_CWD_FILE` env.
+3. `modbox lf init <shell>` prints this function.
 
-Implementation detail: add a hidden `--internal-cwd-file <path>` flag to `ls --tui` that writes the final CWD to that file and prints it to stdout (so the shell wrapper can capture it). This keeps the binary interface clean.
+Implementation detail: `ls_tui_command` prints the final CWD to stdout after the screen loop exits. No temp file or hidden flag needed. The shell wrapper captures stdout and `cd`s there.
 
 ## Non-interactive safety
 
@@ -98,7 +99,7 @@ Tabs, bookmarks, bulk multi-select, rename/move/mkdir, git integration, sort-by-
 
 1. Refactor `ls.cpp` — extract `collect_entries()`.
 2. Build `ls_tui.cpp` — ftxui two-pane with nav + preview (dir + text + symlink + binary).
-3. Add keybindings: filter, open, copy, delete, quit + CWD file.
+3. Add keybindings: filter, open, copy, delete, quit + CWD stdout.
 4. `lf.cpp` alias + `lf init` shell function.
 5. Non-interactive fallback + error handling polish.
 6. Tests.
