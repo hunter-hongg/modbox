@@ -7,6 +7,7 @@
 #include "commands/help.hpp"
 #include "commands/dd.hpp"
 #include "commands/cat.hpp"
+#include "commands/lf.hpp"
 #include "commands/ls.hpp"
 #include "commands/dir.hpp"
 #include "commands/vdir.hpp"
@@ -115,6 +116,7 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"find", find_command},
         {"rg", rg_command},
         {"lsc", lsc_command},
+        {"lf", lf_command},
         {"fd", fd_command},
         {"tac", tac_command},
         {"sort", sort_command},

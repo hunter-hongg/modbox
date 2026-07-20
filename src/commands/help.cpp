@@ -27,6 +27,7 @@ void output_help(const char* argv0, const char* progname) {
         printf("  ln     Create hard/symbolic links between files\n");
         printf("  ls     List directory contents\n");
         printf("  lsc    Alias for ls --colorful --icons\n");
+        printf("  lf    Interactive file browser (alias for ls --tui)\n");
         printf("  mkdir  Create directories\n");
         printf("  mv     Move (rename) files\n");
         printf("  nice   Run a program with modified scheduling priority\n");
