@@ -1,6 +1,9 @@
 #ifndef LS_HPP
 #define LS_HPP
 
+#include <vector>
+#include <string>
+
 enum class ColorMode { NEVER, ALWAYS, AUTO };
 
 struct LsOptions {
@@ -24,5 +27,7 @@ struct LsOptions {
 };
 
 void ls_command(int argc, char** argv);
+
+std::vector<std::string> collect_entries(const char* dirpath, const LsOptions* opts);
 
 #endif

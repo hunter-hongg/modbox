@@ -658,6 +658,40 @@ static void sort_and_output_files(std::vector<std::string>& files, const LsOptio
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+std::vector<std::string> collect_entries(const char* dirpath, const LsOptions* opts) {
+    std::vector<std::string> files;
+    DIR* dir = opendir(dirpath);
+    if (dir == NULL) {
+        return files;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (!opts->show_all && entry->d_name[0] == '.') {
+            if (!opts->show_almost_all) {
+                continue;
+            }
+            if (strcmp(entry->d_name, ".") == 0 ||
+                strcmp(entry->d_name, "..") == 0) {
+                continue;
+            }
+        }
+        if (opts->ignore_backups) {
+            size_t dlen = strlen(entry->d_name);
+            if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
+                continue;
+            }
+        }
+        char full_path[4096];
+        (void)snprintf(full_path, sizeof(full_path), "%s/%s", dirpath, entry->d_name);
+        files.push_back(full_path);
+    }
+
+    closedir(dir);
+    return files;
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void ls_command(int argc, char **argv) {
   LsOptions opts = {0};
   opts.list_dir_contents = 1; /* default: list directory contents */
@@ -833,34 +867,7 @@ void ls_command(int argc, char **argv) {
         continue;
       }
 
-      struct dirent *entry;
-      std::vector<std::string> files;
-
-      while ((entry = readdir(dir)) != NULL) {
-        if (!opts.show_all && entry->d_name[0] == '.') {
-          if (!opts.show_almost_all) {
-            continue;
-          }
-          if (strcmp(entry->d_name, ".") == 0 ||
-              strcmp(entry->d_name, "..") == 0) {
-            continue;
-          }
-        }
-        if (opts.ignore_backups) {
-          size_t dlen = strlen(entry->d_name);
-          if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
-            continue;
-          }
-        }
-        /* Store full path so lstat works correctly for color and long format,
-         * regardless of the current working directory. */
-        char full_path[4096];
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(full_path, sizeof(full_path), "%s/%s",
-                       dir_arg->filename[i], entry->d_name);
-        files.push_back(full_path);
-      }
-
+      std::vector<std::string> files = collect_entries(dir_arg->filename[i], &opts);
       sort_and_output_files(files, &opts);
       closedir(dir);
     }
