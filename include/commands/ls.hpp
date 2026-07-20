@@ -21,11 +21,13 @@ struct LsOptions {
     int classify = 0;
     int colorful = 0;
     int show_icons = 0;
+    int tui_mode = 0;
     ColorMode color_mode = ColorMode::NEVER;
     unsigned long block_size = 0;
     char size_suffix = 0;
 };
 
 void ls_command(int argc, char** argv);
+void ls_tui_command(int argc, char** argv, const LsOptions* opts);
 
 #endif

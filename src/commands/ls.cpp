@@ -736,6 +736,8 @@ void ls_command(int argc, char **argv) {
       arg_lit0(NULL, "colorful", "multi-color output (like eza/lsd)");
   struct arg_lit *icons_opt =
       arg_lit0(NULL, "icons", "display icons before file names (like lsd)");
+  struct arg_lit *tui_opt =
+      arg_lit0(NULL, "tui", "interactive file browser (requires TTY)");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
@@ -758,6 +760,7 @@ void ls_command(int argc, char **argv) {
                       classify_opt,
                       colorful_opt,
                       icons_opt,
+                      tui_opt,
                       help_opt,
                       dir_arg,
                       end};
@@ -781,6 +784,7 @@ void ls_command(int argc, char **argv) {
     printf("  -F, --classify        append indicator (one of */@) to entries\n");
     printf("      --colorful        multi-color output (like eza/lsd)\n");
     printf("      --icons           display icons before file names (like lsd)\n");
+    printf("      --tui             interactive file browser (requires TTY)\n");
     printf("  -l, --long            use a long listing format\n");
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
@@ -806,6 +810,7 @@ void ls_command(int argc, char **argv) {
   opts.classify = (classify_opt->count > 0);
   opts.colorful = (colorful_opt->count > 0);
   opts.show_icons = (icons_opt->count > 0);
+  opts.tui_mode = (tui_opt->count > 0);
   if (opts.colorful) {
     opts.color_mode = ColorMode::ALWAYS;
   }
@@ -832,6 +837,12 @@ void ls_command(int argc, char **argv) {
                     "ls: invalid argument '%s' for --color\nValid arguments: "
                     "always, auto, never\n",
                     val);
+    }
+  }
+
+  if (opts.tui_mode) {
+    if (!isatty(STDOUT_FILENO)) {
+      opts.tui_mode = 0;
     }
   }
 
@@ -888,6 +899,11 @@ void ls_command(int argc, char **argv) {
 
     opts.show_columns = opts.show_columns || !opts.show_details;
     sort_and_output_files(files, &opts);
+  }
+
+  if (opts.tui_mode) {
+    ls_tui_command(argc, argv, &opts);
+    return;
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
