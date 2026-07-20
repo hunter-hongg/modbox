@@ -18,6 +18,8 @@
 
 #include "commands/ls.hpp"
 
+void ls_tui_command(int argc, char** argv, const LsOptions* opts);
+
 /* Named constants for printable ASCII range used by print_escaped_filename */
 #define ASCII_SPACE 0x20
 #define ASCII_TILDE 0x7e
@@ -737,7 +739,7 @@ void ls_command(int argc, char **argv) {
   struct arg_lit *icons_opt =
       arg_lit0(NULL, "icons", "display icons before file names (like lsd)");
   struct arg_lit *tui_opt =
-      arg_lit0(NULL, "tui", "interactive file browser (requires TTY)");
+      arg_lit0(NULL, "tui", "interactive file browser (falls back to normal output without a TTY)");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
@@ -784,7 +786,7 @@ void ls_command(int argc, char **argv) {
     printf("  -F, --classify        append indicator (one of */@) to entries\n");
     printf("      --colorful        multi-color output (like eza/lsd)\n");
     printf("      --icons           display icons before file names (like lsd)\n");
-    printf("      --tui             interactive file browser (requires TTY)\n");
+    printf("      --tui             interactive file browser (falls back to normal output without a TTY)\n");
     printf("  -l, --long            use a long listing format\n");
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
@@ -842,15 +844,12 @@ void ls_command(int argc, char **argv) {
 
   if (opts.tui_mode) {
     if (!isatty(STDOUT_FILENO)) {
-      opts.tui_mode = 0;
       fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
+    } else {
+      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      ls_tui_command(argc, argv, &opts);
+      return;
     }
-  }
-
-  if (opts.tui_mode) {
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    ls_tui_command(argc, argv, &opts);
-    return;
   }
 
   if (block_size_opt->count > 0) {

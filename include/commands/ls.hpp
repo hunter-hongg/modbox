@@ -28,6 +28,5 @@ struct LsOptions {
 };
 
 void ls_command(int argc, char** argv);
-void ls_tui_command(int argc, char** argv, const LsOptions* opts);
 
 #endif
