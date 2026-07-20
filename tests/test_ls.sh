@@ -177,4 +177,12 @@ fi
 echo "  ── -F -l : long format with classify ──"
 assert_cmd_pat 'subdir/' ls -Fl "$TMPDIR"/ls_dir 2>/dev/null
 
+echo "  ── --tui falls back when not TTY ──"
+tui_output=$("$MODBOX" ls --tui "$TMPDIR"/ls_dir 2>/dev/null)
+if printf '%s' "$tui_output" | grep -qE 'regular\.txt'; then
+    pass "ls --tui non-TTY → plain output with regular.txt"
+else
+    fail "ls --tui non-TTY → missing regular.txt in output"
+fi
+
 cd "$TMPDIR"
