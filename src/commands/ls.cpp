@@ -843,19 +843,24 @@ void ls_command(int argc, char **argv) {
   if (opts.tui_mode) {
     if (!isatty(STDOUT_FILENO)) {
       opts.tui_mode = 0;
+      fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
     }
+  }
+
+  if (opts.tui_mode) {
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    ls_tui_command(argc, argv, &opts);
+    return;
   }
 
   if (block_size_opt->count > 0) {
     opts.block_size = parse_block_size(block_size_opt->sval[0]);
-    /* Extract the trailing suffix character for display (e.g. "K" from "1K") */
     const char *bs_str = block_size_opt->sval[0];
     size_t bs_len = strlen(bs_str);
     for (size_t j = bs_len; j > 0; j--) {
       if ((bs_str[j - 1] >= 'A' && bs_str[j - 1] <= 'Z') ||
           (bs_str[j - 1] >= 'a' && bs_str[j - 1] <= 'z')) {
         opts.size_suffix = bs_str[j - 1];
-        /* Convert to uppercase for consistent display */
         if (opts.size_suffix >= 'a' && opts.size_suffix <= 'z') {
           opts.size_suffix -= 32;
         }
@@ -899,11 +904,6 @@ void ls_command(int argc, char **argv) {
 
     opts.show_columns = opts.show_columns || !opts.show_details;
     sort_and_output_files(files, &opts);
-  }
-
-  if (opts.tui_mode) {
-    ls_tui_command(argc, argv, &opts);
-    return;
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
