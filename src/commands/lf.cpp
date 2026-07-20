@@ -21,7 +21,7 @@ void lf_command(int argc, char** argv) {
             printf("}\n");
         } else if (strcmp(shell, "fish") == 0) {
             printf("function lf\n");
-            printf("  set -g __lf_last_dir (command modbox lf --tui $argv 2>/dev/null)\n");
+            printf("  set -l __lf_last_dir (command modbox lf --tui $argv 2>/dev/null)\n");
             printf("  if test -n \"$__lf_last_dir\"\n");
             printf("    cd \"$__lf_last_dir\"\n");
             printf("  end\n");
