@@ -44,12 +44,28 @@ assert_cmd() {
 # assert_cmd_pat PATTERN args...
 # Runs modbox <args> and checks stdout contains PATTERN (extended regex)
 assert_cmd_pat() {
-    local pattern="$1"; shift
-    if "$MODBOX" "$@" 2>/dev/null | grep -qE "$pattern"; then
-        pass "$* → matches /$pattern/"
-    else
-        fail "$* — expected pattern /$pattern/ not found in output"
-    fi
+  local pattern="$1"; shift
+  local full_output
+  full_output=$("$MODBOX" "$@" 2>/dev/null || true)
+  if printf '%s' "$full_output" | grep -qE "$pattern"; then
+    pass "$* → matches /$pattern/"
+  else
+    fail "$* — expected pattern /$pattern/ not found in output"
+  fi
+}
+# For diagnosing the fmt test without spamming
+assert_cmd_pat_debug() {
+  local pattern="$1"; shift
+  local full_output
+  full_output=$("$MODBOX" "$@" 2>/dev/null || true)
+  echo "[DEBUG assert_cmd_pat] cmd: $MODBOX $*" >&2
+  echo "[DEBUG assert_cmd_pat] output: [$full_output]" >&2
+  echo "[DEBUG assert_cmd_pat] hex: $(printf '%s' "$full_output" | od -A x -t x1z)" >&2
+  if printf '%s' "$full_output" | grep -qE "$pattern"; then
+    pass "$* → matches /$pattern/"
+  else
+    fail "$* — expected pattern /$pattern/ not found in output"
+  fi
 }
 
 # assert_cmd_not_pat PATTERN args...

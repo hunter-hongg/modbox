@@ -20,10 +20,31 @@ echo "  Binary: $MODBOX"
 echo "============================================"
 echo ""
 
-# Run each test file in sorted order
+# Run each test file in subprocess to fully isolate shared mutable state.
+# Capture output so pass/fail counts bubble back to parent.
+ALL_OUTPUT=""
 for test_file in "$SCRIPT_DIR"/test_*.sh; do
+  TEST_OUT=$(
+    source "$SCRIPT_DIR/framework.sh"
     source "$test_file"
+    printf "__PASS__=%s __FAIL__=%s\n" "$PASS_COUNT" "$FAIL_COUNT"
+  )
+  ALL_OUTPUT="${ALL_OUTPUT}${TEST_OUT}
+"
 done
+
+# Replay captured output for user-facing display
+echo "$ALL_OUTPUT" | grep -v "^__PASS__\|^__FAIL__"
+
+PASS_COUNT=0
+FAIL_COUNT=0
+while IFS= read -r line; do
+  if [[ "$line" =~ ^__PASS__=([0-9]+) ]]; then
+    PASS_COUNT=$((PASS_COUNT + BASH_REMATCH[1]))
+  elif [[ "$line" =~ ^__FAIL__=([0-9]+) ]]; then
+    FAIL_COUNT=$((FAIL_COUNT + BASH_REMATCH[1]))
+  fi
+done <<< "$ALL_OUTPUT"
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 
