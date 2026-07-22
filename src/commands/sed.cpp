@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 
 #include "commands/sed.hpp"
+#include "commands/command_macros.hpp"
 
 // ---------------------------------------------------------------------------
 // Data structures
@@ -1394,3 +1395,5 @@ void sed_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("sed", sed_command, "Stream editor for filtering text");

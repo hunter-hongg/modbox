@@ -28,6 +28,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/ps.hpp"
+#include "commands/command_macros.hpp"
 
 struct ProcessInfo {
     pid_t pid;
@@ -1369,3 +1370,5 @@ static void ps_tui_main() {
     running.store(false);
     refresher.join();
 }
+
+REGISTER_COMMAND("ps", ps_command, "Report process status");

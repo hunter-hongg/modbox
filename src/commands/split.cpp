@@ -9,6 +9,7 @@
 #include <argtable3.h>
 
 #include "commands/split.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Size parsing ─────────────────────────────────────────────────────────── */
 
@@ -514,3 +515,5 @@ bad_chunks:
     if (opened) (void)fclose(in);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("split", split_command, "Split into smaller pieces");

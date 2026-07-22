@@ -3,6 +3,7 @@
 
 #include "commands/vdir.hpp"
 #include "commands/ls.hpp"
+#include "commands/command_macros.hpp"
 
 void vdir_command(int argc, char** argv) {
     int new_argc = argc + 1;
@@ -20,3 +21,5 @@ void vdir_command(int argc, char** argv) {
 
     free(new_argv);
 }
+
+REGISTER_COMMAND("vdir", vdir_command, "Equivalent to ls --format=long");

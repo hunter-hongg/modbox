@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/link.hpp"
+#include "commands/command_macros.hpp"
 
 void link_command(int argc, char** argv) {
     struct arg_lit* verbose_opt =
@@ -96,3 +97,5 @@ void link_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("link", link_command, "Create a link to a file");

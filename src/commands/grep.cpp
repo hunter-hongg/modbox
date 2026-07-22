@@ -12,6 +12,7 @@
 
 #include "commands/grep.hpp"
 #include "commands/search_common.hpp"
+#include "commands/command_macros.hpp"
 
 /** Search a single file for pattern matches. Returns the number of matching
  *  lines, or 0 if none. */
@@ -426,3 +427,5 @@ void grep_command(int argc, char** argv) {
   }
   exit(1); // NOLINT(misc-include-cleaner, misc-unreachable-code)
 }
+
+REGISTER_COMMAND("grep", grep_command, "Search for patterns in files");

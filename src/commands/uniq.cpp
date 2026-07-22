@@ -4,6 +4,7 @@
 #include <argtable3.h>
 
 #include "commands/uniq.hpp"
+#include "commands/command_macros.hpp"
 
 #define UNIQ_MAX_LINE 1048576  /* 1 MiB max line length */
 
@@ -235,3 +236,5 @@ void uniq_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("uniq", uniq_command, "Report or omit repeated lines");

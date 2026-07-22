@@ -5,6 +5,7 @@
 #include <vector>
 #include "commands/expand.hpp"
 #include <argtable3.h>
+#include "commands/command_macros.hpp"
 
 static int next_tab_col(int col, const std::vector<int>& stops, bool interval_mode)
 {
@@ -184,3 +185,5 @@ void expand_command(int argc, char** argv)
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("expand", expand_command, "Convert tabs to spaces");

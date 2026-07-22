@@ -10,6 +10,7 @@
 #include <argtable3.h>
 
 #include "commands/csplit.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Pattern types ────────────────────────────────────────────────────────── */
 
@@ -573,3 +574,5 @@ void csplit_command(int argc, char **argv) {
     if (opened) (void)fclose(in);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("csplit", csplit_command, "Split file on context lines");

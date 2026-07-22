@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "commands/mv.hpp"
+#include "commands/command_macros.hpp"
 
 /* Buffer size for file copy operations (cross-filesystem fallback) */
 #define COPY_BUF_SIZE 8192
@@ -518,3 +519,5 @@ void mv_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("mv", mv_command, "Move or rename files");

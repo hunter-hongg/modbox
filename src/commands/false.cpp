@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "commands/false.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [ignored command line arguments]\n", prog);
@@ -27,3 +28,5 @@ void false_command(int argc, char** argv) {
     }
     exit(1);
 }
+
+REGISTER_COMMAND("false", false_command, "Return false");

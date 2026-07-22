@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "commands/wc.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_counts(int64_t lines, int64_t words, int64_t bytes,
                          const char* name, bool show_l, bool show_w,
@@ -131,3 +132,5 @@ void wc_command(int argc, char** argv) {
         }
     }
 }
+
+REGISTER_COMMAND("wc", wc_command, "Print byte, word, and line counts");

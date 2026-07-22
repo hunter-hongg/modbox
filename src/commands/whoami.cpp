@@ -4,6 +4,7 @@
 #include <pwd.h>
 #include <argtable3.h>
 #include "commands/whoami.hpp"
+#include "commands/command_macros.hpp"
 
 void whoami_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
@@ -38,3 +39,5 @@ void whoami_command(int argc, char** argv) {
     printf("%s\n", pw->pw_name);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("whoami", whoami_command, "Print effective user name");

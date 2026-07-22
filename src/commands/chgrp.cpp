@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "commands/chgrp.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── File-scope globals for nftw callback ──────────────────────────────── */
 
@@ -280,3 +281,5 @@ void chgrp_command(int argc, char **argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("chgrp", chgrp_command, "Change group ownership");

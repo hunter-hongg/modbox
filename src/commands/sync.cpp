@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/sync.hpp"
+#include "commands/command_macros.hpp"
 
 void sync_command(int argc, char **argv) {
   struct arg_lit *help_opt =
@@ -70,3 +71,5 @@ void sync_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("sync", sync_command, "Flush filesystem buffers");

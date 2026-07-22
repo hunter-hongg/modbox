@@ -11,6 +11,7 @@
 #include <string>
 
 #include "commands/time.hpp"
+#include "commands/command_macros.hpp"
 
 namespace {
 
@@ -354,3 +355,5 @@ void time_command(int argc, char** argv) {
 
     exit(info.exit_status);
 }
+
+REGISTER_COMMAND("time", time_command, "Run and report timing statistics");

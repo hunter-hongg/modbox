@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/ptx.hpp"
+#include "commands/command_macros.hpp"
 
 #define PTX_MAX_LINE 4096
 #define PTX_MAX_WORD 256
@@ -266,3 +267,5 @@ void ptx_command(int argc, char** argv) {
     
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("ptx", ptx_command, "Generate permuted index (KWIC index)");

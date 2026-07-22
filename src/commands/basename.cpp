@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "commands/basename.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s NAME [SUFFIX]\n", prog);
@@ -130,3 +131,5 @@ void basename_command(int argc, char** argv) {
         }
     }
 }
+
+REGISTER_COMMAND("basename", basename_command, "Strip directory and suffix");

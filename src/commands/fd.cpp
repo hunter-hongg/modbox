@@ -15,6 +15,7 @@
 #include <regex>
 
 #include "commands/fd.hpp"
+#include "commands/command_macros.hpp"
 
 #define FD_MAX_ARGS 200
 
@@ -505,3 +506,5 @@ void fd_command(int argc, char **argv) {
 
     exit(total_matches > 0 ? 0 : 1);
 }
+
+REGISTER_COMMAND("fd", fd_command, "Search for files in a directory hierarchy");

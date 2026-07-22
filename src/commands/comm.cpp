@@ -5,6 +5,7 @@
 #include <argtable3.h>
 
 #include "commands/comm.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Constants ──────────────────────────────────────────────────────────── */
 
@@ -275,3 +276,5 @@ void comm_command(int argc, char** argv) {
     free_file_lines(f2);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("comm", comm_command, "Compare two sorted files line by line");

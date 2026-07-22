@@ -6,6 +6,7 @@
 #include <openssl/md5.h>
 #include <argtable3.h>
 #include "commands/md5sum.hpp"
+#include "commands/command_macros.hpp"
 
 struct Md5SumOptions {
     int binary = 0;
@@ -273,3 +274,5 @@ void md5sum_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("md5sum", md5sum_command, "Compute MD5 checksum");

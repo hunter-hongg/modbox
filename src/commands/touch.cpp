@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "commands/touch.hpp"
+#include "commands/command_macros.hpp"
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void touch_command(int argc, char **argv) {
@@ -157,3 +158,5 @@ void touch_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("touch", touch_command, "Change file timestamps");

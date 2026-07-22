@@ -3,6 +3,7 @@
 
 #include "commands/lf.hpp"
 #include "commands/ls.hpp"
+#include "commands/command_macros.hpp"
 
 void lf_command(int argc, char** argv) {
     if (argc >= 2 && strcmp(argv[1], "init") == 0) {
@@ -47,3 +48,5 @@ void lf_command(int argc, char** argv) {
 
     free(new_argv);
 }
+
+REGISTER_COMMAND("lf", lf_command, "Interactive file browser (alias for ls --tui)");

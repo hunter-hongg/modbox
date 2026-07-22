@@ -2,6 +2,7 @@
 #include <cstring>
 
 #include "commands/true.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [ignored command line arguments]\n", prog);
@@ -26,3 +27,5 @@ void true_command(int argc, char** argv) {
     }
     // Do nothing, exit with 0
 }
+
+REGISTER_COMMAND("true", true_command, "Return true");

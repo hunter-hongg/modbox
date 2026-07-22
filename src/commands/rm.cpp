@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "commands/rm.hpp"
+#include "commands/command_macros.hpp"
 
 #define TRASH_DIR ".trash"
 
@@ -430,3 +431,5 @@ void rm_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("rm", rm_command, "Remove files or directories");

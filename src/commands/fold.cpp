@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/fold.hpp"
+#include "commands/command_macros.hpp"
 
 #define MAX_LINE 1048576
 
@@ -99,3 +100,5 @@ void fold_command(int argc, char** argv) {
     if (fp != stdin) fclose(fp);
   }
 }
+
+REGISTER_COMMAND("fold", fold_command, "Wrap lines to fit width");

@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "commands/xargs.hpp"
+#include "commands/command_macros.hpp"
 
 #define XARGS_MAX_LINE 1048576
 #define XARGS_MAX_ITEMS 65536
@@ -223,3 +224,5 @@ void xargs_command(int argc, char** argv) {
     delete[] cmd;
   }
 }
+
+REGISTER_COMMAND("xargs", xargs_command, "Build command line from stdin");

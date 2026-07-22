@@ -3,6 +3,7 @@
 #include <sys/utsname.h>
 
 #include "commands/arch.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s\n", prog);
@@ -31,3 +32,5 @@ void arch_command(int argc, char** argv) {
         printf("%s\n", u.machine);
     }
 }
+
+REGISTER_COMMAND("arch", arch_command, "Print machine architecture");

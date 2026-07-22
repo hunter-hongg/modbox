@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/mkfifo.hpp"
+#include "commands/command_macros.hpp"
 
 #define FIFO_MODE_DEFAULT 0666
 
@@ -67,3 +68,5 @@ void mkfifo_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("mkfifo", mkfifo_command, "Create named pipe (FIFO)");

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "commands/numfmt.hpp"
+#include "commands/command_macros.hpp"
 
 enum class ScaleUnit { NONE, AUTO, SI, IEC, IEC_I };
 enum class RoundMethod { FROM_ZERO, TOWARDS_ZERO, UP, DOWN, NEAREST };
@@ -443,3 +444,5 @@ void numfmt_command(int argc, char** argv) {
 
     (void)had_error;
 }
+
+REGISTER_COMMAND("numfmt", numfmt_command, "Reformat numbers");

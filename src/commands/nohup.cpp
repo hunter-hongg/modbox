@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "commands/nohup.hpp"
+#include "commands/command_macros.hpp"
 
 // EXIT_CANCELED: nohup itself failed (bad option, cannot redirect, etc.).
 static const int EXIT_CANCELED = 125;
@@ -166,3 +167,4 @@ void nohup_command(int argc, char** argv) {
             prog, argv[i], strerror(saved_errno));
     exit(code);
 }
+REGISTER_COMMAND("nohup", nohup_command, "Run immune to hangups");

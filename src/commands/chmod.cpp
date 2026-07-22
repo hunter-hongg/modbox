@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "commands/chmod.hpp"
+#include "commands/command_macros.hpp"
 
 #define PERM_MASK 07777
 
@@ -387,3 +388,5 @@ void chmod_command(int argc, char **argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("chmod", chmod_command, "Change file mode bits");

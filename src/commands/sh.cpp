@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "commands/sh.hpp"
+#include "commands/command_macros.hpp"
 
 // ── Data Structures ────────────────────────────────────────────────────────
 
@@ -2173,3 +2174,5 @@ void sh_command(int argc, char** argv) {
         shell_run_interactive();
     }
 }
+
+REGISTER_COMMAND("sh", sh_command, "Execute a shell command");

@@ -26,6 +26,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/mtop.hpp"
+#include "commands/command_macros.hpp"
 
 // ---------------------------------------------------------------------------
 // Data structures
@@ -849,3 +850,5 @@ void mtop_command(int argc, char** argv) {
     running.store(false);
     refresher.join();
 }
+
+REGISTER_COMMAND("mtop", mtop_command, "Monitor processes (modern TUI)");

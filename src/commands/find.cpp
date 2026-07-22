@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "commands/find.hpp"
+#include "commands/command_macros.hpp"
 /* ── Constants ────────────────────────────────────────────────────── */
 
 #define FIND_MAX_DEPTH_UNLIMITED (-1)
@@ -543,3 +544,5 @@ void find_command(int argc, char **argv) {
     // Finalize exec+
     find_exec_finalize(&opts);
 }
+
+REGISTER_COMMAND("find", find_command, "Search for files in a directory hierarchy");

@@ -24,6 +24,7 @@
 #include <cerrno>
 
 #include "commands/stat.hpp"
+#include "commands/command_macros.hpp"
 
 namespace {
 
@@ -782,3 +783,5 @@ void stat_command(int argc, char** argv) {
     exit(exit_status);
   }
 }
+
+REGISTER_COMMAND("stat", stat_command, "Display file or filesystem status");

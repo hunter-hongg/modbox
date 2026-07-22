@@ -9,6 +9,7 @@
 #include <argtable3.h>
 
 #include "commands/sort.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Internal data structures ──────────────────────────────────────────── */
 
@@ -698,3 +699,5 @@ void sort_command(int argc, char** argv) {
     /* Cleanup */
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("sort", sort_command, "Sort lines of text files");

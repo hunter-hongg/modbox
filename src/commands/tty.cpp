@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "commands/tty.hpp"
+#include "commands/command_macros.hpp"
 
 void tty_command(int argc, char** argv) {
   struct arg_lit* silent_opt =
@@ -73,3 +74,5 @@ void tty_command(int argc, char** argv) {
     exit(exit_status);
   }
 }
+
+REGISTER_COMMAND("tty", tty_command, "Print terminal file name");

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "commands/seq.hpp"
+#include "commands/command_macros.hpp"
 
 static bool parse_number(const char* s, long double* out) {
     if (s == nullptr || *s == '\0') {
@@ -224,3 +225,5 @@ void seq_command(int argc, char** argv) {
         fputc('\n', stdout);
     }
 }
+
+REGISTER_COMMAND("seq", seq_command, "Print sequence of numbers");

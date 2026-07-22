@@ -5,6 +5,7 @@
 #include <argtable3.h>
 
 #include "commands/paste.hpp"
+#include "commands/command_macros.hpp"
 
 #define PASTE_MAX_LINE 1048576
 
@@ -204,3 +205,5 @@ void paste_command(int argc, char** argv) {
     free(files);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("paste", paste_command, "Merge lines of files");

@@ -8,6 +8,7 @@
 #include <argtable3.h>
 
 #include "commands/diff.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Constants ──────────────────────────────────────────────────────────── */
 
@@ -720,3 +721,5 @@ void diff_command(int argc, char** argv) {
     free_lines(new_lines, new_len);
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("diff", diff_command, "Compare files line by line");

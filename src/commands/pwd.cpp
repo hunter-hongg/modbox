@@ -10,6 +10,7 @@
 #include <string>
 
 #include "commands/pwd.hpp"
+#include "commands/command_macros.hpp"
 
 static int dirs_same(const char* a, const char* b) {
   struct stat sa;
@@ -84,3 +85,5 @@ void pwd_command(int argc, char** argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("pwd", pwd_command, "Print current working directory");

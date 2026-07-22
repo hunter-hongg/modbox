@@ -6,6 +6,7 @@
 #include <string>
 #include <argtable3.h>
 #include "commands/tr.hpp"
+#include "commands/command_macros.hpp"
 
 static unsigned char parse_escape(const char*& p)
 {
@@ -401,3 +402,5 @@ void tr_command(int argc, char** argv)
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("tr", tr_command, "Translate or delete characters");

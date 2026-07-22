@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "commands/install.hpp"
+#include "commands/command_macros.hpp"
 
 #define COPY_BUF_SIZE 8192
 #define MAX_FILES 4096
@@ -524,3 +525,5 @@ void install_command(int argc, char **argv) {
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     (void)ret;
 }
+
+REGISTER_COMMAND("install", install_command, "Copy files and set attributes");

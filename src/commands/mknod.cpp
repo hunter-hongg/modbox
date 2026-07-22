@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "commands/mknod.hpp"
+#include "commands/command_macros.hpp"
 
 #define MKNOD_MODE_DEFAULT 0666
 
@@ -126,3 +127,5 @@ void mknod_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("mknod", mknod_command, "Create device node");

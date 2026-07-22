@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "commands/unlink.hpp"
+#include "commands/command_macros.hpp"
 
 void unlink_command(int argc, char** argv) {
     struct arg_lit* verbose_opt =
@@ -56,3 +57,5 @@ void unlink_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("unlink", unlink_command, "Remove file");

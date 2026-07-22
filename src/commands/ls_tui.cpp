@@ -1,5 +1,6 @@
 #include "commands/ls_tui.hpp"
 #include "commands/ls.hpp"
+#include "commands/ls_entry.hpp"
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
@@ -67,59 +68,48 @@ static std::string fmt_size(uint64_t sz) {
   return std::to_string(sz);
 }
 
-static void build_entry(TuiEntry& e, const char* full_path, const char* dname) {
-  e.path = full_path;
-  e.display_name = dname;
-  struct stat st;
-  if (lstat(full_path, &st) == 0) {
-    e.is_dir = S_ISDIR(st.st_mode);
-    e.is_symlink = S_ISLNK(st.st_mode);
-    e.is_executable = (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH));
-    e.size = (uint64_t)st.st_size;
-    e.perm_str = std::string(
-      S_ISDIR(st.st_mode) ? "d" : S_ISLNK(st.st_mode) ? "l" : "-") +
-      (st.st_mode & S_IRUSR ? "r" : "-") +
-      (st.st_mode & S_IWUSR ? "w" : "-") +
-      (st.st_mode & S_IXUSR ? "x" : "-") +
-      (st.st_mode & S_IRGRP ? "r" : "-") +
-      (st.st_mode & S_IWGRP ? "w" : "-") +
-      (st.st_mode & S_IXGRP ? "x" : "-") +
-      (st.st_mode & S_IROTH ? "r" : "-") +
-      (st.st_mode & S_IWOTH ? "w" : "-") +
-      (st.st_mode & S_IXOTH ? "x" : "-");
-    e.owner = get_owner(st.st_uid);
-    e.group = get_group(st.st_gid);
-    e.mtime_str = fmt_time(st.st_mtime);
+static TuiEntry ls_entry_to_tui(const LsEntry& e) {
+  TuiEntry te;
+  te.path = e.path;
+  te.display_name = e.display_name;
+  if (e.st.st_mode != 0 || S_ISREG(e.st.st_mode) || S_ISDIR(e.st.st_mode)) {
+    te.is_dir = S_ISDIR(e.st.st_mode);
+    te.is_symlink = S_ISLNK(e.st.st_mode);
+    te.is_executable = (e.st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH));
+    te.size = (uint64_t)e.st.st_size;
+    te.perm_str = std::string(
+      S_ISDIR(e.st.st_mode) ? "d" : S_ISLNK(e.st.st_mode) ? "l" : "-") +
+      (e.st.st_mode & S_IRUSR ? "r" : "-") +
+      (e.st.st_mode & S_IWUSR ? "w" : "-") +
+      (e.st.st_mode & S_IXUSR ? "x" : "-") +
+      (e.st.st_mode & S_IRGRP ? "r" : "-") +
+      (e.st.st_mode & S_IWGRP ? "w" : "-") +
+      (e.st.st_mode & S_IXGRP ? "x" : "-") +
+      (e.st.st_mode & S_IROTH ? "r" : "-") +
+      (e.st.st_mode & S_IWOTH ? "w" : "-") +
+      (e.st.st_mode & S_IXOTH ? "x" : "-");
+    te.owner = get_owner(e.st.st_uid);
+    te.group = get_group(e.st.st_gid);
+    te.mtime_str = fmt_time(e.st.st_mtime);
   } else {
-    e.is_dir = 0;
-    e.is_symlink = 0;
-    e.is_executable = 0;
-    e.size = 0;
-    e.perm_str = "??????????";
-    e.owner = "?";
-    e.group = "?";
-    e.mtime_str = "?";
+    te.is_dir = 0;
+    te.is_symlink = 0;
+    te.is_executable = 0;
+    te.size = 0;
+    te.perm_str = "??????????";
+    te.owner = "?";
+    te.group = "?";
+    te.mtime_str = "?";
   }
+  return te;
 }
 
 std::vector<TuiEntry> tui_collect_entries(const char* dirpath) {
   std::vector<TuiEntry> result;
-  DIR* dir = opendir(dirpath);
-  if (!dir) return result;
-
-  struct dirent* entry;
-  while ((entry = readdir(dir)) != NULL) {
-    if (strcmp(entry->d_name, ".") == 0) continue;
-    if (strcmp(entry->d_name, "..") == 0) continue;
-
-    char full_path[4096];
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    snprintf(full_path, sizeof(full_path), "%s/%s", dirpath, entry->d_name);
-    TuiEntry e;
-    build_entry(e, full_path, entry->d_name);
-    result.push_back(std::move(e));
+  std::vector<LsEntry> entries = ls_collect_entries(dirpath, 1, 1, 0);
+  for (const auto& e : entries) {
+    result.push_back(ls_entry_to_tui(e));
   }
-  closedir(dir);
   return result;
 }
 

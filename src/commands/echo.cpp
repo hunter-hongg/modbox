@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "commands/echo.hpp"
+#include "commands/command_macros.hpp"
 
 void echo_command(int argc, char** argv) {
     bool no_newline = false;
@@ -97,3 +98,5 @@ void echo_command(int argc, char** argv) {
     fputs(out.c_str(), stdout);
     if (!no_newline) fputc('\n', stdout);
 }
+
+REGISTER_COMMAND("echo", echo_command, "Display line of text");

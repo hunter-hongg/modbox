@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "commands/stty.hpp"
+#include "commands/command_macros.hpp"
 
 #ifndef _POSIX_VDISABLE
 #define _POSIX_VDISABLE 0
@@ -959,3 +960,5 @@ void stty_command(int argc, char** argv) {
 
     if (have_file) { close(g_fd); }
 }
+
+REGISTER_COMMAND("stty", stty_command, "Print or change terminal characteristics");

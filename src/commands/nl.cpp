@@ -5,6 +5,7 @@
 #include <argtable3.h>
 
 #include "commands/nl.hpp"
+#include "commands/command_macros.hpp"
 
 #define NL_MAX_LINE 1048576
 #define NL_DEFAULT_WIDTH 6
@@ -299,3 +300,5 @@ void nl_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("nl", nl_command, "Number lines of files");

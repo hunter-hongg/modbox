@@ -8,6 +8,7 @@
 #include <queue>
 #include <argtable3.h>
 #include "commands/tsort.hpp"
+#include "commands/command_macros.hpp"
 
 void tsort_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
@@ -144,3 +145,5 @@ void tsort_command(int argc, char** argv) {
         exit(1);
     }
 }
+
+REGISTER_COMMAND("tsort", tsort_command, "Topological sort");

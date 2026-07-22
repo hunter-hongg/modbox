@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "commands/id.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [USER]\n", prog);
@@ -216,3 +217,5 @@ void id_command(int argc, char** argv) {
     }
     putchar(nl);
 }
+
+REGISTER_COMMAND("id", id_command, "Print user identity");

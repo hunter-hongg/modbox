@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <argtable3.h>
 #include "commands/base64.hpp"
+#include "commands/command_macros.hpp"
 
 static const char base64_table[] = 
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -218,3 +219,5 @@ void base64_command(int argc, char** argv) {
     
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("base64", base64_command, "Base64 encode/decode");

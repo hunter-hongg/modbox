@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "commands/nice.hpp"
+#include "commands/command_macros.hpp"
 
 // EXIT_CANCELED: nice itself failed (bad option, cannot get/set niceness).
 static const int EXIT_CANCELED = 125;
@@ -191,3 +192,4 @@ void nice_command(int argc, char** argv) {
     fprintf(stderr, "%s: %s: %s\n", prog, argv[i], strerror(errno));
     exit(code);
 }
+REGISTER_COMMAND("nice", nice_command, "Run with modified scheduling priority");

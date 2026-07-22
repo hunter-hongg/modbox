@@ -1,9 +1,9 @@
 #include <argtable3.h>
 #include <dirent.h>
 #include <cerrno>
-#include <grp.h>
 #include <climits>
 #include <pwd.h>
+#include <grp.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -17,6 +17,8 @@
 #include <algorithm>
 
 #include "commands/ls.hpp"
+#include "commands/ls_entry.hpp"
+#include "commands/command_macros.hpp"
 
 void ls_tui_command(int argc, char** argv, const LsOptions* opts);
 
@@ -313,22 +315,21 @@ static void print_long_format(const char *display_name, const struct stat *st,
   printf("\n");
 }
 
-static void print_file_info(const char *filename, const LsOptions *opts) {
+static void print_file_info(const char* display_name, const struct stat* st, const LsOptions *opts) {
   int use_color = should_color(opts->color_mode);
-  const char *display_name = display_name_of(filename);
   const char *classify_suffix = "";
 
   if (!opts->show_details && !use_color) {
-    struct stat st;
     int have_stat = 0;
+    struct stat lst;
     if (opts->classify || opts->show_icons) {
-      have_stat = (lstat(filename, &st) == 0);
+      have_stat = (lstat(display_name, &lst) == 0);
       if (have_stat && opts->classify) {
-        classify_suffix = get_classify_indicator(&st);
+        classify_suffix = get_classify_indicator(&lst);
       }
     }
     if (opts->show_icons && have_stat) {
-      printf("%s ", get_file_icon(&st));
+      printf("%s ", get_file_icon(&lst));
     }
     if (opts->escape_mode) {
       print_escaped_filename(display_name);
@@ -339,36 +340,37 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
     return;
   }
 
-  struct stat st;
-  if (lstat(filename, &st) == -1) {
-    if (opts->show_details) {
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)fprintf(stderr, "ls: cannot access '%s': %s\n", filename,
-                    strerror(errno));
-    } else {
-      if (opts->escape_mode) {
-        print_escaped_filename(display_name);
+  struct stat st_buf;
+  const struct stat* use_st = st ? st : &st_buf;
+  if (!st) {
+    if (lstat(display_name, &st_buf) == -1) {
+      if (opts->show_details) {
+        fprintf(stderr, "ls: cannot access '%s': %s\n", display_name, strerror(errno));
       } else {
-        printf("%s", display_name);
+        if (opts->escape_mode) {
+          print_escaped_filename(display_name);
+        } else {
+          printf("%s", display_name);
+        }
+        printf("%s", opts->show_one_column ? "\n" : "  ");
       }
-      printf("%s", opts->show_one_column ? "\n" : "  ");
+      return;
     }
-    return;
   }
 
   if (opts->classify) {
-    classify_suffix = get_classify_indicator(&st);
+    classify_suffix = get_classify_indicator(const_cast<struct stat*>(use_st));
   }
 
   const char *color_code = NULL;
   if (use_color) {
-    color_code = get_file_color(&st);
+    color_code = get_file_color(use_st);
     use_color = (color_code != NULL);
   }
 
   if (!opts->show_details) {
     if (opts->show_icons) {
-      printf("%s ", get_file_icon(&st));
+      printf("%s ", get_file_icon(use_st));
     }
     if (use_color) {
       printf("\033[%sm", color_code);
@@ -386,7 +388,7 @@ static void print_file_info(const char *filename, const LsOptions *opts) {
     return;
   }
 
-  print_long_format(display_name, &st, opts, color_code, classify_suffix);
+  print_long_format(display_name, use_st, opts, color_code, classify_suffix);
 }
 
 static unsigned long parse_block_size(const char *str) {
@@ -564,7 +566,7 @@ static void print_one_entry(const char *name, int col, int num_cols,
   }
 }
 
-static void print_columns(const std::vector<std::string>& files, const LsOptions *opts) {
+static void print_columns(const std::vector<LsEntry>& files, const LsOptions *opts) {
   int use_color = should_color(opts->color_mode);
   int term_width = get_terminal_width();
   int count = (int)files.size();
@@ -575,8 +577,8 @@ static void print_columns(const std::vector<std::string>& files, const LsOptions
 
   /* Find the maximum display width among filenames (basename only) */
   int max_width = 0;
-  for (const auto& fname : files) {
-    const char *display_name = display_name_of(fname.c_str());
+  for (const auto& fe : files) {
+    const char *display_name = display_name_of(fe.display_name.c_str());
     int w = opts->escape_mode ? escaped_display_width(display_name)
                               : plain_display_width(display_name);
     if (opts->classify) {
@@ -608,8 +610,8 @@ static void print_columns(const std::vector<std::string>& files, const LsOptions
   const char **names = (const char **)malloc(sizeof(*names) * (size_t)count);
   {
     int idx = 0;
-    for (const auto& fname : files) {
-      names[idx++] = fname.c_str();
+    for (const auto& fentry : files) {
+      names[idx++] = fentry.display_name.c_str();
     }
   }
 
@@ -634,13 +636,16 @@ static void print_columns(const std::vector<std::string>& files, const LsOptions
  * Sort a vector of filename strings, print them (either as columns or
  * individually via print_file_info).
  */
-static void sort_and_output_files(std::vector<std::string>& files, const LsOptions *opts) {
+static void sort_and_output_files(std::vector<LsEntry>& files, const LsOptions *opts) {
   if (files.empty()) {
     return;
   }
 
   if (!opts->unsorted) {
-    std::sort(files.begin(), files.end());
+    std::sort(files.begin(), files.end(),
+              [](const LsEntry& a, const LsEntry& b) {
+                  return a.display_name < b.display_name;
+              });
   }
 
   if (opts->reverse_sort && !opts->unsorted) {
@@ -650,8 +655,8 @@ static void sort_and_output_files(std::vector<std::string>& files, const LsOptio
   if (should_use_columns(opts)) {
     print_columns(files, opts);
   } else {
-    for (const auto& fname : files) {
-      print_file_info(fname.c_str(), opts);
+    for (const auto& fentry : files) {
+      print_file_info(fentry.path.c_str(), &fentry.st, opts);
     }
     if (!opts->show_details && !opts->show_one_column) {
       printf("\n");
@@ -660,39 +665,24 @@ static void sort_and_output_files(std::vector<std::string>& files, const LsOptio
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-static std::vector<std::string> collect_entries(DIR* dir, const char* dirpath, const LsOptions* opts) {
-    std::vector<std::string> files;
-    if (dir == NULL) {
-        return files;
+static std::vector<LsEntry> collect_entries(DIR* dir, const char* dirpath, const LsOptions* opts) {
+    std::vector<LsEntry> entries = ls_collect_entries(dirpath, opts->show_all, opts->show_almost_all, opts->ignore_backups);
+    if (!opts->show_all && !opts->show_almost_all) {
+        entries.erase(
+            std::remove_if(entries.begin(), entries.end(),
+                [](const LsEntry& e) { return e.display_name.empty() || e.display_name[0] == '.'; }),
+            entries.end());
     }
-
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (!opts->show_all && entry->d_name[0] == '.') {
-            if (!opts->show_almost_all) {
-                continue;
-            }
-            if (strcmp(entry->d_name, ".") == 0 ||
-                strcmp(entry->d_name, "..") == 0) {
-                continue;
-            }
-        }
-        if (opts->ignore_backups) {
-            size_t dlen = strlen(entry->d_name);
-            if (dlen > 0 && entry->d_name[dlen - 1] == '~') {
-                continue;
-            }
-        }
-        char full_path[4096];
-        // Store full path so lstat works correctly for color and long format,
-        // regardless of the current working directory.
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(full_path, sizeof(full_path), "%s/%s", dirpath, entry->d_name);
-        files.push_back(full_path);
+    if (opts->ignore_backups) {
+        entries.erase(
+            std::remove_if(entries.begin(), entries.end(),
+                [](const LsEntry& e) {
+                    size_t dlen = e.display_name.size();
+                    return dlen > 0 && e.display_name[dlen - 1] == '~';
+                }),
+            entries.end());
     }
-
-    closedir(dir);
-    return files;
+    return entries;
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -873,33 +863,38 @@ void ls_command(int argc, char **argv) {
     dir_arg->filename[0] = ".";
   }
 
-  if (opts.list_dir_contents) {
-    for (int i = 0; i < dir_arg->count; i++) {
-      DIR* dir = opendir(dir_arg->filename[i]);
-      if (dir == NULL) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "ls: %s: %s\n",
-                      dir_arg->filename[i], strerror(errno));
-        continue;
-      }
+   if (opts.list_dir_contents) {
+     for (int i = 0; i < dir_arg->count; i++) {
+       DIR* dir = opendir(dir_arg->filename[i]);
+       if (dir == NULL) {
+         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+         (void)fprintf(stderr, "ls: %s: %s\n",
+                       dir_arg->filename[i], strerror(errno));
+         continue;
+       }
+       closedir(dir);
 
-      std::vector<std::string> files = collect_entries(dir, dir_arg->filename[i], &opts);
-      sort_and_output_files(files, &opts);
-    }
-  } else {
-    /* -d mode: list the directory entries themselves, not their contents */
-    std::vector<std::string> files;
-    for (int i = 0; i < dir_arg->count; i++) {
-      struct stat st;
-      if (lstat(dir_arg->filename[i], &st) == -1) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr,
-                      "ls: cannot access '%s': No such file or directory\n",
-                      dir_arg->filename[i]);
-        continue;
-      }
-      files.push_back(dir_arg->filename[i]);
-    }
+       std::vector<LsEntry> files = collect_entries(dir, dir_arg->filename[i], &opts);
+       sort_and_output_files(files, &opts);
+     }
+   } else {
+     /* -d mode: list the directory entries themselves, not their contents */
+     std::vector<LsEntry> files;
+     for (int i = 0; i < dir_arg->count; i++) {
+       struct stat st;
+       if (lstat(dir_arg->filename[i], &st) == -1) {
+         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+         (void)fprintf(stderr,
+                       "ls: cannot access '%s': No such file or directory\n",
+                       dir_arg->filename[i]);
+         continue;
+       }
+       LsEntry e;
+       e.path = dir_arg->filename[i];
+       e.display_name = dir_arg->filename[i];
+       e.st = st;
+       files.push_back(std::move(e));
+     }
 
     opts.show_columns = opts.show_columns || !opts.show_details;
     sort_and_output_files(files, &opts);
@@ -907,3 +902,5 @@ void ls_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("ls", ls_command, "List directory contents");

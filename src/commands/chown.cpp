@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include "commands/chown.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── File-scope globals for nftw callback ──────────────────────────────── */
 
@@ -402,3 +403,5 @@ void chown_command(int argc, char **argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("chown", chown_command, "Change file owner and group");

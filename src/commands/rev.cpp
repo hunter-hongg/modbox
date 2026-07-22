@@ -2,6 +2,7 @@
 #include <cstring>
 #include <argtable3.h>
 #include "commands/rev.hpp"
+#include "commands/command_macros.hpp"
 
 static void reverse_string(char* s, size_t len) {
     if (len == 0) return;
@@ -74,3 +75,5 @@ void rev_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("rev", rev_command, "Reverse lines characterwise");

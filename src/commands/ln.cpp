@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/ln.hpp"
+#include "commands/command_macros.hpp"
 
 #define MAX_PATH_LEN 4096
 
@@ -195,3 +196,5 @@ void ln_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("ln", ln_command, "Create hard/symbolic links");

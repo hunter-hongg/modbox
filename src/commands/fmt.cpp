@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/fmt.hpp"
+#include "commands/command_macros.hpp"
 
 static void emit_paragraph(const std::vector<std::string>& words, int width,
   FILE* out) {
@@ -124,3 +125,5 @@ void fmt_command(int argc, char** argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("fmt", fmt_command, "Reformat paragraph text");

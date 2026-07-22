@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "commands/join.hpp"
+#include "commands/command_macros.hpp"
 
 #define MAX_LINE 1048576
 #define MAX_FIELDS 4096
@@ -240,3 +241,5 @@ void join_command(int argc, char** argv) {
   if (!f2) { fprintf(stderr, "join: missing operand\n"); return; }
   do_join(f1, f2, &opts, ignore_case, auto_file, empty_str, verb_file);
 }
+
+REGISTER_COMMAND("join", join_command, "Join lines on common field");

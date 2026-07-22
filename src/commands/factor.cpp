@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "commands/factor.hpp"
+#include "commands/command_macros.hpp"
 
 using u64 = uint64_t;
 using u128 = __uint128_t;
@@ -216,3 +217,5 @@ void factor_command(int argc, char** argv) {
         print_factors(tok.c_str(), exponents);
     }
 }
+
+REGISTER_COMMAND("factor", factor_command, "Print prime factors");

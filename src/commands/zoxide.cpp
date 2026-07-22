@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "commands/zoxide.hpp"
+#include "commands/command_macros.hpp"
 
 namespace fs = std::filesystem;
 
@@ -518,3 +519,5 @@ void zoxide_command(int argc, char** argv) {
         fprintf(stderr, "Run '%s --help' for usage.\n", argv[0]);
     }
 }
+
+REGISTER_COMMAND("zoxide", zoxide_command, "Smart directory jumping based on frecency");

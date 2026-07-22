@@ -7,6 +7,7 @@
 #include <string>
 
 #include "commands/sleep.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s NUMBER[SUFFIX]...\n", prog);
@@ -123,3 +124,4 @@ void sleep_command(int argc, char** argv) {
 
     do_sleep(total);
 }
+REGISTER_COMMAND("sleep", sleep_command, "Delay for a specified time");

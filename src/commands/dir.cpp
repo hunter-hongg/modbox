@@ -3,6 +3,7 @@
 
 #include "commands/dir.hpp"
 #include "commands/ls.hpp"
+#include "commands/command_macros.hpp"
 
 void dir_command(int argc, char** argv) {
     int new_argc = argc + 1;
@@ -20,3 +21,5 @@ void dir_command(int argc, char** argv) {
 
     free(new_argv);
 }
+
+REGISTER_COMMAND("dir", dir_command, "Equivalent to ls --format=vertical");

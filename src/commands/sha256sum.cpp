@@ -6,6 +6,7 @@
 #include <openssl/sha.h>
 #include <argtable3.h>
 #include "commands/sha256sum.hpp"
+#include "commands/command_macros.hpp"
 
 struct Sha256SumOptions {
     int binary = 0;
@@ -273,3 +274,4 @@ void sha256sum_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+REGISTER_COMMAND("sha256sum", sha256sum_command, "Compute SHA256 checksum");

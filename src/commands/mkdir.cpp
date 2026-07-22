@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/mkdir.hpp"
+#include "commands/command_macros.hpp"
 
 #define DIR_MODE_DEFAULT 0777
 
@@ -171,3 +172,5 @@ void mkdir_command(int argc, char **argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("mkdir", mkdir_command, "Create directories");

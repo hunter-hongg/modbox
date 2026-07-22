@@ -11,6 +11,7 @@
 #include <argtable3.h>
 
 #include "commands/cut.hpp"
+#include "commands/command_macros.hpp"
 
 struct Range {
     int64_t start; // 0-based, inclusive
@@ -531,3 +532,5 @@ void cut_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("cut", cut_command, "Remove sections from each line");

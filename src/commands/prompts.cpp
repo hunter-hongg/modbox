@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "commands/prompts.hpp"
+#include "commands/command_macros.hpp"
 
 namespace fs = std::filesystem;
 
@@ -992,3 +993,5 @@ void prompts_command(int argc, char** argv) {
         fprintf(stderr, "Run 'prompts --help' for usage.\n");
     }
 }
+
+REGISTER_COMMAND("prompts", prompts_command, "Render shell prompt");

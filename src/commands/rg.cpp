@@ -14,6 +14,7 @@
 
 #include "commands/rg.hpp"
 #include "commands/search_common.hpp"
+#include "commands/command_macros.hpp"
 
 /* Maximum number of file arguments for argtable */
 #define RG_MAX_FILES 200
@@ -694,3 +695,5 @@ void rg_command(int argc, char** argv) {
     }
     exit(1);
 }
+
+REGISTER_COMMAND("rg", rg_command, "Alias for grep --color=always -r");

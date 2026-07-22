@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <argtable3.h>
 #include "commands/base32.hpp"
+#include "commands/command_macros.hpp"
 
 static const char base32_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
@@ -242,3 +243,5 @@ void base32_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("base32", base32_command, "Base32 encode/decode");

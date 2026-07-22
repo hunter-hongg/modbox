@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include "commands/date.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [+FORMAT]\n", prog);
@@ -177,3 +178,5 @@ void date_command(int argc, char** argv) {
 
     apply_format(tm, plus_format, utc);
 }
+
+REGISTER_COMMAND("date", date_command, "Print or set system date and time");

@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "commands/cp.hpp"
+#include "commands/command_macros.hpp"
 
 #define COPY_BUF_SIZE 8192
 #define DIR_MODE 0755
@@ -440,3 +441,5 @@ void cp_command(int argc, char **argv) {
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
   (void)ret;
 }
+
+REGISTER_COMMAND("cp", cp_command, "Copy files and directories");

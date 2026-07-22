@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "commands/timeout.hpp"
+#include "commands/command_macros.hpp"
 
 static const int EXIT_TIMEDOUT = 124;
 static const int EXIT_CANCELED = 125;
@@ -329,3 +330,5 @@ void timeout_command(int argc, char** argv) {
         exit(EXIT_TIMEDOUT);
     }
 }
+
+REGISTER_COMMAND("timeout", timeout_command, "Run with time limit");

@@ -25,6 +25,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/top.hpp"
+#include "commands/command_macros.hpp"
 
 struct ProcInfo {
     int pid;
@@ -637,3 +638,5 @@ void top_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("top", top_command, "Display Linux processes");

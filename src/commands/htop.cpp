@@ -26,6 +26,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/htop.hpp"
+#include "commands/command_macros.hpp"
 
 struct HtopProcInfo {
     int pid;
@@ -688,3 +689,5 @@ void htop_command(int argc, char** argv) {
     running.store(false);
     refresher.join();
 }
+
+REGISTER_COMMAND("htop", htop_command, "Interactive process viewer (htop-style TUI)");

@@ -9,6 +9,7 @@
 #include <argtable3.h>
 
 #include "commands/shuf.hpp"
+#include "commands/command_macros.hpp"
 
 static std::vector<std::string> read_lines(int file_count, const char** filenames) {
     std::vector<std::string> lines;
@@ -175,3 +176,5 @@ void shuf_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("shuf", shuf_command, "Shuffle lines");

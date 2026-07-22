@@ -15,6 +15,7 @@
 #include <argtable3.h>
 
 #include "commands/dust.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Entry struct ───────────────────────────────────────────────────────── */
 
@@ -350,3 +351,5 @@ void dust_command(int argc, char **argv) {
         exit(1);
     }
 }
+
+REGISTER_COMMAND("dust", dust_command, "Alias for du --max-depth=1 -h");

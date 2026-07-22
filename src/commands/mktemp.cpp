@@ -13,6 +13,7 @@
 #include <chrono>
 
 #include "commands/mktemp.hpp"
+#include "commands/command_macros.hpp"
 
 static std::string get_temp_dir() {
   const char* tmpdir = getenv("TMPDIR");
@@ -109,3 +110,5 @@ void mktemp_command(int argc, char** argv) {
   printf("%s\n", out_path.c_str());
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("mktemp", mktemp_command, "Create temporary file or directory");

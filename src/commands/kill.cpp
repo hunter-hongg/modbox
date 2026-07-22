@@ -8,6 +8,7 @@
 #include <sys/types.h>
 
 #include "commands/kill.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [-s SIGNAL|SIGNAL] PID...\n", prog);
@@ -118,3 +119,5 @@ void kill_command(int argc, char** argv) {
         }
     }
 }
+
+REGISTER_COMMAND("kill", kill_command, "Terminate process");

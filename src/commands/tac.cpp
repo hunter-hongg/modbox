@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "commands/tac.hpp"
+#include "commands/command_macros.hpp"
 
 #define ARG_END_SIZE 20
 
@@ -259,3 +260,5 @@ void tac_command(int argc, char** argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("tac", tac_command, "Concatenate and print in reverse");

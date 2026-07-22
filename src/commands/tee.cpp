@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/tee.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── File management ─────────────────────────────────────────────────────── */
 
@@ -170,3 +171,5 @@ void tee_command(int argc, char** argv) {
     
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("tee", tee_command, "Read and write to multiple outputs");

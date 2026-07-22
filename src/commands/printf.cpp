@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "commands/printf.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s FORMAT [ARGUMENT]...\n", prog);
@@ -148,3 +149,5 @@ void printf_command(int argc, char** argv) {
         emit_format(fmt_buf, args, ai);
     }
 }
+
+REGISTER_COMMAND("printf", printf_command, "Format and print data");

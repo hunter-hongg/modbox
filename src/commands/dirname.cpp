@@ -3,6 +3,7 @@
 #include <string>
 
 #include "commands/dirname.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s NAME\n", prog);
@@ -86,3 +87,5 @@ void dirname_command(int argc, char** argv) {
         }
     }
 }
+
+REGISTER_COMMAND("dirname", dirname_command, "Strip non-directory suffix");

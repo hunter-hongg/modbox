@@ -9,6 +9,7 @@
 #include <sys/types.h>
 
 #include "commands/dd.hpp"
+#include "commands/command_macros.hpp"
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -1041,3 +1042,5 @@ void dd_command(int argc, char** argv) {
 
     if (status != 0) exit(status);
 }
+
+REGISTER_COMMAND("dd", dd_command, "Convert and copy a file");

@@ -7,6 +7,7 @@
 #include <string>
 
 #include "commands/env.hpp"
+#include "commands/command_macros.hpp"
 
 extern char** environ;
 
@@ -145,3 +146,5 @@ void env_command(int argc, char** argv) {
     int rc = run_command(argv_exec);
     if (rc != 0) exit(rc);
 }
+
+REGISTER_COMMAND("env", env_command, "Print environment variables");

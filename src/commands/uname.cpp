@@ -3,6 +3,7 @@
 #include <sys/utsname.h>
 #include <argtable3.h>
 #include "commands/uname.hpp"
+#include "commands/command_macros.hpp"
 
 void uname_command(int argc, char** argv) {
     struct arg_lit* all_opt = arg_lit0("a", "all", "print all information");
@@ -116,3 +117,5 @@ void uname_command(int argc, char** argv) {
     printf("\n");
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("uname", uname_command, "Print system information");

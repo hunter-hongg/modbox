@@ -12,6 +12,7 @@
 #include "commands/cat/blame.hpp"
 #include "commands/cat/highlight.hpp"
 #include "commands/cat/diff.hpp"
+#include "commands/command_macros.hpp"
 
 #define ASCII_DEL          127
 #define ASCII_128          128
@@ -524,3 +525,5 @@ void cat_command(int argc, char** argv) {
 
     do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
 }
+
+REGISTER_COMMAND("cat", cat_command, "Concatenate files and print");

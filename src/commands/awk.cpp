@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "commands/awk.hpp"
+#include "commands/command_macros.hpp"
 
 // ---------------------------------------------------------------------------
 // Value
@@ -1851,3 +1852,5 @@ static void print_help() {
         "  -W assign=var=val, -W version\n"
         "  --              end of options\n");
 }
+
+REGISTER_COMMAND("awk", awk_command, "Pattern scanning and processing language");

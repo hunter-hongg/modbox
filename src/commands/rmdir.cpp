@@ -8,6 +8,7 @@
 #include <string>
 
 #include "commands/rmdir.hpp"
+#include "commands/command_macros.hpp"
 
 static int remove_dir(const char* path) {
   struct stat st;
@@ -118,3 +119,5 @@ void rmdir_command(int argc, char** argv) {
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("rmdir", rmdir_command, "Remove empty directories");

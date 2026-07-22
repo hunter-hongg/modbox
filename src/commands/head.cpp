@@ -6,6 +6,7 @@
 #include <argtable3.h>
 
 #include "commands/head.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── File header printing ──────────────────────────────────────────────── */
 
@@ -228,3 +229,5 @@ void head_command(int argc, char **argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("head", head_command, "Output first part of files");

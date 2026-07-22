@@ -15,6 +15,7 @@
 #include <argtable3.h>
 
 #include "commands/du.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── Internal data structures ──────────────────────────────────────────── */
 
@@ -472,3 +473,5 @@ void du_command(int argc, char **argv) {
     }
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("du", du_command, "Estimate file space usage");

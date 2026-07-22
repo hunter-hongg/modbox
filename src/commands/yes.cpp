@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "commands/yes.hpp"
+#include "commands/command_macros.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [STRING]...\n", prog);
@@ -60,3 +61,5 @@ void yes_command(int argc, char** argv) {
         written += buf.size();
     }
 }
+
+REGISTER_COMMAND("yes", yes_command, "Output string repeatedly");

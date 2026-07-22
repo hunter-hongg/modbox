@@ -3,6 +3,7 @@
 
 #include "commands/lsc.hpp"
 #include "commands/ls.hpp"
+#include "commands/command_macros.hpp"
 
 void lsc_command(int argc, char** argv) {
     int new_argc = argc + 2;
@@ -21,3 +22,5 @@ void lsc_command(int argc, char** argv) {
 
     free(new_argv);
 }
+
+REGISTER_COMMAND("lsc", lsc_command, "Alias for ls --colorful --icons");

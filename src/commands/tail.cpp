@@ -8,6 +8,7 @@
 #include <argtable3.h>
 
 #include "commands/tail.hpp"
+#include "commands/command_macros.hpp"
 
 /* ── File header printing ──────────────────────────────────────────────── */
 
@@ -348,3 +349,5 @@ void tail_command(int argc, char **argv) {
 
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }
+
+REGISTER_COMMAND("tail", tail_command, "Output last part of files");

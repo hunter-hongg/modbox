@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "commands/expr.hpp"
+#include "commands/command_macros.hpp"
 
 namespace {
 
@@ -443,3 +444,5 @@ void expr_command(int argc, char** argv) {
     }
     exit(0);
 }
+
+REGISTER_COMMAND("expr", expr_command, "Evaluate expression");

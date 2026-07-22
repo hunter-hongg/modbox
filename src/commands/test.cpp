@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/test.hpp"
+#include "commands/command_macros.hpp"
 
 namespace {
 
@@ -319,4 +320,12 @@ void test_command(int argc, char** argv) {
         exit(2);
     }
     exit(result ? 0 : 1);
+}
+
+REGISTER_COMMAND("test", test_command, "Evaluate conditional expression");
+namespace {
+const bool _bracket_reg = []{
+    CommandRegistry::instance().add("[", "Evaluate conditional expression with brackets", test_command);
+    return true;
+}();
 }
