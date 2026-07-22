@@ -98,6 +98,10 @@
 #include "commands/rmdir.hpp"
 #include "commands/mktemp.hpp"
 #include "commands/fmt.hpp"
+#include "commands/xargs.hpp"
+#include "commands/fold.hpp"
+#include "commands/join.hpp"
+#include "commands/kill.hpp"
 
 using CommandFunc = void (*)(int, char**);
 
@@ -183,9 +187,9 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"nice", nice_command},
         {"nohup", nohup_command},
         {"time", time_command},
-         {"timeout", timeout_command},
-         {"wc", wc_command},
-         {"date", date_command},
+        {"timeout", timeout_command},
+        {"wc", wc_command},
+        {"date", date_command},
         {"echo", echo_command},
         {"env", env_command},
         {"printf", printf_command},
@@ -193,11 +197,15 @@ static void execute_command(const std::string& command, int argc, char** argv) {
         {"true", true_command},
         {"false", false_command},
         {"arch", arch_command},
-{"basename", basename_command},
-{"dirname", dirname_command},
-{"rmdir", rmdir_command},
-{"mktemp", mktemp_command},
-{"fmt", fmt_command},
+        {"basename", basename_command},
+        {"dirname", dirname_command},
+        {"rmdir", rmdir_command},
+        {"mktemp", mktemp_command},
+        {"fmt", fmt_command},
+        {"xargs", xargs_command},
+        {"fold", fold_command},
+        {"join", join_command},
+        {"kill", kill_command},
 };
 
     auto it = commands.find(command);
