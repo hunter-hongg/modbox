@@ -2,13 +2,12 @@
 
 #include <ftxui/component/app.hpp>
 
-void TuiBase::update_scroll_math() {
-    if (auto* app = ftxui::App::Active()) {
-        int h = app->dimy();
-        int header_rows = 1;
-        max_rows_ = h - header_rows - 2;
-        if (max_rows_ < 1) max_rows_ = 1;
-    }
+ void TuiBase::update_scroll_math() {
+     if (auto* app = ftxui::App::Active()) {
+         int h = app->dimy();
+         max_rows_ = h - header_rows() - 2;
+         if (max_rows_ < 1) max_rows_ = 1;
+     }
 
     int total = entries_size();
     int scroll_max = total - max_rows_;

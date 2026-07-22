@@ -176,9 +176,11 @@ public:
         files_.push_back(std::move(fd));
     }
 
-    int entries_size() const override { return current_file_ >= 0 && current_file_ < (int)files_.size() ? (int)files_[current_file_].lines.size() : 0; }
+     int entries_size() const override { return current_file_ >= 0 && current_file_ < (int)files_.size() ? (int)files_[current_file_].lines.size() : 0; }
 
-    void fill_entries() override {}
+     int header_rows() const override { return 1; }
+
+     void fill_entries() override {}
 
     ftxui::Element render_row(int idx) const override {
         if (current_file_ < 0 || current_file_ >= (int)files_.size()) return text("");

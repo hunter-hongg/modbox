@@ -18,9 +18,10 @@
 
 #include "commands/ls.hpp"
 #include "commands/ls_entry.hpp"
+#include "commands/fs_classify.hpp"
 #include "commands/command_macros.hpp"
 
-void ls_tui_command(int argc, char** argv, const LsOptions* opts);
+void ls_tui_command(int argc, char** argv);
 
 /* Named constants for printable ASCII range used by print_escaped_filename */
 #define ASCII_SPACE 0x20
@@ -55,25 +56,9 @@ static int should_color(ColorMode mode) {
   }
 }
 
-static const char *get_file_color(const struct stat *st) {
-  if (S_ISDIR(st->st_mode)) {
-    return "01;34";
-  }
-  if (S_ISLNK(st->st_mode)) {
-    return "01;36";
-  }
-  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
-    return "01;32";
-  }
-  return NULL;
-}
 
-static const char *get_classify_indicator(struct stat *st) {
-  if (S_ISLNK(st->st_mode)) { return "@"; }
-  if (S_ISDIR(st->st_mode)) { return "/"; }
-  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) { return "*"; }
-  return "";
-}
+
+
 
 /** Display width of one icon (in terminal columns).
  *  Nerd Font icons are monospace; typically 1 column wide. */
@@ -81,30 +66,7 @@ static const char *get_classify_indicator(struct stat *st) {
 
 /** Return a UTF-8 Nerd Font icon string for the given file stat,
  *  matching lsd's icon set exactly. */
-static const char *get_file_icon(const struct stat *st) {
-  if (S_ISDIR(st->st_mode)) {
-    return "\xEF\x84\x95"; //  folder
-  }
-  if (S_ISLNK(st->st_mode)) {
-    return "\xEF\x92\x82"; //  symlink
-  }
-  if (S_ISSOCK(st->st_mode)) {
-    return "\xF3\xB0\x86\xA8"; // 󰆨 socket
-  }
-  if (S_ISFIFO(st->st_mode)) {
-    return "\xF3\xB0\x88\xB2"; // 󰈲 pipe
-  }
-  if (S_ISBLK(st->st_mode)) {
-    return "\xF3\xB0\x9C\xAB"; // 󰜫 block device
-  }
-  if (S_ISCHR(st->st_mode)) {
-    return "\xEE\x98\x81"; //  char device
-  }
-  if (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
-    return "\xEF\x92\x89"; //  executable
-  }
-  return "\xEF\x80\x96"; //  regular file
-}
+
 
 /** Extract the display name (basename) from a possibly-full path.
  *  Returns a pointer into the original string (no allocation). */
@@ -298,7 +260,7 @@ static void print_long_format(const char *display_name, const struct stat *st,
 
   // ── Filename ──
   if (opts->show_icons) {
-    printf("%s ", get_file_icon(st));
+    printf("%s ", icon_utf8(classify(*st)));
   }
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
@@ -317,7 +279,7 @@ static void print_long_format(const char *display_name, const struct stat *st,
 
 static void print_file_info(const char* display_name, const struct stat* st, const LsOptions *opts) {
   int use_color = should_color(opts->color_mode);
-  const char *classify_suffix = "";
+  const char *suffix = "";
 
   if (!opts->show_details && !use_color) {
     int have_stat = 0;
@@ -325,18 +287,18 @@ static void print_file_info(const char* display_name, const struct stat* st, con
     if (opts->classify || opts->show_icons) {
       have_stat = (lstat(display_name, &lst) == 0);
       if (have_stat && opts->classify) {
-        classify_suffix = get_classify_indicator(&lst);
+        suffix = classify_suffix(classify(lst));
       }
     }
     if (opts->show_icons && have_stat) {
-      printf("%s ", get_file_icon(&lst));
+      printf("%s ", icon_utf8(classify(lst)));
     }
     if (opts->escape_mode) {
       print_escaped_filename(display_name);
     } else {
       printf("%s", display_name);
     }
-    printf("%s%s", classify_suffix, opts->show_one_column ? "\n" : "  ");
+    printf("%s%s", suffix, opts->show_one_column ? "\n" : "  ");
     return;
   }
 
@@ -359,18 +321,18 @@ static void print_file_info(const char* display_name, const struct stat* st, con
   }
 
   if (opts->classify) {
-    classify_suffix = get_classify_indicator(const_cast<struct stat*>(use_st));
+    suffix = classify_suffix(classify(*use_st));
   }
 
   const char *color_code = NULL;
   if (use_color) {
-    color_code = get_file_color(use_st);
+    color_code = ansi_color_code(classify(*use_st));
     use_color = (color_code != NULL);
   }
 
   if (!opts->show_details) {
     if (opts->show_icons) {
-      printf("%s ", get_file_icon(use_st));
+      printf("%s ", icon_utf8(classify(*use_st)));
     }
     if (use_color) {
       printf("\033[%sm", color_code);
@@ -388,7 +350,7 @@ static void print_file_info(const char* display_name, const struct stat* st, con
     return;
   }
 
-  print_long_format(display_name, use_st, opts, color_code, classify_suffix);
+  print_long_format(display_name, use_st, opts, color_code, suffix);
 }
 
 static unsigned long parse_block_size(const char *str) {
@@ -524,23 +486,23 @@ static void print_one_entry(const char *name, int col, int num_cols,
   }
 
   const char *color_code = NULL;
-  const char *classify_suffix = "";
+  const char *suffix = "";
   struct stat st;
   int have_stat = 0;
   if (use_color || opts->classify || opts->show_icons) {
     have_stat = (lstat(name, &st) == 0);
     if (have_stat) {
       if (use_color) {
-        color_code = get_file_color(&st);
+        color_code = ansi_color_code(classify(st));
       }
       if (opts->classify) {
-        classify_suffix = get_classify_indicator(&st);
+        suffix = classify_suffix(classify(st));
       }
     }
   }
 
   if (opts->show_icons && have_stat) {
-    printf("%s ", get_file_icon(&st));
+    printf("%s ", icon_utf8(classify(st)));
   }
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
@@ -550,7 +512,7 @@ static void print_one_entry(const char *name, int col, int num_cols,
   } else {
     printf("%s", display_name);
   }
-  printf("%s", classify_suffix);
+  printf("%s", suffix);
   if (color_code != NULL) {
     printf("\033[0m");
   }
@@ -837,7 +799,7 @@ void ls_command(int argc, char **argv) {
       fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
     } else {
       arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      ls_tui_command(argc, argv, &opts);
+      ls_tui_command(argc, argv);
       return;
     }
   }

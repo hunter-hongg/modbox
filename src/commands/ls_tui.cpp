@@ -41,47 +41,7 @@ static std::string fmt_time(time_t t) {
   return buf;
 }
 
-static std::string fmt_size(uint64_t sz) {
-  if (sz >= 1024ULL * 1024ULL * 1024ULL) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.1fG", (double)sz / (1024.0 * 1024.0 * 1024.0));
-    return buf;
-  } else if (sz >= 1024ULL * 1024ULL) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.1fM", (double)sz / (1024.0 * 1024.0));
-    return buf;
-  } else if (sz >= 1024ULL) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.1fK", (double)sz / 1024.0);
-    return buf;
-  }
-  return std::to_string(sz);
-}
-
-static char filetype_prefix(FileType ft) {
-  switch (ft) {
-    case FileType::Directory: return 'd';
-    case FileType::Symlink: return 'l';
-    case FileType::Socket: return 's';
-    case FileType::Fifo: return 'p';
-    case FileType::BlockDev: return 'b';
-    case FileType::CharDev: return 'c';
-    default: return '-';
-  }
-}
-
-static const char* filetype_icon(FileType ft) {
- switch (ft) {
- case FileType::Directory: return "\xEF\x84\x95";
- case FileType::Symlink: return "\xEF\x95\xB0";
- case FileType::Socket: return "\xEF\x94\xA1";
- case FileType::Fifo: return "\xEF\x94\xA2";
- case FileType::BlockDev: case FileType::CharDev: return "\xEF\xA4\x81";
- default: return "\xEF\x80\x96";
- }
-}
-
-static const char* sort_label(SortMode m) {
+ static const char* sort_label(SortMode m) {
  switch (m) {
  case SortMode::Size: return "size";
  case SortMode::Mtime: return "mtime";
@@ -99,15 +59,9 @@ static TuiEntry ls_entry_to_tui(const LsEntry& e) {
   te.mtime_str = fmt_time(e.st.st_mtime);
 
   if (e.st.st_mode != 0) {
-    if (S_ISDIR(e.st.st_mode)) te.file_type = FileType::Directory;
-    else if (S_ISLNK(e.st.st_mode)) te.file_type = FileType::Symlink;
-    else if (S_ISSOCK(e.st.st_mode)) te.file_type = FileType::Socket;
-    else if (S_ISFIFO(e.st.st_mode)) te.file_type = FileType::Fifo;
-    else if (S_ISBLK(e.st.st_mode)) te.file_type = FileType::BlockDev;
-    else if (S_ISCHR(e.st.st_mode)) te.file_type = FileType::CharDev;
-    else te.file_type = FileType::Regular;
+    te.file_type = classify(e.st);
 
-    te.perm_str = std::string(1, filetype_prefix(te.file_type)) +
+    te.perm_str = std::string(1, type_prefix_char(te.file_type)) +
       (e.st.st_mode & S_IRUSR ? "r" : "-") +
       (e.st.st_mode & S_IWUSR ? "w" : "-") +
       (e.st.st_mode & S_IXUSR ? "x" : "-") +
@@ -240,7 +194,7 @@ class LsfComponent : public TuiBase {
         lines.push_back(separator());
 
         lines.push_back(text("Perms: " + e.perm_str + "  Owner: " + e.owner + ":" + e.group));
-        lines.push_back(text("Size: " + fmt_size(e.size) + "  Mtime: " + e.mtime_str));
+        lines.push_back(text("Size: " + format_bytes(e.size) + "  Mtime: " + e.mtime_str));
         lines.push_back(separator());
 
         if (e.file_type == FileType::Directory) {
@@ -280,11 +234,13 @@ class LsfComponent : public TuiBase {
 public:
     explicit LsfComponent(std::string dir) : current_dir_(std::move(dir)) {}
 
-    int entries_size() const override { return (int)entries_.size(); }
+     int entries_size() const override { return (int)entries_.size(); }
 
-    Element render_row(int idx) const override {
+     int header_rows() const override { return 1; }
+
+     Element render_row(int idx) const override {
         const auto& e = entries_[idx];
-        std::string icon(filetype_icon(e.file_type));
+        std::string icon(icon_utf8(e.file_type));
         return text(icon + " " + e.display_name);
     }
 

@@ -18,6 +18,7 @@ protected:
     virtual int entries_size() const = 0;
     virtual ftxui::Element render_row(int idx) const = 0;
     virtual void fill_entries() = 0;
+    virtual int header_rows() const = 0;
     virtual bool on_command_key(ftxui::Event event) { return false; }
     virtual void on_search_input_changed() {}
 

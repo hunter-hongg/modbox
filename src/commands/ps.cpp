@@ -21,7 +21,7 @@
 
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/component/component.hpp>
-#include <ftxui/component/component_base.hpp>
+#include "commands/tui_base.hpp"
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/loop.hpp>
 #include <ftxui/component/event.hpp>
@@ -932,80 +932,23 @@ struct PsTuiFmtWidth {
     int pid, user, cpu, mem, state, time, tty;
 };
 
-class PsTuiComponent : public ftxui::ComponentBase {
+class PsTuiComponent : public TuiBase {
     std::vector<PsTuiProcInfo> procs_;
     std::vector<PsTuiProcInfo> filtered_;
     PsTuiMemInfo mem_{};
     float uptime_ = 0;
     float loads_[3]{0};
     std::unordered_map<unsigned, std::string> user_cache_;
-    std::string search_query_;
-    std::string search_input_;
-    bool search_mode_ = false;
     bool tree_mode_ = false;
     PsSortMode sort_by_ = PsSortMode::CPU;
-    int scroll_offset_ = 0;
-    int max_rows_ = 0;
-    int scroll_max_ = 0;
-    int selected_idx_ = 0;
-
 public:
     PsTuiComponent() = default;
 
-    void Refresh() {
-        mem_ = ps_tui_read_meminfo();
-        uptime_ = ps_tui_read_uptime();
-        ps_tui_read_loadavg(loads_);
-        procs_ = ps_tui_read_procs(user_cache_, mem_, uptime_);
-
-        if (tree_mode_) {
-            ps_tui_build_tree(procs_);
-        } else {
-            switch (sort_by_) {
-            case PsSortMode::CPU:
-                std::sort(procs_.begin(), procs_.end(),
-                          [](const PsTuiProcInfo& a, const PsTuiProcInfo& b) {
-                              return a.cpu_pct > b.cpu_pct;
-                          });
-                break;
-            case PsSortMode::MEM:
-                std::sort(procs_.begin(), procs_.end(),
-                          [](const PsTuiProcInfo& a, const PsTuiProcInfo& b) {
-                              return a.mem_pct > b.mem_pct;
-                          });
-                break;
-            case PsSortMode::PID:
-                std::sort(procs_.begin(), procs_.end(),
-                          [](const PsTuiProcInfo& a, const PsTuiProcInfo& b) {
-                              return a.pid < b.pid;
-                          });
-                break;
-            }
-        }
-
-        filtered_.clear();
-        for (const auto& p : procs_) {
-            if (ps_tui_matches(p, search_query_)) {
-                filtered_.push_back(p);
-            }
-        }
-
-        if (auto* app = ftxui::App::Active()) {
-            int h = app->dimy();
-            int header_rows = 5;
-            max_rows_ = h - header_rows - 2;
-            if (max_rows_ < 1) max_rows_ = 1;
-        }
-
-        int total = (int)filtered_.size();
-        scroll_max_ = total - max_rows_;
-        if (scroll_max_ < 0) scroll_max_ = 0;
-        if (scroll_offset_ > scroll_max_) scroll_offset_ = scroll_max_;
-        if (selected_idx_ >= (int)filtered_.size()) {
-            selected_idx_ = (int)filtered_.size() - 1;
-        }
-        if (selected_idx_ < 0) selected_idx_ = 0;
-    }
+    int entries_size() const override { return (int)filtered_.size(); }
+    ftxui::Element render_row(int idx) const override;
+    void fill_entries() override;
+    int header_rows() const override { return 5; }
+    bool on_command_key(ftxui::Event event) override;
 
     PsTuiFmtWidth calc_fmt_widths() const {
         int pid = 3, user = 4, cpu = 4, mem = 4;
@@ -1104,21 +1047,7 @@ public:
         }
 
         // Search bar
-        if (search_mode_) {
-            rows.push_back(hbox({
-                text("Search: ") | bold | color(Color::Yellow),
-                text(search_input_) | color(Color::White),
-                text("_") | blink | color(Color::White),
-            }));
-        } else if (!search_query_.empty()) {
-            rows.push_back(hbox({
-                text("Filter: ") | bold | color(Color::Yellow),
-                text(search_query_) | color(Color::Cyan),
-                text("  (press / to change, Esc to clear)") | color(Color::GrayDark),
-            }));
-        } else {
-            rows.push_back(text("Press / to search") | color(Color::GrayDark));
-        }
+        rows.push_back(render_search_bar());
 
         rows.push_back(separator());
 
@@ -1130,72 +1059,8 @@ public:
             w.state, "S", w.time, "TIME", w.tty, "TTY", "COMMAND");
         rows.push_back(text(buf) | bold | color(Color::Yellow));
 
-        // Process rows
-        int display_count = (int)filtered_.size();
-        int avail = max_rows_;
-        if (display_count > avail) display_count = avail;
-
-        for (int i = 0; i < display_count; i++) {
-            int idx = i + scroll_offset_;
-            if (idx >= (int)filtered_.size()) break;
-
-            const auto& p = filtered_[idx];
-
-            char tty_str[64];
-            ps_tui_tty_name(p.tty_nr, tty_str, sizeof(tty_str));
-
-            char time_str[32];
-            ps_tui_fmt_time(time_str, sizeof(time_str), p.utime + p.stime);
-
-            // Build row with indentation for tree mode
-            std::string prefix;
-            if (tree_mode_ && p.depth > 0) {
-                for (int d = 0; d < p.depth && d < 10; d++) {
-                    prefix += "  ";
-                }
-                if (p.depth > 0) prefix += "\xe2\x94\x94\xe2\x94\x80";
-            }
-
-            std::string cmd_display = prefix + p.comm;
-            if (cmd_display.length() > 80) {
-                cmd_display = cmd_display.substr(0, 77) + "...";
-            }
-
-            snprintf(buf, sizeof(buf),
-                "%*d  %-*s  %*.1f  %*.1f  %*c  %*s  %*s  %s",
-                w.pid, p.pid, w.user, p.user, w.cpu, (double)p.cpu_pct,
-                w.mem, (double)p.mem_pct, w.state, p.state,
-                w.time, time_str, w.tty, tty_str, cmd_display.c_str());
-
-            auto el = text(buf);
-
-            // Color by state
-            ftxui::Color state_color = Color::GrayLight;
-            if (p.state == 'R') state_color = Color::Green;
-            else if (p.state == 'S') state_color = Color::GrayLight;
-            else if (p.state == 'D') state_color = Color::Yellow;
-            else if (p.state == 'Z') state_color = Color::Red;
-            else if (p.state == 'T') state_color = Color::Magenta;
-
-            // Apply colors to different parts would require parsing
-            // For simplicity, color the whole row based on CPU usage
-            if (p.cpu_pct >= 50.0f) {
-                el = el | color(Color::Red);
-            } else if (p.cpu_pct >= 10.0f) {
-                el = el | color(Color::Yellow);
-            } else if (p.cpu_pct >= 1.0f) {
-                el = el | color(Color::Green);
-            }
-
-            // Highlight selected row
-            if (i == selected_idx_ - scroll_offset_) {
-                el = el | inverted;
-            } else if (i % 2 == 1) {
-                el = el | bgcolor(Color::GrayDark);
-            }
-
-            rows.push_back(el);
-        }
+        // Scrollable list
+        rows.push_back(render_list());
 
         // Footer
         rows.push_back(separator());
@@ -1214,7 +1079,6 @@ public:
     bool OnEvent(ftxui::Event event) override {
         using namespace ftxui;
 
-        // Search mode handling
         if (search_mode_) {
             if (event == Event::Escape) {
                 search_mode_ = false;
@@ -1225,23 +1089,14 @@ public:
                 search_mode_ = false;
                 search_query_ = search_input_;
                 search_input_.clear();
-                scroll_offset_ = 0;
-                selected_idx_ = 0;
                 Refresh();
                 return true;
             }
-            if (event == Event::Backspace) {
-                if (!search_input_.empty()) {
-                    search_input_.pop_back();
-                }
-                return true;
-            }
-            if (event.is_character()) {
-                search_input_ += event.character();
-                return true;
-            }
-            return true;
+            if (handle_search(event)) return true;
+            return ComponentBase::OnEvent(event);
         }
+
+        if (handle_nav(event)) return true;
 
         if (event == Event::Character('q') || event == Event::Character('Q')) {
             if (auto* app = App::Active()) app->Exit();
@@ -1251,74 +1106,7 @@ public:
             Refresh();
             return true;
         }
-        if (event == Event::Character('j') || event == Event::ArrowDown) {
-            if (selected_idx_ < (int)filtered_.size() - 1) {
-                selected_idx_++;
-                if (selected_idx_ - scroll_offset_ >= max_rows_) {
-                    scroll_offset_++;
-                }
-            }
-            return true;
-        }
-        if (event == Event::Character('k') || event == Event::ArrowUp) {
-            if (selected_idx_ > 0) {
-                selected_idx_--;
-                if (selected_idx_ < scroll_offset_) {
-                    scroll_offset_--;
-                }
-            }
-            return true;
-        }
-        if (event == Event::PageDown) {
-            selected_idx_ += max_rows_ / 2;
-            if (selected_idx_ >= (int)filtered_.size()) {
-                selected_idx_ = (int)filtered_.size() - 1;
-            }
-            scroll_offset_ += max_rows_ / 2;
-            if (scroll_offset_ > scroll_max_) scroll_offset_ = scroll_max_;
-            return true;
-        }
-        if (event == Event::PageUp) {
-            selected_idx_ -= max_rows_ / 2;
-            if (selected_idx_ < 0) selected_idx_ = 0;
-            scroll_offset_ -= max_rows_ / 2;
-            if (scroll_offset_ < 0) scroll_offset_ = 0;
-            return true;
-        }
-        if (event == Event::Home) {
-            scroll_offset_ = 0;
-            selected_idx_ = 0;
-            return true;
-        }
-        if (event == Event::End) {
-            scroll_offset_ = scroll_max_;
-            selected_idx_ = (int)filtered_.size() - 1;
-            if (selected_idx_ < 0) selected_idx_ = 0;
-            return true;
-        }
-        if (event == Event::Character('c') || event == Event::Character('C')) {
-            sort_by_ = PsSortMode::CPU;
-            tree_mode_ = false;
-            Refresh();
-            return true;
-        }
-        if (event == Event::Character('m') || event == Event::Character('M')) {
-            sort_by_ = PsSortMode::MEM;
-            tree_mode_ = false;
-            Refresh();
-            return true;
-        }
-        if (event == Event::Character('p') || event == Event::Character('P')) {
-            sort_by_ = PsSortMode::PID;
-            tree_mode_ = false;
-            Refresh();
-            return true;
-        }
-        if (event == Event::Character('t') || event == Event::Character('T')) {
-            tree_mode_ = !tree_mode_;
-            Refresh();
-            return true;
-        }
+        if (on_command_key(event)) return true;
         if (event == Event::Character('/')) {
             search_mode_ = true;
             search_input_ = search_query_;
@@ -1372,3 +1160,134 @@ static void ps_tui_main() {
 }
 
 REGISTER_COMMAND("ps", ps_command, "Report process status");
+
+ftxui::Element PsTuiComponent::render_row(int idx) const {
+    using namespace ftxui;
+    const auto& p = filtered_[idx];
+
+    char buf[1024];
+    char tty_str[64];
+    ps_tui_tty_name(p.tty_nr, tty_str, sizeof(tty_str));
+
+    char time_str[32];
+    ps_tui_fmt_time(time_str, sizeof(time_str), p.utime + p.stime);
+
+    std::string prefix;
+    if (tree_mode_ && p.depth > 0) {
+        for (int d = 0; d < p.depth && d < 10; d++) {
+            prefix += "  ";
+        }
+        if (p.depth > 0) prefix += "\xe2\x94\x94\xe2\x94\x80";
+    }
+
+    std::string cmd_display = prefix + p.comm;
+    if (cmd_display.length() > 80) {
+        cmd_display = cmd_display.substr(0, 77) + "...";
+    }
+
+    auto w = calc_fmt_widths();
+    snprintf(buf, sizeof(buf),
+        "%*d  %-*s  %*.1f  %*.1f  %*c  %*s  %*s  %s",
+        w.pid, p.pid, w.user, p.user, w.cpu, (double)p.cpu_pct,
+        w.mem, (double)p.mem_pct, w.state, p.state,
+        w.time, time_str, w.tty, tty_str, cmd_display.c_str());
+
+    auto el = text(buf);
+
+    if (p.cpu_pct >= 50.0f) {
+        el = el | color(Color::Red);
+    } else if (p.cpu_pct >= 10.0f) {
+        el = el | color(Color::Yellow);
+    } else if (p.cpu_pct >= 1.0f) {
+        el = el | color(Color::Green);
+    }
+
+    return el;
+}
+
+void PsTuiComponent::fill_entries() {
+    using namespace ftxui;
+
+    mem_ = ps_tui_read_meminfo();
+    uptime_ = ps_tui_read_uptime();
+    ps_tui_read_loadavg(loads_);
+    procs_ = ps_tui_read_procs(user_cache_, mem_, uptime_);
+
+    if (tree_mode_) {
+        ps_tui_build_tree(procs_);
+    } else {
+        switch (sort_by_) {
+        case PsSortMode::CPU:
+            std::sort(procs_.begin(), procs_.end(),
+                      [](const PsTuiProcInfo& a, const PsTuiProcInfo& b) {
+                          return a.cpu_pct > b.cpu_pct;
+                      });
+            break;
+        case PsSortMode::MEM:
+            std::sort(procs_.begin(), procs_.end(),
+                      [](const PsTuiProcInfo& a, const PsTuiProcInfo& b) {
+                          return a.mem_pct > b.mem_pct;
+                      });
+            break;
+        case PsSortMode::PID:
+            std::sort(procs_.begin(), procs_.end(),
+                      [](const PsTuiProcInfo& a, const PsTuiProcInfo& b) {
+                          return a.pid < b.pid;
+                      });
+            break;
+        }
+    }
+
+    filtered_.clear();
+    for (const auto& p : procs_) {
+        if (ps_tui_matches(p, search_query_)) {
+            filtered_.push_back(p);
+        }
+    }
+
+}
+
+bool PsTuiComponent::on_command_key(ftxui::Event event) {
+    using namespace ftxui;
+
+    if (event == Event::Character('q') || event == Event::Character('Q')) {
+        if (auto* app = App::Active()) app->Exit();
+        return true;
+    }
+    if (event == Event::Character('c') || event == Event::Character('C')) {
+        sort_by_ = PsSortMode::CPU;
+        tree_mode_ = false;
+        Refresh();
+        return true;
+    }
+    if (event == Event::Character('m') || event == Event::Character('M')) {
+        sort_by_ = PsSortMode::MEM;
+        tree_mode_ = false;
+        Refresh();
+        return true;
+    }
+    if (event == Event::Character('p') || event == Event::Character('P')) {
+        sort_by_ = PsSortMode::PID;
+        tree_mode_ = false;
+        Refresh();
+        return true;
+    }
+    if (event == Event::Character('t') || event == Event::Character('T')) {
+        tree_mode_ = !tree_mode_;
+        Refresh();
+        return true;
+    }
+    if (event == Event::Character('/')) {
+        search_mode_ = true;
+        search_input_ = search_query_;
+        return true;
+    }
+    if (event == Event::Escape) {
+        if (!search_query_.empty()) {
+            search_query_.clear();
+            Refresh();
+        }
+        return true;
+    }
+    return false;
+}
