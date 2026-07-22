@@ -302,6 +302,8 @@ static void run_pipeline(const char* path, const CatOptions* opts, int* line_num
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity, misc-use-internal-linkage)
+void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool nonempty_number_mode, int number_format, bool highlight_mode);
+
 void cat_command(int argc, char** argv) {
     CatOptions opts = {0};
     char* pager_buf = NULL;
@@ -320,6 +322,7 @@ void cat_command(int argc, char** argv) {
     struct arg_lit* show_nonprinting_opt = arg_lit0("v", "show-nonprinting", "use ^ and M- notation, except for LFD and TAB");
     struct arg_lit* show_all_opt = arg_lit0("A", "show-all", "equivalent to -vET");
     struct arg_lit* less_opt = arg_lit0(NULL, "less", "pager mode (j/k/q navigation)");
+    struct arg_lit* tui_opt = arg_lit0(NULL, "tui", "interactive TUI viewer with tabs");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* show_nonprinting_and_ends_opt = arg_lit0("e", NULL, "equivalent to -vE");
     struct arg_lit* show_tabs_and_nonprinting_opt = arg_lit0("t", NULL, "equivalent to -vT");
@@ -342,7 +345,7 @@ void cat_command(int argc, char** argv) {
     void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt,
         squeeze_blank_opt, show_nonprinting_opt, show_all_opt,
         show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt,
-        less_opt, help_opt,
+        less_opt, tui_opt, help_opt,
         blame_opt, highlight_opt, header_opt, diff_opt,
         range_opt, grep_opt, context_opt, head_opt, tail_opt,
         number_format_opt, stats_opt,
@@ -366,8 +369,9 @@ void cat_command(int argc, char** argv) {
         printf("  -e                       equivalent to -vE\n");
         printf("  -t                       equivalent to -vT\n");
         printf("  -A, --show-all           equivalent to -vET\n");
-        printf("      --less               pager mode (j/k/q navigation)\n");
-        printf("\n");
+    printf(" --less pager mode (j/k/q navigation)\n");
+    printf(" --tui interactive TUI viewer with tabs\n");
+    printf("\n");
         printf("Dev tools:\n");
         printf("      --blame              show git blame per line\n");
         printf("      --highlight          syntax highlight output by file extension\n");
@@ -390,6 +394,15 @@ void cat_command(int argc, char** argv) {
 
     if (nerrors > 0) {
         arg_print_errors(stderr, end, argv[0]);
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
+        return;
+    }
+
+    if (tui_opt->count > 0 && isatty(STDOUT_FILENO)) {
+        cat_tui_main(file_arg->count, file_arg->filename,
+                     number_opt->count > 0, nonempty_number_opt->count > 0,
+                     opts.number_format, highlight_opt->count > 0);
         arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
         return;

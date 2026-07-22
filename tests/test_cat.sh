@@ -160,3 +160,26 @@ fi
 
 echo "  ── --highlight + --header combined ──"
 assert_cmd_pat 'Mode:' cat --header --highlight "$TMPDIR"/simple.txt
+
+echo "  ── --tui help includes --tui flag ──"
+assert_cmd_pat '\-\-tui' cat --help 2>/dev/null
+
+echo "  ── --tui single file (non-TTY) falls back to plain cat ──"
+assert_cmd "$(printf 'hello\nworld\n')" cat --tui "$TMPDIR"/simple.txt
+
+echo "  ── --tui multiple files (non-TTY) falls back to plain cat ──"
+assert_cmd "$(printf 'hello\nworld\n')" cat --tui "$TMPDIR"/a.txt "$TMPDIR"/b.txt
+
+echo "  ── --tui stdin (non-TTY) falls back to plain cat ──"
+assert_cmd "stdin test" cat --tui - <<<"stdin test"
+
+echo "  ── --tui + --number (non-TTY) falls back with line numbers ──"
+assert_cmd "$(printf '     1  hello\n     2  world\n')" cat --tui -n "$TMPDIR"/simple.txt
+
+echo "  ── --tui + --highlight (non-TTY) falls back, no ANSI ──"
+OUTPUT=$("$MODBOX" cat --tui --highlight "$TMPDIR"/hl_test.c 2>/dev/null || true)
+if echo "$OUTPUT" | grep -q $'\033'; then
+    fail "cat --tui --highlight (piped) — expected no ANSI codes, got them"
+else
+    pass "cat --tui --highlight (piped) — ANSI codes correctly disabled"
+fi
