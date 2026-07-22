@@ -1,9 +1,9 @@
 #include "commands/ls_tui.hpp"
 #include "commands/ls.hpp"
 #include "commands/ls_entry.hpp"
+#include "commands/tui_base.hpp"
 
 #include <ftxui/component/component.hpp>
-#include <ftxui/component/component_base.hpp>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/loop.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -14,26 +14,16 @@
 #include <cstring>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <pwd.h>
 #include <grp.h>
 #include <ctime>
+#include <vector>
+#include <algorithm>
+#include <filesystem>
 
 using namespace ftxui;
-
-struct TuiCtx {
-  std::string current_dir;
-  std::vector<TuiEntry> entries;
-  std::vector<TuiEntry> all_entries;
-  int selected;
-  std::string filter;
-  std::string status_msg;
-  int filtering;
-  bool quit_requested;
-  bool open_requested;
-  std::string open_path;
-};
 
 static std::string get_owner(uid_t uid) {
   struct passwd* pw = getpwuid(uid);
@@ -68,17 +58,56 @@ static std::string fmt_size(uint64_t sz) {
   return std::to_string(sz);
 }
 
+static char filetype_prefix(FileType ft) {
+  switch (ft) {
+    case FileType::Directory: return 'd';
+    case FileType::Symlink: return 'l';
+    case FileType::Socket: return 's';
+    case FileType::Fifo: return 'p';
+    case FileType::BlockDev: return 'b';
+    case FileType::CharDev: return 'c';
+    default: return '-';
+  }
+}
+
+static const char* filetype_icon(FileType ft) {
+ switch (ft) {
+ case FileType::Directory: return "\xEF\x84\x95";
+ case FileType::Symlink: return "\xEF\x95\xB0";
+ case FileType::Socket: return "\xEF\x94\xA1";
+ case FileType::Fifo: return "\xEF\x94\xA2";
+ case FileType::BlockDev: case FileType::CharDev: return "\xEF\xA4\x81";
+ default: return "\xEF\x80\x96";
+ }
+}
+
+static const char* sort_label(SortMode m) {
+ switch (m) {
+ case SortMode::Size: return "size";
+ case SortMode::Mtime: return "mtime";
+ case SortMode::Type: return "type";
+ default: return "name";
+ }
+}
+
 static TuiEntry ls_entry_to_tui(const LsEntry& e) {
   TuiEntry te;
   te.path = e.path;
   te.display_name = e.display_name;
-  if (e.st.st_mode != 0 || S_ISREG(e.st.st_mode) || S_ISDIR(e.st.st_mode)) {
-    te.is_dir = S_ISDIR(e.st.st_mode);
-    te.is_symlink = S_ISLNK(e.st.st_mode);
-    te.is_executable = (e.st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH));
-    te.size = (uint64_t)e.st.st_size;
-    te.perm_str = std::string(
-      S_ISDIR(e.st.st_mode) ? "d" : S_ISLNK(e.st.st_mode) ? "l" : "-") +
+  te.size = (uint64_t)e.st.st_size;
+  te.mtime = e.st.st_mtime;
+  te.mtime_str = fmt_time(e.st.st_mtime);
+
+  if (e.st.st_mode != 0) {
+    if (S_ISDIR(e.st.st_mode)) te.file_type = FileType::Directory;
+    else if (S_ISLNK(e.st.st_mode)) te.file_type = FileType::Symlink;
+    else if (S_ISSOCK(e.st.st_mode)) te.file_type = FileType::Socket;
+    else if (S_ISFIFO(e.st.st_mode)) te.file_type = FileType::Fifo;
+    else if (S_ISBLK(e.st.st_mode)) te.file_type = FileType::BlockDev;
+    else if (S_ISCHR(e.st.st_mode)) te.file_type = FileType::CharDev;
+    else te.file_type = FileType::Regular;
+
+    te.perm_str = std::string(1, filetype_prefix(te.file_type)) +
       (e.st.st_mode & S_IRUSR ? "r" : "-") +
       (e.st.st_mode & S_IWUSR ? "w" : "-") +
       (e.st.st_mode & S_IXUSR ? "x" : "-") +
@@ -90,16 +119,14 @@ static TuiEntry ls_entry_to_tui(const LsEntry& e) {
       (e.st.st_mode & S_IXOTH ? "x" : "-");
     te.owner = get_owner(e.st.st_uid);
     te.group = get_group(e.st.st_gid);
-    te.mtime_str = fmt_time(e.st.st_mtime);
   } else {
-    te.is_dir = 0;
-    te.is_symlink = 0;
-    te.is_executable = 0;
+    te.file_type = FileType::Unknown;
     te.size = 0;
     te.perm_str = "??????????";
     te.owner = "?";
     te.group = "?";
     te.mtime_str = "?";
+    te.mtime = 0;
   }
   return te;
 }
@@ -143,266 +170,397 @@ static std::vector<std::string> split_lines(const std::string& s) {
     return out;
 }
 
-static Element render_preview(TuiCtx& ctx) {
-    if (ctx.entries.empty()) {
-        return text("No entries") | dim | center;
-    }
-    const auto& e = ctx.entries[ctx.selected];
+class LsfComponent : public TuiBase {
+    std::string current_dir_;
+    std::vector<TuiEntry> entries_;
+    std::vector<TuiEntry> all_entries_;
+    std::string status_msg_;
+    bool quit_requested_ = false;
+    bool open_requested_ = false;
+    std::string open_path_;
+    std::vector<std::string> nav_history_;
+    int history_pos_ = -1;
+    SortMode sort_mode_ = SortMode::Name;
+    bool sort_reverse_ = false;
+    enum class ConfirmMode { None, Delete } confirm_mode_ = ConfirmMode::None;
+    std::string confirm_path_;
 
-    std::vector<Element> lines;
-    lines.push_back(text(e.display_name) | bold | hcenter);
-    lines.push_back(separator());
-
-    lines.push_back(text("Perms: " + e.perm_str + "  Owner: " + e.owner + ":" + e.group));
-    lines.push_back(text("Size: " + fmt_size(e.size) + "  Mtime: " + e.mtime_str));
-    lines.push_back(separator());
-
-    if (e.is_dir) {
-        auto children = tui_collect_entries(e.path.c_str());
-        for (const auto& c : children) {
-            std::string prefix = c.is_dir ? "\xEF\x84\x95 " : "  ";
-            lines.push_back(text(prefix + c.display_name));
-        }
-        if (children.empty()) {
-            lines.push_back(text("(empty directory)") | dim);
-        }
-    } else if (e.is_symlink) {
-        char target[4096];
-        ssize_t n = readlink(e.path.c_str(), target, sizeof(target) - 1);
-        if (n >= 0) {
-            target[n] = '\0';
-            lines.push_back(text("Symlink \u2192 " + std::string(target)));
-        }
-        struct stat st;
-        if (stat(e.path.c_str(), &st) == 0) {
-            lines.push_back(text("Target type: " + std::string(
-                S_ISDIR(st.st_mode) ? "directory" : "file")));
-        }
-    } else {
-        std::string preview = read_file_preview(e.path.c_str(), 200);
-        auto lines_vec = split_lines(preview);
-        std::vector<Element> preview_elements;
-        for (const auto& l : lines_vec) {
-            preview_elements.push_back(text(l));
-        }
-        lines.push_back(vbox(preview_elements) | flex | yframe);
+    void push_history(const std::string& dir) {
+      if (!nav_history_.empty() && nav_history_.back() == dir) return;
+      if (history_pos_ >= 0 && history_pos_ < (int)nav_history_.size() - 1) {
+        nav_history_.resize(history_pos_ + 1);
+      }
+      nav_history_.push_back(dir);
+      history_pos_ = (int)nav_history_.size() - 1;
     }
 
-    return vbox(lines) | flex | xframe;
-}
-
-static std::vector<TuiEntry> filter_entries(const std::vector<TuiEntry>& src, const std::string& q) {
-    if (q.empty()) return src;
-    std::vector<TuiEntry> out;
-    for (const auto& e : src) {
-        if (e.display_name.find(q) != std::string::npos) {
-            out.push_back(e);
+    void apply_sort() {
+      std::sort(all_entries_.begin(), all_entries_.end(), [this](const TuiEntry& a, const TuiEntry& b) {
+        bool cmp = false;
+        switch (sort_mode_) {
+          case SortMode::Size:
+            if (a.size != b.size) { cmp = a.size > b.size; break; }
+            break;
+          case SortMode::Mtime:
+            if (a.mtime != b.mtime) { cmp = a.mtime > b.mtime; break; }
+            break;
+          case SortMode::Type:
+            if ((int)a.file_type != (int)b.file_type) { cmp = (int)a.file_type > (int)b.file_type; break; }
+            break;
+          default:
+            break;
         }
+        if (!cmp && sort_mode_ != SortMode::Name) cmp = a.display_name < b.display_name;
+        else if (!cmp) cmp = a.display_name < b.display_name;
+        return sort_reverse_ ? !cmp : cmp;
+      });
     }
-    return out;
-}
 
-class LsfComponent : public ComponentBase {
-  TuiCtx& ctx_;
+    void apply_filter() {
+      entries_.clear();
+      for (const auto& e : all_entries_) {
+        if (search_query_.empty() || e.display_name.find(search_query_) != std::string::npos) {
+          entries_.push_back(e);
+        }
+      }
+      if (selected_ >= (int)entries_.size()) {
+        selected_ = (int)entries_.size() - 1;
+      }
+    }
+
+    ftxui::Element render_preview() const {
+        using namespace ftxui;
+        if (entries_.empty() || selected_ < 0 || selected_ >= (int)entries_.size()) {
+            return text("No entries") | dim | center;
+        }
+        const auto& e = entries_[selected_];
+
+        std::vector<Element> lines;
+        lines.push_back(text(e.display_name) | bold | hcenter);
+        lines.push_back(separator());
+
+        lines.push_back(text("Perms: " + e.perm_str + "  Owner: " + e.owner + ":" + e.group));
+        lines.push_back(text("Size: " + fmt_size(e.size) + "  Mtime: " + e.mtime_str));
+        lines.push_back(separator());
+
+        if (e.file_type == FileType::Directory) {
+            auto children = tui_collect_entries(e.path.c_str());
+            for (const auto& c : children) {
+                std::string prefix = c.file_type == FileType::Directory ? "\xEF\x84\x95 " : "  ";
+                lines.push_back(text(prefix + c.display_name));
+            }
+            if (children.empty()) {
+                lines.push_back(text("(empty directory)") | dim);
+            }
+        } else if (e.file_type == FileType::Symlink) {
+            char target[4096];
+            ssize_t n = readlink(e.path.c_str(), target, sizeof(target) - 1);
+            if (n >= 0) {
+                target[n] = '\0';
+                lines.push_back(text("Symlink \u2192 " + std::string(target)));
+            }
+            struct stat st;
+            if (stat(e.path.c_str(), &st) == 0) {
+                lines.push_back(text("Target type: " + std::string(
+                    S_ISDIR(st.st_mode) ? "directory" : "file")));
+            }
+        } else {
+            std::string preview = read_file_preview(e.path.c_str(), 200);
+            auto lines_vec = split_lines(preview);
+            std::vector<Element> preview_elements;
+            for (const auto& l : lines_vec) {
+                preview_elements.push_back(text(l));
+            }
+            lines.push_back(vbox(preview_elements) | flex | yframe);
+        }
+
+        return vbox(lines) | flex | xframe;
+    }
 
 public:
-  explicit LsfComponent(TuiCtx& ctx) : ctx_(ctx) {}
+    explicit LsfComponent(std::string dir) : current_dir_(std::move(dir)) {}
 
-  Element OnRender() override {
-    if (ctx_.entries.empty()) {
-      return text("(empty directory)") | dim | center;
+    int entries_size() const override { return (int)entries_.size(); }
+
+    Element render_row(int idx) const override {
+        const auto& e = entries_[idx];
+        std::string icon(filetype_icon(e.file_type));
+        return text(icon + " " + e.display_name);
     }
 
-    Elements left;
-    for (size_t i = 0; i < ctx_.entries.size(); i++) {
-      const auto& e = ctx_.entries[i];
-      std::string prefix;
-      if (e.is_dir) {
-        prefix = "\xEF\x84\x95 ";
-      } else if (e.is_executable) {
-        prefix = "\xEF\x92\x89 ";
-      } else {
-        prefix = "\xEF\x80\x96 ";
-      }
-      std::string name = prefix + e.display_name;
-      if ((int)i == ctx_.selected) {
-        left.push_back(text(name) | inverted);
-      } else {
-        left.push_back(text(name));
-      }
+    void fill_entries() override {
+        all_entries_ = tui_collect_entries(current_dir_.c_str());
+        apply_sort();
+        apply_filter();
     }
 
-    const auto& sel = ctx_.entries[ctx_.selected];
-    Elements right;
-    right.push_back(text(sel.display_name) | bold | hcenter);
-    right.push_back(separator());
-    right.push_back(text("Perms: " + sel.perm_str + "  Owner: " + sel.owner + ":" + sel.group));
-    right.push_back(text("Size: " + fmt_size(sel.size) + "  Mtime: " + sel.mtime_str));
-    right.push_back(separator());
-    right.push_back(text("Preview pane (coming soon)") | dim);
-
-    Elements body;
-    Element preview = render_preview(ctx_);
-    body.push_back(hbox({
-      vbox(left) | vscroll_indicator | yframe | flex,
-      preview,
-    }) | flex);
-
-    Elements footer;
-    if (ctx_.filtering) {
-      footer.push_back(text("Filter: " + ctx_.filter + "█") | dim | frame);
-    } else {
-      footer.push_back(text("  j/k=nav  Enter=cd  /=filter  o=open  c=copy  d=del  q=quit") | dim | frame);
-    }
-    if (!ctx_.status_msg.empty()) {
-      footer.push_back(text(ctx_.status_msg) | bold | center);
+    void on_search_input_changed() override {
+        search_query_ = search_input_;
+        apply_filter();
     }
 
-    Elements top;
-    top.push_back(text("modbox — " + ctx_.current_dir) | bold | hcenter);
-    top.push_back(separator());
+    ftxui::Element OnRender() override {
+        using namespace ftxui;
 
-    Elements all;
-    all.push_back(vbox(std::move(top)));
-    all.push_back(vbox(std::move(body)) | flex);
-    all.push_back(separator());
-    all.push_back(vbox(std::move(footer)));
-
-    return vbox(std::move(all));
-  }
-
-  bool OnEvent(Event event) override {
-    if (ctx_.filtering) {
-      if (event == Event::Character('q') || event == Event::Escape) {
-        ctx_.filtering = 0;
-        ctx_.filter.clear();
-        ctx_.entries = ctx_.all_entries;
-        return true;
-      }
-      if (event == Event::Backspace) {
-        if (!ctx_.filter.empty()) {
-          ctx_.filter.pop_back();
-          ctx_.entries = filter_entries(ctx_.all_entries, ctx_.filter);
-          if (ctx_.selected >= (int)ctx_.entries.size()) {
-            ctx_.selected = (int)ctx_.entries.size() - 1;
-          }
+        if (entries_.empty()) {
+            return text("(empty directory)") | dim | center;
         }
-        return true;
-      }
-      if (event.is_character()) {
-        std::string ch = event.character();
-        if (!ch.empty() && (unsigned char)ch[0] >= 32 && (unsigned char)ch[0] < 127) {
-          ctx_.filter += ch[0];
-          ctx_.entries = filter_entries(ctx_.all_entries, ctx_.filter);
-          if (ctx_.selected >= (int)ctx_.entries.size()) {
-            ctx_.selected = (int)ctx_.entries.size() - 1;
-          }
-        }
-        return true;
-      }
-    }
 
-    if (event == Event::ArrowUp || event == Event::Character('k')) {
-      if (ctx_.selected > 0) ctx_.selected--;
-      return true;
-    }
-    if (event == Event::ArrowDown || event == Event::Character('j')) {
-      if (ctx_.selected < (int)ctx_.entries.size() - 1) ctx_.selected++;
-      return true;
-    }
-    if (event == Event::Return) {
-      if (ctx_.selected >= 0 && ctx_.selected < (int)ctx_.entries.size()) {
-        const auto& e = ctx_.entries[ctx_.selected];
-        if (e.is_dir) {
-          ctx_.current_dir = e.path;
-          ctx_.all_entries = tui_collect_entries(ctx_.current_dir.c_str());
-          ctx_.entries = ctx_.all_entries;
-          ctx_.selected = 0;
-          ctx_.filter.clear();
-        }
-      }
-      return true;
-    }
-    if (event == Event::Character('/')) {
-      ctx_.filtering = !ctx_.filtering;
-      return true;
-    }
-    if (event == Event::Character('o')) {
-      if (ctx_.selected >= 0 && ctx_.selected < (int)ctx_.entries.size()) {
-        const auto& e = ctx_.entries[ctx_.selected];
-        ctx_.open_requested = true;
-        ctx_.open_path = e.path;
-      }
-      return true;
-    }
-    if (event == Event::Character('c')) {
-      if (ctx_.selected >= 0 && ctx_.selected < (int)ctx_.entries.size()) {
-        const auto& e = ctx_.entries[ctx_.selected];
-        std::string abspath = ctx_.current_dir + "/" + e.display_name;
-        std::string osc = "\033]52;c;" + abspath + "\007";
-        fputs(osc.c_str(), stdout);
-        fflush(stdout);
-        ctx_.status_msg = "Copied: " + abspath;
-      }
-      return true;
-    }
-    if (event == Event::Character('d')) {
-      if (ctx_.selected >= 0 && ctx_.selected < (int)ctx_.entries.size()) {
-        const auto& e = ctx_.entries[ctx_.selected];
-        int rc;
-        if (e.is_dir) {
-          rc = rmdir(e.path.c_str());
+        Elements top;
+        top.push_back(text("modbox \u2014 " + current_dir_) | bold | hcenter);
+        top.push_back(separator());
+
+        Element preview = render_preview();
+        Elements body;
+        body.push_back(hbox({
+            render_list() | yframe | flex,
+            preview,
+        }) | flex);
+
+        Elements footer;
+        if (search_mode_) {
+            footer.push_back(text("Filter: " + search_input_ + "\u2588") | dim | frame);
+        } else if (confirm_mode_ == ConfirmMode::Delete) {
+            footer.push_back(text("Delete " + confirm_path_ + "? (y/N)") | bold | color(Color::Red) | frame);
         } else {
-          rc = unlink(e.path.c_str());
+ std::string footer_sort = sort_label(sort_mode_);
+ if (sort_reverse_) footer_sort += " (rev)";
+ footer.push_back(text(
+ " j/k=nav h=up Enter=cd /=filter s=sort(" + footer_sort + ") c=copy o=open d=del q=quit"
+ ) | dim | frame);
         }
-        if (rc == 0) {
-          ctx_.all_entries.erase(ctx_.all_entries.begin() + ctx_.selected);
-          ctx_.entries = ctx_.all_entries;
-          if (ctx_.selected >= (int)ctx_.entries.size()) {
-            ctx_.selected = (int)ctx_.entries.size() - 1;
-          }
-          ctx_.status_msg = "Deleted: " + e.display_name;
-        } else {
-          ctx_.status_msg = "Delete failed: " + std::string(strerror(errno));
+        if (!status_msg_.empty()) {
+            footer.push_back(text(status_msg_) | bold | center);
         }
-      }
-      return true;
+
+        Elements all;
+        all.push_back(vbox(std::move(top)));
+        all.push_back(vbox(std::move(body)) | flex);
+        all.push_back(separator());
+        all.push_back(vbox(std::move(footer)));
+
+        return vbox(std::move(all));
     }
-    if (event == Event::Character('q') || event == Event::Character('Q')) {
-      ctx_.quit_requested = true;
-      return true;
+
+    bool OnEvent(Event event) override {
+        using namespace ftxui;
+
+        if (search_mode_) {
+            if (event == Event::Escape) {
+                search_mode_ = false;
+                search_input_.clear();
+                search_query_.clear();
+                fill_entries();
+                update_scroll_math();
+                return true;
+            }
+            if (event == Event::Return) {
+                search_mode_ = false;
+                search_query_ = search_input_;
+                fill_entries();
+                update_scroll_math();
+                return true;
+            }
+            if (handle_search(event)) return true;
+            return ComponentBase::OnEvent(event);
+        }
+
+        if (confirm_mode_ == ConfirmMode::Delete) {
+            if (event == Event::Character('y') || event == Event::Character('Y')) {
+                const auto& e = entries_[selected_];
+                int rc;
+                if (e.file_type == FileType::Directory) {
+                    rc = rmdir(e.path.c_str());
+                } else {
+                    rc = unlink(e.path.c_str());
+                }
+                if (rc == 0) {
+                    status_msg_ = "Deleted: " + e.display_name;
+                } else {
+                    status_msg_ = "Delete failed: " + std::string(strerror(errno));
+                }
+                confirm_mode_ = ConfirmMode::None;
+                confirm_path_.clear();
+                fill_entries();
+            } else {
+                confirm_mode_ = ConfirmMode::None;
+                confirm_path_.clear();
+                status_msg_.clear();
+            }
+            return true;
+        }
+
+        if (on_command_key(event)) return true;
+        if (handle_nav(event)) return true;
+        return ComponentBase::OnEvent(event);
     }
-    return ComponentBase::OnEvent(event);
-  }
+
+    bool on_command_key(ftxui::Event event) override {
+        using namespace ftxui;
+
+        if (event == Event::Character('q') || event == Event::Character('Q')) {
+            quit_requested_ = true;
+            return true;
+        }
+ if (event == Event::Character('h') || event == Event::Backspace) {
+ std::string parent = current_dir_;
+ size_t pos = parent.size();
+ bool found = false;
+ while (pos > 0) {
+ if (parent[pos - 1] == '/') {
+ if (pos == parent.size()) { pos--; continue; }
+ parent = parent.substr(0, pos - 1);
+ found = true;
+ break;
+ }
+ pos--;
+ }
+ if (!found) parent = "/";
+ if (parent != current_dir_) {
+ push_history(current_dir_);
+ current_dir_ = parent;
+ fill_entries();
+ selected_ = 0;
+ }
+ return true;
+ }
+        if (event == Event::Return) {
+            if (selected_ >= 0 && selected_ < (int)entries_.size()) {
+                const auto& e = entries_[selected_];
+                if (e.file_type == FileType::Directory) {
+                    push_history(current_dir_);
+                    current_dir_ = e.path;
+                    fill_entries();
+                    selected_ = 0;
+                }
+            }
+            return true;
+        }
+        if (event == Event::Character('u')) {
+            if (history_pos_ > 0) {
+                history_pos_--;
+                current_dir_ = nav_history_[history_pos_];
+                fill_entries();
+                selected_ = 0;
+            }
+            return true;
+        }
+        if (event == Event::Character('U')) {
+            if (history_pos_ < (int)nav_history_.size() - 1) {
+                history_pos_++;
+                current_dir_ = nav_history_[history_pos_];
+                fill_entries();
+                selected_ = 0;
+            }
+            return true;
+        }
+        if (event == Event::Character('/')) {
+            search_mode_ = true;
+            search_input_ = search_query_;
+            return true;
+        }
+        if (event == Event::Character('s')) {
+            sort_mode_ = (SortMode)(((int)sort_mode_ + 1) % 4);
+            apply_sort();
+            apply_filter();
+            const char* labels[] = {"Name", "Size", "Mtime", "Type"};
+            status_msg_ = std::string("Sort: ") + labels[(int)sort_mode_];
+            return true;
+        }
+ if (event == Event::Character('S')) {
+ sort_reverse_ = !sort_reverse_;
+ apply_sort();
+ apply_filter();
+ status_msg_ = std::string("Sort: ") + (sort_reverse_ ? "reverse " : "") + sort_label(sort_mode_);
+ return true;
+ }
+        if (event == Event::Character('o')) {
+            if (selected_ >= 0 && selected_ < (int)entries_.size()) {
+                const auto& e = entries_[selected_];
+                if (e.file_type == FileType::Directory) {
+                    push_history(current_dir_);
+                    current_dir_ = e.path;
+                    fill_entries();
+                    selected_ = 0;
+                } else {
+                    const char* editor = getenv("EDITOR");
+                    if (!editor) editor = getenv("PAGER");
+                    if (!editor) editor = "cat";
+                    open_requested_ = true;
+                    open_path_ = e.path;
+                }
+            }
+            return true;
+        }
+ if (event == Event::Character('d')) {
+ if (selected_ >= 0 && selected_ < (int)entries_.size()) {
+ confirm_mode_ = ConfirmMode::Delete;
+ confirm_path_ = entries_[selected_].display_name;
+ status_msg_ = "Delete " + confirm_path_ + "? (y/N)";
+ }
+ return true;
+ }
+ if (event == Event::Character('c')) {
+ if (selected_ >= 0 && selected_ < (int)entries_.size()) {
+ const auto& e = entries_[selected_];
+ std::string abspath = current_dir_ + "/" + e.display_name;
+ std::string osc = "\033]52;c;" + abspath + "\007";
+ fputs(osc.c_str(), stdout);
+ fflush(stdout);
+ status_msg_ = "Copied: " + abspath;
+ }
+ return true;
+ }
+ return false;
+}
+
+    const std::string& current_dir() const { return current_dir_; }
+    bool quit_requested() const { return quit_requested_; }
+    bool open_requested() const { return open_requested_; }
+    const std::string& open_path() const { return open_path_; }
 };
 
-void ls_tui_command(int argc, char** argv, const LsOptions* opts) {
-  (void)argc;
-  (void)argv;
-  (void)opts;
-
-  TuiCtx ctx;
-  ctx.current_dir = ".";
-  ctx.selected = 0;
-  ctx.entries = tui_collect_entries(ctx.current_dir.c_str());
-  ctx.quit_requested = false;
-
+void ls_tui_command(int argc, char** argv) {
   auto screen = App::FitComponent();
-  auto component = std::make_shared<LsfComponent>(ctx);
+  auto component = std::make_shared<LsfComponent>(".");
+  component->Refresh();
   screen.Loop(component);
 
-  if (ctx.open_requested) {
+  if (component->open_requested()) {
     const char* editor = getenv("EDITOR");
     if (!editor) editor = getenv("PAGER");
     if (!editor) editor = "cat";
-    std::string cmd = std::string(editor) + " " + ctx.open_path;
-    printf("\033c");
-    fflush(stdout);
-    int rc = system(cmd.c_str());
-    (void)rc;
+
+    std::string path = component->open_path();
+    pid_t pid = fork();
+    if (pid == 0) {
+      execlp(editor, editor, path.c_str(), (char*)nullptr);
+      _exit(127);
+    } else if (pid > 0) {
+      int status = 0;
+      waitpid(pid, &status, 0);
+      printf("\033c");
+      fflush(stdout);
+      auto screen2 = App::FitComponent();
+      auto component2 = std::make_shared<LsfComponent>(component->current_dir());
+      component2->Refresh();
+      screen2.Loop(component2);
+    }
   }
 
-  if (ctx.quit_requested) {
-    printf("%s\n", ctx.current_dir.c_str());
+  if (component->quit_requested()) {
+    const char* cwd_file = std::getenv("HOME");
+    if (cwd_file) {
+      std::string path = std::string(cwd_file) + "/.cache/lf/cwd";
+      std::error_code ec;
+      std::filesystem::create_directories(std::string(cwd_file) + "/.cache/lf", ec);
+      if (!ec) {
+        FILE* f = fopen(path.c_str(), "w");
+        if (f) {
+          fprintf(f, "%s\n", component->current_dir().c_str());
+          fclose(f);
+        }
+      }
+    }
   }
 }
