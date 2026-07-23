@@ -86,8 +86,26 @@ cd "$TMPDIR"/find_dir
 assert_cmd_pat 'a\.txt' find -maxdepth 1 -name 'a.txt'
 cd /
 
-echo "  ── --help shows usage ──"
-assert_cmd_pat 'Usage:' find --help
+echo "  ── --help shows Usage and --tui ──"
+assert_cmd_pat 'Usage:' find --help 2>/dev/null
+assert_cmd_pat '\-\-tui' find --help 2>/dev/null
+
+echo "  ── --tui (non-TTY) falls back to plain find ──"
+tui_output=$("$MODBOX" find "$TMPDIR"/find_dir --tui -maxdepth 1 2>/dev/null)
+if printf '%s' "$tui_output" | grep -qE 'a\.txt'; then
+    pass "find --tui non-TTY → plain output with a.txt"
+else
+    fail "find --tui non-TTY → missing a.txt in output"
+fi
+
+echo "  ── --tui with -name filter (non-TTY) falls back with filtering ──"
+tui_output=$("$MODBOX" find "$TMPDIR"/find_dir --tui -maxdepth 1 -name 'b*' 2>/dev/null)
+if printf '%s' "$tui_output" | grep -qE 'b\.txt'; then
+    pass "find --tui non-TTY -name 'b*' → filtered output with b.txt"
+else
+    fail "find --tui non-TTY -name 'b*' → missing b.txt in output"
+fi
+
 
 echo "  ── -delete (empty file) ──"
 cp "$TMPDIR"/find_dir/empty.txt "$TMPDIR"/find_dir/to_delete.txt

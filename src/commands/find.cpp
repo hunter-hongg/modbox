@@ -13,23 +13,35 @@
 #include <string>
 #include <vector>
 
+#include <pwd.h>
+#include <grp.h>
+#include <climits>
+
 #include "commands/find.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/fs_classify.hpp"
 /* ── Constants ────────────────────────────────────────────────────── */
 
 #define FIND_MAX_DEPTH_UNLIMITED (-1)
 #define EXIT_EXEC_FAIL 127
 #define IS_PATH_SEP(c) ((c) == '/')
 
+using FindMatchCB = void (*)(const char* fullpath, const char* basename,
+                              const struct stat* st, FindOptions* opts);
+
 /* ── Forward declarations ────────────────────────────────────────── */
 
 static int  find_evaluate(const char *fullpath, const char *basename,
                           const struct stat *st, const FindOptions *opts,
                           int depth);
-static int  find_walk(const char *dirpath, FindOptions *opts, int depth);
+static int  find_walk(const char *dirpath, FindOptions *opts, int depth,
+                      FindMatchCB on_match = nullptr);
 static void find_exec_file(const char *fullpath, FindOptions *opts);
 static void find_exec_finalize(FindOptions *opts);
-static void find_usage(const char *progname);
+
+int find_parse_args(int argc, char **argv, FindOptions *opts,
+                    int *help_requested);
+void find_usage(const char *progname);
 
 /* ── Predicate helpers ───────────────────────────────────────────── */
 
@@ -136,7 +148,8 @@ static int find_evaluate(const char *fullpath, const char *basename,
 /** Recursively walk a directory and process entries.
  *  Returns 0 on success, -1 on error. */
 // NOLINTNEXTLINE(misc-no-recursion)
-static int find_walk(const char *dirpath, FindOptions *opts, int depth) {
+static int  find_walk(const char *dirpath, FindOptions *opts, int depth,
+                      FindMatchCB on_match) {
     DIR *dir = opendir(dirpath);
     if (dir == NULL) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -167,14 +180,18 @@ static int find_walk(const char *dirpath, FindOptions *opts, int depth) {
 
         // Evaluate predicates
         if (find_evaluate(fullpath, entry->d_name, &st, opts, depth + 1)) {
-            find_exec_file(fullpath, opts);
+            if (on_match) {
+                on_match(fullpath, entry->d_name, &st, opts);
+            } else {
+                find_exec_file(fullpath, opts);
+            }
         }
 
         // Recurse into directories (follow symlinks to dirs?)
         if (S_ISDIR(st.st_mode) &&
             (opts->max_depth == FIND_MAX_DEPTH_UNLIMITED ||
              depth + 1 <= opts->max_depth)) {
-            find_walk(fullpath, opts, depth + 1);
+            find_walk(fullpath, opts, depth + 1, on_match);
         }
     }
 
@@ -291,6 +308,103 @@ static void find_exec_finalize(FindOptions *opts) {
     }
 }
 
+/* ── TUI helpers ──────────────────────────────────────────────────── */
+
+static std::string get_owner(uid_t uid) {
+    struct passwd* pw = getpwuid(uid);
+    return pw ? pw->pw_name : std::to_string(uid);
+}
+
+static std::string get_group(gid_t gid) {
+    struct group* gr = getgrgid(gid);
+    return gr ? gr->gr_name : std::to_string(gid);
+}
+
+static std::string fmt_time(time_t t) {
+    char buf[32];
+    strftime(buf, sizeof(buf), "%b %d %H:%M", localtime(&t));
+    return buf;
+}
+
+static const char* type_prefix_char_str(int file_type) {
+    switch (file_type) {
+    case 3: return "d";
+    case 4: return "l";
+    case 5: return "s";
+    case 6: return "p";
+    case 7: return "b";
+    case 8: return "c";
+    default: return "-";
+    }
+}
+
+static std::string perm_string(mode_t mode) {
+    std::string s(9, '-');
+    s[0] = (mode & S_IRUSR) ? 'r' : '-';
+    s[1] = (mode & S_IWUSR) ? 'w' : '-';
+    s[2] = (mode & S_IXUSR) ? 'x' : '-';
+    s[3] = (mode & S_IRGRP) ? 'r' : '-';
+    s[4] = (mode & S_IWGRP) ? 'w' : '-';
+    s[5] = (mode & S_IXGRP) ? 'x' : '-';
+    s[6] = (mode & S_IROTH) ? 'r' : '-';
+    s[7] = (mode & S_IWOTH) ? 'w' : '-';
+    s[8] = (mode & S_IXOTH) ? 'x' : '-';
+    if (mode & S_ISUID) s[2] = (mode & S_IXUSR) ? 's' : 'S';
+    if (mode & S_ISGID) s[5] = (mode & S_IXGRP) ? 's' : 'S';
+    if (mode & S_ISVTX) s[8] = (mode & S_IXOTH) ? 't' : 'T';
+    return s;
+}
+
+static FindMatch find_entry_to_match(const char* fullpath, const char* basename,
+                                      const struct stat* st) {
+    FindMatch m;
+    m.path = fullpath;
+    m.display_name = basename;
+    m.file_type = (int)classify(*st);
+    m.size = (uint64_t)st->st_size;
+    m.mtime = st->st_mtime;
+    m.mtime_str = fmt_time(st->st_mtime);
+    m.perm_str = std::string(type_prefix_char_str(m.file_type)) + perm_string(st->st_mode);
+    return m;
+}
+
+static void collect_match(const char* fullpath, const char* basename,
+                           const struct stat* st, FindOptions* opts) {
+    if (opts->collect_results) {
+        opts->collect_results->push_back(
+            find_entry_to_match(fullpath, basename, st));
+    }
+}
+
+std::vector<FindMatch> find_collect_matches(FindOptions* opts) {
+    std::vector<FindMatch> results;
+    opts->collect_results = &results;
+
+    for (size_t i = 0; i < opts->paths.size(); i++) {
+        const char* start = opts->paths[i].c_str();
+        struct stat st;
+
+        if (lstat(start, &st) != 0) {
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            if (find_evaluate(start, start, &st, opts, 0)) {
+                results.push_back(find_entry_to_match(start, start, &st));
+            }
+            if (opts->max_depth == FIND_MAX_DEPTH_UNLIMITED || opts->max_depth > 0) {
+                find_walk(start, opts, 0, collect_match);
+            }
+        } else if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
+            if (find_evaluate(start, start, &st, opts, 0)) {
+                results.push_back(find_entry_to_match(start, start, &st));
+            }
+        }
+    }
+
+    return results;
+}
+
 /* ── Argument parsing ────────────────────────────────────────────── */
 /**
  * Parse find expression from argv.
@@ -304,7 +418,7 @@ static void find_exec_finalize(FindOptions *opts) {
  *
  * Returns 0 on success, -1 on error (caller should exit). */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-static int find_parse_args(int argc, char **argv, FindOptions *opts,
+int find_parse_args(int argc, char **argv, FindOptions *opts,
                            int *help_requested) {
     int i;
     int collecting_paths = 1;
@@ -440,6 +554,8 @@ static int find_parse_args(int argc, char **argv, FindOptions *opts,
                               "find: missing terminating `;' or `+' for `-exec'\n");
                 return -1;
             }
+        } else if (strcmp(arg, "--tui") == 0) {
+            opts->tui_mode = 1;
         } else {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "find: unknown predicate `%s'\n", arg);
@@ -452,9 +568,12 @@ static int find_parse_args(int argc, char **argv, FindOptions *opts,
 
 /* ── Usage / Help ────────────────────────────────────────────────── */
 
-static void find_usage(const char *progname) {
+void find_usage(const char *progname) {
     printf("Usage: %s [starting-point...] [expression]\n", progname);
     printf("Search for files in a directory hierarchy.\n");
+    printf("\n");
+    printf("Modes:\n");
+    printf("  --tui                interactive TUI viewer\n");
     printf("\n");
     printf("Predicates:\n");
     printf("  -name PATTERN      shell glob pattern matching on filename\n");
@@ -498,6 +617,15 @@ void find_command(int argc, char **argv) {
     if (help_requested) {
         find_usage(argv[0]);
         return;
+    }
+
+    if (opts.tui_mode) {
+        if (!isatty(STDOUT_FILENO)) {
+            (void)fprintf(stderr, "find: --tui requires a terminal; falling back to normal output\n");
+        } else {
+            find_tui_main(argc, argv);
+            return;
+        }
     }
 
     // Default: print if no action specified
