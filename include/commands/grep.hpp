@@ -24,5 +24,6 @@ struct GrepOptions {
 };
 
 void grep_command(int argc, char** argv);
+void grep_tui_main(int argc, char** argv);
 
 #endif

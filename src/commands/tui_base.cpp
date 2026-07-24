@@ -12,7 +12,14 @@
     int total = entries_size();
     int scroll_max = total - max_rows_;
     if (scroll_max < 0) scroll_max = 0;
+
+    if (selected_ < scroll_offset_)
+        scroll_offset_ = selected_;
+    if (selected_ >= scroll_offset_ + max_rows_)
+        scroll_offset_ = selected_ - max_rows_ + 1;
+
     if (scroll_offset_ > scroll_max) scroll_offset_ = scroll_max;
+    if (scroll_offset_ < 0) scroll_offset_ = 0;
     if (selected_ >= total) selected_ = total - 1;
     if (selected_ < 0) selected_ = 0;
 }

@@ -14,17 +14,25 @@ void lf_command(int argc, char** argv) {
         }
         if (strcmp(shell, "bash") == 0 || strcmp(shell, "zsh") == 0) {
             printf("lf() {\n");
-            printf("  local __dir\n");
-            printf("  __dir=$(command modbox lf --tui \"$@\" 2>/dev/null)\n");
-            printf("  if [ -n \"$__dir\" ] && [ \"$__dir\" != \"$(pwd)\" ]; then\n");
-            printf("    cd \"$__dir\"\n");
+            printf("  local __cwd_file=\"${HOME}/.cache/lf/cwd\"\n");
+            printf("  command modbox lf --tui \"$@\"\n");
+            printf("  if [ -f \"$__cwd_file\" ] && [ -r \"$__cwd_file\" ]; then\n");
+            printf("    local __lf_last_dir\n");
+            printf("    __lf_last_dir=$(<\"$__cwd_file\")\n");
+            printf("    if [ -n \"$__lf_last_dir\" ] && [ \"$__lf_last_dir\" != \"$(pwd)\" ]; then\n");
+            printf("      cd \"$__lf_last_dir\"\n");
+            printf("    fi\n");
             printf("  fi\n");
             printf("}\n");
         } else if (strcmp(shell, "fish") == 0) {
             printf("function lf\n");
-            printf("  set -l __lf_last_dir (command modbox lf --tui $argv 2>/dev/null)\n");
-            printf("  if test -n \"$__lf_last_dir\"\n");
-            printf("    cd \"$__lf_last_dir\"\n");
+            printf("  set -l __cwd_file \"$HOME/.cache/lf/cwd\"\n");
+            printf("  command modbox lf --tui $argv\n");
+            printf("  if test -f \"$__cwd_file\"\n");
+            printf("    set -l __lf_last_dir (cat \"$__cwd_file\")\n");
+            printf("    if test -n \"$__lf_last_dir\" && test \"$__lf_last_dir\" != (pwd)\n");
+            printf("      cd \"$__lf_last_dir\"\n");
+            printf("    end\n");
             printf("  end\n");
             printf("end\n");
         } else {

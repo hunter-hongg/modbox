@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "commands/grep.hpp"
+#include "commands/grep_tui.hpp"
 #include "commands/search_common.hpp"
 #include "commands/command_macros.hpp"
 
@@ -175,6 +176,18 @@ void grep_command(int argc, char** argv) {
     }
   }
 
+  // Handle --tui without argtable (bypasses arg_lit0 long-only issues)
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--tui") == 0) {
+      for (int j = i; j < argc - 1; j++) {
+        argv[j] = argv[j + 1];
+      }
+      argc--;
+      grep_tui_main(argc, argv);
+      return;
+    }
+  }
+
   struct arg_lit* extended_opt =
       arg_lit0("E", "extended-regexp", "interpret pattern as extended regex (ERE)");
   struct arg_lit* fixed_opt =
@@ -224,7 +237,8 @@ void grep_command(int argc, char** argv) {
                       count_opt,       recursive_opt,  recursive2_opt,
                       word_regexp_opt, line_regexp_opt, only_matching_opt,
                       files_opt,       with_filename_opt, no_filename_opt,
-                      color_opt,       pattern_opt,    help_opt,
+                      color_opt,       pattern_opt,
+                      help_opt,
                       file_arg,        end};
 
   int nerrors = arg_parse(argc, argv, argtable);
@@ -252,6 +266,7 @@ void grep_command(int argc, char** argv) {
     printf("  -H, --with-filename       print the file name for each match\n");
     printf("  -h, --no-filename         suppress the file name prefix on output\n");
     printf("      --color=WHEN          highlight matching text; WHEN can be always, auto, never\n");
+    printf("      --tui                 interactive TUI viewer\n");
     printf("\n");
     printf("Other:\n");
     printf("  -r, --recursive           search directories recursively\n");

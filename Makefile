@@ -51,7 +51,7 @@ DEP := $(OBJ:.o=.d)
 # --------------------------------------------------------------------------
 # Ensure linuxbrew pkg-config path is discoverable, as the CMake build did.
 PKG_CONFIG_PATH := /home/linuxbrew/.linuxbrew/lib/pkgconfig:$(PKG_CONFIG_PATH)
-PKGS := argtable3 ftxui openssl
+PKGS := argtable3 ftxui openssl libselinux
 
 PKG_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags $(PKGS))
 PKG_LIBS   := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs   $(PKGS))
