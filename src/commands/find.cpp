@@ -20,6 +20,7 @@
 #include "commands/find.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/fs_classify.hpp"
+#include "commands/json_stringifier.hpp"
 /* ── Constants ────────────────────────────────────────────────────── */
 
 #define FIND_MAX_DEPTH_UNLIMITED (-1)
@@ -556,6 +557,8 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
             }
         } else if (strcmp(arg, "--tui") == 0) {
             opts->tui_mode = 1;
+        } else if (strcmp(arg, "--json") == 0) {
+            opts->json_mode = 1;
         } else {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "find: unknown predicate `%s'\n", arg);
@@ -636,6 +639,33 @@ void find_command(int argc, char **argv) {
     // Default starting point
     if (opts.paths.empty()) {
         opts.paths.push_back(".");
+    }
+
+    if (opts.json_mode) {
+        std::vector<FindMatch> matches = find_collect_matches(&opts);
+        fprintf(stdout, "[\n");
+        for (size_t i = 0; i < matches.size(); i++) {
+            const FindMatch& m = matches[i];
+            fprintf(stdout, "  {\n");
+            fprintf(stdout, "    \"path\": ");
+            json_escape_string(stdout, m.path.c_str());
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"display_name\": ");
+            json_escape_string(stdout, m.display_name.c_str());
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"file_type\": %d,\n", m.file_type);
+            fprintf(stdout, "    \"size\": %llu,\n", (unsigned long long)m.size);
+            fprintf(stdout, "    \"mtime\": %ld,\n", (long)m.mtime);
+            fprintf(stdout, "    \"mtime_str\": ");
+            json_escape_string(stdout, m.mtime_str.c_str());
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"perm_str\": ");
+            json_escape_string(stdout, m.perm_str.c_str());
+            fprintf(stdout, "\n");
+            fprintf(stdout, "  }%s\n", (i + 1 < matches.size()) ? "," : "");
+        }
+        fprintf(stdout, "]\n");
+        return;
     }
 
     // Walk each starting point

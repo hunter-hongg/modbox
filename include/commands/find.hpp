@@ -24,6 +24,7 @@ struct FindOptions {
     int exec_plus = 0;
     std::vector<std::string> exec_paths;
     int tui_mode = 0;
+    int json_mode = 0;
     std::vector<FindMatch>* collect_results = nullptr;
 };
 

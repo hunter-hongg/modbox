@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include "commands/json_stringifier.hpp"
 #include <algorithm>
 
 #include <sys/types.h>
@@ -644,6 +645,8 @@ void stat_command(int argc, char** argv) {
       arg_str0("c", "format", "FORMAT", "use the specified FORMAT instead of the default");
   struct arg_str* printf_opt =
       arg_str0(NULL, "printf", "FORMAT", "like --format, but interpret backslash escapes and do not append a newline");
+  struct arg_lit* json_opt =
+      arg_lit0(NULL, "json", "output in JSON format");
   struct arg_lit* version_opt =
       arg_lit0(NULL, "version", "output version information and exit");
   struct arg_lit* help_opt =
@@ -652,8 +655,7 @@ void stat_command(int argc, char** argv) {
       arg_filen(NULL, NULL, "FILE", 0, 100, "file or file system to stat");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {deref_opt, fs_opt, terse_opt, format_opt, printf_opt,
-                      version_opt, help_opt, file_arg, end};
+  void* argtable[] = {deref_opt, fs_opt, terse_opt, format_opt, printf_opt, json_opt, version_opt, help_opt, file_arg, end};
 
   int nerrors = arg_parse(argc, argv, argtable);
 
@@ -667,6 +669,7 @@ void stat_command(int argc, char** argv) {
     printf("  -c, --format=FORMAT   use the specified FORMAT instead of the default\n");
     printf("      --printf=FORMAT   like --format, but interpret backslash escapes,\n");
     printf("                         and do not output a trailing newline\n");
+    printf("      --json           output in JSON format\n");
     printf("      --version     output version information and exit\n");
     printf("  -h, --help        display this help and exit\n");
     printf("\n");
@@ -704,17 +707,24 @@ void stat_command(int argc, char** argv) {
 
   bool fs_mode = (fs_opt->count > 0);
   bool deref = (deref_opt->count > 0);
+  bool json_mode = (json_opt->count > 0);
 
-  bool use_printf = (printf_opt->count > 0);
-  bool use_format = (format_opt->count > 0);
+  if (json_mode && (printf_opt->count > 0 || format_opt->count > 0)) {
+    fprintf(stderr, "stat: --json is incompatible with --format/--printf\n");
+    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    exit(1);
+  }
+
   std::string format;
   bool append_newline = false;
   bool interpret_escapes = false;
 
-  if (use_printf) {
+  if (json_mode) {
+    // no-op: JSON mode uses its own serialization
+  } else if (printf_opt->count > 0) {
     format = printf_opt->sval[0];
     interpret_escapes = true;
-  } else if (use_format) {
+  } else if (format_opt->count > 0) {
     format = format_opt->sval[0];
     append_newline = true;
   } else if (fs_mode) {
@@ -724,64 +734,143 @@ void stat_command(int argc, char** argv) {
   }
 
   if (file_arg->count == 0) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "stat: missing operand\n");
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "Try 'stat --help' for more information.\n");
     arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     exit(1);
   }
 
-  int exit_status = 0;
+  /* Collect all entries first for JSON array output */
+  struct EntryResult {
+    StatCtx ctx;
+    bool valid;
+    std::string error;
+  };
+  std::vector<EntryResult> results;
+  results.reserve(file_arg->count);
+
   for (int idx = 0; idx < file_arg->count; idx++) {
     const char* path = file_arg->filename[idx];
-    StatCtx ctx;
-    ctx.fs_mode = fs_mode;
-    ctx.name = path;
+    EntryResult r;
+    r.ctx.fs_mode = fs_mode;
+    r.ctx.name = path;
 
-    /* Detect symlinks for %N (independent of --dereference). */
     struct stat ls;
     if (lstat(path, &ls) == 0 && S_ISLNK(ls.st_mode)) {
-      ctx.is_link = true;
+      r.ctx.is_link = true;
       char buf[4096];
       ssize_t n = readlink(path, buf, sizeof(buf) - 1);
       if (n > 0) {
         buf[n] = '\0';
-        ctx.link_target = buf;
+        r.ctx.link_target = buf;
       }
     }
 
     if (fs_mode) {
-      ctx.fss = do_stat_fs(path);
-      if (!ctx.fss.valid) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "stat: cannot read file system status for '%s': %s\n",
-                      path, strerror(errno));
-        exit_status = 1;
+      r.ctx.fss = do_stat_fs(path);
+      if (!r.ctx.fss.valid) {
+        r.valid = false;
+        r.error = strerror(errno);
+        results.push_back(r);
         continue;
       }
     } else {
-      ctx.fst = do_stat_file(path, deref);
-      if (!ctx.fst.valid) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "stat: cannot stat '%s': %s\n", path,
-                      strerror(errno));
-        exit_status = 1;
+      r.ctx.fst = do_stat_file(path, deref);
+      if (!r.ctx.fst.valid) {
+        r.valid = false;
+        r.error = strerror(errno);
+        results.push_back(r);
         continue;
       }
     }
+    r.valid = true;
+    results.push_back(r);
+  }
 
-    std::string out = expand_format(format, fs_mode, ctx, interpret_escapes);
-    if (append_newline) {
-      out += '\n';
+  if (json_mode) {
+    fprintf(stdout, "[\n");
+    for (size_t i = 0; i < results.size(); i++) {
+      const EntryResult& r = results[i];
+      if (!r.valid) {
+        fprintf(stdout, "  {\"error\": ");
+        json_escape_string(stdout, r.error.c_str());
+        fprintf(stdout, ", \"path\": ");
+        json_escape_string(stdout, r.ctx.name.c_str());
+        fprintf(stdout, "}\n");
+      } else {
+        const StatCtx& c = r.ctx;
+        fprintf(stdout, "  {\n");
+        if (c.fs_mode) {
+          const FsStat& f = c.fss;
+          fprintf(stdout, "    \"blocks\": %llu,\n", (unsigned long long)f.blocks);
+          fprintf(stdout, "    \"free_blocks\": %llu,\n", (unsigned long long)f.bfree);
+          fprintf(stdout, "    \"avail_blocks\": %llu,\n", (unsigned long long)f.bavail);
+          fprintf(stdout, "    \"fundamental_block_size\": %lu,\n", (unsigned long)f.frsize);
+          fprintf(stdout, "    \"block_size\": %lu,\n", (unsigned long)f.bsize);
+          fprintf(stdout, "    \"free_inodes\": %llu,\n", (unsigned long long)f.ffree);
+          fprintf(stdout, "    \"name_max\": %lu,\n", (unsigned long)f.namemax);
+          fprintf(stdout, "    \"total_blocks\": %llu,\n", (unsigned long long)f.blocks);
+          fprintf(stdout, "    \"total_inodes\": %llu,\n", (unsigned long long)f.files);
+          fprintf(stdout, "    \"type\": \"%s\"\n", fs_type_name(f.f_type).c_str());
+        } else {
+          const FileStat& s = c.fst;
+          fprintf(stdout, "    \"access_time\": \"%s\",\n", human_time(s.atime).c_str());
+          fprintf(stdout, "    \"access_time_epoch\": %ld,\n", (long)s.atime.tv_sec);
+          fprintf(stdout, "    \"birth_time\": \"%s\",\n", s.has_btime ? human_time(s.btime).c_str() : "");
+          fprintf(stdout, "    \"birth_time_epoch\": %ld,\n", s.has_btime ? (long)s.btime.tv_sec : 0);
+          fprintf(stdout, "    \"blocks\": %lld,\n", (long long)s.blocks);
+          fprintf(stdout, "    \"change_time\": \"%s\",\n", human_time(s.ctime).c_str());
+          fprintf(stdout, "    \"change_time_epoch\": %ld,\n", (long)s.ctime.tv_sec);
+          fprintf(stdout, "    \"device\": %lu,\n", (unsigned long)s.dev);
+          fprintf(stdout, "    \"file_type\": \"%s\",\n", file_type_string(s.mode, s.size).c_str());
+          fprintf(stdout, "    \"group\": \"%s\",\n", getgrgid(s.gid) ? getgrgid(s.gid)->gr_name : "?");
+          fprintf(stdout, "    \"group_id\": %u,\n", (unsigned)s.gid);
+          fprintf(stdout, "    \"inode\": %llu,\n", (unsigned long long)s.ino);
+          fprintf(stdout, "    \"links\": %u,\n", (unsigned)s.nlink);
+          fprintf(stdout, "    \"mode\": \"%s\",\n", perm_string(s.mode).c_str());
+          fprintf(stdout, "    \"mode_octal\": \"%s\",\n", to_octal(s.mode & PERMISSION_MASK).c_str());
+          fprintf(stdout, "    \"mount_point\": \"%s\",\n", mount_point(c.name).c_str());
+          fprintf(stdout, "    \"name\": \"%s\",\n", c.name.c_str());
+          if (c.is_link) {
+            fprintf(stdout, "    \"symlink_target\": \"%s\",\n", c.link_target.c_str());
+          }
+          fprintf(stdout, "    \"size\": %lld,\n", (long long)s.size);
+          fprintf(stdout, "    \"modify_time\": \"%s\",\n", human_time(s.mtime).c_str());
+          fprintf(stdout, "    \"modify_time_epoch\": %ld,\n", (long)s.mtime.tv_sec);
+          fprintf(stdout, "    \"user\": \"%s\",\n", getpwuid(s.uid) ? getpwuid(s.uid)->pw_name : "?");
+          fprintf(stdout, "    \"user_id\": %u\n", (unsigned)s.uid);
+        }
+        fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
+      }
     }
-    emit(out);
+    fprintf(stdout, "]\n");
+  } else {
+    int exit_status = 0;
+    for (size_t idx = 0; idx < results.size(); idx++) {
+      const EntryResult& r = results[idx];
+      if (!r.valid) {
+        const StatCtx& c = r.ctx;
+        if (c.fs_mode) {
+          (void)fprintf(stderr, "stat: cannot read file system status for '%s': %s\n", c.name.c_str(), r.error.c_str());
+        } else {
+          (void)fprintf(stderr, "stat: cannot stat '%s': %s\n", c.name.c_str(), r.error.c_str());
+        }
+        exit_status = 1;
+        continue;
+      }
+      const StatCtx& c = r.ctx;
+      std::string out = expand_format(format, c.fs_mode, c, interpret_escapes);
+      if (append_newline) {
+        out += '\n';
+      }
+      emit(out);
+    }
+    if (exit_status != 0) {
+      exit(exit_status);
+    }
   }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-  if (exit_status != 0) {
-    exit(exit_status);
-  }
 }
 
 REGISTER_COMMAND("stat", stat_command, "Display file or filesystem status");

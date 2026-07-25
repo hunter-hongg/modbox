@@ -29,6 +29,7 @@
 
 #include "commands/ps.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/json_stringifier.hpp"
 
 struct ProcessInfo {
     pid_t pid;
@@ -298,9 +299,10 @@ void ps_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* x_opt = arg_lit0("x", NULL, "lift the BSD-style 'must have a tty' restriction");
     struct arg_lit* tui_opt = arg_lit0(NULL, "tui", "interactive TUI mode (procs-style)");
+    struct arg_lit* json_opt = arg_lit0(NULL, "json", "output in JSON format");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {all_opt, a_opt, d_opt, e_opt, f_opt, u_opt, help_opt, x_opt, tui_opt, end};
+    void* argtable[] = {all_opt, a_opt, d_opt, e_opt, f_opt, u_opt, help_opt, x_opt, tui_opt, json_opt, end};
     int nerrors = arg_parse(argc, argv, argtable);
 
     if (help_opt->count > 0) {
@@ -317,6 +319,7 @@ void ps_command(int argc, char** argv) {
         printf("  -h, --help              display this help and exit\n");
         printf("  -x                      lift the BSD-style 'must have a tty' restriction\n");
         printf("      --tui               interactive TUI mode (procs-style)\n");
+        printf("      --json              output in JSON format\n");
         printf("\n");
         printf("TUI mode keys:\n");
         printf("  q         Quit\n");
@@ -352,6 +355,7 @@ void ps_command(int argc, char** argv) {
     bool full_format = (f_opt->count > 0);
     bool select_x = (x_opt->count > 0);
     bool user_format = (u_opt->count > 0);
+    bool json_mode = (json_opt->count > 0);
 
     // BSD-style: -a -x together = show all processes
     if (select_a && select_x) {
@@ -418,6 +422,46 @@ void ps_command(int argc, char** argv) {
     }
 
     closedir(proc_dir);
+
+    if (json_mode) {
+        fprintf(stdout, "[\n");
+        for (size_t i = 0; i < matched_procs.size(); i++) {
+            const ProcessInfo& info = matched_procs[i];
+            const char* username = get_username(info.uid);
+            int total_ticks = info.utime + info.stime + info.cutime + info.cstime;
+            fprintf(stdout, "  {\n");
+            fprintf(stdout, "    \"pid\": %d,\n", info.pid);
+            fprintf(stdout, "    \"ppid\": %d,\n", info.ppid);
+            fprintf(stdout, "    \"pgrp\": %d,\n", info.pgrp);
+            fprintf(stdout, "    \"session\": %d,\n", info.session);
+            fprintf(stdout, "    \"uid\": %d,\n", info.uid);
+            fprintf(stdout, "    \"user\": ");
+            json_escape_string(stdout, username);
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"gid\": %d,\n", info.gid);
+            fprintf(stdout, "    \"comm\": ");
+            json_escape_string(stdout, info.comm);
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"state\": ");
+            json_escape_string(stdout, std::string(1, info.state).c_str());
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"tty_nr\": %ld,\n", (long)info.tty_nr);
+            fprintf(stdout, "    \"utime\": %d,\n", info.utime);
+            fprintf(stdout, "    \"stime\": %d,\n", info.stime);
+            fprintf(stdout, "    \"priority\": %d,\n", info.priority);
+            fprintf(stdout, "    \"nice\": %d,\n", info.nice);
+            fprintf(stdout, "    \"num_threads\": %d,\n", info.num_threads);
+            fprintf(stdout, "    \"vsize\": %llu,\n", (unsigned long long)info.vsize);
+            fprintf(stdout, "    \"rss\": %lld,\n", (long long)info.rss);
+            fprintf(stdout, "    \"cmd\": ");
+            json_escape_string(stdout, info.cmd);
+            fprintf(stdout, "\n");
+            fprintf(stdout, "  }%s\n", (i + 1 < matched_procs.size()) ? "," : "");
+        }
+        fprintf(stdout, "]\n");
+        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        return;
+    }
 
     int pid_w = 3, ppid_w = 3, cpu_w = 1, user_w = 3;
     int stime_w = 5, tty_w = 3, time_w = 4;

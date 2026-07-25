@@ -11,6 +11,7 @@
 
 #include "commands/df.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/json_stringifier.hpp"
 
 struct FsEntry {
     std::string mount_point;
@@ -39,6 +40,7 @@ static void print_help(const char* prog) {
     printf("  -k                    like --block-size=1K\n");
     printf("  -m, --megabytes       like --block-size=1M\n");
     printf("  -T, --print-type      print file system type\n");
+    printf("      --json            output in JSON format\n");
     printf("      --help            display this help and exit\n");
     printf("      --version         output version information and exit\n");
     printf("\n");
@@ -128,6 +130,7 @@ void df_command(int argc, char** argv) {
     bool show_inodes = false;
     bool show_type = false;
     bool all = false;
+    bool json_mode = false;
     uint64_t block_size_override = 0;
     std::vector<const char*> paths;
 
@@ -183,6 +186,10 @@ void df_command(int argc, char** argv) {
             block_size_override = 1024ULL * 1024ULL;
             continue;
         }
+        if (strcmp(a, "--json") == 0) {
+            json_mode = true;
+            continue;
+        }
         if (a[0] == '-') {
             fprintf(stderr, "df: invalid option '%s'\n", a);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -195,19 +202,22 @@ void df_command(int argc, char** argv) {
         paths.push_back(".");
     }
 
-    printf("%-20s ", "Filesystem");
-    if (show_type) printf("%-12s ", "Type");
-    if (!show_inodes) {
-        if (human || si || block_size_override) {
-            printf("  Size    Used  Avail Use%%");
+    if (!json_mode) {
+        printf("%-20s ", "Filesystem");
+        if (show_type) printf("%-12s ", "Type");
+        if (!show_inodes) {
+            if (human || si || block_size_override) {
+                printf("  Size    Used  Avail Use%%");
+            } else {
+                printf("  1K-blocks    Used  Available Use%%");
+            }
         } else {
-            printf("  1K-blocks    Used  Available Use%%");
+            printf("   Inodes   IUsed  IFree IUse%%");
         }
-    } else {
-        printf("   Inodes   IUsed  IFree IUse%%");
+        printf("  Mounted on\n");
     }
-    printf("  Mounted on\n");
 
+    std::vector<FsEntry> json_entries;
     for (size_t p = 0; p < paths.size(); p++) {
         std::vector<FsEntry> entries;
         if (!collect_fs(paths[p], human, si, block_size_override, show_inodes, show_type, entries)) {
@@ -216,6 +226,10 @@ void df_command(int argc, char** argv) {
         }
 
         for (const auto& e : entries) {
+            if (json_mode) {
+                json_entries.push_back(e);
+                continue;
+            }
             printf("%-20s ", e.mount_point.c_str());
             if (show_type) printf("%-12s ", e.fs_type.c_str());
 
@@ -261,6 +275,29 @@ void df_command(int argc, char** argv) {
 
             printf("  %s\n", e.mount_point.c_str());
         }
+    }
+
+    if (json_mode) {
+        fprintf(stdout, "[\n");
+        for (size_t i = 0; i < json_entries.size(); i++) {
+            const FsEntry& e = json_entries[i];
+            fprintf(stdout, "  {\n");
+            fprintf(stdout, "    \"mount_point\": ");
+            json_escape_string(stdout, e.mount_point.c_str());
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"fs_type\": ");
+            json_escape_string(stdout, e.fs_type.c_str());
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"block_size\": %llu,\n", (unsigned long long)e.block_size);
+            fprintf(stdout, "    \"total_blocks\": %llu,\n", (unsigned long long)e.total_blocks);
+            fprintf(stdout, "    \"free_blocks\": %llu,\n", (unsigned long long)e.free_blocks);
+            fprintf(stdout, "    \"avail_blocks\": %llu,\n", (unsigned long long)e.avail_blocks);
+            fprintf(stdout, "    \"total_inodes\": %llu,\n", (unsigned long long)e.total_inodes);
+            fprintf(stdout, "    \"free_inodes\": %llu,\n", (unsigned long long)e.free_inodes);
+            fprintf(stdout, "    \"avail_inodes\": %llu\n", (unsigned long long)e.avail_inodes);
+            fprintf(stdout, "  }%s\n", (i + 1 < json_entries.size()) ? "," : "");
+        }
+        fprintf(stdout, "]\n");
     }
 }
 

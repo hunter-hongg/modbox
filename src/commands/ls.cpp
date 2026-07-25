@@ -20,6 +20,7 @@
 #include "commands/ls_entry.hpp"
 #include "commands/fs_classify.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/json_stringifier.hpp"
 
 void ls_tui_command(int argc, char** argv);
 
@@ -692,6 +693,8 @@ void ls_command(int argc, char **argv) {
       arg_lit0(NULL, "icons", "display icons before file names (like lsd)");
   struct arg_lit *tui_opt =
       arg_lit0(NULL, "tui", "interactive file browser (falls back to normal output without a TTY)");
+  struct arg_lit *json_opt =
+      arg_lit0(NULL, "json", "output in JSON format");
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_file *dir_arg =
@@ -715,6 +718,7 @@ void ls_command(int argc, char **argv) {
                       colorful_opt,
                       icons_opt,
                       tui_opt,
+                      json_opt,
                       help_opt,
                       dir_arg,
                       end};
@@ -739,6 +743,7 @@ void ls_command(int argc, char **argv) {
     printf("      --colorful        multi-color output (like eza/lsd)\n");
     printf("      --icons           display icons before file names (like lsd)\n");
     printf("      --tui             interactive file browser (falls back to normal output without a TTY)\n");
+    printf("      --json            output in JSON format\n");
     printf("  -l, --long            use a long listing format\n");
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
@@ -765,6 +770,7 @@ void ls_command(int argc, char **argv) {
   opts.colorful = (colorful_opt->count > 0);
   opts.show_icons = (icons_opt->count > 0);
   opts.tui_mode = (tui_opt->count > 0);
+  bool json_mode = (json_opt->count > 0);
   if (opts.colorful) {
     opts.color_mode = ColorMode::ALWAYS;
   }
@@ -820,47 +826,92 @@ void ls_command(int argc, char **argv) {
     }
   }
 
-  if (dir_arg->count == 0) {
-    dir_arg->count = 1;
-    dir_arg->filename[0] = ".";
-  }
+   if (dir_arg->count == 0) {
+     dir_arg->count = 1;
+     dir_arg->filename[0] = ".";
+   }
+
+   std::vector<LsEntry> all_json_entries;
 
    if (opts.list_dir_contents) {
-     for (int i = 0; i < dir_arg->count; i++) {
-       DIR* dir = opendir(dir_arg->filename[i]);
-       if (dir == NULL) {
-         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-         (void)fprintf(stderr, "ls: %s: %s\n",
-                       dir_arg->filename[i], strerror(errno));
-         continue;
-       }
-       closedir(dir);
+      for (int i = 0; i < dir_arg->count; i++) {
+        DIR* dir = opendir(dir_arg->filename[i]);
+        if (dir == NULL) {
+          // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+          (void)fprintf(stderr, "ls: %s: %s\n",
+                        dir_arg->filename[i], strerror(errno));
+          continue;
+        }
+        closedir(dir);
 
-       std::vector<LsEntry> files = collect_entries(dir, dir_arg->filename[i], &opts);
-       sort_and_output_files(files, &opts);
-     }
-   } else {
-     /* -d mode: list the directory entries themselves, not their contents */
-     std::vector<LsEntry> files;
-     for (int i = 0; i < dir_arg->count; i++) {
-       struct stat st;
-       if (lstat(dir_arg->filename[i], &st) == -1) {
-         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-         (void)fprintf(stderr,
-                       "ls: cannot access '%s': No such file or directory\n",
-                       dir_arg->filename[i]);
-         continue;
-       }
-       LsEntry e;
-       e.path = dir_arg->filename[i];
-       e.display_name = dir_arg->filename[i];
-       e.st = st;
-       files.push_back(std::move(e));
-     }
+        std::vector<LsEntry> files = collect_entries(dir, dir_arg->filename[i], &opts);
+        if (json_mode) {
+          all_json_entries.insert(all_json_entries.end(), files.begin(), files.end());
+        } else {
+          sort_and_output_files(files, &opts);
+        }
+      }
+    } else {
+      /* -d mode: list the directory entries themselves, not their contents */
+      std::vector<LsEntry> files;
+      for (int i = 0; i < dir_arg->count; i++) {
+        struct stat st;
+        if (lstat(dir_arg->filename[i], &st) == -1) {
+          // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+          (void)fprintf(stderr,
+                        "ls: cannot access '%s': No such file or directory\n",
+                        dir_arg->filename[i]);
+          continue;
+        }
+        LsEntry e;
+        e.path = dir_arg->filename[i];
+        e.display_name = dir_arg->filename[i];
+        e.st = st;
+        files.push_back(std::move(e));
+      }
 
-    opts.show_columns = opts.show_columns || !opts.show_details;
-    sort_and_output_files(files, &opts);
-  }
+      if (json_mode) {
+        all_json_entries = std::move(files);
+      } else {
+        opts.show_columns = opts.show_columns || !opts.show_details;
+        sort_and_output_files(files, &opts);
+      }
+    }
+
+    if (json_mode) {
+      if (!opts.unsorted) {
+        std::sort(all_json_entries.begin(), all_json_entries.end(),
+                  [](const LsEntry& a, const LsEntry& b) {
+                      return a.display_name < b.display_name;
+                  });
+      }
+      if (opts.reverse_sort && !opts.unsorted) {
+        std::reverse(all_json_entries.begin(), all_json_entries.end());
+      }
+      fprintf(stdout, "[\n");
+      for (size_t i = 0; i < all_json_entries.size(); i++) {
+        const LsEntry& fentry = all_json_entries[i];
+        char mode_buf[16];
+        snprintf(mode_buf, sizeof(mode_buf), "0o%o", (unsigned)fentry.st.st_mode & 07777);
+        fprintf(stdout, "  {\n");
+        fprintf(stdout, "    \"name\": ");
+        json_escape_string(stdout, fentry.display_name.c_str());
+        fprintf(stdout, ",\n");
+        fprintf(stdout, "    \"path\": ");
+        json_escape_string(stdout, fentry.path.c_str());
+        fprintf(stdout, ",\n");
+        fprintf(stdout, "    \"mode\": ");
+        json_escape_string(stdout, mode_buf);
+        fprintf(stdout, ",\n");
+        fprintf(stdout, "    \"nlink\": %d,\n", (int)fentry.st.st_nlink);
+        fprintf(stdout, "    \"uid\": %d,\n", fentry.st.st_uid);
+        fprintf(stdout, "    \"gid\": %d,\n", fentry.st.st_gid);
+        fprintf(stdout, "    \"size\": %ld,\n", (long)fentry.st.st_size);
+        fprintf(stdout, "    \"mtime\": %ld\n", (long)fentry.st.st_mtime);
+        fprintf(stdout, "  }%s\n", (i + 1 < all_json_entries.size()) ? "," : "");
+      }
+      fprintf(stdout, "]\n");
+    }
 
   arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 }

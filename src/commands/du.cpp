@@ -16,6 +16,7 @@
 
 #include "commands/du.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/json_stringifier.hpp"
 
 /* ── Internal data structures ──────────────────────────────────────────── */
 
@@ -287,6 +288,7 @@ void du_command(int argc, char **argv) {
     struct arg_lit *null_opt = arg_lit0("0", "null", "end each output line with NUL, not newline");
     struct arg_str *exclude_opt = arg_strn(NULL, "exclude", "PATTERN", 0, 100, "exclude files matching pattern");
     struct arg_str *threshold_opt = arg_str0("t", "threshold", "SIZE", "exclude entries smaller than SIZE");
+    struct arg_lit *json_opt = arg_lit0(NULL, "json", "output in JSON format");
     struct arg_lit *help_opt = arg_lit0(NULL, "help", "display this help and exit");
     struct arg_file *file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file or directory");
     struct arg_end *end = arg_end(20);
@@ -297,6 +299,7 @@ void du_command(int argc, char **argv) {
         one_fs_opt, count_links_opt, si_opt, apparent_opt,
         time_opt, separate_opt, null_opt,
         exclude_opt, threshold_opt,
+        json_opt,
         help_opt,
         file_arg, end
     };
@@ -325,6 +328,7 @@ void du_command(int argc, char **argv) {
         printf("  -0, --null               end each output line with NUL, not newline\n");
         printf("      --exclude=PATTERN    exclude files matching pattern\n");
         printf("  -t, --threshold=SIZE     exclude entries smaller than SIZE\n");
+        printf("      --json               output in JSON format\n");
         printf("  -h, --help               display this help and exit\n");
         printf("\n");
         printf("With no FILE, read current directory.\n");
@@ -354,6 +358,7 @@ void du_command(int argc, char **argv) {
     opts.show_time = (time_opt->count > 0);
     opts.separate_dirs = (separate_opt->count > 0);
     opts.null_terminated = (null_opt->count > 0);
+    bool json_mode = (json_opt->count > 0);
 
     /* -b implies --apparent-size */
     if (opts.bytes) {
@@ -404,6 +409,7 @@ void du_command(int argc, char **argv) {
     uint64_t grand_total = 0;
     /* Hash set tracks printed paths */
     std::unordered_map<std::string, int> printed;
+    std::vector<DuEntry*> json_entries;
 
     for (int p = 0; p < path_count; p++) {
         /* Fresh walk for each path */
@@ -446,9 +452,58 @@ void du_command(int argc, char **argv) {
             if (printed.find(e->path) != printed.end()) continue;
             printed[e->path] = 1;
 
-            print_entry(e, &opts, &grand_total);
+            if (json_mode) {
+                json_entries.push_back(e);
+            } else {
+                print_entry(e, &opts, &grand_total);
+            }
         }
 
+        /* Cleanup this path's entries (skip in JSON mode, done at end) */
+        if (!json_mode) {
+            for (size_t i = 0; i < du_entries.size(); i++) {
+                DuEntry *e = du_entries[i];
+                free(e->path);
+                delete e;
+            }
+            du_entries.clear();
+        }
+    }
+
+    if (json_mode) {
+        fprintf(stdout, "[\n");
+        for (size_t i = 0; i < json_entries.size(); i++) {
+            const DuEntry *e = json_entries[i];
+            fprintf(stdout, "  {\n");
+            fprintf(stdout, "    \"path\": ");
+            json_escape_string(stdout, e->path);
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"size_bytes\": %llu,\n", (unsigned long long)e->size_bytes);
+            fprintf(stdout, "    \"agg_size\": %llu,\n", (unsigned long long)e->agg_size);
+            fprintf(stdout, "    \"depth\": %d,\n", e->depth);
+            fprintf(stdout, "    \"is_dir\": %s,\n", e->is_dir ? "true" : "false");
+            fprintf(stdout, "    \"is_error\": %s,\n", e->is_error ? "true" : "false");
+            fprintf(stdout, "    \"mtime\": %ld\n", (long)e->mtime);
+            fprintf(stdout, "  }%s\n", (i + 1 < json_entries.size()) ? "," : "");
+        }
+        if (opts.total) {
+            if (!json_entries.empty()) fprintf(stdout, "  ,\n");
+            fprintf(stdout, "  {\n");
+            fprintf(stdout, "    \"path\": ");
+            json_escape_string(stdout, "total");
+            fprintf(stdout, ",\n");
+            fprintf(stdout, "    \"total\": %llu\n", (unsigned long long)grand_total);
+            fprintf(stdout, "  }\n");
+        }
+        fprintf(stdout, "]\n");
+
+        for (size_t i = 0; i < json_entries.size(); i++) {
+            DuEntry *e = json_entries[i];
+            free(e->path);
+            delete e;
+        }
+        json_entries.clear();
+    } else {
         /* Cleanup this path's entries */
         for (size_t i = 0; i < du_entries.size(); i++) {
             DuEntry *e = du_entries[i];
@@ -458,14 +513,15 @@ void du_command(int argc, char **argv) {
         du_entries.clear();
     }
 
-    /* -c: grand total */
-    if (opts.total) {
-        char total_buf[64];
-        format_size(grand_total, &opts, total_buf, sizeof(total_buf));
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stdout, "%s\ttotal%s",
-                      total_buf,
-                      opts.null_terminated ? "\0" : "\n");
+    if (!json_mode) {
+        if (opts.total) {
+            char total_buf[64];
+            format_size(grand_total, &opts, total_buf, sizeof(total_buf));
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stdout, "%s\ttotal%s",
+                          total_buf,
+                          opts.null_terminated ? "\0" : "\n");
+        }
     }
 
     if (opts.exclude) {
