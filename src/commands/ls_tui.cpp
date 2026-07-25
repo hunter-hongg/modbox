@@ -138,6 +138,7 @@ class LsfComponent : public TuiBase {
     bool sort_reverse_ = false;
     enum class ConfirmMode { None, Delete } confirm_mode_ = ConfirmMode::None;
     std::string confirm_path_;
+    ColorMode color_mode_ = ColorMode::AUTO;
 
     void push_history(const std::string& dir) {
       if (!nav_history_.empty() && nav_history_.back() == dir) return;
@@ -232,7 +233,8 @@ class LsfComponent : public TuiBase {
     }
 
 public:
-    explicit LsfComponent(std::string dir) : current_dir_(std::move(dir)) {}
+    explicit LsfComponent(std::string dir, ColorMode color_mode)
+        : current_dir_(std::move(dir)), color_mode_(color_mode) {}
 
      int entries_size() const override { return (int)entries_.size(); }
 
@@ -241,7 +243,13 @@ public:
      Element render_row(int idx) const override {
         const auto& e = entries_[idx];
         std::string icon(icon_utf8(e.file_type));
-        return text(icon + " " + e.display_name);
+        auto el = text(icon + " " + e.display_name);
+        if (color_mode_ != ColorMode::NEVER) {
+            if (idx % 2 == 1) {
+                el = el | bgcolor(Color::GrayDark);
+            }
+        }
+        return el;
     }
 
     void fill_entries() override {
@@ -476,9 +484,9 @@ public:
     const std::string& open_path() const { return open_path_; }
 };
 
-void ls_tui_command(int argc, char** argv) {
+void ls_tui_command(int argc, char** argv, ColorMode color_mode) {
   auto screen = App::FitComponent();
-  auto component = std::make_shared<LsfComponent>(".");
+  auto component = std::make_shared<LsfComponent>(".", color_mode);
   component->Refresh();
   screen.Loop(component);
 
@@ -498,7 +506,7 @@ void ls_tui_command(int argc, char** argv) {
       printf("\033c");
       fflush(stdout);
       auto screen2 = App::FitComponent();
-      auto component2 = std::make_shared<LsfComponent>(component->current_dir());
+      auto component2 = std::make_shared<LsfComponent>(component->current_dir(), color_mode);
       component2->Refresh();
       screen2.Loop(component2);
     }

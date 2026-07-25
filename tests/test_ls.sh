@@ -185,4 +185,17 @@ else
     fail "ls --tui non-TTY → missing regular.txt in output"
 fi
 
+echo "  ── --tui --color=never falls back without ANSI ──"
+tui_output=$("$MODBOX" ls --tui --color=never "$TMPDIR"/ls_dir 2>/dev/null)
+if printf '%s' "$tui_output" | grep -qE 'regular\.txt'; then
+    pass "ls --tui --color=never non-TTY → plain output with regular.txt"
+else
+    fail "ls --tui --color=never non-TTY → missing regular.txt in output"
+fi
+if printf '%s' "$tui_output" | grep -q $'\033'; then
+    fail "ls --tui --color=never non-TTY → unexpected ANSI codes"
+else
+    pass "ls --tui --color=never non-TTY → no ANSI codes"
+fi
+
 cd "$TMPDIR"

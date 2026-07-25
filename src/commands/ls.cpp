@@ -22,7 +22,7 @@
 #include "commands/command_macros.hpp"
 #include "commands/json_stringifier.hpp"
 
-void ls_tui_command(int argc, char** argv);
+void ls_tui_command(int argc, char** argv, ColorMode color_mode);
 
 /* Named constants for printable ASCII range used by print_escaped_filename */
 #define ASCII_SPACE 0x20
@@ -805,7 +805,7 @@ void ls_command(int argc, char **argv) {
       fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
     } else {
       arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      ls_tui_command(argc, argv);
+      ls_tui_command(argc, argv, opts.color_mode);
       return;
     }
   }

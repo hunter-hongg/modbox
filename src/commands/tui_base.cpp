@@ -39,8 +39,6 @@ ftxui::Element TuiBase::render_list() const {
         auto el = render_row(idx);
         if (i == selected_ - scroll_offset_) {
             el = el | inverted;
-        } else if (i % 2 == 1) {
-            el = el | bgcolor(Color::GrayDark);
         }
         rows.push_back(el);
     }

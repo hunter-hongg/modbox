@@ -6,6 +6,7 @@
 #include <ctime>
 
 #include "commands/fs_classify.hpp"
+#include "commands/ls.hpp"
 
 struct LsOptions;
 
@@ -24,4 +25,4 @@ struct TuiEntry {
 enum class SortMode : uint8_t { Name, Size, Mtime, Type };
 
 std::vector<TuiEntry> tui_collect_entries(const char* dirpath);
-void ls_tui_command(int argc, char** argv);
+void ls_tui_command(int argc, char** argv, ColorMode color_mode);
