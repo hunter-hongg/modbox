@@ -912,3 +912,8 @@ git commit -m "test: add fd command tests"
 - [ ] **Placeholder scan:** No TBD, TODO, or placeholder code in any task.
 - [ ] **Type consistency:** FdOptions fields match between header and implementation. `fd_walk` signature consistent.
 - [ ] **No missing imports:** GLib, argtable3, POSIX headers all included.
+
+## Implementation status (2026-07-29)
+- Implemented: fd command implemented in src/commands/fd.cpp — directory walk, regex/glob matching, color output, type/extension/exclude filters, exec support, and basic options.
+- Reference: docs/superpowers/STATUS-2026.md
+

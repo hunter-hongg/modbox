@@ -1077,3 +1077,8 @@ Expected: All ~100+ tests pass (existing + new cp tests), exit code 0.
 | `-b` / `--backup` | — | (deferred — requires backup numbering logic) |
 | `--sparse` | — | (deferred — requires file system level features) |
 | `--parents` | — | (deferred — complex path prefix logic) |
+
+## Implementation status (2026-07-29)
+- Implemented: cp enhancements are present in src/commands/cp.cpp (C++ implementation) — options implemented include: -r, -v, -f, -n (no-clobber), -i (interactive), -u (update), -p (preserve), -t (target-directory) and recursive copy/preserve semantics.
+- Reference: docs/superpowers/STATUS-2026.md
+- Note: Plan steps described a C/GLib workflow; repository contains a C++ implementation. The plan is kept for historical reference.
