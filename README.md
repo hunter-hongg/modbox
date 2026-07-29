@@ -1,5 +1,7 @@
 # modbox
 
+[![CI](https://github.com/hunter-hongg/modbox/actions/workflows/ci.yml/badge.svg)](https://github.com/hunter-hongg/modbox/actions/workflows/ci.yml)
+
 A minimalist multi-call binary providing concise core Unix tool alternatives, inspired by BusyBox.
 
 ## Overview
@@ -20,11 +22,13 @@ Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism t
 
 ## Available Commands
 
-modbox currently provides the following commands (91 in total):
+modbox currently provides the following commands (129 in total):
 
-`arch`, `awk`, `base32`, `base64`, `basename`, `cat`, `chgrp`, `chmod`, `chown`, `comm`, `cp`, `csplit`, `cut`, `date`, `dd`, `diff`, `dir`, `dirname`, `du`, `dust`, `echo`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `find`, `grep`, `head`, `help`, `htop`, `id`, `install`, `link`, `ln`, `ls`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mtop`, `mv`, `nice`, `nl`, `nohup`, `numfmt`, `pager`, `paste`, `printf`, `prompts`, `ps`, `ptx`, `pwd`, `rev`, `rg`, `rm`, `sed`, `seq`, `sh`, `sha1sum`, `sha256sum`, `shuf`, `sleep`, `sort`, `split`, `stat`, `stty`, `sync`, `tac`, `tail`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `true`, `tsort`, `tty`, `uname`, `unexpand`, `uniq`, `unlink`, `vdir`, `wc`, `whoami`, `yes`, `zoxide`
+`arch`, `awk`, `b2sum`, `base32`, `base64`, `basename`, `basenc`, `cat`, `cat_tui`, `chcon`, `chgrp`, `chmod`, `chown`, `chroot`, `cksum`, `comm`, `cp`, `csplit`, `cut`, `date`, `dd`, `df`, `diff`, `diff3`, `dir`, `dircolors`, `dirname`, `du`, `dust`, `echo`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `find`, `find_tui`, `fmt`, `fold`, `grep`, `grep_tui`, `groups`, `head`, `help`, `hostid`, `hostname`, `htop`, `id`, `install`, `join`, `kill`, `lf`, `link`, `ln`, `logname`, `ls`, `ls_tui`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mktemp`, `mtop`, `mv`, `nice`, `nl`, `nohup`, `nproc`, `numfmt`, `od`, `paste`, `pathchk`, `pr`, `printenv`, `printf`, `prompts`, `ps`, `ptx`, `pwd`, `readlink`, `realpath`, `rev`, `rg`, `rm`, `rmdir`, `runcon`, `sed`, `seq`, `sh`, `sha1sum`, `sha224sum`, `sha256sum`, `sha384sum`, `sha512sum`, `shred`, `shuf`, `sleep`, `sort`, `split`, `stat`, `stty`, `sum`, `sync`, `tac`, `tail`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `true`, `truncate`, `tsort`, `tty`, `umask`, `uname`, `unexpand`, `uniq`, `unlink`, `uptime`, `users`, `vdir`, `wall`, `wc`, `who`, `whoami`, `xargs`, `yes`, `zoxide`
 
 > Note: `[` is aliased to `test`.
+
+Not yet implemented (relative to GNU coreutils): `pinky`, `stdbuf`.
 
 Run `modbox help <command>` for usage of a specific command.
 
@@ -382,12 +386,14 @@ modbox follows these principles:
 
 ## Current Status
 
-- ✅ Implemented commands: 91 commands including help, cat, ls, cp, mv, ln, grep, ptx, stat, and more
+See CHANGELOG.md for release notes and recent notable changes.
+
+- ✅ Implemented commands: 129 commands including all standard GNU coreutils (except pinky and stdbuf) plus additional utilities
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing
 - ✅ Multi-call binary architecture
-- 🔄 Future work: man pages, additional commands
+- 🔄 Future work: pinky, stdbuf, man pages
 
 ## See Also
 
