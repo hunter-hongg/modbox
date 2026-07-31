@@ -18,6 +18,7 @@ struct GetfaclOptions {
     int no_effective = 0;        // -E / --no-effective
     int skip_base = 0;           // -s / skip files with only base entries
     int preserve_root = 0;       // --preserve-root
+    int absolute_names = 0;      // -p / --absolute-names (don't strip leading '/')
     int one_file_system = 0;     // --one-file-system
     int show_version = 0;        // -v / --version
     int show_help = 0;           // -h / --help

@@ -63,11 +63,28 @@ static void format_owner_group(const struct stat *st, int is_numeric,
     }
 }
 
+// Track whether we've warned about stripping leading '/'.
+static bool warned_absolute = false;
+
+// Return a display path: strips leading '/' unless -p is set.
+// Warns once about stripping.
+static const char *display_path(const char *path) {
+    if (g_opts->absolute_names) return path;
+    if (path[0] == '/') {
+        if (!warned_absolute) {
+            fprintf(stderr, "getfacl: Removing leading '/' from absolute path names\n");
+            warned_absolute = true;
+        }
+        return path + 1;  // skip leading '/'
+    }
+    return path;
+}
+
 // Print the "# file: / # owner: / # group:" header block.
 // Returns 1 if header was printed, 0 if it was omitted.
 static int print_header(const char *path, const char *owner, const char *group) {
     if (g_opts->omit_header) return 0;
-    printf("# file: %s\n", path);
+    printf("# file: %s\n", display_path(path));
     printf("# owner: %s\n", owner);
     printf("# group: %s\n", group);
     return 1;
@@ -105,6 +122,14 @@ static int print_file_acl(const char *path) {
     }
 
     int printed_header = 0;
+
+    // -s / --skip-base: skip files that only have base ACL entries
+    if (g_opts->skip_base) {
+        if (!acl_extended_file(path) &&
+            acl_get_file(path, ACL_TYPE_DEFAULT) == nullptr) {
+            return 0;
+        }
+    }
 
     char owner_buf[64], group_buf[64];
     format_owner_group(&st, g_opts->is_numeric,
@@ -201,6 +226,10 @@ int getfacl_command(int argc, char **argv) {
         arg_lit0("e", "all-effective", "display effective ACL mask for all entries");
     struct arg_lit *no_effective_opt =
         arg_lit0("E", "no-effective", "don't display effective ACL mask");
+    struct arg_lit *skip_base_opt =
+        arg_lit0("s", "skip-base", "skip files that only have the base entries");
+    struct arg_lit *absolute_names_opt =
+        arg_lit0("p", "absolute-names", "do not strip leading '/' in pathnames");
     struct arg_lit *one_fs_opt =
         arg_lit0(nullptr, "one-file-system", "stay within one filesystem");
     struct arg_lit *version_opt =
@@ -220,6 +249,7 @@ int getfacl_command(int argc, char **argv) {
     ArgTable at({recursive_opt, dereference_opt, logical_opt, physical_opt,
                  tabular_opt, default_opt, access_opt,
                  header_opt, numeric_opt, effective_opt, no_effective_opt,
+                 skip_base_opt, absolute_names_opt,
                  one_fs_opt, version_opt, help_opt, preserve_root_opt,
                  no_preserve_root_opt, files, end});
 
@@ -243,9 +273,11 @@ int getfacl_command(int argc, char **argv) {
         printf("  -d, --default            display the default ACL only\n");
         printf("  -e, --all-effective      print all effective rights comments\n");
         printf("  -E, --no-effective       print no effective rights comments\n");
+        printf("  -s, --skip-base          skip files that only have the base entries\n");
         printf("  -R, --recursive          recurse into subdirectories\n");
         printf("  -L, --logical            logical walk, follow symbolic links\n");
         printf("  -P, --physical           physical walk, do not follow symbolic links\n");
+        printf("  -p, --absolute-names     do not strip leading '/' in pathnames\n");
         printf("  -t, --tabular            use tabular output format\n");
         printf("  -n, --numeric            print numeric user/group identifiers\n");
         printf("      --one-file-system    skip files on different filesystems\n");
@@ -277,6 +309,8 @@ int getfacl_command(int argc, char **argv) {
     opts.is_numeric = (numeric_opt->count > 0);
     opts.all_effective = (effective_opt->count > 0);
     opts.no_effective = (no_effective_opt->count > 0);
+    opts.skip_base = (skip_base_opt->count > 0);
+    opts.absolute_names = (absolute_names_opt->count > 0);
     opts.one_file_system = (one_fs_opt->count > 0);
     opts.preserve_root = (preserve_root_opt->count > 0);
     opts.num_files = files->count;
@@ -312,15 +346,28 @@ int getfacl_command(int argc, char **argv) {
         return rc;
     } else {
         for (int i = 0; i < opts.num_files; i++) {
+            const char *path = files->filename[i];
+            char resolved[4096];
+
+            // -H: dereference command-line symlinks before starting traversal
+            if (opts.is_dereference) {
+                struct stat lst;
+                if (lstat(path, &lst) == 0 && S_ISLNK(lst.st_mode)) {
+                    if (realpath(path, resolved)) {
+                        path = resolved;
+                    }
+                }
+            }
+
             // preserve-root: check before starting traversal
-            if (opts.preserve_root && strcmp(files->filename[i], "/") == 0) {
+            if (opts.preserve_root && strcmp(path, "/") == 0) {
                 fprintf(stderr, "getfacl: it is dangerous to operate recursively on '/'\n");
                 fprintf(stderr, "getfacl: use --no-preserve-root to override this failsafe\n");
                 return 1;
             }
-            if (nftw(files->filename[i], recursive_callback, 20, nftw_flags) != 0) {
+            if (nftw(path, recursive_callback, 20, nftw_flags) != 0) {
                 fprintf(stderr, "getfacl: failed to traverse '%s': %s\n",
-                        files->filename[i], strerror(errno));
+                        path, strerror(errno));
                 return 1;
             }
             if (i < opts.num_files - 1) printf("\n");

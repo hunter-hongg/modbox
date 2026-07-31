@@ -131,5 +131,57 @@ echo "  -- non-recursive on directory --"
 # Should still show directory's own ACL
 assert_cmd_pat '# file:' getfacl "$TMPDIR"/gf_dir
 
+echo "  -- -p: absolute names (keeps leading '/') --"
+out=$("$MODBOX" getfacl -p "$TMPDIR"/gf_plain.txt 2>/dev/null)
+if echo "$out" | grep -q "# file: $TMPDIR"; then
+    pass "getfacl -p keeps absolute path"
+else
+    fail "getfacl -p should keep absolute path"
+fi
+
+echo "  -- default: strips leading '/' --"
+# The stderr should contain the warning when processing an absolute path (without -p)
+assert_cmd_pat_stderr "Removing leading" getfacl "$TMPDIR"/gf_exec.txt
+
+echo "  -- -s: skip-base (plain file, no output) --"
+# Plain file with no extended ACL should be skipped
+out=$("$MODBOX" getfacl -s "$TMPDIR"/gf_exec.txt 2>/dev/null)
+if [[ -z "$out" ]]; then
+    pass "getfacl -s skips plain file"
+else
+    fail "getfacl -s should skip plain file, got: $out"
+fi
+
+if [[ "$HAVE_ACL" -eq 1 ]]; then
+    echo "  -- -s: skip-base (ACL file, shown) --"
+    out=$("$MODBOX" getfacl -s "$TMPDIR"/gf_plain.txt 2>/dev/null)
+    if echo "$out" | grep -q 'user:nobody:r--'; then
+        pass "getfacl -s shows file with ACL"
+    else
+        fail "getfacl -s should show file with ACL"
+    fi
+fi
+
+echo "  -- -H: dereference symlink in recursive mode --"
+ln -sf "$TMPDIR"/gf_dir "$TMPDIR"/gf_link_dir 2>/dev/null
+# Without -H, should just show the symlink itself (one header)
+out=$("$MODBOX" getfacl -R "$TMPDIR"/gf_link_dir 2>/dev/null)
+count=$(echo "$out" | grep -c '# file:')
+if [[ "$count" -eq 1 ]]; then
+    pass "getfacl -R (no -H) shows symlink only ($count header)"
+else
+    fail "getfacl -R (no -H) — expected 1 header, got $count"
+fi
+# With -H, should follow symlink into dir (multiple headers)
+out=$("$MODBOX" getfacl -R -H "$TMPDIR"/gf_link_dir 2>/dev/null)
+count=$(echo "$out" | grep -c '# file:')
+if [[ "$count" -ge 2 ]]; then
+    pass "getfacl -R -H follows symlink ($count headers)"
+else
+    fail "getfacl -R -H — expected >=2 headers, got $count"
+fi
+
 # Clean up ACL test files
-rm -rf /tmp/acl_test.txt /tmp/acl_dir /tmp/acl_rec_test /tmp/test_acl_text /tmp/test_acl_text.c /tmp/test_acl_text2 /tmp/test_acl_text2.c /tmp/test_acl_text3 /tmp/test_acl_text3.c 2>/dev/null || true
+rm -rf /tmp/acl_test.txt /tmp/acl_dir /tmp/acl_rec_test /tmp/gf_test.txt /tmp/gf_link_dir /tmp/gf_linktest_dir \
+  /tmp/test_acl_text /tmp/test_acl_text.c /tmp/test_acl_text2 /tmp/test_acl_text2.c \
+  /tmp/test_acl_text3 /tmp/test_acl_text3.c 2>/dev/null || true
