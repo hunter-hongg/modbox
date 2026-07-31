@@ -178,10 +178,6 @@ static int print_file_acl(const char *path) {
     return 0;
 }
 
-static int getfacl_one_file(const char *path) {
-    return print_file_acl(path);
-}
-
 /* ── recursive nftw callback ───────────────────────────────────────────── */
 
 static int recursive_callback(const char *fpath, const struct stat *sb,
@@ -194,7 +190,7 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
         return 0;
     }
 
-    getfacl_one_file(fpath);
+    print_file_acl(fpath);
     return 0;
 }
 
@@ -313,8 +309,6 @@ int getfacl_command(int argc, char **argv) {
     opts.absolute_names = (absolute_names_opt->count > 0);
     opts.one_file_system = (one_fs_opt->count > 0);
     opts.preserve_root = (preserve_root_opt->count > 0);
-    opts.num_files = files->count;
-
     // Build nftw flags
     int nftw_flags = FTW_PHYS; // default physical
     if (opts.is_logical) {
@@ -336,16 +330,16 @@ int getfacl_command(int argc, char **argv) {
     // Process files
     if (!opts.is_recursive) {
         int rc = 0;
-        for (int i = 0; i < opts.num_files; i++) {
-            if (getfacl_one_file(files->filename[i]) != 0) {
+        int n = files->count;
+        for (int i = 0; i < n; i++) {
+            if (print_file_acl(files->filename[i]) != 0)
                 rc = 1;
-            }
-            // blank line between files
-            if (i < opts.num_files - 1) printf("\n");
+            if (i < n - 1) printf("\n");
         }
         return rc;
     } else {
-        for (int i = 0; i < opts.num_files; i++) {
+        int n = files->count;
+        for (int i = 0; i < n; i++) {
             const char *path = files->filename[i];
             char resolved[4096];
 
@@ -370,7 +364,7 @@ int getfacl_command(int argc, char **argv) {
                         path, strerror(errno));
                 return 1;
             }
-            if (i < opts.num_files - 1) printf("\n");
+            if (i < n - 1) printf("\n");
         }
     }
 
