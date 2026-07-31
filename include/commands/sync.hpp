@@ -5,6 +5,6 @@ struct SyncOptions {
     int help = 0;
 };
 
-void sync_command(int argc, char** argv);
+int sync_command(int argc, char** argv);
 
 #endif

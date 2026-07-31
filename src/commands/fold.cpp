@@ -8,6 +8,7 @@
 
 #include "commands/fold.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 #define MAX_LINE 1048576
 
@@ -65,7 +66,7 @@ static void process_file(FILE* fp, int width, bool break_spaces) {
   }
 }
 
-void fold_command(int argc, char** argv) {
+int fold_command(int argc, char** argv) {
   int width = 80;
   bool break_spaces = false;
   std::vector<const char*> files;
@@ -73,8 +74,8 @@ void fold_command(int argc, char** argv) {
   int i = 1;
   for (; i < argc; i++) {
     const char* a = argv[i];
-    if (strcmp(a, "--help") == 0) { print_help(argv[0]); return; }
-    if (strcmp(a, "--version") == 0) { printf("fold (modbox) 1.0\n"); return; }
+    if (strcmp(a, "--help") == 0) { print_help(argv[0]); return 0; }
+    if (strcmp(a, "--version") == 0) { print_version("fold"); return 0; }
     if (strncmp(a, "-w", 2) == 0) {
       if (a[2]) width = std::atoi(a + 2);
       else { i++; width = std::atoi(argv[i]); }
@@ -99,6 +100,7 @@ void fold_command(int argc, char** argv) {
     process_file(fp, width, break_spaces);
     if (fp != stdin) fclose(fp);
   }
+  return 0;
 }
 
 REGISTER_COMMAND("fold", fold_command, "Wrap lines to fit width");

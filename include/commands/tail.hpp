@@ -15,6 +15,6 @@ struct TailOptions {
     int is_relative = 0;       // +N mode: show from line/byte N to end
 };
 
-void tail_command(int argc, char** argv);
+int tail_command(int argc, char** argv);
 
 #endif

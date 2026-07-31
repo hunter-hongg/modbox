@@ -1,1 +1,1 @@
-void id_command(int argc, char** argv);
+int id_command(int argc, char** argv);

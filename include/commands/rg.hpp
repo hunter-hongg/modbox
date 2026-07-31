@@ -33,6 +33,6 @@ struct RgOptions {
     std::vector<std::string> glob_patterns; // -g / --glob patterns
 };
 
-void rg_command(int argc, char** argv);
+int rg_command(int argc, char** argv);
 
 #endif

@@ -25,6 +25,6 @@ struct CatOptions {
     int number_format = 0; // 0=decimal, 1=hex, 2=octal
 };
 
-void cat_command(int argc, char** argv);
+int cat_command(int argc, char** argv);
 
 #endif

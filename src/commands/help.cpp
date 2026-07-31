@@ -32,10 +32,11 @@ void output_help(const char* argv0, const char* progname) {
     }
 }
 
-void help_command(int argc, char** argv) {
+int help_command(int argc, char** argv) {
     (void)argc;
     (void)argv;
     output_help("modbox", "modbox");
+    return 0;
 }
 
 REGISTER_COMMAND("help", help_command, "Display this help message");

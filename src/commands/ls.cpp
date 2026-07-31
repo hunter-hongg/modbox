@@ -17,6 +17,7 @@
 #include <algorithm>
 
 #include "commands/ls.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/ls_entry.hpp"
 #include "commands/fs_classify.hpp"
 #include "commands/command_macros.hpp"
@@ -649,7 +650,7 @@ static std::vector<LsEntry> collect_entries(DIR* dir, const char* dirpath, const
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void ls_command(int argc, char **argv) {
+int ls_command(int argc, char **argv) {
   LsOptions opts = {0};
   opts.list_dir_contents = 1; /* default: list directory contents */
   opts.color_mode = ColorMode::NEVER;
@@ -701,29 +702,29 @@ void ls_command(int argc, char **argv) {
       arg_filen(NULL, NULL, "DIR", 0, 100, "directory to list");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {all_opt,
-                      almost_all_opt,
-                      long_opt,
-                      author_opt,
-                      escape_opt,
-                      color_opt,
-                      ignore_backups_opt,
-                      block_size_opt,
-                      directory_opt,
-                      columns_opt,
-                      reverse_opt,
-                      unsorted_opt,
-                      one_column_opt,
-                      classify_opt,
-                      colorful_opt,
-                      icons_opt,
-                      tui_opt,
-                      json_opt,
-                      help_opt,
-                      dir_arg,
-                      end};
+  ArgTable at({all_opt,
+               almost_all_opt,
+               long_opt,
+               author_opt,
+               escape_opt,
+               color_opt,
+               ignore_backups_opt,
+               block_size_opt,
+               directory_opt,
+               columns_opt,
+               reverse_opt,
+               unsorted_opt,
+               one_column_opt,
+               classify_opt,
+               colorful_opt,
+               icons_opt,
+               tui_opt,
+               json_opt,
+               help_opt,
+               dir_arg,
+               end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [DIR]...\n", argv[0]);
@@ -748,14 +749,11 @@ void ls_command(int argc, char **argv) {
     printf("  -r, --reverse         reverse order when sorting\n");
     printf("  -U                    do not sort; list entries in directory order\n");
     printf("  -h, --help            display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   opts.show_almost_all = (almost_all_opt->count > 0);
@@ -804,9 +802,8 @@ void ls_command(int argc, char **argv) {
     if (!isatty(STDOUT_FILENO)) {
       fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
     } else {
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
       ls_tui_command(argc, argv, opts.color_mode);
-      return;
+      return 0;
     }
   }
 
@@ -913,7 +910,7 @@ void ls_command(int argc, char **argv) {
       fprintf(stdout, "]\n");
     }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("ls", ls_command, "List directory contents");

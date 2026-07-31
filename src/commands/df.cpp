@@ -48,7 +48,7 @@ static void print_help(const char* prog) {
     printf("  KB 1000, K 1024, MB 1000*1000, M 1024*1024, and so on for G, T, P, E, Z, Y.\n");
 }
 
-static void print_version(const char* prog) {
+static void print_df_version(const char* prog) {
     printf("df (modbox) 1.0\n");
 }
 
@@ -124,7 +124,7 @@ static bool collect_fs(const char* path, bool human, int human_si, uint64_t bloc
     return true;
 }
 
-void df_command(int argc, char** argv) {
+int df_command(int argc, char** argv) {
     bool human = false;
     bool si = false;
     bool show_inodes = false;
@@ -138,11 +138,11 @@ void df_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            print_version(argv[0]);
-            return;
+            print_df_version(argv[0]);
+            return 0;
         }
         if (strcmp(a, "-h") == 0 || strcmp(a, "--human-readable") == 0) {
             human = true;
@@ -193,7 +193,7 @@ void df_command(int argc, char** argv) {
         if (a[0] == '-') {
             fprintf(stderr, "df: invalid option '%s'\n", a);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            return;
+            return 0;
         }
         paths.push_back(a);
     }
@@ -299,6 +299,7 @@ void df_command(int argc, char** argv) {
         }
         fprintf(stdout, "]\n");
     }
+    return 0;
 }
 
 REGISTER_COMMAND("df", df_command, "Report filesystem disk space usage");

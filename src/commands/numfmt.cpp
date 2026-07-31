@@ -11,6 +11,7 @@
 
 #include "commands/numfmt.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 enum class ScaleUnit { NONE, AUTO, SI, IEC, IEC_I };
 enum class RoundMethod { FROM_ZERO, TOWARDS_ZERO, UP, DOWN, NEAREST };
@@ -336,7 +337,7 @@ static void print_help() {
     printf("           1Ki = 1024, 1Mi = 1048576, ...\n");
 }
 
-void numfmt_command(int argc, char** argv) {
+int numfmt_command(int argc, char** argv) {
     NumfmtOptions opts;
     std::vector<const char*> operands;
 
@@ -344,10 +345,10 @@ void numfmt_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
             print_help();
-            return;
+            return 0;
         } else if (strcmp(a, "--version") == 0) {
-            printf("numfmt (modbox) 1.0\n");
-            return;
+            print_version("numfmt");
+            return 0;
         } else if (strncmp(a, "--from=", 7) == 0) {
             opts.from = parse_scale(a + 7);
         } else if (strncmp(a, "--to=", 5) == 0) {
@@ -379,7 +380,7 @@ void numfmt_command(int argc, char** argv) {
         } else if (strcmp(a, "-d") == 0 || strcmp(a, "--delimiter") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "numfmt: option requires an argument -- 'd'\n");
-                return;
+                return 0;
             }
             opts.delimiter = argv[++i];
         } else if (strncmp(a, "--delimiter=", 12) == 0) {
@@ -393,7 +394,7 @@ void numfmt_command(int argc, char** argv) {
             break;
         } else if (a[0] == '-' && a[1] == '-') {
             fprintf(stderr, "numfmt: unrecognized option '%s'\n", a);
-            return;
+            return 0;
         } else {
             operands.push_back(a);
         }
@@ -443,6 +444,7 @@ void numfmt_command(int argc, char** argv) {
     }
 
     (void)had_error;
+    return 0;
 }
 
 REGISTER_COMMAND("numfmt", numfmt_command, "Reformat numbers");

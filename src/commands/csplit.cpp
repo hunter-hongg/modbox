@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/csplit.hpp"
 #include "commands/command_macros.hpp"
@@ -450,7 +451,7 @@ struct Splitter {
 /* ── Main command ─────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void csplit_command(int argc, char **argv) {
+int csplit_command(int argc, char **argv) {
     CsplitOptions opts = {0};
 
     struct arg_str *prefix_opt = arg_str0("f", "prefix", "PREFIX",
@@ -473,13 +474,10 @@ void csplit_command(int argc, char **argv) {
                                           "input file and patterns");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
-        prefix_opt, suffix_fmt_opt, digits_opt,
-        elide_opt, quiet_opt, silent_opt, keep_opt,
-        help_opt, file_arg, end
-    };
-
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({prefix_opt, suffix_fmt_opt, digits_opt,
+                 elide_opt, quiet_opt, silent_opt, keep_opt,
+                 help_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE PATTERN...\n", argv[0]);
@@ -503,14 +501,12 @@ void csplit_command(int argc, char **argv) {
         printf("\n");
         printf("Output files are named PREFIX00, PREFIX01, ... (or per -b format).\n");
         printf("File sizes are printed to stdout.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     opts.prefix = (prefix_opt->count > 0) ? prefix_opt->sval[0] : NULL;
@@ -536,8 +532,8 @@ void csplit_command(int argc, char **argv) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "csplit: %s: %s\n", input_name,
                               strerror(errno));
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return;
+                
+                return 0;
             }
             opened = 1;
         }
@@ -558,8 +554,8 @@ void csplit_command(int argc, char **argv) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "csplit: %s: %s\n", pat_str, errmsg.c_str());
             if (opened) (void)fclose(in);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
         raw_patterns.push_back(pat);
     }
@@ -572,7 +568,8 @@ void csplit_command(int argc, char **argv) {
     splitter.run(patterns);
 
     if (opened) (void)fclose(in);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
+    return 0;
 }
 
 REGISTER_COMMAND("csplit", csplit_command, "Split file on context lines");

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "commands/prompts.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 namespace fs = std::filesystem;
@@ -753,9 +754,9 @@ static std::string render_prompt(const PromptsCtx& ctx) {
 static void cmd_render(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_end* end = arg_end(20);
-    void* argtable[] = {help_opt, end};
+    ArgTable at({help_opt, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s render [OPTIONS]\n", argv[0]);
@@ -763,17 +764,13 @@ static void cmd_render(int argc, char** argv) {
         printf("Called by shell integration to generate the prompt.\n");
         printf("\n");
         printf("  -h, --help  display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         return;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        at.print_errors(end, argv[0]);
         return;
     }
-
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     // Build context from environment
     PromptsCtx ctx;
@@ -952,11 +949,11 @@ static void cmd_modules(const char* name) {
 
 // ── Main Command Entry Point ────────────────────────────────────────────
 
-void prompts_command(int argc, char** argv) {
+int prompts_command(int argc, char** argv) {
     if (argc < 2) {
         // Default: render
         cmd_render(argc, argv);
-        return;
+        return 0;
     }
 
     std::string subcmd = argv[1];
@@ -975,7 +972,7 @@ void prompts_command(int argc, char** argv) {
         printf("  eval \"$(modbox prompts init bash)\"   # bash\n");
         printf("  eval \"$(modbox prompts init zsh)\"    # zsh\n");
         printf("  modbox prompts init fish | source     # fish\n");
-        return;
+        return 0;
     }
 
     if (subcmd == "render") {
@@ -992,6 +989,7 @@ void prompts_command(int argc, char** argv) {
         fprintf(stderr, "prompts: unknown subcommand '%s'\n", subcmd.c_str());
         fprintf(stderr, "Run 'prompts --help' for usage.\n");
     }
+    return 0;
 }
 
 REGISTER_COMMAND("prompts", prompts_command, "Render shell prompt");

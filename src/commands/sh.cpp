@@ -2108,14 +2108,14 @@ static void shell_run_script(const char* path) {
 
 // ── Entry Point ────────────────────────────────────────────────────────────
 
-void sh_command(int argc, char** argv) {
+int sh_command(int argc, char** argv) {
     shell_init();
 
     if (argc == 1) {
         // Interactive mode
         shell_run_interactive();
         cleanup_temp_files();
-        return;
+        return 0;
     }
 
     // Parse options
@@ -2140,7 +2140,7 @@ void sh_command(int argc, char** argv) {
             } else {
                 fprintf(stderr, "sh: -c: option requires an argument\n");
                 g_state.last_exit_code = 2;
-                return;
+                return 0;
             }
         } else if (argv[i][0] != '-') {
             script_file_mode = true;
@@ -2157,7 +2157,7 @@ void sh_command(int argc, char** argv) {
         } else {
             fprintf(stderr, "sh: %s: unknown option\n", argv[i]);
             g_state.last_exit_code = 2;
-            return;
+            return 0;
         }
     }
 
@@ -2173,6 +2173,7 @@ void sh_command(int argc, char** argv) {
     } else {
         shell_run_interactive();
     }
+    return 0;
 }
 
 REGISTER_COMMAND("sh", sh_command, "Execute a shell command");

@@ -5,6 +5,7 @@
 #include <argtable3.h>
 
 #include "commands/nl.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define NL_MAX_LINE 1048576
@@ -173,7 +174,7 @@ static void nl_process(FILE* fp, const NlOptions* opts, FILE* out_fp) {
 
 /* ── Main command ────────────────────────────────────────────────────────── */
 
-void nl_command(int argc, char** argv) {
+int nl_command(int argc, char** argv) {
     NlOptions opts = {0};
 
     struct arg_str* body_numbering_opt = arg_str0("b", "body-numbering", "STYLE", "line numbering style (a, t, n, pBRE)");
@@ -191,16 +192,16 @@ void nl_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 1, "input file");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         body_numbering_opt, header_numbering_opt, footer_numbering_opt,
         section_delim_opt, line_inc_opt, join_blanks_opt,
         num_format_opt, no_renumber_opt, separator_opt,
         start_num_opt, width_opt,
         help_opt,
         file_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -231,14 +232,11 @@ void nl_command(int argc, char** argv) {
         printf("Default section delimiter is '\\\\:' (backslash followed by colon).\n");
         printf("Lines containing the delimiter repeated 3 times start a header section,\n");
         printf("2 times start a body section, 1 time start a footer section.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     /* Set defaults */
@@ -282,8 +280,7 @@ void nl_command(int argc, char** argv) {
                 free(opts.footer_numbering);
                 free(opts.number_format);
                 free(opts.number_separator);
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return;
+                return 0;
             }
         }
     }
@@ -298,7 +295,7 @@ void nl_command(int argc, char** argv) {
     free(opts.number_format);
     free(opts.number_separator);
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("nl", nl_command, "Number lines of files");

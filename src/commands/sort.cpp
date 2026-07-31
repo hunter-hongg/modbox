@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/sort.hpp"
 #include "commands/command_macros.hpp"
@@ -532,7 +532,7 @@ static int check_sorted(const std::vector<SortLine>& lines, const SortOptions* o
 /* ── Main command ────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void sort_command(int argc, char** argv) {
+int sort_command(int argc, char** argv) {
     SortOptions opts;
 
     /* argtable3 declarations */
@@ -562,15 +562,13 @@ void sort_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(nullptr, nullptr, "FILE", 0, 100, "input file(s)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
-        ignore_blanks_opt, ignore_case_opt, numeric_sort_opt,
-        reverse_opt, unique_opt, check_opt, stable_opt,
-        key_opt, field_sep_opt, output_opt,
-        help_opt,
-        file_arg, end
-    };
+    ArgTable at({ignore_blanks_opt, ignore_case_opt, numeric_sort_opt,
+                 reverse_opt, unique_opt, check_opt, stable_opt,
+                 key_opt, field_sep_opt, output_opt,
+                 help_opt,
+                 file_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -597,14 +595,12 @@ void sort_command(int argc, char** argv) {
         printf("  r   reverse comparison within the key\n");
         printf("\n");
         printf("With no FILE, or when FILE is -, read standard input.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     /* Populate options */
@@ -624,8 +620,8 @@ void sort_command(int argc, char** argv) {
         if (field_sep_opt->sval[0][0] == '\0') {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "sort: invalid field separator\n");
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
         opts.field_separator = field_sep_opt->sval[0][0];
     } else {
@@ -659,14 +655,14 @@ void sort_command(int argc, char** argv) {
     /* Read all lines */
     std::vector<SortLine> lines = read_lines(file_count, filenames);
     if (lines.empty()) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     /* Check mode or sort */
     if (opts.check) {
         int sorted = check_sorted(lines, &opts, file_count, filenames);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        
         exit(sorted ? 1 : 0);
     }
 
@@ -697,7 +693,8 @@ void sort_command(int argc, char** argv) {
     write_lines(lines, opts.output_file.empty() ? nullptr : opts.output_file.c_str());
 
     /* Cleanup */
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
+    return 0;
 }
 
 REGISTER_COMMAND("sort", sort_command, "Sort lines of text files");

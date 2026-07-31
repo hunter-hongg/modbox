@@ -15,6 +15,6 @@ struct DiffOptions {
     int width = 130;           // --width (for side-by-side)
 };
 
-void diff_command(int argc, char** argv);
+int diff_command(int argc, char** argv);
 
 #endif

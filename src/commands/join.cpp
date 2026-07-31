@@ -9,6 +9,7 @@
 
 #include "commands/join.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 #define MAX_LINE 1048576
 #define MAX_FIELDS 4096
@@ -205,7 +206,7 @@ static void do_join(const char* p1, const char* p2, const JoinOptions* opts, boo
   if (f1 != stdin) fclose(f1);
 }
 
-void join_command(int argc, char** argv) {
+int join_command(int argc, char** argv) {
   struct JoinOptions opts = {1, ' ', 1, 1};
   bool ignore_case = false;
   int auto_file = 0;
@@ -216,8 +217,8 @@ void join_command(int argc, char** argv) {
   int i = 1;
   for (; i < argc; i++) {
     const char* a = argv[i];
-    if (strcmp(a, "--help") == 0) { print_help(argv[0]); return; }
-    if (strcmp(a, "--version") == 0) { printf("join (modbox) 1.0\n"); return; }
+    if (strcmp(a, "--help") == 0) { print_help(argv[0]); return 0; }
+    if (strcmp(a, "--version") == 0) { print_version("join"); return 0; }
     if (strcmp(a, "-i") == 0 || strcmp(a, "--ignore-case") == 0) { ignore_case = true; continue; }
     if (strcmp(a, "-1") == 0 && i + 1 < argc) { opts.file1_field = std::atoi(argv[++i]); continue; }
     if (strcmp(a, "-2") == 0 && i + 1 < argc) { opts.file2_field = std::atoi(argv[++i]); continue; }
@@ -231,15 +232,16 @@ void join_command(int argc, char** argv) {
     if (a[0] == '-' && a[1] != '-' && a[1] != '\0' && a[1] == opts.delim) { f1 = "-"; continue; }
     if (a[0] == '-' && a[1] == opts.delim) { f1 = "-"; continue; }
     if (a[0] == '-' && a[1] != '-') { f1 = "-"; }
-    if (!f1) { f1 = a; } else if (!f2) { f2 = a; } else { fprintf(stderr, "join: too many arguments\n"); return; }
+    if (!f1) { f1 = a; } else if (!f2) { f2 = a; } else { fprintf(stderr, "join: too many arguments\n"); return 0; }
   }
   for (; i < argc; i++) {
     if (!f1) f1 = argv[i];
     else if (!f2) f2 = argv[i];
-    else { fprintf(stderr, "join: too many arguments\n"); return; }
+    else { fprintf(stderr, "join: too many arguments\n"); return 0; }
   }
-  if (!f2) { fprintf(stderr, "join: missing operand\n"); return; }
+  if (!f2) { fprintf(stderr, "join: missing operand\n"); return 0; }
   do_join(f1, f2, &opts, ignore_case, auto_file, empty_str, verb_file);
+  return 0;
 }
 
 REGISTER_COMMAND("join", join_command, "Join lines on common field");

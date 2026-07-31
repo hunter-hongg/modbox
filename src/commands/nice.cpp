@@ -9,6 +9,7 @@
 
 #include "commands/nice.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 // EXIT_CANCELED: nice itself failed (bad option, cannot get/set niceness).
 static const int EXIT_CANCELED = 125;
@@ -59,7 +60,7 @@ static bool accumulate_adjustment(const char* prog, const char* s, long* adjustm
     return true;
 }
 
-void nice_command(int argc, char** argv) {
+int nice_command(int argc, char** argv) {
     const char* prog = argv[0];
 
     long adjustment = 0;
@@ -89,11 +90,11 @@ void nice_command(int argc, char** argv) {
         }
         if (strcmp(s, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(s, "--version") == 0) {
-            printf("nice (modbox) 1.0\n");
-            return;
+            print_version("nice");
+            return 0;
         }
 
         // -n N  and  -nN
@@ -167,7 +168,7 @@ void nice_command(int argc, char** argv) {
             exit(EXIT_CANCELED);
         }
         printf("%d\n", current);
-        return;
+        return 0;
     }
 
     if (!have_adjustment) {

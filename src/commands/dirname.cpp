@@ -4,6 +4,7 @@
 
 #include "commands/dirname.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s NAME\n", prog);
@@ -45,7 +46,7 @@ static std::string dirname_of(const std::string& path) {
     return p.substr(0, slash);
 }
 
-void dirname_command(int argc, char** argv) {
+int dirname_command(int argc, char** argv) {
     bool zero = false;
     const char* prog = argv[0];
     int name_start = 1;
@@ -54,11 +55,11 @@ void dirname_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("dirname (modbox) 1.0\n");
-            return;
+            print_version("dirname");
+            return 0;
         }
         if (strcmp(a, "-z") == 0 || strcmp(a, "--zero") == 0) {
             zero = true;
@@ -68,14 +69,14 @@ void dirname_command(int argc, char** argv) {
         if (a[0] == '-' && a[1] != '\0') {
             (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, a);
             (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-            return;
+            return 0;
         }
     }
 
     if (name_start >= argc) {
         (void)fprintf(stderr, "%s: missing operand\n", prog);
         (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-        return;
+        return 0;
     }
 
     for (int i = name_start; i < argc; i++) {
@@ -86,6 +87,7 @@ void dirname_command(int argc, char** argv) {
             printf("%s\n", d.c_str());
         }
     }
+    return 0;
 }
 
 REGISTER_COMMAND("dirname", dirname_command, "Strip non-directory suffix");

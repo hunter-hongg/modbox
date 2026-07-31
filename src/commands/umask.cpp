@@ -5,7 +5,9 @@
 #include <sys/stat.h>
 #include <argtable3.h>
 #include "commands/umask.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static mode_t parse_octal(const char *str) {
     mode_t result = 0;
@@ -41,7 +43,7 @@ static void print_symbolic(mode_t mask) {
            (inv & S_IXOTH) ? "x" : "");
 }
 
-void umask_command(int argc, char** argv) {
+int umask_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* version_opt = arg_lit0(NULL, "version", "output version information and exit");
     struct arg_lit* S_opt = arg_lit0("S", "symbolic", "use symbolic form");
@@ -50,8 +52,8 @@ void umask_command(int argc, char** argv) {
 
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {help_opt, version_opt, S_opt, p_opt, mask, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({help_opt, version_opt, S_opt, p_opt, mask, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: umask [-p] [-S] [mode]\n");
@@ -61,20 +63,16 @@ void umask_command(int argc, char** argv) {
         printf("  -S        make the mode symbolic rather than octal\n");
         printf("  --help    display this help and exit\n");
         printf("  --version output version information and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (version_opt->count > 0) {
-        printf("umask (modbox) 1.0\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        print_version("umask");
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool print_symbolic_mode = S_opt->count > 0;
@@ -94,8 +92,7 @@ void umask_command(int argc, char** argv) {
         } else {
             printf("%04o\n", current & 0777);
         }
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     const char *mask_str = mask->sval[0];
@@ -105,8 +102,7 @@ void umask_command(int argc, char** argv) {
         new_mask = parse_octal(mask_str);
     } else {
         fprintf(stderr, "umask: invalid mask: %s\n", mask_str);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (print_reusable) {
@@ -119,7 +115,7 @@ void umask_command(int argc, char** argv) {
 
     umask(new_mask & 0777);
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("umask", umask_command, "Set or read file creation permission mask");

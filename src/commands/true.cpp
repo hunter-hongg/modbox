@@ -3,6 +3,7 @@
 
 #include "commands/true.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [ignored command line arguments]\n", prog);
@@ -13,19 +14,20 @@ static void print_help(const char* prog) {
     printf("      --version  output version information and exit\n");
 }
 
-void true_command(int argc, char** argv) {
+int true_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("true (modbox) 1.0\n");
-            return;
+            print_version("true");
+            return 0;
         }
     }
     // Do nothing, exit with 0
+    return 0;
 }
 
 REGISTER_COMMAND("true", true_command, "Return true");

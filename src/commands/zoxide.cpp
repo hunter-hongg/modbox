@@ -1,4 +1,5 @@
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -366,7 +367,7 @@ def --env zi [...rest: string] {
     }
 }
 
-void zoxide_command(int argc, char** argv) {
+int zoxide_command(int argc, char** argv) {
     if (argc < 2) {
         printf("Usage: %s <SUBCOMMAND> [options]\n", argv[0]);
         printf("\n");
@@ -380,7 +381,7 @@ void zoxide_command(int argc, char** argv) {
         printf("\n");
         printf("Options:\n");
         printf("  -h, --help       Display this help and exit\n");
-        return;
+        return 0;
     }
 
     std::string subcmd = argv[1];
@@ -402,7 +403,7 @@ void zoxide_command(int argc, char** argv) {
         printf("  eval \"$(modbox zoxide init bash)\"   # bash\n");
         printf("  eval \"$(modbox zoxide init zsh)\"    # zsh\n");
         printf("  modbox zoxide init fish | source     # fish\n");
-        return;
+        return 0;
     }
 
     std::string db_path = get_db_path();
@@ -410,13 +411,13 @@ void zoxide_command(int argc, char** argv) {
     if (subcmd == "add") {
         if (argc < 3) {
             fprintf(stderr, "zoxide: 'add' requires a path argument\n");
-            return;
+            return 0;
         }
         cmd_add(db_path, argv[2]);
     } else if (subcmd == "remove") {
         if (argc < 3) {
             fprintf(stderr, "zoxide: 'remove' requires a path argument\n");
-            return;
+            return 0;
         }
         cmd_remove(db_path, argv[2]);
     } else if (subcmd == "edit") {
@@ -430,8 +431,8 @@ void zoxide_command(int argc, char** argv) {
         struct arg_str *keywords_arg = arg_strn(NULL, NULL, "KEYWORDS", 0, 100, "search keywords");
         struct arg_end *end = arg_end(20);
 
-        void* argtable[] = {interactive_opt, exclude_opt, help_opt, keywords_arg, end};
-        int nerrors = arg_parse(argc - 1, argv + 1, argtable);
+        ArgTable at({interactive_opt, exclude_opt, help_opt, keywords_arg, end});
+        int nerrors = at.parse(argc - 1, argv + 1);
 
         if (help_opt->count > 0) {
             printf("Usage: %s query [OPTION]... [KEYWORDS]...\n", argv[0]);
@@ -440,15 +441,13 @@ void zoxide_command(int argc, char** argv) {
             printf("  -i, --interactive  use interactive selection (requires fzf)\n");
             printf("      --exclude=PATH exclude this path from results\n");
             printf("  -h, --help         display this help and exit\n");
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
 
-        if (nerrors > 0) {
-            arg_print_errors(stderr, end, argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
-        }
+if (nerrors > 0) {
+        return at.print_errors(end, argv[0]);
+    }
 
         std::vector<std::string> keywords;
         for (int i = 0; i < keywords_arg->count; i++) {
@@ -486,8 +485,8 @@ void zoxide_command(int argc, char** argv) {
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) {
                 fprintf(stderr, "zoxide: failed to run fzf\n");
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return;
+                
+                return 0;
             }
             char buf[4096];
             std::string result;
@@ -496,8 +495,8 @@ void zoxide_command(int argc, char** argv) {
             }
             int status = pclose(pipe);
             if (status != 0 || result.empty()) {
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return;
+                
+                return 0;
             }
             while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
                 result.pop_back();
@@ -510,7 +509,7 @@ void zoxide_command(int argc, char** argv) {
             }
         }
 
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        
     } else if (subcmd == "init") {
         const char* shell = (argc >= 3) ? argv[2] : "";
         cmd_init(shell);
@@ -518,6 +517,7 @@ void zoxide_command(int argc, char** argv) {
         fprintf(stderr, "zoxide: unknown subcommand '%s'\n", subcmd.c_str());
         fprintf(stderr, "Run '%s --help' for usage.\n", argv[0]);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("zoxide", zoxide_command, "Smart directory jumping based on frecency");

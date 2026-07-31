@@ -11,6 +11,6 @@ struct HeadOptions {
     int zero_terminated = 0;  // -z / --zero-terminated
 };
 
-void head_command(int argc, char** argv);
+int head_command(int argc, char** argv);
 
 #endif

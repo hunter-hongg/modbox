@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include "commands/chown.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 /* ── File-scope globals for nftw callback ──────────────────────────────── */
@@ -207,7 +208,7 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
 
 /* ── Command entry point ───────────────────────────────────────────────── */
 
-void chown_command(int argc, char **argv) {
+int chown_command(int argc, char **argv) {
     struct arg_lit *recursive_opt =
         arg_lit0("R", "recursive", "operate on files and directories recursively");
     struct arg_lit *verbose_opt =
@@ -243,15 +244,15 @@ void chown_command(int argc, char **argv) {
         arg_filen(NULL, NULL, "OWNER[:[GROUP]] FILE...", 0, 1000, "owner and files to change");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
+    ArgTable at({
         recursive_opt, verbose_opt, changes_opt, silent_opt, quiet_opt,
         dereference_opt, no_dereference_opt, from_opt,
         preserve_root_opt, no_preserve_root_opt, reference_opt,
         traverse_H_opt, traverse_L_opt, traverse_P_opt,
         help_opt, all_args, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [OWNER][:[GROUP]] FILE...\n", argv[0]);
@@ -280,15 +281,11 @@ void chown_command(int argc, char **argv) {
         printf("If OWNER is omitted, the group is changed.  If GROUP is omitted, the group\n");
         printf("of each file is not changed.  If a colon but no group follows, the group is\n");
         printf("changed to OWNER's login group.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     ChownOptions opts = {};
@@ -317,8 +314,8 @@ void chown_command(int argc, char **argv) {
         if (parse_owner_group(from_spec, &fu, &fg, &fu_set, &fg_set) != 0) {
             fprintf(stderr, "%s: invalid --from value: '%s'\n", argv[0], from_spec);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
         opts.has_from = 1;
         if (fu_set) opts.from_owner = fu;
@@ -332,8 +329,8 @@ void chown_command(int argc, char **argv) {
         if (num_files < 1) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
         /* First positional arg is the owner/group spec */
         const char *spec = all_args->filename[0];
@@ -344,15 +341,15 @@ void chown_command(int argc, char **argv) {
                                &opts.owner_set, &opts.group_set) != 0) {
             fprintf(stderr, "%s: invalid owner: '%s'\n", argv[0], spec);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
     } else {
         if (num_files == 0) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
 
         /* --reference: stat the reference file */
@@ -360,8 +357,8 @@ void chown_command(int argc, char **argv) {
         if (stat(reference_opt->sval[0], &ref_st) != 0) {
             fprintf(stderr, "%s: cannot access '%s': %s\n", argv[0],
                     reference_opt->sval[0], strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            
+            return 0;
         }
         opts.owner = ref_st.st_uid;
         opts.group = ref_st.st_gid;
@@ -401,7 +398,8 @@ void chown_command(int argc, char **argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
+    return 0;
 }
 
 REGISTER_COMMAND("chown", chown_command, "Change file owner and group");

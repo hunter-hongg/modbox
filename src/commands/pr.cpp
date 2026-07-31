@@ -11,6 +11,7 @@
 #include <argtable3.h>
 
 #include "commands/pr.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 namespace {
@@ -155,7 +156,7 @@ static void paginate_file(const char* filename, PrOptions& opts) {
 
 }
 
-void pr_command(int argc, char** argv) {
+int pr_command(int argc, char** argv) {
     struct arg_lit* header_opt = arg_lit0(NULL, "header", "page header (default)");
     struct arg_lit* no_header_opt = arg_lit0(NULL, "no-header", "suppress page headers");
     struct arg_lit* multi_col_opt = arg_lit0(NULL, "columns", "multi-column output");
@@ -170,11 +171,11 @@ void pr_command(int argc, char** argv) {
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "input files");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {header_opt, no_header_opt, multi_col_opt, col_num_opt,
-                        lines_opt, width_opt, no_fill_opt, first_only_opt,
-                        double_opt, title_opt, help_opt, files_arg, end};
+    ArgTable at({header_opt, no_header_opt, multi_col_opt, col_num_opt,
+                 lines_opt, width_opt, no_fill_opt, first_only_opt,
+                 double_opt, title_opt, help_opt, files_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -190,14 +191,11 @@ void pr_command(int argc, char** argv) {
         printf("  -t, --no-header       suppress headers\n");
         printf("  -w WIDTH, --width=WIDTH  page width (default 72)\n");
         printf("\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     PrOptions opts;
@@ -229,8 +227,7 @@ void pr_command(int argc, char** argv) {
         int fd = mkstemp(const_cast<char*>(tmpfile));
         if (fd < 0) {
             fprintf(stderr, "pr: cannot create temp file\n");
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
 
         char buf[4096];
@@ -269,7 +266,7 @@ void pr_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("pr", pr_command, "Paginate or columnate files for printing");

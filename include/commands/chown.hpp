@@ -21,6 +21,6 @@ struct ChownOptions {
     gid_t from_group = (gid_t)-1;
 };
 
-void chown_command(int argc, char** argv);
+int chown_command(int argc, char** argv);
 
 #endif

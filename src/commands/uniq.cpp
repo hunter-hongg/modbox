@@ -4,6 +4,7 @@
 #include <argtable3.h>
 
 #include "commands/uniq.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define UNIQ_MAX_LINE 1048576  /* 1 MiB max line length */
@@ -140,7 +141,7 @@ static void uniq_file(FILE* fp, const UniqOptions* opts, FILE* out_fp) {
 
 /* ── Main command ────────────────────────────────────────────────────────── */
 
-void uniq_command(int argc, char** argv) {
+int uniq_command(int argc, char** argv) {
     UniqOptions opts = {0};
 
     struct arg_lit* count_opt = arg_lit0("c", "count", "prefix lines by the number of occurrences");
@@ -156,14 +157,14 @@ void uniq_command(int argc, char** argv) {
     struct arg_file* output_arg = arg_filen(NULL, NULL, "OUTPUT", 0, 1, "output file (default: stdout)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         count_opt, repeated_opt, all_repeated_opt, unique_opt,
         ignore_case_opt, skip_fields_opt, skip_chars_opt, check_chars_opt,
         help_opt,
         file_arg, output_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [INPUT [OUTPUT]]\n", argv[0]);
@@ -181,14 +182,11 @@ void uniq_command(int argc, char** argv) {
         printf("  -s, --skip-chars=N    avoid comparing the first N characters\n");
         printf("  -w, --check-chars=N   compare no more than N characters per line\n");
         printf("  -h, --help            display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     opts.count = (count_opt->count > 0);
@@ -211,8 +209,7 @@ void uniq_command(int argc, char** argv) {
             if (in_fp == NULL) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "uniq: %s: No such file or directory\n", fname);
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return;
+                return 0;
             }
         }
     }
@@ -224,8 +221,7 @@ void uniq_command(int argc, char** argv) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "uniq: %s: Cannot open for writing\n", fname);
             if (in_fp != stdin) { (void)fclose(in_fp); }
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -234,7 +230,7 @@ void uniq_command(int argc, char** argv) {
     if (in_fp != stdin) { (void)fclose(in_fp); }
     if (out_fp != stdout) { (void)fclose(out_fp); }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("uniq", uniq_command, "Report or omit repeated lines");

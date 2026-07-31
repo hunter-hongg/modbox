@@ -13,6 +13,7 @@
 
 #include "commands/stty.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 #ifndef _POSIX_VDISABLE
 #define _POSIX_VDISABLE 0
@@ -873,7 +874,7 @@ static void print_help(void) {
 
 /* ── Main ─────────────────────────────────────────────────────────────────── */
 
-void stty_command(int argc, char** argv) {
+int stty_command(int argc, char** argv) {
     g_prog = argv[0];
 
     bool do_all = false;
@@ -887,8 +888,8 @@ void stty_command(int argc, char** argv) {
         const std::string a = argv[i];
         if (!stop_opts) {
             if (a == "--") { stop_opts = true; continue; }
-            if (a == "--help" || a == "-h") { print_help(); return; }
-            if (a == "--version") { printf("stty (modbox) 1.0\n"); return; }
+            if (a == "--help" || a == "-h") { print_help(); return 0; }
+            if (a == "--version") { print_version("stty"); return 0; }
             if (a == "-a" || a == "--all") { do_all = true; continue; }
             if (a == "-g" || a == "--save") { do_save = true; continue; }
             if (a == "-F") {
@@ -896,7 +897,7 @@ void stty_command(int argc, char** argv) {
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                     (void)fprintf(stderr, "%s: option requires an argument -- 'F'\n",
                             g_prog);
-                    return;
+                    return 0;
                 }
                 file = argv[++i];
                 have_file = true;
@@ -921,7 +922,7 @@ void stty_command(int argc, char** argv) {
         if (g_fd < 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "%s: %s: %s\n", g_prog, file.c_str(), strerror(errno));
-            return;
+            return 0;
         }
     } else {
         g_fd = STDIN_FILENO;
@@ -931,7 +932,7 @@ void stty_command(int argc, char** argv) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "%s: standard input: %s\n", g_prog, strerror(errno));
         if (have_file) { close(g_fd); }
-        return;
+        return 0;
     }
 
     int rc = 0;
@@ -959,6 +960,7 @@ void stty_command(int argc, char** argv) {
     }
 
     if (have_file) { close(g_fd); }
+    return 0;
 }
 
 REGISTER_COMMAND("stty", stty_command, "Print or change terminal characteristics");

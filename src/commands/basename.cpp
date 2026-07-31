@@ -5,6 +5,7 @@
 
 #include "commands/basename.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s NAME [SUFFIX]\n", prog);
@@ -47,7 +48,7 @@ static std::string strip_suffix(const std::string& name, const std::string& suff
     return name;
 }
 
-void basename_command(int argc, char** argv) {
+int basename_command(int argc, char** argv) {
     bool multiple = false;
     std::string suffix;
     bool zero = false;
@@ -57,11 +58,11 @@ void basename_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("basename (modbox) 1.0\n");
-            return;
+            print_version("basename");
+            return 0;
         }
         if (strcmp(a, "-a") == 0 || strcmp(a, "--multiple") == 0) {
             multiple = true;
@@ -95,7 +96,7 @@ void basename_command(int argc, char** argv) {
         if (a[0] == '-' && a[1] != '\0') {
             (void)fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], a);
             (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            return;
+            return 0;
         }
         names.push_back(a);
     }
@@ -103,7 +104,7 @@ void basename_command(int argc, char** argv) {
     if (names.empty()) {
         (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
         (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        return;
+        return 0;
     }
 
     if (!multiple) {
@@ -130,6 +131,7 @@ void basename_command(int argc, char** argv) {
             }
         }
     }
+    return 0;
 }
 
 REGISTER_COMMAND("basename", basename_command, "Strip directory and suffix");

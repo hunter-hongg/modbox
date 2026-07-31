@@ -16,6 +16,6 @@ struct ChgrpOptions {
     const char* reference = nullptr;
 };
 
-void chgrp_command(int argc, char** argv);
+int chgrp_command(int argc, char** argv);
 
 #endif

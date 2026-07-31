@@ -64,7 +64,7 @@ static WcCounts wc_stream(FILE* fp, const char* name, bool show_l, bool show_w,
     return counts;
 }
 
-void wc_command(int argc, char** argv) {
+int wc_command(int argc, char** argv) {
     bool show_l = false;
     bool show_w = false;
     bool show_c = false;
@@ -86,7 +86,7 @@ void wc_command(int argc, char** argv) {
             printf("  -h, --help       display this help and exit\n");
             printf("\n");
             printf("With no FILE, read standard input.\n");
-            return;
+            return 0;
         }
         if (strcmp(a, "-c") == 0 || strcmp(a, "--bytes") == 0) {
             show_c = true;
@@ -106,7 +106,7 @@ void wc_command(int argc, char** argv) {
                 else if (a[j] == 'w') show_w = true;
                 else {
                     fprintf(stderr, "wc: invalid option -- '%c'\n", a[j]);
-                    return;
+                    return 0;
                 }
             }
         } else {
@@ -212,12 +212,13 @@ void wc_command(int argc, char** argv) {
             fprintf(stdout, "  }\n");
         }
         fprintf(stdout, "]\n");
-        return;
+        return 0;
     }
 
     if (success_count > 1) {
         print_counts(totals, "total", show_l, show_w, show_c, show_m);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("wc", wc_command, "Print byte, word, and line counts");

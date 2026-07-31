@@ -5,6 +5,6 @@ struct MktempOptions {
   const char* template_prefix = nullptr;
 };
 
-void mktemp_command(int argc, char** argv);
+int mktemp_command(int argc, char** argv);
 
 #endif

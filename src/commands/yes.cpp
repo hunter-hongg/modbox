@@ -5,6 +5,7 @@
 
 #include "commands/yes.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [STRING]...\n", prog);
@@ -15,7 +16,7 @@ static void print_help(const char* prog) {
     printf("  -V, --version  output version information and exit\n");
 }
 
-void yes_command(int argc, char** argv) {
+int yes_command(int argc, char** argv) {
     const char* prog = argv[0];
     std::vector<const char*> args;
 
@@ -23,11 +24,11 @@ void yes_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(a, "-V") == 0 || strcmp(a, "--version") == 0) {
-            printf("yes (modbox) 1.0\n");
-            return;
+            print_version("yes");
+            return 0;
         }
         args.push_back(a);
     }
@@ -60,6 +61,7 @@ void yes_command(int argc, char** argv) {
         memcpy(out + written, buf.data(), buf.size());
         written += buf.size();
     }
+    return 0;
 }
 
 REGISTER_COMMAND("yes", yes_command, "Output string repeatedly");

@@ -20,6 +20,6 @@ struct SplitOptions {
     const char* prefix = nullptr;  // PREFIX argument (default "x")
 };
 
-void split_command(int argc, char** argv);
+int split_command(int argc, char** argv);
 
 #endif

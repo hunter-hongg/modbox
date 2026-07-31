@@ -5,9 +5,10 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/diff3.hpp"
+#include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/diff.hpp"
 
@@ -440,7 +441,7 @@ static void output_merge(int file1_n, char** file1_lines,
 
 /* ── Main command ───────────────────────────────────────────────────────── */
 
-void diff3_command(int argc, char** argv) {
+int diff3_command(int argc, char** argv) {
     struct arg_lit* show_all_opt = arg_lit0("A", "show-all", "output all changes with conflict markers");
     struct arg_lit* ed_opt = arg_lit0("e", "ed", "output ed script");
     struct arg_lit* show_overlap_opt = arg_lit0("E", "show-overlap", "like -e with conflict markers");
@@ -458,13 +459,11 @@ void diff3_command(int argc, char** argv) {
     struct arg_file* file3_arg = arg_filen(NULL, NULL, "YOURFILE", 1, 1, "your file");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
-        show_all_opt, ed_opt, show_overlap_opt, easy_only_opt, overlap_only_opt,
-        overlap_x_opt, merge_opt, text_opt, strip_cr_opt, initial_tab_opt,
-        help_opt, label_opt, file1_arg, file2_arg, file3_arg, end
-    };
+    ArgTable at({show_all_opt, ed_opt, show_overlap_opt, easy_only_opt, overlap_only_opt,
+                 overlap_x_opt, merge_opt, text_opt, strip_cr_opt, initial_tab_opt,
+                 help_opt, label_opt, file1_arg, file2_arg, file3_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... MYFILE BASEFILE YOURFILE\n", argv[0]);
@@ -483,14 +482,12 @@ void diff3_command(int argc, char** argv) {
         printf("  -T, --initial-tab       add tab before output\n");
         printf("  -L, --label=LABEL       use LABEL instead of filename\n");
         printf("  -h, --help              display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     Diff3Options opts;
@@ -523,26 +520,26 @@ void diff3_command(int argc, char** argv) {
     int f1_n, f2_n, f3_n;
     char** f1_lines = read_lines(file1, &f1_n);
     if (f1_lines == NULL && f1_n == -1) {
-        fprintf(stderr, "diff3: %s: No such file or directory\n", file1);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        cmd_perror("diff3", file1);
+
+        return 0;
     }
 
     char** f2_lines = read_lines(file2, &f2_n);
     if (f2_lines == NULL && f2_n == -1) {
-        fprintf(stderr, "diff3: %s: No such file or directory\n", file2);
+        cmd_perror("diff3", file2);
         free_lines(f1_lines, f1_n);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+
+        return 0;
     }
 
     char** f3_lines = read_lines(file3, &f3_n);
     if (f3_lines == NULL && f3_n == -1) {
-        fprintf(stderr, "diff3: %s: No such file or directory\n", file3);
+        cmd_perror("diff3", file3);
         free_lines(f1_lines, f1_n);
         free_lines(f2_lines, f2_n);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+
+        return 0;
     }
 
     /* Set defaults for labels */
@@ -566,8 +563,8 @@ void diff3_command(int argc, char** argv) {
         free_lines(f1_lines, f1_n);
         free_lines(f2_lines, f2_n);
         free_lines(f3_lines, f3_n);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+
+        return 0;
     }
 
     /* Check if mine == base == yours pairwise */
@@ -589,8 +586,8 @@ void diff3_command(int argc, char** argv) {
         free_lines(f1_lines, f1_n);
         free_lines(f2_lines, f2_n);
         free_lines(f3_lines, f3_n);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+
+        return 0;
     }
 
     if (mine_eq_base) {
@@ -623,7 +620,7 @@ void diff3_command(int argc, char** argv) {
     free_lines(f1_lines, f1_n);
     free_lines(f2_lines, f2_n);
     free_lines(f3_lines, f3_n);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("diff3", diff3_command, "Compare three files line by line");

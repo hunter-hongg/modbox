@@ -6,9 +6,11 @@
 #include <unistd.h>
 
 #include "commands/tty.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
-void tty_command(int argc, char** argv) {
+int tty_command(int argc, char** argv) {
   struct arg_lit* silent_opt =
       arg_lit0("s", "silent,quiet", "print nothing, only return an exit status");
   struct arg_lit* help_opt =
@@ -17,9 +19,9 @@ void tty_command(int argc, char** argv) {
       arg_lit0(NULL, "version", "output version information and exit");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {silent_opt, help_opt, version_opt, end};
+  ArgTable at({silent_opt, help_opt, version_opt, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -28,20 +30,16 @@ void tty_command(int argc, char** argv) {
     printf("  -s, --silent, --quiet   print nothing, only return an exit status\n");
     printf("      --help              display this help and exit\n");
     printf("      --version           output version information and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (version_opt->count > 0) {
-    printf("tty (modbox) 1.0\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    print_version("tty");
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   int is_terminal = isatty(STDIN_FILENO);
@@ -68,11 +66,10 @@ void tty_command(int argc, char** argv) {
     exit_status = 1;
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-
   if (exit_status != 0) {
     exit(exit_status);
   }
+  return 0;
 }
 
 REGISTER_COMMAND("tty", tty_command, "Print terminal file name");

@@ -17,6 +17,6 @@ struct PtxOptions {
     const char* only_file = nullptr;
 };
 
-void ptx_command(int argc, char** argv);
+int ptx_command(int argc, char** argv);
 
 #endif

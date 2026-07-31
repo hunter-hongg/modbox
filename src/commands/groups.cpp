@@ -17,7 +17,7 @@ static void print_help(const char* prog) {
     printf("      --version     output version information and exit\n");
 }
 
-static void print_version(const char* prog) {
+static void print_groups_version(const char* prog) {
     printf("groups (modbox) 1.0\n");
 }
 
@@ -51,23 +51,23 @@ static std::vector<gid_t> get_user_groups(const char* username) {
     return groups;
 }
 
-void groups_command(int argc, char** argv) {
+int groups_command(int argc, char** argv) {
     std::vector<const char*> usernames;
 
     for (int i = 1; i < argc; i++) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            print_version(argv[0]);
-            return;
+            print_groups_version(argv[0]);
+            return 0;
         }
         if (a[0] == '-') {
             fprintf(stderr, "groups: invalid option '%s'\n", a);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            return;
+            return 0;
         }
         usernames.push_back(a);
     }
@@ -86,6 +86,7 @@ void groups_command(int argc, char** argv) {
         }
         printf("\n");
     }
+    return 0;
 }
 
 REGISTER_COMMAND("groups", groups_command, "Print group memberships");

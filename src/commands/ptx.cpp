@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/ptx.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define PTX_MAX_LINE 4096
@@ -167,7 +168,7 @@ static void process_file(FILE* fp, const char* filename, std::vector<KeywordEntr
 }
 
 /* Main command implementation */
-void ptx_command(int argc, char** argv) {
+int ptx_command(int argc, char** argv) {
     PtxOptions opts = {0};
     
     struct arg_lit* auto_ref_opt = arg_lit0("A", "auto-reference", "generate automatic references");
@@ -185,13 +186,13 @@ void ptx_command(int argc, char** argv) {
     struct arg_file* file_args = arg_filen(NULL, NULL, "FILE", 0, 100, "input files");
     struct arg_end* end = arg_end(20);
     
-    void* argtable[] = {
+    ArgTable at({
         auto_ref_opt, right_ref_opt, traditional_opt, typeset_opt, refs_opt,
         width_opt, gap_opt, sentence_opt, break_opt, ignore_opt, only_opt,
         help_opt, file_args, end
-    };
+    });
     
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
     
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -212,14 +213,11 @@ void ptx_command(int argc, char** argv) {
         printf("  -h, --help            display this help and exit\n");
         printf("\n");
         printf("With no FILE, read standard input.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
     
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
     
     opts.auto_reference = (auto_ref_opt->count > 0);
@@ -265,7 +263,7 @@ void ptx_command(int argc, char** argv) {
         output_entry(entry, &opts, stdout);
     }
     
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("ptx", ptx_command, "Generate permuted index (KWIC index)");

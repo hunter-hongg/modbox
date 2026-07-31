@@ -12,6 +12,7 @@
 
 #include "commands/xargs.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 #define XARGS_MAX_LINE 1048576
 #define XARGS_MAX_ITEMS 65536
@@ -85,7 +86,7 @@ static int run_cmd(const char** cmd, const XargsOptions* opts) {
   return 0;
 }
 
-void xargs_command(int argc, char** argv) {
+int xargs_command(int argc, char** argv) {
   struct XargsOptions opts = {0, 0, 1, -1, -1, false, false, false};
   bool replace_str_set = false;
   std::string replace_str;
@@ -97,8 +98,8 @@ void xargs_command(int argc, char** argv) {
   int i = 1;
   for (; i < argc; i++) {
     const char* a = argv[i];
-    if (strcmp(a, "--help") == 0) { print_help(argv[0]); return; }
-    if (strcmp(a, "--version") == 0) { printf("xargs (modbox) 1.0\n"); return; }
+    if (strcmp(a, "--help") == 0) { print_help(argv[0]); return 0; }
+    if (strcmp(a, "--version") == 0) { print_version("xargs"); return 0; }
     if (strcmp(a, "-0") == 0 || strcmp(a, "--null") == 0) { opts.null = true; continue; }
     if (strcmp(a, "--show-limits") == 0) { opts.show_limits = true; continue; }
     if (strcmp(a, "-I") == 0 && i + 1 < argc) { replace_str = argv[++i]; replace_str_set = true; continue; }
@@ -114,7 +115,7 @@ void xargs_command(int argc, char** argv) {
     if (a[0] == '-' && a[1] != '-' && a[1] != '\0') {
       fprintf(stderr, "xargs: unrecognized option '%s'\n", a);
       fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-      return;
+      return 0;
     }
     break;
   }
@@ -124,7 +125,7 @@ void xargs_command(int argc, char** argv) {
   if (initial_args.empty() && !replace_str_set) {
     fprintf(stderr, "xargs: missing command\n");
     fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-    return;
+    return 0;
   }
 
   FILE* fp = stdin;
@@ -150,17 +151,17 @@ void xargs_command(int argc, char** argv) {
     printf("maximum number of arguments to a command = %d\n", XARGS_MAX_ITEMS);
     printf("execution time per command (seconds) = unlimited\n");
     printf("maximum combined length of environment variables = unlimited\n");
-    return;
+    return 0;
   }
 
   if (stdin_items.empty() && !replace_str_set) {
-    if (initial_args.empty()) return;
+    if (initial_args.empty()) return 0;
     const char** cmd = new const char*[initial_args.size() + 1];
     for (size_t k = 0; k < initial_args.size(); k++) cmd[k] = initial_args[k];
     cmd[initial_args.size()] = nullptr;
     run_cmd(cmd, &opts);
     delete[] cmd;
-    return;
+    return 0;
   }
 
   if (replace_str_set && !initial_args.empty()) {
@@ -180,17 +181,17 @@ void xargs_command(int argc, char** argv) {
       int r = system(cmd_str.c_str());
       if (r != 0) ret = r;
     }
-    return;
+    return 0;
   }
 
   if (replace_str_set && initial_args.empty()) {
     for (size_t idx = 0; idx < stdin_items.size(); idx++) {
       int r = system(stdin_items[idx].c_str());
       if (r != 0) {
-        if (opts.max_procs == 1) return;
+        if (opts.max_procs == 1) return 0;
       }
     }
-    return;
+    return 0;
   }
 
   int nargs = opts.max_args > 0 ? opts.max_args : XARGS_MAX_ITEMS;
@@ -213,7 +214,7 @@ void xargs_command(int argc, char** argv) {
       }
       batch.push_back(stdin_items[pos]);
     }
-    if (opts.no_run_if_empty && batch.empty()) return;
+    if (opts.no_run_if_empty && batch.empty()) return 0;
 
     int total = (int)(initial_args.size() + batch.size());
     const char** cmd = new const char*[total + 1];
@@ -223,6 +224,7 @@ void xargs_command(int argc, char** argv) {
     last_ret = run_cmd(cmd, &opts);
     delete[] cmd;
   }
+  return 0;
 }
 
 REGISTER_COMMAND("xargs", xargs_command, "Build command line from stdin");

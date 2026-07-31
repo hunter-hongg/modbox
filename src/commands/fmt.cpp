@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/fmt.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 static void emit_paragraph(const std::vector<std::string>& words, int width,
@@ -71,7 +72,7 @@ static void fmt_file(FILE* fp, int width, FILE* out) {
   free(buf);
 }
 
-void fmt_command(int argc, char** argv) {
+int fmt_command(int argc, char** argv) {
   struct arg_int* width_opt = arg_int0("w", "width", "N", "maximum output width (default 72)");
   struct arg_lit* uniform_opt = arg_lit0("u", "uniform-spacing",
     "one space between words, two between sentences");
@@ -79,8 +80,8 @@ void fmt_command(int argc, char** argv) {
   struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "input file(s)");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {width_opt, uniform_opt, help_opt, files_arg, end};
-  int nerrors = arg_parse(argc, argv, argtable);
+  ArgTable at({width_opt, uniform_opt, help_opt, files_arg, end});
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -89,14 +90,11 @@ void fmt_command(int argc, char** argv) {
     printf(" -w, --width=N   maximum output width (default 72)\n");
     printf(" -u, --uniform-spacing  one space between words, two between sentences\n");
     printf(" -h, --help      display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   int width = 72;
@@ -123,7 +121,7 @@ void fmt_command(int argc, char** argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("fmt", fmt_command, "Reformat paragraph text");

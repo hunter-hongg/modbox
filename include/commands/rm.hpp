@@ -10,6 +10,6 @@ struct RmOptions {
     int is_trash = 0;
 };
 
-void rm_command(int argc, char** argv);
+int rm_command(int argc, char** argv);
 
 #endif

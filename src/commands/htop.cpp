@@ -26,6 +26,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/htop.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 struct HtopProcInfo {
@@ -593,7 +594,7 @@ public:
     }
 };
 
-void htop_command(int argc, char** argv) {
+int htop_command(int argc, char** argv) {
     htop_clk_tck = sysconf(_SC_CLK_TCK);
     htop_page_sz = sysconf(_SC_PAGE_SIZE);
     if (htop_clk_tck <= 0) htop_clk_tck = 100;
@@ -607,11 +608,11 @@ void htop_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         delay_opt, pid_opt, help_opt, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -630,14 +631,11 @@ void htop_command(int argc, char** argv) {
         printf("  PgDn      Scroll down half page\n");
         printf("  Home      Scroll to top\n");
         printf("  End       Scroll to bottom\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     double delay = 1.0;
@@ -651,8 +649,6 @@ void htop_command(int argc, char** argv) {
         only_pid = pid_opt->ival[0];
         if (only_pid < 1) only_pid = -1;
     }
-
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     auto screen = ftxui::App::Fullscreen();
     screen.TrackMouse(false);
@@ -688,6 +684,7 @@ void htop_command(int argc, char** argv) {
 
     running.store(false);
     refresher.join();
+    return 0;
 }
 
 REGISTER_COMMAND("htop", htop_command, "Interactive process viewer (htop-style TUI)");

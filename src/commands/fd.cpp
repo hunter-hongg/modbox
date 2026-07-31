@@ -1,4 +1,4 @@
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 #include <dirent.h>
 #include <cerrno>
 #include <cstdio>
@@ -294,7 +294,7 @@ static void fd_exec_finalize(FdOptions *opts) {
 }
 
 // NOLINTNEXTLINE(readability-function-size)
-void fd_command(int argc, char **argv) {
+int fd_command(int argc, char **argv) {
     FdOptions opts;
     opts.smart_case = 1;
     opts.max_depth = -1;
@@ -321,17 +321,15 @@ void fd_command(int argc, char **argv) {
     struct arg_file *path_arg = arg_filen(NULL, NULL, "PATH", 0, FD_MAX_ARGS, "root directory for search");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
-        hidden_opt, no_ignore_opt,
-        case_sensitive_opt, ignore_case_opt,
-        glob_opt, full_path_opt, follow_opt,
-        print0_opt, max_depth_opt, max_results_opt,
-        type_opt, extension_opt, exclude_opt,
-        exec_opt, exec_batch_opt,
-        color_opt, help_opt, pattern_arg, path_arg, end
-    };
+    ArgTable at({hidden_opt, no_ignore_opt,
+                 case_sensitive_opt, ignore_case_opt,
+                 glob_opt, full_path_opt, follow_opt,
+                 print0_opt, max_depth_opt, max_results_opt,
+                 type_opt, extension_opt, exclude_opt,
+                 exec_opt, exec_batch_opt,
+                 color_opt, help_opt, pattern_arg, path_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTIONS] PATTERN [PATH...]\n", argv[0]);
@@ -373,14 +371,12 @@ void fd_command(int argc, char **argv) {
         printf("  .gitignore files are not parsed; -I is a no-op.\n");
         printf("  Hidden files/dirs are excluded by default; use -H to include.\n");
         printf("  For exec (-x), use {} to substitute the file path.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        exit(2);
+        return at.print_errors(end, argv[0]);
     }
 
     opts.hidden = (hidden_opt->count > 0);
@@ -410,7 +406,7 @@ void fd_command(int argc, char **argv) {
             opts.type_filter = tv[0];
         } else {
             (void)fprintf(stderr, "fd: invalid type '%s' (valid: f,d,l,x,e,s)\n", tv);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+            
             exit(2);
         }
     }
@@ -453,7 +449,7 @@ void fd_command(int argc, char **argv) {
             opts.color_mode = FdColorMode::AUTO;
         } else {
             (void)fprintf(stderr, "fd: invalid color '%s' (valid: never, auto, always)\n", cv);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+            
             exit(2);
         }
     }
@@ -474,7 +470,7 @@ void fd_command(int argc, char **argv) {
         } catch (const std::regex_error &e) {
             (void)fprintf(stderr, "fd: invalid pattern '%s': %s\n",
                           opts.pattern.c_str(), e.what());
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+            
             exit(2);
         }
     }
@@ -502,7 +498,7 @@ void fd_command(int argc, char **argv) {
 
     fd_exec_finalize(&opts);
     delete re;
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
 
     exit(total_matches > 0 ? 0 : 1);
 }

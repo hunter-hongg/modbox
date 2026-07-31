@@ -13,6 +13,6 @@ struct DustOptions {
     int exclude_count = 0;
 };
 
-void dust_command(int argc, char** argv);
+int dust_command(int argc, char** argv);
 
 #endif

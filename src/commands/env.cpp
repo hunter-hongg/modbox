@@ -8,6 +8,7 @@
 
 #include "commands/env.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 extern char** environ;
 
@@ -45,7 +46,7 @@ static int run_command(std::vector<char*>& argv) {
     return 127;
 }
 
-void env_command(int argc, char** argv) {
+int env_command(int argc, char** argv) {
     const char* prog = argv[0];
     bool ignore_env = false;
     bool null_out = false;
@@ -70,34 +71,34 @@ void env_command(int argc, char** argv) {
             unsets.push_back(a + 8);
         } else if (strcmp(a, "-u") == 0) {
             if (i + 1 < argc) unsets.push_back(argv[++i]);
-            else { fprintf(stderr, "env: option '-u' requires an argument\n"); return; }
+            else { fprintf(stderr, "env: option '-u' requires an argument\n"); return 0; }
         } else if (strncmp(a, "-u", 2) == 0) {
             unsets.push_back(a + 2);
         } else if (strncmp(a, "--chdir=", 8) == 0) {
             chdir_dir = a + 8;
         } else if (strcmp(a, "-C") == 0) {
             if (i + 1 < argc) chdir_dir = argv[++i];
-            else { fprintf(stderr, "env: option '-C' requires an argument\n"); return; }
+            else { fprintf(stderr, "env: option '-C' requires an argument\n"); return 0; }
         } else if (strncmp(a, "-C", 2) == 0) {
             chdir_dir = a + 2;
         } else if (strcmp(a, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         } else if (strcmp(a, "-h") == 0) {
             print_help(prog);
-            return;
+            return 0;
         } else if (strcmp(a, "--version") == 0) {
-            printf("env (modbox) 1.0\n");
-            return;
+            print_version("env");
+            return 0;
         } else if (strcmp(a, "-V") == 0) {
-            printf("env (modbox) 1.0\n");
-            return;
+            print_version("env");
+            return 0;
         } else if (strcmp(a, "-") == 0) {
             ignore_env = true;
             split_dash = true;
         } else if (a[0] == '-' && a[1] != '\0') {
             fprintf(stderr, "env: invalid option -- '%s'\n", a);
-            return;
+            return 0;
         } else if (strchr(a, '=') != nullptr) {
             assignments.push_back(a);
         } else {
@@ -127,7 +128,7 @@ void env_command(int argc, char** argv) {
         if (chdir(chdir_dir) != 0) {
             fprintf(stderr, "env: cannot change directory to '%s': %s\n",
                     chdir_dir, strerror(errno));
-            return;
+            return 0;
         }
     }
 
@@ -136,7 +137,7 @@ void env_command(int argc, char** argv) {
             fputs(*e, stdout);
             fputc(null_out ? '\0' : '\n', stdout);
         }
-        return;
+        return 0;
     }
 
     std::vector<char*> argv_exec;
@@ -145,6 +146,7 @@ void env_command(int argc, char** argv) {
 
     int rc = run_command(argv_exec);
     if (rc != 0) exit(rc);
+    return 0;
 }
 
 REGISTER_COMMAND("env", env_command, "Print environment variables");

@@ -8,6 +8,7 @@
 #include <string>
 
 #include "commands/rmdir.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 static int remove_dir(const char* path) {
@@ -76,7 +77,7 @@ static int rmdir_parents(const char* path) {
   return 0;
 }
 
-void rmdir_command(int argc, char** argv) {
+int rmdir_command(int argc, char** argv) {
   struct arg_lit* parents_opt = arg_lit0("p", "parents",
     "remove DIRECTORY and its ancestors, e.g., `rmdir -p a/b/c` is "
     "like `rmdir a/b/c a/b a`");
@@ -85,8 +86,8 @@ void rmdir_command(int argc, char** argv) {
     "directories to remove");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {parents_opt, help_opt, dirs_arg, end};
-  int nerrors = arg_parse(argc, argv, argtable);
+  ArgTable at({parents_opt, help_opt, dirs_arg, end});
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... DIRECTORY...\n", argv[0]);
@@ -95,14 +96,11 @@ void rmdir_command(int argc, char** argv) {
     printf(" -p, --parents remove DIRECTORY and its ancestors, e.g., "
            "`rmdir -p a/b/c` is like `rmdir a/b/c a/b a`\n");
     printf(" -h, --help display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   RmdirOptions opts;
@@ -117,7 +115,7 @@ void rmdir_command(int argc, char** argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("rmdir", rmdir_command, "Remove empty directories");

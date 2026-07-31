@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "commands/chcon.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 struct ChconOptions {
@@ -151,7 +152,7 @@ static int recursive_callback(const char* fpath, const struct stat* sb,
     return 0;
 }
 
-void chcon_command(int argc, char** argv) {
+int chcon_command(int argc, char** argv) {
     struct arg_lit* recursive_opt = arg_lit0("R", "recursive", "operate on files and directories recursively");
     struct arg_lit* verbose_opt = arg_lit0("v", "verbose", "output a diagnostic for every file processed");
     struct arg_lit* no_deref_opt = arg_lit0("h", "no-dereference", "affect symbolic links instead of their target");
@@ -166,12 +167,12 @@ void chcon_command(int argc, char** argv) {
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE...", 1, 1000, "file(s) to change context of");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {recursive_opt, verbose_opt, no_deref_opt,
-                        preserve_root_opt, no_preserve_root_opt,
-                        user_opt, role_opt, type_opt, range_opt,
-                        reference_opt, help_opt, files_arg, end};
+    ArgTable at({recursive_opt, verbose_opt, no_deref_opt,
+                 preserve_root_opt, no_preserve_root_opt,
+                 user_opt, role_opt, type_opt, range_opt,
+                 reference_opt, help_opt, files_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... CONTEXT FILE...\n", argv[0]);
@@ -191,14 +192,11 @@ void chcon_command(int argc, char** argv) {
         printf("  -l, --range=RANGE    set range RANGE in the target security context\n");
         printf("      --reference=RFILE  use RFILE's security context\n");
         printf("      --help           display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     ChconOptions opts;
@@ -222,8 +220,7 @@ void chcon_command(int argc, char** argv) {
         if (files_arg->count < 2) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
 
         // Treat first positional as full context, rest as files
@@ -253,8 +250,7 @@ void chcon_command(int argc, char** argv) {
             }
         }
 
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (opts.is_recursive) {
@@ -275,7 +271,7 @@ void chcon_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("chcon", chcon_command, "Change SELinux security context");

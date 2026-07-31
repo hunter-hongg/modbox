@@ -8,6 +8,7 @@
 
 #include "commands/expr.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 namespace {
 
@@ -398,16 +399,16 @@ static void print_help(const char* prog) {
 
 }  // namespace
 
-void expr_command(int argc, char** argv) {
+int expr_command(int argc, char** argv) {
     g_prog = argv[0];
 
     if (argc >= 2 && strcmp(argv[1], "--help") == 0) {
         print_help(argv[0]);
-        return;
+        return 0;
     }
     if (argc >= 2 && strcmp(argv[1], "--version") == 0) {
-        printf("expr (modbox) 1.0\n");
-        return;
+        print_version("expr");
+        return 0;
     }
 
     int start = 1;

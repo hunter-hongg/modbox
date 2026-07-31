@@ -9,6 +9,7 @@
 
 #include "commands/kill.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [-s SIGNAL|SIGNAL] PID...\n", prog);
@@ -73,7 +74,7 @@ static int resolve_signal(const char* name) {
     return -1;
 }
 
-void kill_command(int argc, char** argv) {
+int kill_command(int argc, char** argv) {
     int sig = SIGTERM;
     bool list_signals = false;
     bool print_only = false;
@@ -82,13 +83,13 @@ void kill_command(int argc, char** argv) {
     int i = 1;
     for (; i < argc; i++) {
         const char* a = argv[i];
-        if (std::strcmp(a, "--help") == 0) { print_help(argv[0]); return; }
-        if (std::strcmp(a, "--version") == 0) { printf("kill (modbox) 1.0\n"); return; }
+        if (std::strcmp(a, "--help") == 0) { print_help(argv[0]); return 0; }
+        if (std::strcmp(a, "--version") == 0) { print_version("kill"); return 0; }
         if (std::strcmp(a, "-l") == 0 || std::strcmp(a, "-L") == 0) { list_signals = true; continue; }
         if (std::strcmp(a, "-p") == 0) { print_only = true; continue; }
         if ((std::strcmp(a, "-s") == 0 || std::strcmp(a, "--signal") == 0) && i + 1 < argc) {
             int s = resolve_signal(argv[++i]);
-            if (s < 0) { fprintf(stderr, "kill: invalid signal: %s\n", argv[i]); return; }
+            if (s < 0) { fprintf(stderr, "kill: invalid signal: %s\n", argv[i]); return 0; }
             sig = s;
             continue;
         }
@@ -102,12 +103,12 @@ void kill_command(int argc, char** argv) {
             pids.push_back((pid_t)pid_val);
         } else {
             fprintf(stderr, "kill: invalid pid: %s\n", a);
-            return;
+            return 0;
         }
     }
 
-    if (list_signals) { print_signals(); return; }
-    if (pids.empty()) { fprintf(stderr, "kill: missing operand\n"); return; }
+    if (list_signals) { print_signals(); return 0; }
+    if (pids.empty()) { fprintf(stderr, "kill: missing operand\n"); return 0; }
 
     for (pid_t pid : pids) {
         if (print_only) {
@@ -118,6 +119,7 @@ void kill_command(int argc, char** argv) {
             fprintf(stderr, "kill: (%d) - %s\n", pid, strerror(errno));
         }
     }
+    return 0;
 }
 
 REGISTER_COMMAND("kill", kill_command, "Terminate process");

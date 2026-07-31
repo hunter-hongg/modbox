@@ -154,7 +154,7 @@ static std::string make_relative(const std::string& path, const std::string& rel
     return result;
 }
 
-void realpath_command(int argc, char** argv) {
+int realpath_command(int argc, char** argv) {
     bool canonicalize_existing = false;
     bool canonicalize_missing = false;
     bool quiet = false;
@@ -204,14 +204,14 @@ void realpath_command(int argc, char** argv) {
         printf("      --relative-to=FILE       print relative to FILE\n");
         printf("      --relative-base=FILE     print only relative paths under this base\n");
         printf("  -h, --help                   display this help and exit\n");
-        return;
+        return 0;
     }
 
     if (files.empty()) {
         if (!quiet) {
             fprintf(stderr, "realpath: missing operand\nTry '%s --help' for more information.\n", argv[0]);
         }
-        return;
+        return 0;
     }
 
     int exit_status = 0;
@@ -270,5 +270,6 @@ void realpath_command(int argc, char** argv) {
     }
 
     if (exit_status) exit(exit_status);
+    return 0;
 }
 REGISTER_COMMAND("realpath", realpath_command, "Print the resolved absolute pathname");

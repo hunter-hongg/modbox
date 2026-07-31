@@ -5,12 +5,12 @@
 #include "commands/ls.hpp"
 #include "commands/command_macros.hpp"
 
-void lf_command(int argc, char** argv) {
+int lf_command(int argc, char** argv) {
     if (argc >= 2 && strcmp(argv[1], "init") == 0) {
         const char* shell = (argc >= 3) ? argv[2] : "";
         if (shell[0] == '\0') {
             fprintf(stderr, "lf: please specify a shell: bash, zsh, fish\n");
-            return;
+            return 0;
         }
         if (strcmp(shell, "bash") == 0 || strcmp(shell, "zsh") == 0) {
             printf("lf() {\n");
@@ -38,7 +38,7 @@ void lf_command(int argc, char** argv) {
         } else {
             fprintf(stderr, "lf: unsupported shell '%s'. Supported: bash, zsh, fish\n", shell);
         }
-        return;
+        return 0;
     }
 
     int new_argc = argc + 1;
@@ -55,6 +55,7 @@ void lf_command(int argc, char** argv) {
     ls_command(new_argc, new_argv);
 
     free(new_argv);
+    return 0;
 }
 
 REGISTER_COMMAND("lf", lf_command, "Interactive file browser (alias for ls --tui)");

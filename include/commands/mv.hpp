@@ -12,6 +12,6 @@ struct MvOptions {
     int no_target_dir = 0;
 };
 
-void mv_command(int argc, char** argv);
+int mv_command(int argc, char** argv);
 
 #endif

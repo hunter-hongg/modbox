@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <argtable3.h>
 #include "commands/truncate.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 struct TruncateOptions {
@@ -103,7 +104,7 @@ static int64_t apply_modifier(int64_t current, int modifier, int64_t new_val) {
     }
 }
 
-void truncate_command(int argc, char** argv) {
+int truncate_command(int argc, char** argv) {
     struct arg_lit* no_create_opt = arg_lit0("c", "no-create", "do not create any files");
     struct arg_lit* io_blocks_opt = arg_lit0("o", "io-blocks", "treat SIZE as IO blocks");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
@@ -112,9 +113,9 @@ void truncate_command(int argc, char** argv) {
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 1, 1000, "file(s) to truncate");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {no_create_opt, io_blocks_opt, help_opt, ref_opt, size_opt, files_arg, end};
+    ArgTable at({no_create_opt, io_blocks_opt, help_opt, ref_opt, size_opt, files_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -130,28 +131,23 @@ void truncate_command(int argc, char** argv) {
         printf("      SIZE may have a suffix: K, M, G, T, P, E, Z, Y, R, Q\n");
         printf("        (1024^N) or KB, MB, ... (1000^N)\n");
         printf("  -h, --help               display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     if (files_arg->count == 0) {
         fprintf(stderr, "truncate: missing file operand\n");
         fprintf(stderr, "Try 'truncate --help' for more information.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (size_opt->count == 0 && ref_opt->count == 0) {
         fprintf(stderr, "truncate: missing operand\n");
         fprintf(stderr, "Try 'truncate --help' for more information.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     TruncateOptions opts;
@@ -284,6 +280,6 @@ void truncate_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 REGISTER_COMMAND("truncate", truncate_command, "Shrink or extend files to the specified size");

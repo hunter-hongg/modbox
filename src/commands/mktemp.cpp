@@ -13,6 +13,7 @@
 #include <chrono>
 
 #include "commands/mktemp.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 static std::string get_temp_dir() {
@@ -69,14 +70,14 @@ static int create_temp_file_with_prefix(std::string* out_path,
   return 0;
 }
 
-void mktemp_command(int argc, char** argv) {
+int mktemp_command(int argc, char** argv) {
   struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
   struct arg_str* prefix_opt = arg_str0("t", "tempdir",
     "PREFIX", "interpret name as a file prefix (default: use XXXXXX template)");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {help_opt, prefix_opt, end};
-  int nerrors = arg_parse(argc, argv, argtable);
+  ArgTable at({help_opt, prefix_opt, end});
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [TEMPLATE]\n", argv[0]);
@@ -84,31 +85,26 @@ void mktemp_command(int argc, char** argv) {
     printf("\n");
     printf(" -t, --tempdir=PREFIX interpret name as a file prefix\n");
     printf(" -h, --help display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   std::string out_path;
   if (prefix_opt->count > 0) {
     if (create_temp_file_with_prefix(&out_path, prefix_opt->sval[0]) != 0) {
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
   } else {
     if (create_temp_file(&out_path) != 0) {
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
   }
 
   printf("%s\n", out_path.c_str());
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("mktemp", mktemp_command, "Create temporary file or directory");

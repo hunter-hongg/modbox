@@ -457,7 +457,7 @@ static void print_help(const char* prog) {
     printf("With no FILE, read standard input.\n");
 }
 
-static void print_version(const char* prog) {
+static void print_dircolors_version(const char* prog) {
     printf("dircolors (modbox) 1.0\n");
 }
 
@@ -542,7 +542,7 @@ static void print_database() {
     printf("%s", default_database);
 }
 
-void dircolors_command(int argc, char** argv) {
+int dircolors_command(int argc, char** argv) {
     bool bourne = false;
     bool csh = false;
     bool print_db = false;
@@ -552,11 +552,11 @@ void dircolors_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            print_version(argv[0]);
-            return;
+            print_dircolors_version(argv[0]);
+            return 0;
         }
         if (strcmp(a, "-b") == 0 || strcmp(a, "--sh") == 0 || strcmp(a, "--bourne-shell") == 0) {
             bourne = true;
@@ -573,14 +573,14 @@ void dircolors_command(int argc, char** argv) {
         if (a[0] == '-') {
             fprintf(stderr, "dircolors: invalid option '%s'\n", a);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            return;
+            return 0;
         }
         filename = a;
     }
 
     if (print_db) {
         print_database();
-        return;
+        return 0;
     }
 
     if (!bourne && !csh) {
@@ -592,13 +592,13 @@ void dircolors_command(int argc, char** argv) {
         FILE* f = fopen(filename, "r");
         if (!f) {
             fprintf(stderr, "dircolors: %s: No such file or directory\n", filename);
-            return;
+            return 0;
         }
         fseek(f, 0, SEEK_END);
         long sz = ftell(f);
         fseek(f, 0, SEEK_SET);
         char* buf = (char*)malloc((size_t)sz + 1);
-        if (!buf) { fclose(f); return; }
+        if (!buf) { fclose(f); return 0; }
         fread(buf, 1, (size_t)sz, f);
         buf[sz] = '\0';
         fclose(f);
@@ -610,6 +610,7 @@ void dircolors_command(int argc, char** argv) {
     } else {
         print_bourne(db);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("dircolors", dircolors_command, "Color setup for ls");

@@ -6,6 +6,6 @@ struct FmtOptions {
   int uniform_spacing = 0;
 };
 
-void fmt_command(int argc, char** argv);
+int fmt_command(int argc, char** argv);
 
 #endif

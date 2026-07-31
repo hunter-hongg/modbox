@@ -6,6 +6,7 @@
 
 #include "commands/comm.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/arg_util.hpp"
 
 /* ── Constants ──────────────────────────────────────────────────────────── */
 
@@ -91,7 +92,7 @@ static int check_sorted(const char** lines, int count, const CommOptions* opts) 
 
 /* ── Main command ───────────────────────────────────────────────────────── */
 
-void comm_command(int argc, char** argv) {
+int comm_command(int argc, char** argv) {
     CommOptions opts = {0};
     opts.check_order = 1;
     opts.output_delimiter = "\t";
@@ -108,15 +109,15 @@ void comm_command(int argc, char** argv) {
     struct arg_file* file2_arg = arg_filen(NULL, NULL, "FILE2", 1, 1, "second file (or - for stdin)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         suppress_1_opt, suppress_2_opt, suppress_3_opt,
         ignore_case_opt, check_order_opt, nocheck_order_opt,
         output_delim_opt,
         help_opt,
         file1_arg, file2_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE1 FILE2\n", argv[0]);
@@ -137,14 +138,11 @@ void comm_command(int argc, char** argv) {
         printf("  -h, --help              display this help and exit\n");
         printf("\n");
         printf("Note: FILE1 and FILE2 must be sorted. Use 'sort' if they are not.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     opts.suppress_col1 = (suppress_1_opt->count > 0);
@@ -172,16 +170,14 @@ void comm_command(int argc, char** argv) {
     FileLines f1 = read_file(file1);
     if (f1.lines == NULL && !file1_is_stdin) {
         fprintf(stderr, "comm: %s: No such file or directory\n", file1);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     FileLines f2 = read_file(file2);
     if (f2.lines == NULL && !file2_is_stdin) {
         fprintf(stderr, "comm: %s: No such file or directory\n", file2);
         free_file_lines(f1);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     /* Check order if requested */
@@ -190,15 +186,13 @@ void comm_command(int argc, char** argv) {
             fprintf(stderr, "comm: file 1 is not in sorted order\n");
             free_file_lines(f1);
             free_file_lines(f2);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         if (!check_sorted((const char**)f2.lines, f2.count, &opts)) {
             fprintf(stderr, "comm: file 2 is not in sorted order\n");
             free_file_lines(f1);
             free_file_lines(f2);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -274,7 +268,7 @@ void comm_command(int argc, char** argv) {
 
     free_file_lines(f1);
     free_file_lines(f2);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("comm", comm_command, "Compare two sorted files line by line");

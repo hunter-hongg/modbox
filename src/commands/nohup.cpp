@@ -11,6 +11,7 @@
 
 #include "commands/nohup.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 // EXIT_CANCELED: nohup itself failed (bad option, cannot redirect, etc.).
 static const int EXIT_CANCELED = 125;
@@ -56,7 +57,7 @@ static int reopen_fd(int target_fd, const char* path, int flags, mode_t mode) {
     return target_fd;
 }
 
-void nohup_command(int argc, char** argv) {
+int nohup_command(int argc, char** argv) {
     const char* prog = argv[0];
 
     // Options are recognized only before the command, and only --help/--version.
@@ -66,11 +67,11 @@ void nohup_command(int argc, char** argv) {
     } else if (i < argc && argv[i][0] == '-' && argv[i][1] != '\0') {
         if (strcmp(argv[i], "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(argv[i], "--version") == 0) {
-            printf("nohup (modbox) 1.0\n");
-            return;
+            print_version("nohup");
+            return 0;
         }
         fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argv[i]);
         usage_error(prog);

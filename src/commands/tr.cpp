@@ -6,6 +6,7 @@
 #include <string>
 #include <argtable3.h>
 #include "commands/tr.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 static unsigned char parse_escape(const char*& p)
@@ -251,7 +252,7 @@ static void tr_translate_squeeze(FILE* in, const unsigned char tbl[256],
     }
 }
 
-void tr_command(int argc, char** argv)
+int tr_command(int argc, char** argv)
 {
     struct arg_lit* complement_opt = arg_lit0("c", "complement", "use complement of SET1");
     struct arg_lit* delete_opt = arg_lit0("d", "delete", "delete characters in SET1, do not translate");
@@ -262,8 +263,8 @@ void tr_command(int argc, char** argv)
     struct arg_str* set2_arg = arg_strn(NULL, NULL, "SET2", 0, 1, "character set 2");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {complement_opt, delete_opt, squeeze_opt, truncate_opt, help_opt, set1_arg, set2_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({complement_opt, delete_opt, squeeze_opt, truncate_opt, help_opt, set1_arg, set2_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... SET1 [SET2]\n", argv[0]);
@@ -295,14 +296,11 @@ void tr_command(int argc, char** argv)
         printf("Character classes:\n");
         printf("  alnum   alpha    blank    cntrl    digit    graph    lower\n");
         printf("  print   punct    space    upper    xdigit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool cflag = (complement_opt->count > 0);
@@ -313,8 +311,7 @@ void tr_command(int argc, char** argv)
     if (set1_arg->count == 0) {
         fprintf(stderr, "tr: missing operand\n");
         fprintf(stderr, "Try 'tr --help' for more information.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     const char* set1_str = set1_arg->sval[0];
@@ -326,21 +323,18 @@ void tr_command(int argc, char** argv)
 
     SetParse sp1;
     if (parse_set(set1_str, sp1) == -1) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     SetParse sp2;
     if (set2_str) {
         if (parse_set(set2_str, sp2) == -1) {
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
     if (sp1.chars.empty() && !cflag) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     std::vector<unsigned char> eff_set1 = sp1.chars;
@@ -367,8 +361,7 @@ void tr_command(int argc, char** argv)
     if (set2_str && set2.empty()) {
         if (!dflag) {
             fprintf(stderr, "tr: empty SET2\n");
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -386,21 +379,19 @@ void tr_command(int argc, char** argv)
         tr_squeeze(stdin, eff_set1);
     } else if (sflag && set2_str) {
         if (set2.empty()) {
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         build_translate(tbl, eff_set1, set2);
         tr_translate_squeeze(stdin, tbl, set2);
     } else {
         if (set2.empty()) {
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         build_translate(tbl, eff_set1, set2);
         tr_translate(stdin, tbl);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("tr", tr_command, "Translate or delete characters");

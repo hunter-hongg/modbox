@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "commands/rm.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define TRASH_DIR ".trash"
@@ -327,7 +328,7 @@ static int remove_file(const char *path, const RmOptions *opts) {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void rm_command(int argc, char **argv) {
+int rm_command(int argc, char **argv) {
   struct arg_lit *recursive_opt =
       arg_lit0("r", "recursive", "remove directories and their contents recursively");
   struct arg_lit *force_opt =
@@ -355,13 +356,13 @@ void rm_command(int argc, char **argv) {
       arg_filen(NULL, NULL, "FILE...", 1, 1000, "files or directories to remove");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {recursive_opt, force_opt, interactive_opt,
-                      verbose_opt, dir_opt,
-                      one_file_system_opt, no_preserve_root_opt,
-                      preserve_root_opt, trash_opt, help_opt,
-                      files_arg, end};
+  ArgTable at({recursive_opt, force_opt, interactive_opt,
+               verbose_opt, dir_opt,
+               one_file_system_opt, no_preserve_root_opt,
+               preserve_root_opt, trash_opt, help_opt,
+               files_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -377,14 +378,11 @@ void rm_command(int argc, char **argv) {
     printf("      --preserve-root    do not remove '/' (default)\n");
     printf("      --trash         move files to ~/.trash instead of deleting\n");
     printf("  -h, --help          display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   RmOptions opts = {};
@@ -407,8 +405,7 @@ void rm_command(int argc, char **argv) {
   if (num_files < 1) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "rm: missing operand\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   for (int i = 0; i < num_files; i++) {
@@ -429,7 +426,7 @@ void rm_command(int argc, char **argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("rm", rm_command, "Remove files or directories");

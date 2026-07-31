@@ -7,6 +7,6 @@ struct TeeOptions {
     int error_action = 0;     // -p / --error-action (0=warn, 1=warn-nopipe, 2=ignore)
 };
 
-void tee_command(int argc, char** argv);
+int tee_command(int argc, char** argv);
 
 #endif

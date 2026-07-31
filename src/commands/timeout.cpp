@@ -11,6 +11,7 @@
 
 #include "commands/timeout.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static const int EXIT_TIMEDOUT = 124;
 static const int EXIT_CANCELED = 125;
@@ -152,7 +153,7 @@ static void send_signal_verbose(const char* prog, int sig) {
     fprintf(stderr, "%s: sending signal %d to command '%s'\n", prog, sig, "");
 }
 
-void timeout_command(int argc, char** argv) {
+int timeout_command(int argc, char** argv) {
     const char* prog = argv[0];
 
     bool preserve_status = false;
@@ -172,11 +173,11 @@ void timeout_command(int argc, char** argv) {
         }
         if (strcmp(a, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("timeout (modbox) 1.0\n");
-            return;
+            print_version("timeout");
+            return 0;
         }
         if (strcmp(a, "--preserve-status") == 0) {
             preserve_status = true;
@@ -329,6 +330,7 @@ void timeout_command(int argc, char** argv) {
         }
         exit(EXIT_TIMEDOUT);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("timeout", timeout_command, "Run with time limit");

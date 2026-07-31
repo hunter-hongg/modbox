@@ -8,6 +8,7 @@
 
 #include "commands/cksum.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/arg_util.hpp"
 
 static uint32_t crc32_posix_bit(const uint8_t* data, size_t len, uint32_t crc) {
     for (size_t i = 0; i < len; i++) {
@@ -57,14 +58,14 @@ static void cksum_file(FILE* in, const char* filename, bool verbose) {
     }
 }
 
-void cksum_command(int argc, char** argv) {
+int cksum_command(int argc, char** argv) {
     struct arg_lit* verbose_opt = arg_lit0("v", "verbose", "output a diagnostic for every file processed");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 1000, "files to checksum");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {verbose_opt, help_opt, files_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({verbose_opt, help_opt, files_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -80,14 +81,11 @@ void cksum_command(int argc, char** argv) {
         printf("or:\n");
         printf("  CRC byte_count -\n");
         printf("for standard input.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool verbose = (verbose_opt->count > 0);
@@ -112,7 +110,7 @@ void cksum_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("cksum", cksum_command, "CRC checksum and byte count");

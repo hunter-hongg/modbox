@@ -4,6 +4,7 @@
 
 #include "commands/false.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [ignored command line arguments]\n", prog);
@@ -14,16 +15,16 @@ static void print_help(const char* prog) {
     printf("      --version  output version information and exit\n");
 }
 
-void false_command(int argc, char** argv) {
+int false_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("false (modbox) 1.0\n");
-            return;
+            print_version("false");
+            return 0;
         }
     }
     exit(1);

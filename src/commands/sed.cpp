@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 
 #include "commands/sed.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 // ---------------------------------------------------------------------------
@@ -1167,7 +1168,7 @@ static void process_file(FILE* fp, const std::string& filename,
 // Main command entry
 // ---------------------------------------------------------------------------
 
-void sed_command(int argc, char** argv) {
+int sed_command(int argc, char** argv) {
     SedOptions opts;
 
     // ---- Pre-process -i to handle optional suffix ----
@@ -1213,13 +1214,13 @@ void sed_command(int argc, char** argv) {
         arg_filen(nullptr, nullptr, "FILE", 0, 200, "file(s) to process");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         suppress_opt, suppress2_opt, expr_opt, script_file_opt,
         extended_opt, extended2_opt, separate_opt,
         help_opt, file_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... {script-only-if-no-other-script} [file]...\n", argv[0]);
@@ -1262,14 +1263,11 @@ void sed_command(int argc, char** argv) {
         printf("  w file           write to file\n");
         printf("  i, I             case-insensitive regex\n");
         printf("  N                replace Nth occurrence\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     // ---- Parse options ----
@@ -1295,8 +1293,7 @@ void sed_command(int argc, char** argv) {
         if (!sf) {
             fprintf(stderr, "sed: can't read %s: %s\n",
                     script_file_opt->filename[i], strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         char buf[4096];
         size_t n;
@@ -1321,8 +1318,7 @@ void sed_command(int argc, char** argv) {
 
     if (script.empty()) {
         fprintf(stderr, "sed: no script specified\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // ---- Parse script into commands ----
@@ -1330,8 +1326,7 @@ void sed_command(int argc, char** argv) {
 
     if (cmds.empty()) {
         fprintf(stderr, "sed: no valid commands in script\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // ---- Process files ----
@@ -1393,7 +1388,7 @@ void sed_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("sed", sed_command, "Stream editor for filtering text");

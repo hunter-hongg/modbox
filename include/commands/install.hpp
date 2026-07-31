@@ -21,6 +21,6 @@ struct InstallOptions {
     const char* backup_suffix = nullptr;
 };
 
-void install_command(int argc, char** argv);
+int install_command(int argc, char** argv);
 
 #endif

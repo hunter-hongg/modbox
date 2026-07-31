@@ -6,9 +6,10 @@
 #include <unistd.h>
 
 #include "commands/unlink.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
-void unlink_command(int argc, char** argv) {
+int unlink_command(int argc, char** argv) {
     struct arg_lit* verbose_opt =
         arg_lit0("v", "verbose", "explain what is being done");
     struct arg_lit* help_opt =
@@ -17,9 +18,9 @@ void unlink_command(int argc, char** argv) {
         arg_file1(NULL, NULL, "FILE", "file to unlink");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {verbose_opt, help_opt, file_arg, end};
+    ArgTable at({verbose_opt, help_opt, file_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION] FILE\n", argv[0]);
@@ -27,14 +28,11 @@ void unlink_command(int argc, char** argv) {
         printf("\n");
         printf("  -v, --verbose     explain what is being done\n");
         printf("  -h, --help        display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     UnlinkOptions opts = {};
@@ -46,8 +44,7 @@ void unlink_command(int argc, char** argv) {
     if (unlink(filename) != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "unlink: cannot unlink '%s': %s\n", filename, strerror(errno));
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (opts.is_verbose) {
@@ -55,7 +52,7 @@ void unlink_command(int argc, char** argv) {
         (void)printf("unlinked '%s'\n", filename);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("unlink", unlink_command, "Remove file");

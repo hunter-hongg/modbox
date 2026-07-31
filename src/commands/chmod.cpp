@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "commands/chmod.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define PERM_MASK 07777
@@ -249,7 +250,7 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
 
 /* ── Command entry point ───────────────────────────────────────────────── */
 
-void chmod_command(int argc, char **argv) {
+int chmod_command(int argc, char **argv) {
     struct arg_lit *recursive_opt =
         arg_lit0("R", "recursive", "change files and directories recursively");
     struct arg_lit *verbose_opt =
@@ -272,11 +273,11 @@ void chmod_command(int argc, char **argv) {
         arg_filen(NULL, NULL, "MODE FILE...", 0, 1000, "mode and files to change");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {recursive_opt, verbose_opt, changes_opt, silent_opt,
-                         quiet_opt, reference_opt, preserve_root_opt,
-                         no_preserve_root_opt, help_opt, all_args, end};
+    ArgTable at({recursive_opt, verbose_opt, changes_opt, silent_opt,
+                 quiet_opt, reference_opt, preserve_root_opt,
+                 no_preserve_root_opt, help_opt, all_args, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... MODE[,MODE]... FILE...\n", argv[0]);
@@ -295,15 +296,13 @@ void chmod_command(int argc, char **argv) {
         printf("      --help             display this help and exit\n");
         printf("\n");
         printf("Each MODE is of the form '[ugoa]*([-+=]([rwxXst]*|[ugo]))+'.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
+        at.print_errors(end, argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 1;
     }
 
     int mode_is_set = 0;
@@ -316,8 +315,7 @@ void chmod_command(int argc, char **argv) {
         if (num_files < 1) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         mode_str = all_args->filename[0];
         mode_is_set = 1;
@@ -328,8 +326,7 @@ void chmod_command(int argc, char **argv) {
     if (num_files == 0) {
         fprintf(stderr, "%s: missing operand\n", argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
 
@@ -351,8 +348,7 @@ void chmod_command(int argc, char **argv) {
         if (mode_kind < 0) {
             fprintf(stderr, "%s: invalid mode: '%s'\n", argv[0], mode_str);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         if (mode_kind == MODE_ABSOLUTE) {
             opts.mode = parsed & PERM_MASK;
@@ -386,7 +382,7 @@ void chmod_command(int argc, char **argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("chmod", chmod_command, "Change file mode bits");

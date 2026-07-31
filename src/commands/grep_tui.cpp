@@ -1,4 +1,4 @@
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 #include <cstdio>
 #include <cstring>
 #include <cctype>
@@ -423,14 +423,14 @@ void grep_tui_main(int argc, char** argv) {
         arg_filen(nullptr, nullptr, "FILE", 0, GREP_MAX_FILES, "file to search");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {extended_opt,  fixed_opt,
-                        ignore_case_opt, invert_opt,     line_number_opt,
-                        recursive_opt,  recursive2_opt,
-                        word_regexp_opt, line_regexp_opt, only_matching_opt,
-                        pattern_opt,    help_opt,
-                        file_arg,        end};
+    ArgTable at({extended_opt, fixed_opt,
+                 ignore_case_opt, invert_opt, line_number_opt,
+                 recursive_opt, recursive2_opt,
+                 word_regexp_opt, line_regexp_opt, only_matching_opt,
+                 pattern_opt, help_opt,
+                 file_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... PATTERN [FILE]...\n", argv[0]);
@@ -450,13 +450,12 @@ void grep_tui_main(int argc, char** argv) {
         printf("      --tui                 interactive TUI viewer\n");
         printf("      --color=WHEN          highlight matching text\n");
         printf("  -h, --help                display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        
         return;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        at.print_errors(end, argv[0]);
         return;
     }
 
@@ -489,7 +488,7 @@ void grep_tui_main(int argc, char** argv) {
 
     if (pattern == nullptr) {
         (void)fprintf(stderr, "grep: no pattern specified\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        
         return;
     }
 
@@ -508,14 +507,13 @@ void grep_tui_main(int argc, char** argv) {
             re = &*re_opt;
         } catch (const std::regex_error& e) {
             (void)fprintf(stderr, "grep: invalid pattern '%s': %s\n", pattern, e.what());
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
-        }
+        return;
+    }
     }
 
     auto matches = grep_collect_matches(&opts, re, file_arg);
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
 
     if (matches.empty()) {
         return;

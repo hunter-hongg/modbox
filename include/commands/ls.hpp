@@ -27,6 +27,6 @@ struct LsOptions {
     char size_suffix = 0;
 };
 
-void ls_command(int argc, char** argv);
+int ls_command(int argc, char** argv);
 
 #endif

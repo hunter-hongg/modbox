@@ -44,7 +44,7 @@ void find_usage(const char* progname);
 
 std::vector<FindMatch> find_collect_matches(FindOptions* opts);
 
-void find_command(int argc, char** argv);
+int find_command(int argc, char** argv);
 void find_tui_main(int argc, char** argv);
 
 #endif

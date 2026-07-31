@@ -14,6 +14,6 @@ struct ChmodOptions {
     const char* reference = nullptr;
 };
 
-void chmod_command(int argc, char** argv);
+int chmod_command(int argc, char** argv);
 
 #endif

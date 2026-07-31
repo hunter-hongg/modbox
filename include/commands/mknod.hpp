@@ -7,6 +7,6 @@ struct MknodOptions {
     mode_t mode = 0666;
 };
 
-void mknod_command(int argc, char** argv);
+int mknod_command(int argc, char** argv);
 
 #endif

@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "commands/install.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define COPY_BUF_SIZE 8192
@@ -302,7 +303,7 @@ done:
     return ret;
 }
 
-void install_command(int argc, char **argv) {
+int install_command(int argc, char **argv) {
     struct arg_lit *dir_opt =
         arg_lit0("d", "directory",
                  "create directories instead of copying files");
@@ -348,15 +349,15 @@ void install_command(int argc, char **argv) {
                   "files to install or directories to create");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
+    ArgTable at({
         dir_opt, mode_opt, owner_opt, group_opt,
         strip_opt, strip_prog_opt, compare_opt,
         preserve_timestamps_opt, verbose_opt,
         backup_opt, suffix_opt, target_dir_opt,
         no_target_dir_opt, help_opt, files_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [-T] SOURCE DEST\n", argv[0]);
@@ -382,15 +383,13 @@ void install_command(int argc, char **argv) {
         printf("  -t, --target-directory=DIRECTORY  copy all SOURCE arguments into DIRECTORY\n");
         printf("  -T, --no-target-directory  treat DEST as a normal file\n");
         printf("      --help            display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
+        (void)at.print_errors(end, argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 1;
     }
 
     InstallOptions opts = {};
@@ -412,8 +411,7 @@ void install_command(int argc, char **argv) {
     if (mode_opt->count > 0) {
         if (parse_mode(mode_opt->sval[0], &opts.mode) != 0) {
             fprintf(stderr, "install: invalid mode '%s'\n", mode_opt->sval[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         opts.mode_set = 1;
     }
@@ -423,8 +421,7 @@ void install_command(int argc, char **argv) {
         if (files_arg->count < 1) {
             fprintf(stderr, "install: missing directory operand\n");
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         for (int i = 0; i < files_arg->count; i++) {
             if (create_dir_parents(files_arg->filename[i], opts.mode,
@@ -432,8 +429,7 @@ void install_command(int argc, char **argv) {
                 /* error already printed */
             }
         }
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     /* File copy mode */
@@ -447,24 +443,20 @@ void install_command(int argc, char **argv) {
         struct stat tgt_stat;
         if (stat(dst, &tgt_stat) != 0) {
             fprintf(stderr, "install: target directory '%s' does not exist\n", dst);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         if (!S_ISDIR(tgt_stat.st_mode)) {
             fprintf(stderr, "install: target '%s' is not a directory\n", dst);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         if (num_files < 1) {
             fprintf(stderr, "install: missing file operand\n");
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     } else if (num_files < 2) {
         fprintf(stderr, "install: missing destination operand\n");
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     } else {
         /* Last argument is the destination */
         dst = files_arg->filename[num_files - 1];
@@ -485,8 +477,7 @@ void install_command(int argc, char **argv) {
             if (install_file(files_arg->filename[0], dest_path, &opts) != 0) {
                 ret = -1;
             }
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -495,8 +486,7 @@ void install_command(int argc, char **argv) {
         struct stat dst_stat_buf;
         if (stat(dst, &dst_stat_buf) != 0 || !S_ISDIR(dst_stat_buf.st_mode)) {
             fprintf(stderr, "install: target '%s' is not a directory\n", dst);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -522,8 +512,8 @@ void install_command(int argc, char **argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     (void)ret;
+    return 0;
 }
 
 REGISTER_COMMAND("install", install_command, "Copy files and set attributes");

@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/mkdir.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define DIR_MODE_DEFAULT 0777
@@ -93,7 +94,7 @@ static int create_dir_parents(const char *path, mode_t mode, int is_verbose) {
   return ret;
 }
 
-void mkdir_command(int argc, char **argv) {
+int mkdir_command(int argc, char **argv) {
   struct arg_lit *parents_opt =
       arg_lit0("p", "parents",
                "no error if existing, make parent directories as needed");
@@ -108,9 +109,9 @@ void mkdir_command(int argc, char **argv) {
       arg_filen(NULL, NULL, "DIRECTORY...", 1, 1000, "directories to create");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {parents_opt, verbose_opt, mode_opt, help_opt, dirs_arg, end};
+  ArgTable at({parents_opt, verbose_opt, mode_opt, help_opt, dirs_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... DIRECTORY...\n", argv[0]);
@@ -120,14 +121,11 @@ void mkdir_command(int argc, char **argv) {
     printf("  -p, --parents      no error if existing, make parent directories as needed\n");
     printf("  -v, --verbose      print a message for each created directory\n");
     printf("  -h, --help         display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   MkdirOptions opts = {};
@@ -142,8 +140,7 @@ void mkdir_command(int argc, char **argv) {
     if (*endptr != '\0' || m < 0 || m > 07777) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mkdir: invalid mode '%s'\n", mode_opt->sval[0]);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     opts.mode = (mode_t)(m & 07777);
   }
@@ -170,7 +167,7 @@ void mkdir_command(int argc, char **argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("mkdir", mkdir_command, "Create directories");

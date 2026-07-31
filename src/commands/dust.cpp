@@ -13,6 +13,7 @@
 #include <vector>
 #include <unordered_map>
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/dust.hpp"
 #include "commands/command_macros.hpp"
@@ -162,7 +163,7 @@ static const char *fmt_size(uint64_t bytes, int si, int bytes_mode) {
 /* ── Main command ────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void dust_command(int argc, char **argv) {
+int dust_command(int argc, char **argv) {
     DustOptions opts = {0};
     entries.clear();
     exclude_patterns.clear();
@@ -181,15 +182,13 @@ void dust_command(int argc, char **argv) {
     struct arg_file *file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file or directory");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
-        depth_opt, lines_opt, all_opt, one_fs_opt,
-        si_opt, bytes_opt, no_color_opt,
-        exclude_opt,
-        help_opt,
-        file_arg, end
-    };
+    ArgTable at({depth_opt, lines_opt, all_opt, one_fs_opt,
+                 si_opt, bytes_opt, no_color_opt,
+                 exclude_opt,
+                 help_opt,
+                 file_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -207,14 +206,11 @@ void dust_command(int argc, char **argv) {
         printf("  -h, --help             display this help and exit\n");
         printf("\n");
         printf("With no FILE, read current directory.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     opts.max_depth = (depth_opt->count > 0) ? depth_opt->ival[0] : -1;
@@ -345,11 +341,11 @@ void dust_command(int argc, char **argv) {
         entries.clear();
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     if (du_had_error) {
         exit(1);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("dust", dust_command, "Alias for du --max-depth=1 -h");

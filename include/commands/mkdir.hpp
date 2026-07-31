@@ -9,6 +9,6 @@ struct MkdirOptions {
     mode_t mode = 0755;
 };
 
-void mkdir_command(int argc, char** argv);
+int mkdir_command(int argc, char** argv);
 
 #endif

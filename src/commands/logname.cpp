@@ -4,6 +4,7 @@
 
 #include "commands/logname.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s\n", prog);
@@ -14,16 +15,16 @@ static void print_help(const char* prog) {
     printf("      --version  output version information and exit\n");
 }
 
-void logname_command(int argc, char** argv) {
+int logname_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("logname (modbox) 1.0\n");
-            return;
+            print_version("logname");
+            return 0;
         }
     }
 
@@ -34,6 +35,7 @@ void logname_command(int argc, char** argv) {
     if (name != NULL && name[0] != '\0') {
         printf("%s\n", name);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("logname", logname_command, "Print the name of the current user");

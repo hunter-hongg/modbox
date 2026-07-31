@@ -11,7 +11,10 @@
 #include <sys/types.h>
 #include <argtable3.h>
 #include "commands/wall.hpp"
+#include "commands/arg_util.hpp"
+#include "commands/utmp_util.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static char get_hostname_buffer[256];
 
@@ -40,7 +43,7 @@ static void write_to_tty(const std::string &tty, const std::string &message) {
     }
 }
 
-void wall_command(int argc, char** argv) {
+int wall_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* version_opt = arg_lit0("V", "version", "output version information and exit");
     struct arg_lit* nobanner_opt = arg_lit0("n", "nobanner", "do not print banner");
@@ -49,8 +52,8 @@ void wall_command(int argc, char** argv) {
     struct arg_str* msg_args = arg_strn(NULL, NULL, "<message>", 0, argc, "message to broadcast");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {help_opt, version_opt, nobanner_opt, group_opt, timeout_opt, msg_args, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({help_opt, version_opt, nobanner_opt, group_opt, timeout_opt, msg_args, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: wall [OPTION]... [<file> | <message>]\n");
@@ -61,26 +64,21 @@ void wall_command(int argc, char** argv) {
         printf("  -t, --timeout <SEC>   write timeout in seconds\n");
         printf("  -h, --help            display this help and exit\n");
         printf("  -V, --version         output version information and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (version_opt->count > 0) {
-        printf("wall (modbox) 1.0\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        print_version("wall");
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     if (nobanner_opt->count > 0 && !is_root()) {
         fprintf(stderr, "%s: cannot use --nobanner: permission denied\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     const char *group_name = nullptr;
@@ -89,8 +87,7 @@ void wall_command(int argc, char** argv) {
         struct group *gr = getgrnam(group_name);
         if (gr == nullptr) {
             fprintf(stderr, "%s: unknown group: %s\n", argv[0], group_name);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -114,40 +111,37 @@ void wall_command(int argc, char** argv) {
         full_message = banner + "\n" + message;
     }
 
-    setutent();
-    struct utmp *u;
     int sent = 0;
-    while ((u = getutent()) != NULL) {
-        if (u->ut_type == USER_PROCESS && strlen(u->ut_line) > 0) {
+    for_each_utmp([&](const struct utmp& u) {
+        if (u.ut_type == USER_PROCESS && strlen(u.ut_line) > 0) {
             if (group_name != nullptr) {
-                struct passwd *pw = getpwnam(u->ut_user);
-                if (pw == nullptr) continue;
+                struct passwd *pw = getpwnam(u.ut_user);
+                if (pw == nullptr) return;
                 gid_t *gids = nullptr;
                 int ngroups = 32;
                 gids = (gid_t*)malloc((size_t)ngroups * sizeof(gid_t));
-                if (gids == nullptr) continue;
+                if (gids == nullptr) return;
                 struct group *gr = getgrnam(group_name);
-                if (gr == nullptr) { free(gids); continue; }
+                if (gr == nullptr) { free(gids); return; }
                 if (getgrouplist(pw->pw_name, pw->pw_gid, gids, &ngroups) >= 0) {
                     bool member = false;
                     for (int i = 0; i < ngroups; i++) {
                         if (gids[i] == gr->gr_gid) { member = true; break; }
                     }
                     free(gids);
-                    if (!member) continue;
+                    if (!member) return;
                 } else {
                     free(gids);
-                    continue;
+                    return;
                 }
             }
-            std::string tty = "/dev/" + std::string(u->ut_line);
+            std::string tty = "/dev/" + std::string(u.ut_line);
             write_to_tty(tty, full_message);
             sent++;
         }
-    }
-    endutent();
+    });
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("wall", wall_command, "Write a message to all logged-in users");

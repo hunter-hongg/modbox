@@ -15,6 +15,7 @@
 
 #include "commands/awk.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 // ---------------------------------------------------------------------------
 // Value
@@ -1746,7 +1747,7 @@ static const std::string& awk_ofmt() {
 static std::string read_prog(const char* path);
 static void print_help();
 
-void awk_command(int argc, char** argv) {
+int awk_command(int argc, char** argv) {
     std::string program;
     std::vector<std::string> files;
     std::vector<std::pair<std::string, std::string>> assigns;
@@ -1767,7 +1768,7 @@ void awk_command(int argc, char** argv) {
         if (a == "--") { end_opts = true; continue; }
         if (!end_opts && a.size() > 1 && a[0] == '-') {
             if (a == "-f" || a == "-e") {
-                if (i + 1 >= argc) { std::fprintf(stderr, "awk: option requires argument -- '%c'\n", a[1]); return; }
+                if (i + 1 >= argc) { std::fprintf(stderr, "awk: option requires argument -- '%c'\n", a[1]); return 0; }
                 std::string p = read_prog(argv[++i]);
                 program += p + "\n";
                 program_set = true;
@@ -1778,29 +1779,29 @@ void awk_command(int argc, char** argv) {
                 program += a.substr(2) + "\n";
                 program_set = true;
             } else if (a == "-F") {
-                if (i + 1 >= argc) return;
+                if (i + 1 >= argc) return 0;
                 fs = argv[++i];
                 have_fs = true;
             } else if (a.rfind("-F", 0) == 0) {
                 fs = a.substr(2);
                 have_fs = true;
             } else if (a == "-v") {
-                if (i + 1 >= argc) return;
+                if (i + 1 >= argc) return 0;
                 add_assign(argv[++i]);
             } else if (a.rfind("-v", 0) == 0) {
                 add_assign(a.substr(2));
             } else if (a.rfind("-W", 0) == 0) {
                 std::string w = a.substr(2);
                 if (w.rfind("assign=", 0) == 0) add_assign(w.substr(7));
-                else if (w == "version") { std::printf("GNU Awk (modbox) 1.0\n"); return; }
+                else if (w == "version") { print_version("GNU Awk"); return 0; }
             } else if (a == "-d" || a.rfind("-d", 0) == 0) {
                 // dump: ignore, treated as no-op
             } else if (a == "-h" || a == "--help") {
                 print_help();
-                return;
+                return 0;
             } else if (a == "-V" || a == "--version") {
-                std::printf("GNU Awk (modbox) 1.0\n");
-                return;
+                print_version("GNU Awk");
+                return 0;
             } else {
                 if (!program_set) { program = a; program_set = true; }
                 else { files.push_back(a); }
@@ -1814,7 +1815,7 @@ void awk_command(int argc, char** argv) {
 
     if (!program_set) {
         print_help();
-        return;
+        return 0;
     }
 
     Parser parser(program);
@@ -1822,7 +1823,7 @@ void awk_command(int argc, char** argv) {
         parser.parse();
     } catch (...) {
         (void)std::fprintf(stderr, "awk: parse error\n");
-        return;
+        return 0;
     }
 
     Awk awk;
@@ -1830,6 +1831,7 @@ void awk_command(int argc, char** argv) {
         assigns.insert(assigns.begin(), {"FS", fs});
     }
     awk.run(parser, files, assigns);
+    return 0;
 }
 
 static std::string read_prog(const char* path) {

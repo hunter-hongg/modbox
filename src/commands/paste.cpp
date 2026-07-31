@@ -5,7 +5,9 @@
 #include <argtable3.h>
 
 #include "commands/paste.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 #define PASTE_MAX_LINE 1048576
 
@@ -67,7 +69,7 @@ static const char* delim_at(const char* delims, int idx) {
     return buf;
 }
 
-void paste_command(int argc, char** argv) {
+int paste_command(int argc, char** argv) {
     PasteOptions opts;
     opts.delimiters = "\t";
     opts.serial = 0;
@@ -81,13 +83,13 @@ void paste_command(int argc, char** argv) {
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 1024, "files (or - for stdin)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         delimiters_opt, serial_opt, zero_opt,
         help_opt, version_opt,
         files_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -104,24 +106,20 @@ void paste_command(int argc, char** argv) {
         printf("  -z, --zero-terminated   line delimiter is NUL, not newline\n");
         printf("      --help              display this help and exit\n");
         printf("      --version           output version information and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (version_opt->count > 0) {
-        printf("paste (modbox) 1.0\n");
+        print_version("paste");
         printf("Copyright (C) 2026 modbox\n");
         printf("License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n");
         printf("This is free software: you are free to change and redistribute it.\n");
         printf("There is NO WARRANTY, to the extent permitted by law.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     if (delimiters_opt->count > 0) {
@@ -138,8 +136,7 @@ void paste_command(int argc, char** argv) {
 
     FileLines* files = (FileLines*)malloc((size_t)nfiles * sizeof(FileLines));
     if (!files) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     int max_lines = 0;
@@ -166,8 +163,7 @@ void paste_command(int argc, char** argv) {
     if (open_error) {
         for (int i = 0; i < nfiles; i++) free_file_lines(files[i]);
         free(files);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     const char line_delim = opts.zero_terminated ? '\0' : '\n';
@@ -203,7 +199,7 @@ void paste_command(int argc, char** argv) {
 
     for (int i = 0; i < nfiles; i++) free_file_lines(files[i]);
     free(files);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("paste", paste_command, "Merge lines of files");

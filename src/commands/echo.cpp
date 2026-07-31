@@ -5,8 +5,9 @@
 
 #include "commands/echo.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
-void echo_command(int argc, char** argv) {
+int echo_command(int argc, char** argv) {
     bool no_newline = false;
     bool interpret = false;
     std::vector<const char*> args;
@@ -33,11 +34,11 @@ void echo_command(int argc, char** argv) {
                 printf("  -n             do not output the trailing newline\n");
                 printf("  -e             enable interpretation of backslash escapes\n");
                 printf("  -E             disable interpretation of backslash escapes\n");
-                return;
+                return 0;
             }
             if (strcmp(a, "--version") == 0) {
-                printf("echo (modbox) 1.0\n");
-                return;
+                print_version("echo");
+                return 0;
             }
         }
         args.push_back(a);
@@ -54,7 +55,7 @@ void echo_command(int argc, char** argv) {
                     switch (s[j]) {
                         case 'a': out += '\a'; break;
                         case 'b': out += '\b'; break;
-                        case 'c': no_newline = true; fputs(out.c_str(), stdout); return; /* stop */
+                        case 'c': no_newline = true; fputs(out.c_str(), stdout); return 0; /* stop */
                         case 'e': out += '\x1b'; break;
                         case 'f': out += '\f'; break;
                         case 'n': out += '\n'; break;
@@ -97,6 +98,7 @@ void echo_command(int argc, char** argv) {
 
     fputs(out.c_str(), stdout);
     if (!no_newline) fputc('\n', stdout);
+    return 0;
 }
 
 REGISTER_COMMAND("echo", echo_command, "Display line of text");

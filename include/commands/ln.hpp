@@ -10,6 +10,6 @@ struct LnOptions {
     int is_logical = 0;
 };
 
-void ln_command(int argc, char** argv);
+int ln_command(int argc, char** argv);
 
 #endif

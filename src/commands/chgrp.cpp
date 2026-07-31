@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "commands/chgrp.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 /* ── File-scope globals for nftw callback ──────────────────────────────── */
@@ -110,7 +111,7 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
 
 /* ── Command entry point ───────────────────────────────────────────────── */
 
-void chgrp_command(int argc, char **argv) {
+int chgrp_command(int argc, char **argv) {
     struct arg_lit *recursive_opt =
         arg_lit0("R", "recursive", "operate on files and directories recursively");
     struct arg_lit *verbose_opt =
@@ -143,15 +144,15 @@ void chgrp_command(int argc, char **argv) {
         arg_filen(NULL, NULL, "GROUP FILE...", 0, 1000, "group and files to change");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
+    ArgTable at({
         recursive_opt, verbose_opt, changes_opt, silent_opt, quiet_opt,
         dereference_opt, no_dereference_opt,
         preserve_root_opt, no_preserve_root_opt, reference_opt,
         traverse_H_opt, traverse_L_opt, traverse_P_opt,
         help_opt, all_args, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... GROUP FILE...\n", argv[0]);
@@ -172,15 +173,13 @@ void chgrp_command(int argc, char **argv) {
         printf("  -L                     if -R, follow all symlinks\n");
         printf("  -P                     if -R, do not follow any symlinks (the default)\n");
         printf("      --help            display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
+        at.print_errors(end, argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 1;
     }
 
     ChgrpOptions opts = {};
@@ -207,8 +206,7 @@ void chgrp_command(int argc, char **argv) {
         if (num_files < 1) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         const char *spec = all_args->filename[0];
         file_offset = 1;
@@ -217,16 +215,14 @@ void chgrp_command(int argc, char **argv) {
         if (num_files == 0) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
 
         gid_t g = resolve_gid(spec);
         if (g == (gid_t)-1) {
             fprintf(stderr, "%s: invalid group: '%s'\n", argv[0], spec);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         opts.group = g;
         opts.group_set = 1;
@@ -234,8 +230,7 @@ void chgrp_command(int argc, char **argv) {
         if (num_files == 0) {
             fprintf(stderr, "%s: missing operand\n", argv[0]);
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
 
         /* --reference: stat the reference file */
@@ -243,8 +238,7 @@ void chgrp_command(int argc, char **argv) {
         if (stat(reference_opt->sval[0], &ref_st) != 0) {
             fprintf(stderr, "%s: cannot access '%s': %s\n", argv[0],
                     reference_opt->sval[0], strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         opts.group = ref_st.st_gid;
         opts.group_set = 1;
@@ -279,7 +273,7 @@ void chgrp_command(int argc, char **argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("chgrp", chgrp_command, "Change group ownership");

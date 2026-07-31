@@ -11,6 +11,7 @@
 
 #include "commands/readlink.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static constexpr size_t READLINK_BUFFER = 4096;
 
@@ -132,7 +133,7 @@ static bool maybe_strip_parens(std::string& s) {
     return false;
 }
 
-void readlink_command(int argc, char** argv) {
+int readlink_command(int argc, char** argv) {
     bool canonicalize = false;
     bool quiet = false;
     bool strip = false;
@@ -180,14 +181,14 @@ void readlink_command(int argc, char** argv) {
         printf("  -s, --strip                 strip trailing whitespace\n");
         printf("  -n, --no-dereference        don't add newline\n");
         printf("  -h, --help                  display this help and exit\n");
-        return;
+        return 0;
     }
 
     if (version) {
-        printf("readlink (modbox) 1.0\n");
+        print_version("readlink");
         printf("Copyright (C) 2026 modbox\n");
         printf("License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n");
-        return;
+        return 0;
     }
 
     if (files.empty()) {
@@ -204,7 +205,7 @@ void readlink_command(int argc, char** argv) {
         if (!quiet) {
             fprintf(stderr, "readlink: missing operand\nTry '%s --help' for more information.\n", argv[0]);
         }
-        return;
+        return 0;
     }
 
     for (const auto& file : files) {
@@ -261,6 +262,7 @@ void readlink_command(int argc, char** argv) {
             printf("%s\n", output.c_str());
         }
     }
+    return 0;
 }
 
 REGISTER_COMMAND("readlink", readlink_command, "Print target of a symbolic link");

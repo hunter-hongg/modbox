@@ -9,6 +9,6 @@ struct TouchOptions {
     const char* timestamp = nullptr;
 };
 
-void touch_command(int argc, char** argv);
+int touch_command(int argc, char** argv);
 
 #endif

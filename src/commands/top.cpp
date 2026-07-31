@@ -25,6 +25,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/top.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 struct ProcInfo {
@@ -503,7 +504,7 @@ public:
     }
 };
 
-void top_command(int argc, char** argv) {
+int top_command(int argc, char** argv) {
     clk_tck = sysconf(_SC_CLK_TCK);
     page_sz = sysconf(_SC_PAGE_SIZE);
     if (clk_tck <= 0) clk_tck = 100;
@@ -516,11 +517,11 @@ void top_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         iterations_opt, delay_opt, pid_opt, batch_opt, help_opt, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -534,14 +535,11 @@ void top_command(int argc, char** argv) {
         printf("  -h, --help           display this help and exit\n");
         printf("\n");
         printf("In TUI mode: press 'q' to quit.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     int batch = (batch_opt->count > 0) || !isatty(STDOUT_FILENO);
@@ -636,7 +634,7 @@ void top_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("top", top_command, "Display Linux processes");

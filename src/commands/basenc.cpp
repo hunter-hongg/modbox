@@ -6,6 +6,7 @@
 #include <vector>
 #include <argtable3.h>
 #include "commands/basenc.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 // ── Base64 table (standard) ───────────────────────────────────────────────
@@ -459,7 +460,7 @@ static bool decode_stream(FILE* in, FILE* out, BaseNEncoding enc, bool ignore_ga
     return false;
 }
 
-void basenc_command(int argc, char** argv) {
+int basenc_command(int argc, char** argv) {
     struct arg_lit* base64_opt = arg_lit0(NULL, "base64", "same as base64 (RFC 4648 section 4)");
     struct arg_lit* base64url_opt = arg_lit0(NULL, "base64url", "base64url (RFC 4648 section 5)");
     struct arg_lit* base32_opt = arg_lit0(NULL, "base32", "same as base32 (RFC 4648 section 6)");
@@ -474,10 +475,10 @@ void basenc_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 1, "input file");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {base64_opt, base64url_opt, base32_opt, base32hex_opt,
-                        base16_opt, base2msbf_opt, base2lsbf_opt,
-                        decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({base64_opt, base64url_opt, base32_opt, base32hex_opt,
+                 base16_opt, base2msbf_opt, base2lsbf_opt,
+                 decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s ENCODING [OPTION]... [FILE]\n", argv[0]);
@@ -499,14 +500,11 @@ void basenc_command(int argc, char** argv) {
         printf("  -w, --wrap=COLS       wrap encoded lines after COLS character (default 76).\n");
         printf("                        Use 0 to disable line wrapping\n");
         printf("  -h, --help            display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     // Determine encoding type
@@ -516,8 +514,7 @@ void basenc_command(int argc, char** argv) {
     if (enc_count != 1) {
         fprintf(stderr, "%s: exactly one encoding type must be specified\n", argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     BaseNEncoding enc;
@@ -536,8 +533,7 @@ void basenc_command(int argc, char** argv) {
     if (wrap_opt->count > 0) {
         if (wrap_opt->ival[0] < 0) {
             fprintf(stderr, "basenc: invalid wrap value: %d\n", wrap_opt->ival[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         wrap_cols = wrap_opt->ival[0];
     }
@@ -557,8 +553,7 @@ void basenc_command(int argc, char** argv) {
         in = fopen(filename, "rb");
         if (in == nullptr) {
             fprintf(stderr, "basenc: %s: No such file or directory\n", filename);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -574,7 +569,7 @@ void basenc_command(int argc, char** argv) {
         fclose(in);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("basenc", basenc_command, "BaseN encode/decode");

@@ -609,7 +609,7 @@ void find_usage(const char *progname) {
 /* ── Entry point ─────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-size)
-void find_command(int argc, char **argv) {
+int find_command(int argc, char **argv) {
     FindOptions opts;
 
     int help_requested = 0;
@@ -619,7 +619,7 @@ void find_command(int argc, char **argv) {
 
     if (help_requested) {
         find_usage(argv[0]);
-        return;
+        return 0;
     }
 
     if (opts.tui_mode) {
@@ -627,7 +627,7 @@ void find_command(int argc, char **argv) {
             (void)fprintf(stderr, "find: --tui requires a terminal; falling back to normal output\n");
         } else {
             find_tui_main(argc, argv);
-            return;
+            return 0;
         }
     }
 
@@ -665,7 +665,7 @@ void find_command(int argc, char **argv) {
             fprintf(stdout, "  }%s\n", (i + 1 < matches.size()) ? "," : "");
         }
         fprintf(stdout, "]\n");
-        return;
+        return 0;
     }
 
     // Walk each starting point
@@ -701,6 +701,7 @@ void find_command(int argc, char **argv) {
 
     // Finalize exec+
     find_exec_finalize(&opts);
+    return 0;
 }
 
 REGISTER_COMMAND("find", find_command, "Search for files in a directory hierarchy");

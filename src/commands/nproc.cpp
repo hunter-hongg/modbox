@@ -5,6 +5,7 @@
 
 #include "commands/nproc.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [OPTION]...\n", prog);
@@ -14,22 +15,23 @@ static void print_help(const char* prog) {
     printf("      --version  output version information and exit\n");
 }
 
-void nproc_command(int argc, char** argv) {
+int nproc_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("nproc (modbox) 1.0\n");
-            return;
+            print_version("nproc");
+            return 0;
         }
     }
 
     long n = sysconf(_SC_NPROCESSORS_ONLN);
     if (n < 1) n = 1;
     printf("%ld\n", n);
+    return 0;
 }
 
 REGISTER_COMMAND("nproc", nproc_command, "Print the number of available processors");

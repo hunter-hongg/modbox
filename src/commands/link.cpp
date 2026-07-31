@@ -7,9 +7,10 @@
 #include <unistd.h>
 
 #include "commands/link.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
-void link_command(int argc, char** argv) {
+int link_command(int argc, char** argv) {
     struct arg_lit* verbose_opt =
         arg_lit0("v", "verbose", "explain what is being done");
     struct arg_file* src_arg =
@@ -18,14 +19,12 @@ void link_command(int argc, char** argv) {
         arg_file1(NULL, NULL, "LINK_NAME", "name for the new link");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {verbose_opt, src_arg, dst_arg, end};
+    ArgTable at({verbose_opt, src_arg, dst_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     LinkOptions opts = {};
@@ -39,8 +38,7 @@ void link_command(int argc, char** argv) {
     if (stat(src, &src_stat) != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "link: failed to access '%s': %s\n", src, strerror(errno));
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     /* Check that destination directory exists */
@@ -60,15 +58,13 @@ void link_command(int argc, char** argv) {
         if (stat(dst_dir, &dst_dir_stat) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "link: failed to access directory '%s': %s\n", dst_dir, strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
 
         if (!S_ISDIR(dst_dir_stat.st_mode)) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "link: '%s' is not a directory\n", dst_dir);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     } else {
         /* Destination is in current directory, which should exist */
@@ -76,8 +72,7 @@ void link_command(int argc, char** argv) {
         if (stat(".", &cwd_stat) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "link: failed to access current directory: %s\n", strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -86,8 +81,7 @@ void link_command(int argc, char** argv) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "link: failed to create link '%s' to '%s': %s\n",
                       dst, src, strerror(errno));
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (opts.is_verbose) {
@@ -95,7 +89,7 @@ void link_command(int argc, char** argv) {
         (void)printf("'%s' linked to '%s'\n", dst, src);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("link", link_command, "Create a link to a file");

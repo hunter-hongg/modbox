@@ -8,6 +8,7 @@
 
 #include "commands/test.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 namespace {
 
@@ -268,7 +269,7 @@ void print_help(const char* prog) {
 
 }  // namespace
 
-void test_command(int argc, char** argv) {
+int test_command(int argc, char** argv) {
     const char* prog = argv[0];
     const char* base = strrchr(prog, '/');
     base = base ? base + 1 : prog;
@@ -282,7 +283,7 @@ void test_command(int argc, char** argv) {
         exit(0);
     }
     if (nargs >= 1 && strcmp(args[0], "--version") == 0) {
-        printf("test (modbox) 1.0\n");
+        print_version("test");
         exit(0);
     }
 

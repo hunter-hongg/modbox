@@ -7,6 +7,6 @@ struct PasteOptions {
     int zero_terminated = 0;
 };
 
-void paste_command(int argc, char** argv);
+int paste_command(int argc, char** argv);
 
 #endif

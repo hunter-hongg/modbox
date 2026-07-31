@@ -7,6 +7,7 @@
 #include <argtable3.h>
 
 #include "commands/tee.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 /* ── File management ─────────────────────────────────────────────────────── */
@@ -67,7 +68,7 @@ static int write_to_outputs(const std::vector<OutputFile>& outputs,
 
 /* ── Main command ─────────────────────────────────────────────────────────── */
 
-void tee_command(int argc, char** argv) {
+int tee_command(int argc, char** argv) {
     TeeOptions opts = {0};
     
     struct arg_lit* append_opt = arg_lit0("a", "append", "append to the given FILEs");
@@ -77,11 +78,11 @@ void tee_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "output file(s)");
     struct arg_end* end = arg_end(20);
     
-    void* argtable[] = {
+    ArgTable at({
         append_opt, ignore_int_opt, error_action_opt, help_opt, file_arg, end
-    };
+    });
     
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
     
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -95,14 +96,11 @@ void tee_command(int argc, char** argv) {
         printf("  -h, --help             display this help and exit\n");
         printf("\n");
         printf("If a FILE is -, copy again to standard output.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
     
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
     
     opts.append = (append_opt->count > 0);
@@ -119,8 +117,7 @@ void tee_command(int argc, char** argv) {
         } else {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "tee: invalid error action '%s'\n", mode);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
     
@@ -169,7 +166,7 @@ void tee_command(int argc, char** argv) {
         }
     }
     
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("tee", tee_command, "Read and write to multiple outputs");

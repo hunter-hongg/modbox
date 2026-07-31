@@ -10,7 +10,10 @@
 #include <sys/types.h>
 #include <argtable3.h>
 #include "commands/who.hpp"
+#include "commands/utmp_util.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
+#include "commands/arg_util.hpp"
 
 static char get_hostname_buffer[256];
 
@@ -31,7 +34,7 @@ static std::string format_time(time_t t) {
     return std::string(buf);
 }
 
-void who_command(int argc, char** argv) {
+int who_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* version_opt = arg_lit0(NULL, "version", "output version information and exit");
     struct arg_str* utmp_file = arg_str0(NULL, NULL, "<FILE>", "use FILE instead of /var/run/utmp");
@@ -51,8 +54,8 @@ void who_command(int argc, char** argv) {
 
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {help_opt, version_opt, utmp_file, a_opt, b_opt, d_opt, H_opt, l_opt, p_opt, q_opt, r_opt, s_opt, t_opt, T_opt, u_opt, m_opt, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({help_opt, version_opt, utmp_file, a_opt, b_opt, d_opt, H_opt, l_opt, p_opt, q_opt, r_opt, s_opt, t_opt, T_opt, u_opt, m_opt, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: who [OPTION]... [FILE] [am i]\n");
@@ -73,20 +76,16 @@ void who_command(int argc, char** argv) {
         printf("  -m                  only user whose stdin is connected\n");
         printf("  --help              display this help and exit\n");
         printf("  --version           output version information and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (version_opt->count > 0) {
-        printf("who (modbox) 1.0\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        print_version("who");
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool show_all = a_opt->count > 0;
@@ -108,26 +107,19 @@ void who_command(int argc, char** argv) {
     }
 
     if (show_count) {
-        setutent();
-        struct utmp *u;
         int count = 0;
-        while ((u = getutent()) != NULL) {
-            if (u->ut_type == USER_PROCESS && strlen(u->ut_line) > 0) count++;
-        }
-        endutent();
+        for_each_utmp([&count](const struct utmp& u) {
+            if (u.ut_type == USER_PROCESS && strlen(u.ut_line) > 0) count++;
+        });
         printf("total %d\n", count);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
-    setutent();
-    struct utmp *u;
-    std::vector<struct utmp*> entries;
+    std::vector<const struct utmp*> entries;
 
-    while ((u = getutent()) != NULL) {
-        entries.push_back(u);
-    }
-    endutent();
+    for_each_utmp([&entries](const struct utmp& u) {
+        entries.push_back(&u);
+    });
 
     if (heading) print_heading();
 
@@ -177,7 +169,7 @@ void who_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("who", who_command, "Show who is logged in");

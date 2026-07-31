@@ -7,11 +7,12 @@
 #include <unistd.h>
 
 #include "commands/mkfifo.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define FIFO_MODE_DEFAULT 0666
 
-void mkfifo_command(int argc, char **argv) {
+int mkfifo_command(int argc, char **argv) {
   struct arg_str *mode_opt =
       arg_str0("m", "mode", "MODE",
                "set file mode (as in chmod), not a=rw - umask");
@@ -21,9 +22,9 @@ void mkfifo_command(int argc, char **argv) {
       arg_filen(NULL, NULL, "NAME...", 1, 1000, "FIFO names to create");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {mode_opt, help_opt, names_arg, end};
+  ArgTable at({mode_opt, help_opt, names_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... NAME...\n", argv[0]);
@@ -31,14 +32,11 @@ void mkfifo_command(int argc, char **argv) {
     printf("\n");
     printf("  -m, --mode=MODE    set file mode (as in chmod), not a=rw - umask\n");
     printf("  -h, --help         display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   MkfifoOptions opts = {};
@@ -49,8 +47,7 @@ void mkfifo_command(int argc, char **argv) {
     long m = strtol(mode_opt->sval[0], &endptr, 8);
     if (*endptr != '\0' || m < 0 || m > 07777) {
       (void)fprintf(stderr, "mkfifo: invalid mode '%s'\n", mode_opt->sval[0]);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     opts.mode = (mode_t)(m & 07777);
   }
@@ -66,7 +63,7 @@ void mkfifo_command(int argc, char **argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("mkfifo", mkfifo_command, "Create named pipe (FIFO)");

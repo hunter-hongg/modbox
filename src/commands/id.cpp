@@ -9,6 +9,7 @@
 
 #include "commands/id.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [USER]\n", prog);
@@ -64,7 +65,7 @@ static gid_t resolve_group(const char* name, struct group** gr) {
     return (*gr)->gr_gid;
 }
 
-void id_command(int argc, char** argv) {
+int id_command(int argc, char** argv) {
     const char* prog = argv[0];
     id_opts o;
     const char* user_arg = nullptr;
@@ -73,11 +74,11 @@ void id_command(int argc, char** argv) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0 || strcmp(a, "-V") == 0) {
-            printf("id (modbox) 1.0\n");
-            return;
+            print_version("id");
+            return 0;
         }
         if (a[0] == '-' && a[1] != '\0') {
             if (a[1] == '-') {
@@ -87,7 +88,7 @@ void id_command(int argc, char** argv) {
                 else if (strcmp(a, "--name") == 0) o.opt_n = true;
                 else if (strcmp(a, "--real") == 0) o.opt_r = true;
                 else if (strcmp(a, "--zero") == 0) o.opt_z = true;
-                else { fprintf(stderr, "id: unrecognized option '%s'\n", a); return; }
+                else { fprintf(stderr, "id: unrecognized option '%s'\n", a); return 0; }
             } else {
                 for (const char* p = a + 1; *p; p++) {
                     switch (*p) {
@@ -99,7 +100,7 @@ void id_command(int argc, char** argv) {
                         case 'z': o.opt_z = true; break;
                         default:
                             fprintf(stderr, "id: invalid option -- '%c'\n", *p);
-                            return;
+                            return 0;
                     }
                 }
             }
@@ -141,7 +142,7 @@ void id_command(int argc, char** argv) {
             printf("%u", (unsigned)out_uid);
         }
         putchar(nl);
-        return;
+        return 0;
     }
 
     if (o.opt_g) {
@@ -152,7 +153,7 @@ void id_command(int argc, char** argv) {
             printf("%u", (unsigned)out_gid);
         }
         putchar(nl);
-        return;
+        return 0;
     }
 
     if (o.opt_G) {
@@ -172,7 +173,7 @@ void id_command(int argc, char** argv) {
             }
         }
         putchar(nl);
-        return;
+        return 0;
     }
 
     const char* uname = pw ? pw->pw_name : "?";
@@ -216,6 +217,7 @@ void id_command(int argc, char** argv) {
         }
     }
     putchar(nl);
+    return 0;
 }
 
 REGISTER_COMMAND("id", id_command, "Print user identity");

@@ -68,7 +68,7 @@ static void print_help(const char* prog) {
     printf("If FIRST or INCREMENT is omitted, it defaults to 1.\n");
 }
 
-void seq_command(int argc, char** argv) {
+int seq_command(int argc, char** argv) {
     const char* prog = argv[0];
     const char* format = nullptr;
     std::string sep = "\n";
@@ -85,13 +85,13 @@ void seq_command(int argc, char** argv) {
         if (!no_more_opts && a[0] == '-' && a[1] != '\0' && !looks_like_number(a)) {
             if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
                 print_help(prog);
-                return;
+                return 0;
             } else if (strcmp(a, "-w") == 0 || strcmp(a, "--equal-width") == 0) {
                 equal_width = true;
             } else if (strcmp(a, "-f") == 0 || strcmp(a, "--format") == 0) {
                 if (i + 1 >= argc) {
                     fprintf(stderr, "seq: option requires an argument -- 'f'\n");
-                    return;
+                    return 0;
                 }
                 format = argv[++i];
             } else if (strncmp(a, "--format=", 9) == 0) {
@@ -101,7 +101,7 @@ void seq_command(int argc, char** argv) {
             } else if (strcmp(a, "-s") == 0 || strcmp(a, "--separator") == 0) {
                 if (i + 1 >= argc) {
                     fprintf(stderr, "seq: option requires an argument -- 's'\n");
-                    return;
+                    return 0;
                 }
                 sep = argv[++i];
             } else if (strncmp(a, "--separator=", 12) == 0) {
@@ -111,7 +111,7 @@ void seq_command(int argc, char** argv) {
             } else {
                 fprintf(stderr, "seq: invalid option -- '%s'\n", a);
                 fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-                return;
+                return 0;
             }
         } else {
             operands.push_back(a);
@@ -121,7 +121,7 @@ void seq_command(int argc, char** argv) {
     if (operands.empty() || operands.size() > 3) {
         fprintf(stderr, "seq: missing operand\n");
         fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-        return;
+        return 0;
     }
 
     const char* first_s = "1";
@@ -142,20 +142,20 @@ void seq_command(int argc, char** argv) {
     long double first = 0, incr = 0, last = 0;
     if (!parse_number(first_s, &first)) {
         fprintf(stderr, "seq: invalid floating point argument: '%s'\n", first_s);
-        return;
+        return 0;
     }
     if (!parse_number(incr_s, &incr)) {
         fprintf(stderr, "seq: invalid floating point argument: '%s'\n", incr_s);
-        return;
+        return 0;
     }
     if (!parse_number(last_s, &last)) {
         fprintf(stderr, "seq: invalid floating point argument: '%s'\n", last_s);
-        return;
+        return 0;
     }
 
     if (incr == 0) {
         fprintf(stderr, "seq: invalid Zero increment value: '%s'\n", incr_s);
-        return;
+        return 0;
     }
 
     bool all_int = is_integer_literal(first_s) && is_integer_literal(incr_s) && is_integer_literal(last_s);
@@ -180,7 +180,7 @@ void seq_command(int argc, char** argv) {
 
     long double n_ld = floorl((last - first) / incr + 1e-9L);
     if (n_ld < 0) {
-        return;
+        return 0;
     }
     long long count = (long long)n_ld + 1;
 
@@ -224,6 +224,7 @@ void seq_command(int argc, char** argv) {
     if (count > 0) {
         fputc('\n', stdout);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("seq", seq_command, "Print sequence of numbers");

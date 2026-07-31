@@ -8,6 +8,8 @@
 #include <unistd.h>
 
 #include "commands/mv.hpp"
+#include "commands/arg_util.hpp"
+#include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
 
 /* Buffer size for file copy operations (cross-filesystem fallback) */
@@ -92,8 +94,7 @@ static int remove_recursive(const char *path) {
 static int copy_recursive_for_mv(const char *src, const char *dst) {
   struct stat src_stat;
   if (stat(src, &src_stat) != 0) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "mv: %s: No such file or directory\n", src);
+    cmd_perror("mv", src);
     return -1;
   }
 
@@ -246,8 +247,7 @@ static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
   /* Quick check: if source does not exist, report error */
   struct stat src_stat;
   if (stat(src, &src_stat) != 0) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "mv: %s: No such file or directory\n", src);
+    cmd_perror("mv", src);
     return -1;
   }
 
@@ -316,7 +316,7 @@ static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
 }
 
 // NOLINTNEXTLINE(misc-use-internal-linkage,readability-function-cognitive-complexity)
-void mv_command(int argc, char **argv) {
+int mv_command(int argc, char **argv) {
   struct arg_lit *interactive_opt =
       arg_lit0("i", "interactive", "prompt before overwrite");
   struct arg_lit *no_clobber_opt =
@@ -342,13 +342,13 @@ void mv_command(int argc, char **argv) {
                 "source(s) followed by destination");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {interactive_opt, no_clobber_opt, force_opt,
-                      verbose_opt, update_opt, backup_opt,
-                      target_dir_opt, no_target_dir_opt,
-                      help_opt,
-                      files_arg, end};
+  ArgTable at({interactive_opt, no_clobber_opt, force_opt,
+               verbose_opt, update_opt, backup_opt,
+               target_dir_opt, no_target_dir_opt,
+               help_opt,
+               files_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... SOURCE DEST\n", argv[0]);
@@ -366,14 +366,11 @@ void mv_command(int argc, char **argv) {
     printf("  -t, --target-directory=DIR  move all sources into DIRECTORY\n");
     printf("  -T, --no-target-directory   treat DEST as a normal file\n");
     printf("  -h, --help             display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   MvOptions opts = {};
@@ -412,28 +409,24 @@ void mv_command(int argc, char **argv) {
           ? "No such file or directory" : "is not a directory";
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: target '%s': %s\n", dst, msg);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     if (!S_ISDIR(tgt_stat.st_mode)) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: target '%s' is not a directory\n", dst);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     num_srcs = num_files;
     if (num_srcs < 1) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: missing file operand\n");
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
   } else {
     if (num_files < 2) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: missing destination operand\n");
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     /* Last argument is destination, all preceding are sources */
     dst = files_arg->filename[num_files - 1];
@@ -450,8 +443,7 @@ void mv_command(int argc, char **argv) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: extra operand '%s'\n",
                     files_arg->filename[1]);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     dst_is_dir = 0;
   }
@@ -460,8 +452,7 @@ void mv_command(int argc, char **argv) {
   if (num_srcs > 1 && !dst_is_dir) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "mv: target '%s' is not a directory\n", dst);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   for (int i = 0; i < num_srcs; i++) {
@@ -470,8 +461,7 @@ void mv_command(int argc, char **argv) {
     /* Check source exists */
     struct stat src_stat;
     if (stat(src, &src_stat) != 0) {
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)fprintf(stderr, "mv: %s: No such file or directory\n", src);
+      cmd_perror("mv", src);
       continue;
     }
 
@@ -517,7 +507,7 @@ void mv_command(int argc, char **argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("mv", mv_command, "Move or rename files");

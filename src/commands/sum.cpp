@@ -8,6 +8,7 @@
 
 #include "commands/sum.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/arg_util.hpp"
 
 namespace {
 
@@ -68,16 +69,16 @@ static void sum_file(FILE* in, const char* filename, bool bsd_mode) {
 
 }
 
-void sum_command(int argc, char** argv) {
+int sum_command(int argc, char** argv) {
     struct arg_lit* sysv_opt = arg_lit0(NULL, "sysv", "System V sum format (default)");
     struct arg_lit* bsd_opt = arg_lit0(NULL, "bsd", "BSD sum format");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "files to checksum");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {sysv_opt, bsd_opt, help_opt, files_arg, end};
+    ArgTable at({sysv_opt, bsd_opt, help_opt, files_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -91,14 +92,11 @@ void sum_command(int argc, char** argv) {
         printf("\n");
         printf("Output format: CHECKSUM BLOCKS FILE\n");
         printf("Block size is 512 bytes.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool bsd_mode = (bsd_opt->count > 0);
@@ -122,7 +120,7 @@ void sum_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("sum", sum_command, "Print checksum and block count");

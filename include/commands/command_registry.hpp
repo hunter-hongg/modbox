@@ -8,14 +8,14 @@
 struct CommandEntry {
     std::string name;
     std::string help;
-    void (*run)(int, char **);
+    int (*run)(int, char **);
 };
 
 class CommandRegistry {
 public:
     static CommandRegistry &instance();
 
-    void add(const char *name, const char *help, void (*run)(int, char **));
+    void add(const char *name, const char *help, int (*run)(int, char **));
     const std::vector<CommandEntry> &all() const;
 
     void for_each(std::function<void(const CommandEntry &)> fn) const;

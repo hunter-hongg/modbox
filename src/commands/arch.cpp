@@ -4,6 +4,7 @@
 
 #include "commands/arch.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s\n", prog);
@@ -14,16 +15,16 @@ static void print_help(const char* prog) {
     printf("      --version  output version information and exit\n");
 }
 
-void arch_command(int argc, char** argv) {
+int arch_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         const char* a = argv[i];
         if (strcmp(a, "--help") == 0) {
             print_help(argv[0]);
-            return;
+            return 0;
         }
         if (strcmp(a, "--version") == 0) {
-            printf("arch (modbox) 1.0\n");
-            return;
+            print_version("arch");
+            return 0;
         }
     }
 
@@ -31,6 +32,7 @@ void arch_command(int argc, char** argv) {
     if (uname(&u) == 0) {
         printf("%s\n", u.machine);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("arch", arch_command, "Print machine architecture");

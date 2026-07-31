@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "commands/ln.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define MAX_PATH_LEN 4096
@@ -83,7 +84,7 @@ static int interactive_confirm(const char *dest_path) {
 }
 
 // NOLINTNEXTLINE(misc-use-internal-linkage)
-void ln_command(int argc, char** argv) {
+int ln_command(int argc, char** argv) {
     struct arg_lit* verbose_opt =
         arg_lit0("v", "verbose", "explain what is being done");
     struct arg_lit* force_opt =
@@ -102,14 +103,12 @@ void ln_command(int argc, char** argv) {
         arg_filen(NULL, NULL, "DEST", 1, 1, "destination file or directory");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {verbose_opt, force_opt, symbolic_opt, interactive_opt, noderef_opt, logical_opt, src_arg, dst_arg, end};
+    ArgTable at({verbose_opt, force_opt, symbolic_opt, interactive_opt, noderef_opt, logical_opt, src_arg, dst_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     LnOptions opts = {};
@@ -129,14 +128,12 @@ void ln_command(int argc, char** argv) {
         if (stat(src, &src_stat) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "ln: %s: No such file or directory\n", src);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         if (!S_ISREG(src_stat.st_mode)) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "ln: %s: Is not a regular file\n", src);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -183,8 +180,7 @@ void ln_command(int argc, char** argv) {
     }
 
     if (opts.is_interactive && !interactive_confirm(dest_path)) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (do_link(link_src, dest_path, &opts) == 0) {
@@ -194,7 +190,7 @@ void ln_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("ln", ln_command, "Create hard/symbolic links");

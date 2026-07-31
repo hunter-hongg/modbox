@@ -9,6 +9,7 @@
 #include <argtable3.h>
 
 #include "commands/od.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 namespace {
@@ -268,7 +269,7 @@ static bool parse_format_string(const char* str, OdOptions& opts) {
 
 }
 
-void od_command(int argc, char** argv) {
+int od_command(int argc, char** argv) {
     struct arg_str* address_opt = arg_str0("A", "address-radix", "<base>", "output address in octal");
     struct arg_str* format_opt = arg_strn("t", "format", "<format>", 0, 10, "output format");
     struct arg_lit* skip_bytes_opt = arg_lit0(NULL, "skip-bytes", "skip bytes (not fully implemented)");
@@ -277,9 +278,9 @@ void od_command(int argc, char** argv) {
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "input files");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {address_opt, format_opt, skip_bytes_opt, width_opt, help_opt, files_arg, end};
+    ArgTable at({address_opt, format_opt, skip_bytes_opt, width_opt, help_opt, files_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -302,14 +303,11 @@ void od_command(int argc, char** argv) {
         printf("  -h, --help   display this help and exit\n");
         printf("\n");
         printf("Default is equivalent to: -A o -t o2\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     OdOptions opts;
@@ -347,7 +345,7 @@ void od_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("od", od_command, "Dump files in octal, hex, or other formats");

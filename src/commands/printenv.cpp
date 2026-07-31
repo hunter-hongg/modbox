@@ -9,7 +9,7 @@
 
 extern char** environ;
 
-void printenv_command(int argc, char** argv) {
+int printenv_command(int argc, char** argv) {
     bool null_out = false;
     bool help = false;
     std::vector<std::string> vars;
@@ -31,7 +31,7 @@ void printenv_command(int argc, char** argv) {
         printf("\n");
         printf("  -0, --null     end each output line with NUL, not newline\n");
         printf("  -h, --help     display this help and exit\n");
-        return;
+        return 0;
     }
 
     if (vars.empty()) {
@@ -39,7 +39,7 @@ void printenv_command(int argc, char** argv) {
             fputs(*e, stdout);
             fputc(null_out ? '\0' : '\n', stdout);
         }
-        return;
+        return 0;
     }
 
     int found_count = 0;
@@ -58,5 +58,6 @@ void printenv_command(int argc, char** argv) {
     if (found_count < (int)vars.size()) {
         exit(1);
     }
+    return 0;
 }
 REGISTER_COMMAND("printenv", printenv_command, "Print environment variables");

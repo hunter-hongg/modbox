@@ -15,6 +15,6 @@ struct NlOptions {
     int number_width = 6;
 };
 
-void nl_command(int argc, char** argv);
+int nl_command(int argc, char** argv);
 
 #endif

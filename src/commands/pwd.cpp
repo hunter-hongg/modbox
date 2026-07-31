@@ -10,7 +10,9 @@
 #include <string>
 
 #include "commands/pwd.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static int dirs_same(const char* a, const char* b) {
   struct stat sa;
@@ -20,7 +22,7 @@ static int dirs_same(const char* a, const char* b) {
   return sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino;
 }
 
-void pwd_command(int argc, char** argv) {
+int pwd_command(int argc, char** argv) {
   struct arg_lit* logical_opt =
       arg_lit0("L", "logical", "use PWD from environment, even if it contains symlinks");
   struct arg_lit* physical_opt =
@@ -31,9 +33,9 @@ void pwd_command(int argc, char** argv) {
       arg_lit0(NULL, "version", "output version information and exit");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {logical_opt, physical_opt, help_opt, version_opt, end};
+  ArgTable at({logical_opt, physical_opt, help_opt, version_opt, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -43,20 +45,16 @@ void pwd_command(int argc, char** argv) {
     printf("  -P, --physical  avoid all symlinks\n");
     printf("      --help      display this help and exit\n");
     printf("      --version   output version information and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (version_opt->count > 0) {
-    printf("pwd (modbox) 1.0\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    print_version("pwd");
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   int use_physical = (physical_opt->count > 0);
@@ -66,8 +64,7 @@ void pwd_command(int argc, char** argv) {
     if (pwd_env != NULL && pwd_env[0] == '/') {
       if (dirs_same(pwd_env, ".")) {
         printf("%s\n", pwd_env);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
       }
     }
   }
@@ -77,13 +74,12 @@ void pwd_command(int argc, char** argv) {
   if (ec) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "pwd: %s\n", ec.message().c_str());
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   printf("%s\n", cwd.c_str());
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("pwd", pwd_command, "Print current working directory");

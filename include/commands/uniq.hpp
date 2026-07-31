@@ -12,6 +12,6 @@ struct UniqOptions {
     int check_chars = 0;
 };
 
-void uniq_command(int argc, char** argv);
+int uniq_command(int argc, char** argv);
 
 #endif

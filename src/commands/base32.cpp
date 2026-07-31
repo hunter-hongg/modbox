@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <argtable3.h>
 #include "commands/base32.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 static const char base32_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -161,7 +162,7 @@ static bool base32_decode(FILE* in, FILE* out, bool ignore_garbage) {
     return true;
 }
 
-void base32_command(int argc, char** argv) {
+int base32_command(int argc, char** argv) {
     struct arg_lit* decode_opt = arg_lit0("d", "decode", "decode data");
     struct arg_lit* ignore_garbage_opt = arg_lit0("i", "ignore-garbage", "when decoding, ignore non-alphabet characters");
     struct arg_int* wrap_opt = arg_int0("w", "wrap", "COLS", "wrap encoded lines after COLS character (default 76, 0 to disable)");
@@ -169,8 +170,8 @@ void base32_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 1, "input file");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -188,14 +189,11 @@ void base32_command(int argc, char** argv) {
         printf("When decoding, the input may contain newlines in addition to the bytes\n");
         printf("of the formal base32 alphabet. Use --ignore-garbage to attempt to recover\n");
         printf("from any other non-alphabet bytes in the encoded stream.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool decode = (decode_opt->count > 0);
@@ -205,8 +203,7 @@ void base32_command(int argc, char** argv) {
     if (wrap_opt->count > 0) {
         if (wrap_opt->ival[0] < 0) {
             fprintf(stderr, "base32: invalid wrap value: %d\n", wrap_opt->ival[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         wrap_cols = wrap_opt->ival[0];
     }
@@ -226,8 +223,7 @@ void base32_command(int argc, char** argv) {
         in = fopen(filename, "rb");
         if (in == nullptr) {
             fprintf(stderr, "base32: %s: No such file or directory\n", filename);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -241,7 +237,7 @@ void base32_command(int argc, char** argv) {
         fclose(in);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("base32", base32_command, "Base32 encode/decode");

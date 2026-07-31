@@ -23,7 +23,7 @@ struct GrepOptions {
     std::string pattern;
 };
 
-void grep_command(int argc, char** argv);
+int grep_command(int argc, char** argv);
 void grep_tui_main(int argc, char** argv);
 
 #endif

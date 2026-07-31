@@ -8,6 +8,6 @@ struct SedOptions {
     const char* in_place = nullptr;  // -i with optional suffix ("" for no suffix)
 };
 
-void sed_command(int argc, char** argv);
+int sed_command(int argc, char** argv);
 
 #endif

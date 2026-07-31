@@ -12,6 +12,6 @@ struct CsplitOptions {
     int keep_files = 0;             // -k / --keep-files
 };
 
-void csplit_command(int argc, char** argv);
+int csplit_command(int argc, char** argv);
 
 #endif

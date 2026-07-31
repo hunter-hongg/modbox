@@ -6,6 +6,7 @@
 
 #include "commands/printf.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s FORMAT [ARGUMENT]...\n", prog);
@@ -118,20 +119,20 @@ static void emit_format(const char* fmt, const std::vector<std::string>& args, s
     }
 }
 
-void printf_command(int argc, char** argv) {
+int printf_command(int argc, char** argv) {
     const char* prog = argv[0];
     if (argc < 2) {
         fprintf(stderr, "printf: missing operand\n");
         fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-        return;
+        return 0;
     }
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
         print_help(prog);
-        return;
+        return 0;
     }
     if (strcmp(argv[1], "-V") == 0 || strcmp(argv[1], "--version") == 0) {
-        printf("printf (modbox) 1.0\n");
-        return;
+        print_version("printf");
+        return 0;
     }
 
     std::vector<std::string> args;
@@ -148,6 +149,7 @@ void printf_command(int argc, char** argv) {
         ai = 0;
         emit_format(fmt_buf, args, ai);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("printf", printf_command, "Format and print data");

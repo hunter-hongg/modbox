@@ -5,7 +5,7 @@
 #include "commands/ls.hpp"
 #include "commands/command_macros.hpp"
 
-void dir_command(int argc, char** argv) {
+int dir_command(int argc, char** argv) {
     int new_argc = argc + 1;
     char** new_argv = (char**)malloc((size_t)(new_argc + 1) * sizeof(char*));
 
@@ -20,6 +20,7 @@ void dir_command(int argc, char** argv) {
     ls_command(new_argc, new_argv);
 
     free(new_argv);
+    return 0;
 }
 
 REGISTER_COMMAND("dir", dir_command, "Equivalent to ls --format=vertical");

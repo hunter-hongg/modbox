@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "commands/tac.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define ARG_END_SIZE 20
@@ -179,7 +180,7 @@ static std::vector<TacRecord> split_input(const uint8_t* data, size_t total_len,
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void tac_command(int argc, char** argv) {
+int tac_command(int argc, char** argv) {
     struct arg_lit* before_opt = arg_lit0("b", "before",
         "put separator before each chunk");
     struct arg_lit* regex_opt = arg_lit0("r", "regex",
@@ -192,10 +193,10 @@ void tac_command(int argc, char** argv) {
         "file to reverse");
     struct arg_end* end = arg_end(ARG_END_SIZE);
 
-    void* argtable[] = { before_opt, regex_opt, sep_opt, help_opt,
-                         file_arg, end };
+    ArgTable at({ before_opt, regex_opt, sep_opt, help_opt,
+                  file_arg, end });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -205,14 +206,11 @@ void tac_command(int argc, char** argv) {
         printf("  -r, --regex           treat separator as a regex\n");
         printf("  -s, --separator=STR   use STR instead of newline\n");
         printf("  -h, --help            display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     int before_mode = (before_opt->count > 0);
@@ -258,7 +256,7 @@ void tac_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("tac", tac_command, "Concatenate and print in reverse");

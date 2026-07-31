@@ -12,6 +12,7 @@
 
 #include "commands/hostname.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static constexpr size_t HOSTNAME_BUF = 64;
 
@@ -74,7 +75,7 @@ static std::string get_fqdn() {
     return hn;
 }
 
-void hostname_command(int argc, char** argv) {
+int hostname_command(int argc, char** argv) {
     bool show_aliases = false;
     bool show_domain = false;
     bool show_fqdn = false;
@@ -106,10 +107,10 @@ void hostname_command(int argc, char** argv) {
     }
 
     if (version) {
-        printf("hostname (modbox) 1.0\n");
+        print_version("hostname");
         printf("Copyright (C) 2026 modbox\n");
         printf("License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n");
-        return;
+        return 0;
     }
 
     if (help) {
@@ -127,22 +128,22 @@ void hostname_command(int argc, char** argv) {
         printf("\n");
         printf("With no options, prints the nodename. If a single argument is given,\n");
         printf("sets the host name to that value (requires appropriate privileges).\n");
-        return;
+        return 0;
     }
 
     if (set_hostname && !show_aliases && !show_domain && !show_fqdn && !show_ips && !show_all_ips && !show_short) {
         if (sethostname(new_hostname.c_str(), new_hostname.length()) < 0) {
             fprintf(stderr, "hostname: %s\n", strerror(errno));
-            return;
+            return 0;
         }
         printf("%s\n", new_hostname.c_str());
-        return;
+        return 0;
     }
 
     char hostname_buf[HOSTNAME_BUF];
     if (gethostname(hostname_buf, sizeof(hostname_buf)) < 0) {
         fprintf(stderr, "hostname: %s\n", strerror(errno));
-        return;
+        return 0;
     }
     std::string nodename(hostname_buf);
 
@@ -207,6 +208,7 @@ void hostname_command(int argc, char** argv) {
         printf("%s", nodename.c_str());
     }
     putchar('\n');
+    return 0;
 }
 
 REGISTER_COMMAND("hostname", hostname_command, "Show or set the host name");

@@ -12,6 +12,6 @@ struct XargsOptions {
   bool show_limits = false;
 };
 
-void xargs_command(int argc, char** argv);
+int xargs_command(int argc, char** argv);
 
 #endif

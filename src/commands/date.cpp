@@ -7,6 +7,7 @@
 
 #include "commands/date.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [+FORMAT]\n", prog);
@@ -82,7 +83,7 @@ static bool parse_date_string(const char* s, time_t* result, bool utc) {
     return false;
 }
 
-void date_command(int argc, char** argv) {
+int date_command(int argc, char** argv) {
     bool utc = false;
     const char* date_str = NULL;
     const char* ref_file = NULL;
@@ -127,25 +128,25 @@ void date_command(int argc, char** argv) {
             plus_format = a + 1;
         } else {
             fprintf(stderr, "date: invalid argument '%s'\n", a);
-            return;
+            return 0;
         }
     }
 
-    if (help) { print_help(argv[0]); return; }
-    if (version) { printf("date (modbox) 1.0\n"); return; }
+    if (help) { print_help(argv[0]); return 0; }
+    if (version) { print_version("date"); return 0; }
 
     time_t t;
     if (ref_file != NULL) {
         struct stat st;
         if (stat(ref_file, &st) != 0) {
             fprintf(stderr, "date: %s: No such file or directory\n", ref_file);
-            return;
+            return 0;
         }
         t = st.st_mtime;
     } else if (date_str != NULL) {
         if (!parse_date_string(date_str, &t, utc)) {
             fprintf(stderr, "date: invalid date '%s'\n", date_str);
-            return;
+            return 0;
         }
     } else {
         t = time(NULL);
@@ -159,7 +160,7 @@ void date_command(int argc, char** argv) {
         if (strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S %z", tm) > 0) {
             printf("%s\n", buf);
         }
-        return;
+        return 0;
     }
     if (iso) {
         const char* fmt = "%Y-%m-%d";
@@ -173,10 +174,11 @@ void date_command(int argc, char** argv) {
         if (strftime(buf, sizeof(buf), fmt, tm) > 0) {
             printf("%s\n", buf);
         }
-        return;
+        return 0;
     }
 
     apply_format(tm, plus_format, utc);
+    return 0;
 }
 
 REGISTER_COMMAND("date", date_command, "Print or set system date and time");

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/split.hpp"
 #include "commands/command_macros.hpp"
@@ -314,7 +315,7 @@ static void split_round_robin(FILE *in, const SplitOptions *opts,
 /* ── Main command ─────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void split_command(int argc, char **argv) {
+int split_command(int argc, char **argv) {
     SplitOptions opts = {0};
 
     struct arg_lit *numeric_opt = arg_lit0("d", "numeric-suffixes",
@@ -350,15 +351,15 @@ void split_command(int argc, char **argv) {
                                           "input file (stdin if omitted) and prefix");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
+    ArgTable at({
         numeric_opt, hex_opt, suffix_len_opt,
         lines_opt, bytes_opt, line_bytes_opt, chunks_opt,
         additional_suffix_opt, filter_opt, separator_opt,
         unbuffered_opt, verbose_opt, elide_opt,
         help_opt, file_arg, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE [PREFIX]]\n", argv[0]);
@@ -391,14 +392,12 @@ void split_command(int argc, char **argv) {
         printf("  r/N     like l/N but use round robin distribution\n");
         printf("\n");
         printf("PREFIX is the output file prefix (default \"x\").\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     /* Collect options */
@@ -459,8 +458,8 @@ void split_command(int argc, char **argv) {
             if (in == NULL) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "split: %s: %s\n", input_name, strerror(errno));
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return;
+                
+                return 0;
             }
             opened = 1;
         }
@@ -475,8 +474,8 @@ void split_command(int argc, char **argv) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "split: --filter is not yet implemented\n");
         if (opened) (void)fclose(in);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     /* Dispatch */
@@ -506,14 +505,15 @@ void split_command(int argc, char **argv) {
     }
 
     if (opened) (void)fclose(in);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    
+    return 0;
 
 bad_chunks:
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "split: invalid number of chunks: %s\n", opts.chunks);
     if (opened) (void)fclose(in);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
+    return 0;
 }
 
 REGISTER_COMMAND("split", split_command, "Split into smaller pieces");

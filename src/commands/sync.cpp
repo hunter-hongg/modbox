@@ -8,8 +8,10 @@
 
 #include "commands/sync.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
+#include "commands/arg_util.hpp"
 
-void sync_command(int argc, char **argv) {
+int sync_command(int argc, char **argv) {
   struct arg_lit *help_opt =
       arg_lit0("h", "help", "display this help and exit");
   struct arg_lit *version_opt =
@@ -18,9 +20,9 @@ void sync_command(int argc, char **argv) {
       arg_filen(NULL, NULL, "FILE", 0, 1000, "files to sync");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {help_opt, version_opt, files_arg, end};
+  ArgTable at({help_opt, version_opt, files_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION] [FILE]...\n", argv[0]);
@@ -31,20 +33,16 @@ void sync_command(int argc, char **argv) {
     printf("\n");
     printf("  -h, --help     display this help and exit\n");
     printf("  -v, --version  output version information and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (version_opt->count > 0) {
-    printf("sync (modbox) 1.0\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    print_version("sync");
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   int num_files = files_arg->count;
@@ -69,7 +67,7 @@ void sync_command(int argc, char **argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("sync", sync_command, "Flush filesystem buffers");

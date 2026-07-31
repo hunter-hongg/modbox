@@ -3,9 +3,10 @@
 #include <sys/utsname.h>
 #include <argtable3.h>
 #include "commands/uname.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
-void uname_command(int argc, char** argv) {
+int uname_command(int argc, char** argv) {
     struct arg_lit* all_opt = arg_lit0("a", "all", "print all information");
     struct arg_lit* kernel_opt = arg_lit0("s", "kernel-name", "print the kernel name");
     struct arg_lit* node_opt = arg_lit0("n", "nodename", "print the network node hostname");
@@ -18,13 +19,13 @@ void uname_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         all_opt, kernel_opt, node_opt, release_opt, version_opt,
         machine_opt, processor_opt, hardware_opt, os_opt,
         help_opt, end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -42,21 +43,17 @@ void uname_command(int argc, char** argv) {
         printf("  -h, --help                display this help and exit\n");
         printf("\n");
         printf("If no option is given, -s is implied.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     struct utsname buf;
     if (uname(&buf) < 0) {
         perror("uname");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     int any = all_opt->count
@@ -71,8 +68,7 @@ void uname_command(int argc, char** argv) {
 
     if (!any) {
         printf("%s\n", buf.sysname);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     int first = 1;
@@ -115,7 +111,7 @@ void uname_command(int argc, char** argv) {
 
 #undef PRINT_FIELD
     printf("\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("uname", uname_command, "Print system information");

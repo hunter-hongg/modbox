@@ -9,10 +9,11 @@
 #include <unistd.h>
 
 #include "commands/touch.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void touch_command(int argc, char **argv) {
+int touch_command(int argc, char **argv) {
   struct arg_lit *only_atime_opt =
       arg_lit0("a", NULL, "change only the access time");
   struct arg_lit *only_mtime_opt =
@@ -31,10 +32,10 @@ void touch_command(int argc, char **argv) {
       arg_filen(NULL, NULL, "FILE...", 1, 1000, "files to touch");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {only_atime_opt, only_mtime_opt, no_create_opt,
-                      reference_opt, date_opt, help_opt, files_arg, end};
+  ArgTable at({only_atime_opt, only_mtime_opt, no_create_opt,
+               reference_opt, date_opt, help_opt, files_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -46,14 +47,11 @@ void touch_command(int argc, char **argv) {
     printf("  -m                     change only the modification time\n");
     printf("  -r, --reference=FILE   use this file's times instead of current time\n");
     printf("  -h, --help             display this help and exit\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   TouchOptions opts = {};
@@ -67,8 +65,7 @@ void touch_command(int argc, char **argv) {
   if (num_files < 1) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "touch: missing file operand\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   /* If neither -a nor -m specified, change both */
@@ -90,8 +87,7 @@ void touch_command(int argc, char **argv) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "touch: '%s': No such file or directory\n",
                     opts.reference);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     ref_times[0] = ref_stat.st_atim;
     ref_times[1] = ref_stat.st_mtim;
@@ -156,7 +152,7 @@ void touch_command(int argc, char **argv) {
     (void)utimensat(AT_FDCWD, path, times, 0);
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("touch", touch_command, "Change file timestamps");

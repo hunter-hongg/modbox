@@ -30,6 +30,6 @@ struct FdOptions {
     std::vector<std::string> exec_paths;
 };
 
-void fd_command(int argc, char** argv);
+int fd_command(int argc, char** argv);
 
 #endif

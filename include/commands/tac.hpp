@@ -7,6 +7,6 @@ struct TacOptions {
     const char* separator = nullptr;
 };
 
-void tac_command(int argc, char** argv);
+int tac_command(int argc, char** argv);
 
 #endif

@@ -8,6 +8,7 @@
 
 #include "commands/sleep.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static void print_help(const char* prog) {
     printf("Usage: %s NUMBER[SUFFIX]...\n", prog);
@@ -83,7 +84,7 @@ static void do_sleep(double seconds) {
     }
 }
 
-void sleep_command(int argc, char** argv) {
+int sleep_command(int argc, char** argv) {
     const char* prog = argv[0];
 
     int first_arg = 1;
@@ -93,11 +94,11 @@ void sleep_command(int argc, char** argv) {
         const char* a = argv[1];
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(a, "-V") == 0 || strcmp(a, "--version") == 0) {
-            printf("sleep (modbox) 1.0\n");
-            return;
+            print_version("sleep");
+            return 0;
         }
         if (strcmp(a, "--") == 0) {
             first_arg = 2;
@@ -107,7 +108,7 @@ void sleep_command(int argc, char** argv) {
     if (first_arg >= argc) {
         fprintf(stderr, "sleep: missing operand\n");
         fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-        return;
+        return 0;
     }
 
     double total = 0.0;
@@ -117,11 +118,12 @@ void sleep_command(int argc, char** argv) {
         if (!parse_duration(a, &dur)) {
             fprintf(stderr, "sleep: invalid time interval '%s'\n", a);
             fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-            return;
+            return 0;
         }
         total += dur;
     }
 
     do_sleep(total);
+    return 0;
 }
 REGISTER_COMMAND("sleep", sleep_command, "Delay for a specified time");

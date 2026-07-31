@@ -11,6 +11,6 @@ struct ZoxideEntry {
     int64_t timestamp = 0;
 };
 
-void zoxide_command(int argc, char** argv);
+int zoxide_command(int argc, char** argv);
 
 #endif

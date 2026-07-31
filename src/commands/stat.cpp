@@ -26,6 +26,8 @@
 
 #include "commands/stat.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
+#include "commands/arg_util.hpp"
 
 namespace {
 
@@ -634,7 +636,7 @@ void emit(const std::string& s) {
 }  // namespace
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void stat_command(int argc, char** argv) {
+int stat_command(int argc, char** argv) {
   struct arg_lit* deref_opt =
       arg_lit0("L", "dereference", "follow links");
   struct arg_lit* fs_opt =
@@ -655,9 +657,9 @@ void stat_command(int argc, char** argv) {
       arg_filen(NULL, NULL, "FILE", 0, 100, "file or file system to stat");
   struct arg_end* end = arg_end(20);
 
-  void* argtable[] = {deref_opt, fs_opt, terse_opt, format_opt, printf_opt, json_opt, version_opt, help_opt, file_arg, end};
+  ArgTable at({deref_opt, fs_opt, terse_opt, format_opt, printf_opt, json_opt, version_opt, help_opt, file_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -689,20 +691,16 @@ void stat_command(int argc, char** argv) {
     printf("  %%y   time of last modify      %%Y   time of last modify, seconds\n");
     printf("  %%z   time of last change      %%Z   time of last change, seconds\n");
     printf("  %%m   mount point of the file\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (version_opt->count > 0) {
-    printf("stat (modbox) 1.0\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    print_version("stat");
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   bool fs_mode = (fs_opt->count > 0);
@@ -711,7 +709,6 @@ void stat_command(int argc, char** argv) {
 
   if (json_mode && (printf_opt->count > 0 || format_opt->count > 0)) {
     fprintf(stderr, "stat: --json is incompatible with --format/--printf\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     exit(1);
   }
 
@@ -736,7 +733,6 @@ void stat_command(int argc, char** argv) {
   if (file_arg->count == 0) {
     (void)fprintf(stderr, "stat: missing operand\n");
     (void)fprintf(stderr, "Try 'stat --help' for more information.\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
     exit(1);
   }
 
@@ -870,7 +866,7 @@ void stat_command(int argc, char** argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("stat", stat_command, "Display file or filesystem status");

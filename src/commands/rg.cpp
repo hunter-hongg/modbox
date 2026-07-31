@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "commands/rg.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/search_common.hpp"
 #include "commands/command_macros.hpp"
 
@@ -357,7 +358,7 @@ static int rg_is_directory(const char* path) {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size)
-void rg_command(int argc, char** argv) {
+int rg_command(int argc, char** argv) {
     RgOptions opts;
     opts.mode = RgMode::BASIC;
     opts.color_mode = RgColor::AUTO;
@@ -437,7 +438,7 @@ void rg_command(int argc, char** argv) {
                   "file or directory to search");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
+    ArgTable at({
         extended_opt,       fixed_opt,
         ignore_case_opt,    smart_case_opt,    case_sensitive_opt,
         invert_opt,         line_number_opt,   no_line_number_opt,
@@ -447,9 +448,9 @@ void rg_command(int argc, char** argv) {
         context_opt,        after_opt,         before_opt,
         glob_opt,           color_opt,         pattern_opt,
         help_opt,           file_arg,          end
-    };
+    });
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTIONS] PATTERN [PATH...]\n", argv[0]);
@@ -491,13 +492,11 @@ void rg_command(int argc, char** argv) {
         printf("  0  if a match is found\n");
         printf("  1  if no match was found\n");
         printf("  2  if an error occurred\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        at.print_errors(end, argv[0]);
         exit(2);
     }
 
@@ -590,7 +589,6 @@ void rg_command(int argc, char** argv) {
     if (pattern == nullptr) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "rg: no pattern specified\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         exit(2);
     }
 
@@ -618,7 +616,6 @@ void rg_command(int argc, char** argv) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "rg: invalid pattern '%s': %s\n",
                           pattern, e.what());
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
             exit(2);
         }
     }
@@ -688,7 +685,6 @@ void rg_command(int argc, char** argv) {
 
     // --- Cleanup ---
     // regex and glob_patterns destructors handle cleanup
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     if (total_matches > 0) {
         exit(0);

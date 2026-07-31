@@ -1,0 +1,3381 @@
+============================================
+  modbox Test Suite
+  Binary: /home/hunter/projects/modbox/target/modbox
+============================================
+
+/home/hunter/projects/modbox/tests/test_b2sum.sh: 行 63: 警告：命令替换：忽略输入中的 null 字节
+chmod: 无法访问 '/tmp/modbox_test.wlJFPX/chmod_dir/sub': 权限不够
+chmod: 无法访问 '/tmp/modbox_test.wlJFPX/chmod_symr/sub/file.txt': 没有那个文件或目录
+/home/hunter/projects/modbox/tests/framework.sh: 行 49: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/framework.sh: 行 49: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/framework.sh: 行 49: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/test_head.sh: 行 44: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/framework.sh: 行 36: 警告：命令替换：忽略输入中的 null 字节
+grep: 警告：stray \ before t
+grep: 警告：stray \ before t
+/home/hunter/projects/modbox/tests/test_md5sum.sh: 行 61: 警告：命令替换：忽略输入中的 null 字节
+grep: 警告：stray \ before 0
+/home/hunter/projects/modbox/tests/test_sha1sum.sh: 行 61: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/test_sha256sum.sh: 行 61: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/test_sha384sum.sh: 行 61: 警告：命令替换：忽略输入中的 null 字节
+/home/hunter/projects/modbox/tests/test_sha512sum.sh: 行 61: 警告：命令替换：忽略输入中的 null 字节
+timeout: failed to run command 'nosuchcmd_modbox_xyz': No such file or directory
+
+── arch ──────────────────────────────────────
+  ── basic output (non-empty) ──
+  PASS  arch (output: x86_64)
+  ── --help ──
+  PASS  arch --help → matches /Usage:/
+  ── --version ──
+  PASS  arch --version → matches /arch \(modbox\) 1\.0/
+  ── matches uname -m ──
+  PASS  arch matches uname -m
+── awk ───────────────────────────────────────────────────────────────
+  PASS  awk {print $1, $3} /dev/fd/63
+  PASS  awk {print NR, NF} /dev/fd/63
+  PASS  awk /ba/ /dev/fd/63
+  PASS  awk $1 % 2 == 0 /dev/fd/63
+  PASS  awk BEGIN{print "S"} {print} END{print "E"} /dev/fd/63
+  PASS  awk {s+=$1} END{print s} /dev/fd/63
+  PASS  awk -F: {print $2} /dev/fd/63
+  PASS  awk {printf "%.1f\n", $1*2} /dev/fd/63
+  PASS  awk /b/,/d/ /dev/fd/63
+  PASS  awk {print} /dev/fd/63
+  PASS  awk {print $1 "X" $1} /dev/fd/63
+  PASS  awk {if($1>3) print "big"; for(i=1;i<=$1;i++) s+=i; print s} /dev/fd/63
+  PASS  awk $0 ~ /world/ {print "yes"} /dev/fd/63
+  PASS  awk function sq(n){return n*n} {print sq($1)} /dev/fd/63
+  PASS  cat /tmp/modbox_test.RZ76Nw/awk_arr.out → matches /a 1/
+  PASS  cat /tmp/modbox_test.RZ76Nw/awk_arr.out → matches /b 1/
+  PASS  cat /tmp/modbox_test.RZ76Nw/awk_arr.out → matches /c 1/
+  PASS  awk {i=1; while(i<=$1){s+=i;i++} print s} /dev/fd/63
+  PASS  awk -v x=10 BEGIN{print x}
+  PASS  awk {gsub(/,/,"-"); print} /dev/fd/63
+  PASS  awk BEGIN{OFS="|"} {print $1,$2} /dev/fd/63
+  PASS  awk /2/ {next} {print} /dev/fd/63
+  PASS  awk -f /tmp/modbox_test.RZ76Nw/prog.awk /dev/fd/63
+  PASS  awk {print} - /dev/fd/63
+  PASS  awk -- {print} /dev/fd/63
+── awk done ──────────────────────────────────────────────────────────
+
+── b2sum ────────────────────────────────────
+  ── basic file checksum ──
+  PASS  b2sum /tmp/modbox_test.I4YYGs/b2_test.txt → matches /^[a-f0-9]{128}  /tmp/modbox_test.I4YYGs/b2_test.txt$/
+  ── empty file checksum ──
+  PASS  b2sum /tmp/modbox_test.I4YYGs/b2_empty.txt → matches /^[a-f0-9]{128}  /tmp/modbox_test.I4YYGs/b2_empty.txt$/
+  ── stdin (no file) ──
+  PASS  b2sum → matches /^[a-f0-9]{128}  -$/
+  ── stdin (explicit -) ──
+  PASS  b2sum - → matches /^[a-f0-9]{128}  -$/
+  ── binary mode (-b) ──
+  PASS  b2sum -b /tmp/modbox_test.I4YYGs/b2_test.txt → matches /^[a-f0-9]{128} \*/tmp/modbox_test.I4YYGs/b2_test.txt$/
+  ── text mode (-t) ──
+  PASS  b2sum -t /tmp/modbox_test.I4YYGs/b2_test.txt → matches /^[a-f0-9]{128}  /tmp/modbox_test.I4YYGs/b2_test.txt$/
+  ── length option (-l 256) ──
+  PASS  b2sum -l 256 /tmp/modbox_test.I4YYGs/b2_test.txt → matches /^[a-f0-9]{64}  /tmp/modbox_test.I4YYGs/b2_test.txt$/
+  ── multiple files ──
+  PASS  b2sum multiple files produces 2 lines
+  ── check mode (-c) with valid checksum ──
+  PASS  b2sum -c /tmp/modbox_test.I4YYGs/b2_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  b2sum -c /tmp/modbox_test.I4YYGs/b2_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  b2sum --tag /tmp/modbox_test.I4YYGs/b2_test.txt → matches /^BLAKE2 \(/tmp/modbox_test.I4YYGs/b2_test.txt\) = [a-f0-9]{128}/
+  ── --zero (NUL-terminated) ──
+  PASS  b2sum --zero produces NUL-terminated output
+  ── help ──
+  PASS  b2sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  b2sum /tmp/modbox_test.I4YYGs/b2_nonexistent.txt → stderr matches /No such file/
+
+── base32 ───────────────────────────────────
+  ── basic encode ──
+  PASS  base32 /tmp/modbox_test.Ic8bge/b32_test.txt
+  ── basic decode ──
+  PASS  base32 -d /tmp/modbox_test.Ic8bge/b32_encoded.txt
+  ── empty file encode ──
+  PASS  base32 /tmp/modbox_test.Ic8bge/b32_empty.txt
+  ── empty file decode ──
+  PASS  base32 -d /tmp/modbox_test.Ic8bge/b32_empty_encoded.txt
+  ── stdin encode ──
+  PASS  base32 stdin encode
+  ── stdin decode ──
+  PASS  base32 stdin decode
+  ── stdin (explicit -) encode ──
+  PASS  base32 - stdin encode
+  ── stdin (explicit -) decode ──
+  PASS  base32 -d - stdin decode
+  ── multiline encode ──
+  PASS  base32 /tmp/modbox_test.Ic8bge/b32_multiline.txt
+  ── wrap option (default 76) ──
+  PASS  base32 wrap (default) → 3 lines
+  ── wrap option (w=0 disables wrapping) ──
+  PASS  base32 -w 0 → single line (no wrap)
+  ── wrap option (w=20) ──
+  PASS  base32 -w 20 → lines ~20 chars
+  ── ignore-garbage option with valid data ──
+  PASS  base32 -d -i /tmp/modbox_test.Ic8bge/b32_clean.txt
+  ── ignore-garbage option with garbage characters ──
+  PASS  base32 -d -i /tmp/modbox_test.Ic8bge/b32_garbage.txt
+  ── decode with newlines (always accepted) ──
+  PASS  base32 -d /tmp/modbox_test.Ic8bge/b32_newline.txt
+  ── decode without ignore-garbage on garbage ──
+  PASS  base32 -d (no -i) → handles garbage (produces output/error)
+  ── partial blocks (1-4 bytes) ──
+  PASS  base32 encode 1 byte
+  PASS  base32 encode 2 bytes
+  PASS  base32 encode 3 bytes
+  PASS  base32 encode 4 bytes
+  ── roundtrip decode of partial block encodings ──
+  PASS  base32 decode 1-byte encoding
+  PASS  base32 decode 2-byte encoding
+  PASS  base32 decode 3-byte encoding
+  PASS  base32 decode 4-byte encoding
+  ── help ──
+  PASS  base32 --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  base32 /tmp/modbox_test.Ic8bge/b32_nonexistent.txt → stderr matches /No such file/
+
+── base64 ───────────────────────────────────
+  ── basic encode ──
+  PASS  base64 /tmp/modbox_test.ujmu9B/b64_test.txt
+  ── basic decode ──
+  PASS  base64 -d /tmp/modbox_test.ujmu9B/b64_encoded.txt
+  ── empty file encode ──
+  PASS  base64 /tmp/modbox_test.ujmu9B/b64_empty.txt
+  ── empty file decode ──
+  PASS  base64 -d /tmp/modbox_test.ujmu9B/b64_empty_encoded.txt
+  ── stdin encode ──
+  PASS  base64 stdin encode
+  ── stdin decode ──
+  PASS  base64 stdin decode
+  ── stdin (explicit -) encode ──
+  PASS  base64 - stdin encode
+  ── stdin (explicit -) decode ──
+  PASS  base64 -d - stdin decode
+  ── multiline encode ──
+  PASS  base64 /tmp/modbox_test.ujmu9B/b64_multiline.txt
+  ── wrap option (default 76) ──
+  PASS  base64 wrap (default) → 2 lines
+  ── wrap option (w=0 disables wrapping) ──
+  PASS  base64 -w 0 → single line (no wrap)
+  ── wrap option (w=20) ──
+  PASS  base64 -w 20 → lines ~20 chars
+  ── ignore-garbage option with valid data ──
+  PASS  base64 -d -i /tmp/modbox_test.ujmu9B/b64_clean.txt
+  ── ignore-garbage option with garbage characters ──
+  PASS  base64 -d -i /tmp/modbox_test.ujmu9B/b64_garbage.txt
+  ── decode with newlines (always accepted) ──
+  PASS  base64 -d /tmp/modbox_test.ujmu9B/b64_newline.txt
+  ── decode without ignore-garbage fails on garbage ──
+  PASS  base64 -d (no -i) → handles garbage (produces output/error)
+  ── help ──
+  PASS  base64 --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  base64 /tmp/modbox_test.ujmu9B/b64_nonexistent.txt → stderr matches /No such file/
+
+── basename ──────────────────────────────────
+  ── strip directory ──
+  PASS  basename /usr/bin
+  ── strip directory and suffix ──
+  PASS  basename /usr/bin .bin
+  ── no directory ──
+  PASS  basename file.txt
+  ── strip suffix ──
+  PASS  basename file.txt .txt
+  ── trailing slash ──
+  PASS  basename /path/to/dir/
+  ── root path ──
+  PASS  basename /
+  ── single component ──
+  PASS  basename foo
+  ── -a multiple args ──
+  PASS  basename -a /usr /bin → matches /usr/
+  ── --help ──
+  PASS  basename --help → matches /Usage:/
+  ── --version ──
+  PASS  basename --version → matches /basename \(modbox\) 1\.0/
+
+── basenc ──────────────────────────────────
+  ── --base64 encode ──
+  PASS  basenc --base64 /tmp/modbox_test.Dx0cXu/benc_test.txt
+  ── --base64 decode ──
+  PASS  basenc --base64 -d /tmp/modbox_test.Dx0cXu/benc_b64.txt
+  ── --base64 stdin encode ──
+  PASS  basenc --base64 stdin encode
+  ── --base64 stdin decode ──
+  PASS  basenc --base64 stdin decode
+  ── --base64url encode ──
+  PASS  basenc --base64url /tmp/modbox_test.Dx0cXu/benc_test.txt
+  ── --base64url decode ──
+  PASS  basenc --base64url -d /tmp/modbox_test.Dx0cXu/benc_b64.txt
+  ── --base64url with special chars ──
+  PASS  basenc --base64url /tmp/modbox_test.Dx0cXu/benc_binary.txt
+  ── --base32 encode ──
+  PASS  basenc --base32 /tmp/modbox_test.Dx0cXu/benc_test.txt
+  ── --base32 decode ──
+  PASS  basenc --base32 -d /tmp/modbox_test.Dx0cXu/benc_b32.txt
+  ── --base32hex encode ──
+  PASS  basenc --base32hex /tmp/modbox_test.Dx0cXu/benc_test.txt
+  ── --base32hex decode ──
+  PASS  basenc --base32hex -d /tmp/modbox_test.Dx0cXu/benc_b32h.txt
+  ── --base16 encode ──
+  PASS  basenc --base16 /tmp/modbox_test.Dx0cXu/benc_test.txt
+  ── --base16 decode ──
+  PASS  basenc --base16 -d /tmp/modbox_test.Dx0cXu/benc_b16.txt
+  ── --base2msbf encode ──
+  PASS  basenc --base2msbf /tmp/modbox_test.Dx0cXu/benc_b2m.txt
+  ── --base2msbf decode ──
+  PASS  basenc --base2msbf -d /tmp/modbox_test.Dx0cXu/benc_b2m_dec.txt
+  ── --base2lsbf encode ──
+  PASS  basenc --base2lsbf /tmp/modbox_test.Dx0cXu/benc_b2m.txt
+  ── --base2lsbf decode ──
+  PASS  basenc --base2lsbf -d /tmp/modbox_test.Dx0cXu/benc_b2l_dec.txt
+  ── empty file encode ──
+  PASS  basenc --base64 /tmp/modbox_test.Dx0cXu/benc_empty.txt
+  ── empty file decode ──
+  PASS  basenc --base64 -d /tmp/modbox_test.Dx0cXu/benc_empty_enc.txt
+  ── wrap option (w=0 disables wrapping) ──
+  PASS  basenc --base64 -w 0 → single line
+  ── wrap option (w=20) ──
+  PASS  basenc --base64 -w 20 → lines ~20 chars
+  ── error: no encoding type specified ──
+  PASS  basenc -d → stderr matches /exactly one encoding type/
+  ── error: nonexistent file ──
+  PASS  basenc --base64 /tmp/modbox_test.Dx0cXu/benc_nonexistent.txt → stderr matches /No such file/
+  ── help ──
+  PASS  basenc --help → matches /Usage:/
+
+── cat ─────────────────────────────────────
+  ── basic read ──
+  PASS  cat /tmp/modbox_test.i8foVz/simple.txt
+  ── -n : number all lines ──
+  PASS  cat -n /tmp/modbox_test.i8foVz/simple.txt
+  ── -b : number non-blank lines ──
+  PASS  cat -b /tmp/modbox_test.i8foVz/mixed.txt
+  ── -nb : -b overrides -n ──
+  PASS  cat -nb /tmp/modbox_test.i8foVz/mixed.txt
+  ── -E : show $ at line ends ──
+  PASS  cat -E /tmp/modbox_test.i8foVz/simple.txt
+  ── -T : show tabs as ^I ──
+  PASS  cat -T /tmp/modbox_test.i8foVz/tab.txt
+  ── -s : squeeze blank lines ──
+  PASS  cat -s /tmp/modbox_test.i8foVz/squeeze.txt
+  ── -v : show non-printing ──
+  PASS  cat -v /tmp/modbox_test.i8foVz/tab.txt
+  PASS  cat -v /tmp/modbox_test.i8foVz/low.txt → matches /\^A\^B\^_/
+  PASS  cat -v /tmp/modbox_test.i8foVz/high.txt → matches /M-\^@/
+  PASS  cat -v /tmp/modbox_test.i8foVz/high.txt → matches /M-\^_/
+  PASS  cat -v /tmp/modbox_test.i8foVz/high.txt → matches /M- /
+  PASS  cat -v /tmp/modbox_test.i8foVz/high.txt → matches /M-\^\?/
+  ── -A : -vET (show all) ──
+  PASS  cat -A /tmp/modbox_test.i8foVz/tab.txt
+  ── -e / -t : compound options ──
+  PASS  cat -e /tmp/modbox_test.i8foVz/simple.txt
+  PASS  cat -t /tmp/modbox_test.i8foVz/tab.txt
+  ── combined -vTE ──
+  PASS  cat -vTE /tmp/modbox_test.i8foVz/tab.txt
+  ── multiple files ──
+  PASS  cat /tmp/modbox_test.i8foVz/a.txt /tmp/modbox_test.i8foVz/b.txt
+  ── stdin ──
+  PASS  cat
+  PASS  cat -
+  ── empty file ──
+  PASS  cat /tmp/modbox_test.i8foVz/empty.txt
+  PASS  cat -n /tmp/modbox_test.i8foVz/empty.txt
+  ── -n -s combined ──
+  PASS  cat -n -s /tmp/modbox_test.i8foVz/mixed.txt
+  ── DEL character (0x7f) ──
+  PASS  cat -v /tmp/modbox_test.i8foVz/del.txt → matches /\^\?/
+  ── -vT : tab becomes ^I ──
+  PASS  cat -vT -
+  ── all-blank with -b produces no output ──
+  PASS  cat -b /tmp/modbox_test.i8foVz/blanks.txt
+  ── --less (non-TTY) behaves like normal cat ──
+  PASS  cat --less /tmp/modbox_test.i8foVz/simple.txt
+  ── error: non-existent file ──
+  PASS  cat /tmp/modbox_test.i8foVz/nonexistent.txt → stderr matches /No such file/
+  ── --head=N : show first N lines ──
+  PASS  cat --head=3 /tmp/modbox_test.i8foVz/head.txt
+  ── --tail=N : show last N lines ──
+  PASS  cat --tail=3 /tmp/modbox_test.i8foVz/head.txt
+  ── --range=N-M : show lines N-M ──
+  PASS  cat --range=2-4 /tmp/modbox_test.i8foVz/head.txt
+  ── --range=N- : show from N to end ──
+  PASS  cat --range=4- /tmp/modbox_test.i8foVz/head.txt
+  ── --grep=PATTERN : filter lines ──
+  PASS  cat --grep=hello /tmp/modbox_test.i8foVz/grep.txt
+  ── --grep + --context : show context around matches ──
+  PASS  cat --grep=baz --context=1 /tmp/modbox_test.i8foVz/grep.txt
+  ── --number-format=hex : hex line numbers ──
+  PASS  cat -n --number-format=hex /tmp/modbox_test.i8foVz/hexnum.txt
+  ── --number-format=octal : octal line numbers ──
+  PASS  cat -n --number-format=octal /tmp/modbox_test.i8foVz/hexnum.txt
+  ── --header : show file metadata banner ──
+  PASS  cat --header /tmp/modbox_test.i8foVz/simple.txt → matches /Mode:/
+  PASS  cat --header /tmp/modbox_test.i8foVz/simple.txt → matches /Size:/
+  PASS  cat --header /tmp/modbox_test.i8foVz/simple.txt → matches /Modified:/
+  ── --stats : show line/word/char count ──
+  PASS  cat --stats /tmp/modbox_test.i8foVz/simple.txt → matches /lines.*words.*characters/
+  ── --head + --range combined ──
+  PASS  cat --range=3-6 --head=3 /tmp/modbox_test.i8foVz/comb.txt
+  ── --range + --grep combined ──
+  PASS  cat --range=4-6 --grep=aa /tmp/modbox_test.i8foVz/rangegrep.txt
+  ── --diff : unified diff between two files ──
+  PASS  cat --diff=/tmp/modbox_test.i8foVz/diff2.txt /tmp/modbox_test.i8foVz/diff1.txt → matches /^---/
+  PASS  cat --diff=/tmp/modbox_test.i8foVz/diff2.txt /tmp/modbox_test.i8foVz/diff1.txt → matches /^\+d/
+  ── --blame : git blame per line ──
+  PASS  cat --blame blame_test_3308503.txt → matches /[0-9a-f]{7}/
+  PASS  cat --blame blame_test_3308503.txt → matches /Tester/
+  ── --highlight : auto-disable ANSI when piped (not a TTY) ──
+  PASS  cat --highlight (piped) — ANSI codes correctly disabled
+  ── --highlight + --header combined ──
+  PASS  cat --header --highlight /tmp/modbox_test.i8foVz/simple.txt → matches /Mode:/
+  ── --tui help includes --tui flag ──
+  PASS  cat --help → matches /\-\-tui/
+  ── --tui single file (non-TTY) falls back to plain cat ──
+  PASS  cat --tui /tmp/modbox_test.i8foVz/simple.txt
+  ── --tui multiple files (non-TTY) falls back to plain cat ──
+  PASS  cat --tui /tmp/modbox_test.i8foVz/a.txt /tmp/modbox_test.i8foVz/b.txt
+  ── --tui stdin (non-TTY) falls back to plain cat ──
+  PASS  cat --tui -
+  ── --tui + --number (non-TTY) falls back with line numbers ──
+  PASS  cat --tui -n /tmp/modbox_test.i8foVz/simple.txt
+  ── --tui + --highlight (non-TTY) falls back, no ANSI ──
+  PASS  cat --tui --highlight (piped) — ANSI codes correctly disabled
+
+── chcon ────────────────────────────────────
+  ── help ──
+  PASS  chcon --help → matches /Usage:/
+  ── error: no arguments ──
+  PASS  chcon → stderr matches /missing/
+  ── error: file not found ──
+  PASS  chcon -u system_u /tmp/modbox_test.56YEGW/chcon_nonexistent → stderr matches /failed/
+
+── chgrp ──────────────────────────────────────────
+  ── setup ──
+  ── --help ──
+  PASS  chgrp --help → matches /Usage:/
+  ── missing operand ──
+  PASS  chgrp → stderr matches /missing operand/
+  ── invalid group ──
+  PASS  chgrp nosuchgroup99xx /tmp/modbox_test.lSGrEs/chgrp_a.txt → stderr matches /invalid group/
+  ── change group by name ──
+  PASS  chgrp <group> → group is 1000
+  ── change group by numeric gid ──
+  PASS  chgrp <gid> → group is 1000
+  ── -v: verbose output ──
+  PASS  chgrp -v 1000 /tmp/modbox_test.lSGrEs/chgrp_verbose.txt → matches /changed group/
+  ── -c: no output when unchanged ──
+  PASS  chgrp -c — no output when unchanged
+  ── -f: silent (suppress error) ──
+  PASS  chgrp -f → no error output
+  ── --reference: copy group from ref file ──
+  PASS  chgrp --reference → group is 1000
+  ── -R: recursive ──
+  PASS  chgrp -R → dir=1000 file=1000
+  ── -Rv: recursive verbose ──
+  PASS  chgrp -Rv 1000 /tmp/modbox_test.lSGrEs/chgrp_rvdir → matches /changed group/
+
+── chmod ──────────────────────────────────────────
+  ── setup ──
+  ── --help ──
+  PASS  chmod --help → matches /Usage:/
+  ── missing operand ──
+  PASS  chmod → stderr matches /missing operand/
+  ── invalid mode ──
+  PASS  chmod badmode /tmp/modbox_test.wlJFPX/chmod_rw.txt → stderr matches /invalid mode/
+  ── nonexistent file ──
+  PASS  chmod 644 /tmp/modbox_test.wlJFPX/chmod_nonexistent → stderr matches /No such file/
+  ── octal: 644 ──
+  PASS  chmod 644 → mode is 644
+  ── octal: 755 ──
+  PASS  chmod 755 → mode is 755
+  ── octal: 000 ──
+  PASS  chmod 000 → mode is 0
+  ── symbolic: u+w ──
+  PASS  chmod u+w → owner write set (mode=200)
+  ── symbolic: a+rw (all can read+write) ──
+  PASS  chmod a+rw → mode is 666
+  ── symbolic: go-rwx (clear group/other) ──
+  PASS  chmod go-rwx → mode is 700
+  ── symbolic: a=rwx (set all) ──
+  PASS  chmod a=rwx → mode is 777
+  ── -v: verbose output ──
+  PASS  chmod -v → shows mode change
+  ── -v: no output when mode unchanged ──
+  PASS  chmod -v — no output when mode unchanged
+  ── -c: reports change ──
+  PASS  chmod -c → reports change
+  ── -c: no output when mode unchanged ──
+  PASS  chmod -c — no output when mode unchanged
+  ── -f: silent (suppress error) ──
+  PASS  chmod -f → no error output
+  ── --reference: copy mode from ref file ──
+  PASS  chmod --reference → mode is 777
+  ── -R: recursive ──
+  PASS  chmod -R 777 → dir=777 file=777
+  ── -Rv: recursive verbose ──
+  PASS  chmod -Rv 755 /tmp/modbox_test.wlJFPX/chmod_dir → matches /mode of/
+  ── -R symbolic: a-x recursively ──
+  PASS  chmod -R a-x → dir=644
+
+── chown ──────────────────────────────────────────
+  ── setup ──
+  ── --help ──
+  PASS  chown --help → matches /Usage:/
+  ── missing operand ──
+  PASS  chown → stderr matches /missing operand/
+  ── invalid owner ──
+  PASS  chown nosuchuser99xx /tmp/modbox_test.wX4qay/chown_a.txt → stderr matches /invalid owner/
+  ── change owner by name ──
+  PASS  chown <user> → owner is 1000
+  ── change owner by numeric uid ──
+  PASS  chown <uid> → owner is 1000
+  ── change owner:group ──
+  PASS  chown <uid>:<gid> → owner=1000 group=1000
+  ── change only group (:group) ──
+  PASS  chown :<gid> → group=1000
+  ── -v: verbose output ──
+  PASS  chown -v 1000 /tmp/modbox_test.wX4qay/chown_verbose.txt → matches /changed ownership/
+  ── -c: no output when unchanged ──
+  PASS  chown -c — no output when unchanged
+  ── -f: silent (suppress error) ──
+  PASS  chown -f → no error output
+  ── --reference: copy ownership from ref file ──
+  PASS  chown --reference → owner is 1000
+  ── -R: recursive ──
+  PASS  chown -R → dir=1000 file=1000
+  ── -Rv: recursive verbose ──
+  PASS  chown -Rv 1000 /tmp/modbox_test.wX4qay/chown_rvdir → matches /changed ownership/
+  ── -h: no-dereference (affect symlink, not target) ──
+  PASS  chown -h → target owner unchanged (1000)
+
+── chroot ───────────────────────────────────
+  ── help ──
+  PASS  chroot --help → matches /Usage:/
+  ── error: missing NEWROOT ──
+  PASS  chroot → stderr matches /missing/
+
+── cksum ────────────────────────────────────
+  ── basic file checksum ──
+  PASS  cksum /tmp/modbox_test.XdfraC/cks_test.txt → matches /^[0-9]+ [0-9]+ /tmp/modbox_test.XdfraC/cks_test.txt/
+  ── empty file checksum ──
+  PASS  cksum /tmp/modbox_test.XdfraC/cks_empty.txt
+  ── stdin (no file, no pathname in output) ──
+  PASS  cksum stdin 'hello' → 3287646509 5
+  ── stdin (explicit -) ──
+  PASS  cksum - 'hello' → 3287646509 5
+  ── verify against system cksum ──
+  PASS  cksum matches system for cks_test.txt
+  PASS  cksum stdin 'hello' matches system
+  ── multiple files ──
+  PASS  cksum multiple files produces 2 lines
+  ── help ──
+  PASS  cksum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  cksum /tmp/modbox_test.XdfraC/cks_nonexistent.txt → stderr matches /No such file/
+
+── comm ──────────────────────────────────────
+  ── basic comm (3 columns) ──
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /apple/
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /date/
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /cherry/
+  ── -1 : suppress column 1 ──
+  PASS  comm -1 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /apple/
+  PASS  comm -1 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /date/
+  ── -2 : suppress column 2 ──
+  PASS  comm -2 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /apple/
+  PASS  comm -2 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /date/
+  ── -3 : suppress column 3 ──
+  PASS  comm -3 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /apple/
+  PASS  comm -3 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /date/
+  PASS  comm -3 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /cherry/
+  ── -12 : show only column 3 ──
+  PASS  comm -12 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /cherry/
+  PASS  comm -12 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /apple/
+  PASS  comm -12 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /date/
+  ── -13 : show only column 2 ──
+  PASS  comm -13 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /date/
+  PASS  comm -13 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /cherry/
+  ── -23 : show only column 1 ──
+  PASS  comm -23 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 → matches /apple/
+  PASS  comm -23 /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_f2 — correctly lacks /cherry/
+  ── -i : ignore case ──
+  PASS  comm -i /tmp/modbox_test.dx7jFk/comm_case1 /tmp/modbox_test.dx7jFk/comm_case2 → matches /APPLE/
+  PASS  comm -i /tmp/modbox_test.dx7jFk/comm_case1 /tmp/modbox_test.dx7jFk/comm_case2 → matches /BANANA/
+  ── --output-delimiter ──
+  PASS  comm --output-delimiter='|' → output contains pipes
+  ── non-existent file ──
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_nonexistent /tmp/modbox_test.dx7jFk/comm_f2 → stderr matches /No such file/
+  ── unsorted file error ──
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_unsorted1 /tmp/modbox_test.dx7jFk/comm_f1 → stderr matches /not in sorted order/
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_f1 /tmp/modbox_test.dx7jFk/comm_unsorted2 → stderr matches /not in sorted order/
+  ── --nocheck-order (skip sort check) ──
+  PASS  comm --nocheck-order → no sort error (output produced)
+  ── stdin via - ──
+  PASS  comm /tmp/modbox_test.dx7jFk/comm_f1 - → matches /apple/
+  ── --help shows usage ──
+  PASS  comm --help → matches /Usage:/
+
+── cp ──────────────────────────────────────
+  ── file → file ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_dst.txt
+  ── file → existing directory ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_dir_target/cp_src.txt
+  ── -r : recursive ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_recursive_dst/sub/file.txt
+  ── -v : verbose ──
+  PASS  cp -v → verbose output
+  ── -r -v : recursive verbose ──
+  PASS  cp -r -v → verbose output
+  ── multiple sources with -r ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_multi_dst/cp_m1/f1.txt
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_multi_dst/cp_m2/f2.txt
+  ── error: non-existent source ──
+  PASS  cp /tmp/modbox_test.MDgPMb/nonexistent /tmp/modbox_test.MDgPMb/dest → stderr matches /No such file/
+  ── error: dir without -r ──
+  PASS  cp /tmp/modbox_test.MDgPMb/cp_src_dir /tmp/modbox_test.MDgPMb/cp_no_r → stderr matches /not a regular/
+  ── -n : no-clobber skips existing destination ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_n_dst.txt
+  ── -n : no-clobber copies when destination doesn't exist ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_n_new_dst.txt
+  ── -n -r : recursive no-clobber ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_nr_dst/sub/existing.txt
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_nr_dst/sub/fresh.txt
+  ── -f : force overwrites read-only destination ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_f_dst.txt
+  ── -f : force on writable file still works ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_fw_dst.txt
+  ── -f : force works when destination doesn't exist ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_f_new_dst.txt
+  ── -i : interactive prompt — answer 'n' skips, 'y' overwrites ──
+n
+cp: overwrite '/tmp/modbox_test.MDgPMb/cp_i_dst.txt'?   PASS  cat /tmp/modbox_test.MDgPMb/cp_i_dst.txt
+y
+cp: overwrite '/tmp/modbox_test.MDgPMb/cp_i_dst.txt'?   PASS  cat /tmp/modbox_test.MDgPMb/cp_i_dst.txt
+  ── -i : interactive overwrites when destination doesn't exist ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_i_new_dst.txt
+  ── -u : copy when destination doesn't exist ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_u_dst1.txt
+  ── -u : copy when source is newer than destination ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_u_dst2.txt
+  ── -u : skip when source is older than destination ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_u_dst3.txt
+  ── -u -r : recursive update ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_ur_dst/sub/existing.txt
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_ur_dst/sub/new.txt
+  ── -n overrides -f ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_nf_dst.txt
+  ── error: missing destination ──
+  PASS  cp: missing dest → reports error
+  ── -t : target-directory ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_t_dst/cp_src.txt
+  ── -t : target-directory with multiple files ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_t_multi/cp_t_a.txt
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_t_multi/cp_t_b.txt
+  ── -t -r : target-directory recursive ──
+  PASS  cat /tmp/modbox_test.MDgPMb/cp_tr_dst/cp_src_dir/sub/file.txt
+  ── -t : error when target not a directory ──
+  PASS  cp -t /tmp/modbox_test.MDgPMb/cp_t_not_dir /tmp/modbox_test.MDgPMb/cp_src.txt → stderr matches /not a directory/
+  ── -t : error when target does not exist ──
+  PASS  cp -t /tmp/modbox_test.MDgPMb/cp_t_nonexistent /tmp/modbox_test.MDgPMb/cp_src.txt → stderr matches /No such file or directory/
+  ── -p -t : preserve with target-directory ──
+  PASS  cp -p -t → mode preserved (642)
+  ── -p : preserve mode ──
+  PASS  cp -p → mode preserved (642)
+  ── -p : preserve timestamps ──
+  PASS  cp -p → mtime preserved
+  ── -p : without -p timestamps NOT preserved ──
+  PASS  cp (no -p) → mtime NOT preserved (expected)
+  ── -p -r : recursive preserve ──
+  PASS  cp -p -r → modes preserved (dir=750 file=611)
+
+── csplit ───────────────────────────────────
+  ── help ──
+  PASS  csplit --help → matches /Usage:/
+  ── /REGEXP/ (include match) ──
+8
+6
+  PASS  cat xx00
+  PASS  cat xx01
+  ── %%REGEXP%% (exclude match) ──
+4
+8
+  PASS  cat xx00
+  PASS  cat xx01
+  ── line number ──
+6
+8
+  PASS  cat xx00
+  PASS  cat xx01
+  ── multiple patterns ──
+6
+6
+2
+  PASS  cat xx00
+  PASS  cat xx01
+  PASS  cat xx02
+  ── {N} repeat ──
+6
+8
+  PASS  cat xx00
+  PASS  cat xx01
+  ── -f prefix ──
+8
+6
+  PASS  cat mypre00
+  PASS  cat mypre01
+  ── -n digits ──
+8
+6
+  PASS  cat xx000
+  PASS  cat xx001
+  ── -b suffix-format ──
+8
+6
+  PASS  cat xx000
+  PASS  cat xx001
+  ── -s quiet (no size output) ──
+  PASS  csplit -s csplit7.txt /d/
+
+── cut ───────────────────────────────────────
+  ── -f 1 : single field ──
+  PASS  cut -f1 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 2 : second field ──
+  PASS  cut -f2 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 1,3 : multiple fields ──
+  PASS  cut -f1,3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 2-3 : field range ──
+  PASS  cut -f2-3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 2- : open-ended range ──
+  PASS  cut -f2- /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 1,2,3 : all fields ──
+  PASS  cut -f1,2,3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 1-3 : all fields via range ──
+  PASS  cut -f1-3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 3-3 : single field via range ──
+  PASS  cut -f3-3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 3 --complement : complement field selection ──
+  PASS  cut -f3 --complement /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -f 1,2 --complement : complement two fields ──
+  PASS  cut -f1,2 --complement /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -c 1-3 : character range ──
+  PASS  cut -c1-3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -c 1,4,7 : specific character positions ──
+  PASS  cut -c1,4,7 /tmp/modbox_test.yIOCY1/cut_chars.txt
+  ── -b 1-3 : byte range ──
+  PASS  cut -b1-3 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -c 2-4 --complement : complement char range ──
+  PASS  cut -c2-4 --complement /tmp/modbox_test.yIOCY1/cut_ccomp.txt
+  ── -d: : colon delimiter ──
+  PASS  cut -d: -f2 /tmp/modbox_test.yIOCY1/cut_colon.txt
+  ── -d, : comma delimiter ──
+  PASS  cut -d, -f1,3 /tmp/modbox_test.yIOCY1/cut_comma.txt
+  ── -d' ' : space delimiter ──
+  PASS  cut -d  -f1,3 /tmp/modbox_test.yIOCY1/cut_space.txt
+  ── -s : only-delimited (skip lines without delimiter) ──
+  PASS  cut -f2 -s /tmp/modbox_test.yIOCY1/cut_sparse.txt
+  ── -s with all-delimited lines (same as without -s) ──
+  PASS  cut -f2 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── --output-delimiter=, : custom output delimiter ──
+  PASS  cut -f1,3 --output-delimiter=, /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── --output-delimiter=: : colon output delimiter ──
+  PASS  cut -f1,3 --output-delimiter=: /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -d: -f1,3 --output-delimiter=- : mixed delimiters ──
+  PASS  cut -d: -f1,3 --output-delimiter=- /tmp/modbox_test.yIOCY1/cut_colon.txt
+  ── stdin ──
+  PASS  cut -f2 (stdin)
+  ── stdin via - ──
+  PASS  cut -f3 (stdin via -)
+  ── empty file ──
+  PASS  cut -f1 /tmp/modbox_test.yIOCY1/cut_empty.txt
+  ── -f1 single-line file ──
+  PASS  cut -f1 /tmp/modbox_test.yIOCY1/cut_single.txt
+  ── -z zero-terminated ──
+  PASS  cut -z -f2 /tmp/modbox_test.yIOCY1/cut_z.txt → matches /b/
+  ── -z -c 1-3 zero-terminated chars ──
+  PASS  cut -z -c1-3 /tmp/modbox_test.yIOCY1/cut_z.txt → matches /a.*b/
+  ── -z -f2 --output-delimiter=: zero-terminated ──
+  PASS  cut -z -f2 /tmp/modbox_test.yIOCY1/cut_zo.txt → matches /b/
+  ── no options (error) ──
+  PASS  cut /tmp/modbox_test.yIOCY1/cut_basic.txt → stderr matches /you must specify/
+  ── -b and -f together (error) ──
+  PASS  cut -b1 -f1 /tmp/modbox_test.yIOCY1/cut_basic.txt → stderr matches /only one type/
+  ── -d without -f (error) ──
+  PASS  cut -d: -c1 /tmp/modbox_test.yIOCY1/cut_basic.txt → stderr matches /input delimiter/
+  ── -s without -f (error) ──
+  PASS  cut -s -c1 /tmp/modbox_test.yIOCY1/cut_basic.txt → stderr matches /input delimiter/
+  ── non-existent file (error) ──
+  PASS  cut -f1 /tmp/modbox_test.yIOCY1/cut_nonexistent.txt → stderr matches /No such file/
+  ── help ──
+  PASS  cut --help → matches /Usage:/
+  ── -f 1- with sparse lines (some no-delim) ──
+  PASS  cut -f1- /tmp/modbox_test.yIOCY1/cut_sparse.txt
+  ── -f 1 -s with sparse lines (skip no-delim) ──
+  PASS  cut -f1 -s /tmp/modbox_test.yIOCY1/cut_sparse.txt
+  ── -c 5 : character past end of line ──
+  PASS  cut -c5
+  ── -f 99 : field past end ──
+  PASS  cut -f99 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── --complement on all fields (empty output) ──
+  PASS  cut -f1,2,3 --complement /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── --complement on no fields (passthrough) ──
+  PASS  cut --complement -f99 /tmp/modbox_test.yIOCY1/cut_basic.txt
+  ── -d '' : empty delimiter (treated as default TAB) ──
+  PASS  cut -d  -f1
+  ── -d '|' : pipe delimiter ──
+  PASS  cut -d| -f2 /tmp/modbox_test.yIOCY1/cut_pipe.txt
+
+── date ─────────────────────────────────────
+  ── default output format ──
+  PASS  date → matches /^[A-Z][a-z]{2} [A-Z][a-z]{2} [ 0-9][0-9] [0-9]{2}:[0-9]{2}:[0-9]{2}/
+  ── +%Y-%m-%d ──
+  PASS  date +%Y-%m-%d -d 2024-01-02 03:04:05
+  ── +%H:%M:%S ──
+  PASS  date +%H:%M:%S -d 2024-01-02 03:04:05
+  ── +%F %T ──
+  PASS  date +%F %T -d 2024-01-02 03:04:05
+  ── UTC via -u ──
+  PASS  date -u +%Y-%m-%d %H:%M:%S -d 2024-01-02 03:04:05
+  ── -I (date only) ──
+  PASS  date -I -d 2024-01-02 03:04:05
+  ── -Iseconds ──
+  PASS  date -Iseconds -d 2024-01-02 03:04:05 → matches /^2024-01-02T03:04:05/
+  ── -R (RFC 5322) ──
+  PASS  date -u -R -d 2024-01-02 03:04:05
+  ── -r (reference file mtime) ──
+  PASS  date +%Y-%m-%d -r /tmp/modbox_test.gquZNo/date_ref.txt
+  ── invalid date string ──
+  PASS  date -d not a real date → stderr matches /invalid date/
+  ── --help ──
+  PASS  date --help → matches /Usage:/
+  ── --version ──
+  PASS  date --version → matches /date \(modbox\) 1.0/
+
+── dd ───────────────────────────────────────
+  ── basic copy bs=1 ──
+  PASS  bs=1 copy
+  ── basic copy bs=16 ──
+  PASS  bs=16 copy
+  ── default bs (512) ──
+  PASS  default bs copy
+  ── count + skip ──
+  PASS  cat /tmp/modbox_test.RKoFOe/out
+  ── size suffix 1K (partial block) ──
+  PASS  cat /tmp/modbox_test.RKoFOe/out
+  ── x multiplier suffix ──
+  PASS  bs=10x2 copy
+  ── conv=ucase ──
+  PASS  conv=ucase
+  ── conv=lcase ──
+  PASS  conv=lcase
+  ── conv=swab is its own inverse ──
+  PASS  conv=swab twice == original
+  ── conv=sync pads to ibs ──
+  PASS  conv=sync pads to ibs
+  ── ascii/ebcdic roundtrip ──
+  PASS  ebcdic->ascii roundtrip
+  ── conv=block / unblock roundtrip ──
+  PASS  block->unblock roundtrip
+  ── count_bytes / skip_bytes (B suffix) ──
+  PASS  cat /tmp/modbox_test.RKoFOe/out
+  ── seek + notrunc ──
+  PASS  cat /tmp/modbox_test.RKoFOe/base
+  ── status=noxfer suppresses bytes stat ──
+  PASS  status=noxfer omits bytes
+  ── status=none emits nothing ──
+  PASS  status=none silent
+  ── invalid conversion ──
+  PASS  invalid conv rejected
+  ── ascii+ebcdic rejected ──
+  PASS  ascii+ebcdic rejected
+  ── excl on existing file ──
+  PASS  conv=excl on existing file
+  ── nocreat on missing file ──
+  PASS  conv=nocreat on missing file
+  ── help ──
+  PASS  dd --help → matches /Usage:/
+  ── no operands (reads stdin, writes stdout) ──
+  PASS  dd stdin->stdout
+
+── df ──────────────────────────────────────
+ ── basic output (non-empty) ──
+  PASS  df (output non-empty)
+ ── --help ──
+  PASS  df --help → matches /Usage:/
+ ── --version ──
+  PASS  df --version → matches /df \(modbox\) 1\.0/
+ ── -h: human-readable ──
+  PASS  df -h . → matches /%/
+ ── -i: inodes ──
+  PASS  df -i . → matches /IUsed/
+ ── -T: show filesystem type ──
+  PASS  df -T . → matches /Type/
+
+── diff3 ──────────────────────────────────────
+  ── default output with conflict ──
+  PASS  diff3 default output shows conflict
+  ── identical files produce no output ──
+  PASS  diff3 identical files produce no output
+  ── -m merge output with conflict markers ──
+  PASS  diff3 -m outputs conflict markers
+  ── -m merge: unchanged lines preserved ──
+  PASS  diff3 -m preserves unchanged lines
+  ── -e ed script format ──
+  PASS  diff3 -e outputs ed script
+  ── stdin via - ──
+  PASS  diff3 reads stdin via -
+  ── non-existent file ──
+  PASS  diff3 /tmp/modbox_test.DSpGyD/d3_nonexistent /tmp/modbox_test.DSpGyD/d3_base /tmp/modbox_test.DSpGyD/d3_yours → stderr matches /No such file/
+  ── help ──
+  PASS  diff3 --help → matches /Usage:/
+  ── -L labels ──
+  PASS  diff3 -L uses custom labels
+
+── diff ──────────────────────────────────────
+  ── normal diff (files differ) ──
+  PASS  diff /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /2c2/
+  PASS  diff /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /< b/
+  PASS  diff /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /> d/
+  ── identical files produce no output ──
+  PASS  diff /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_identical
+  ── -q : brief (report if files differ) ──
+  PASS  diff -q /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /differ/
+  PASS  diff -q /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_identical
+  ── -s : report identical files ──
+  PASS  diff -s /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_identical → matches /identical/
+  ── -u : unified format ──
+  PASS  diff -u /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^---/
+  PASS  diff -u /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^\+\+\+/
+  PASS  diff -u /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^@@/
+  PASS  diff -u /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^-b/
+  PASS  diff -u /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^\+d/
+  ── -c : context format ──
+  PASS  diff -c /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^\*\*\*/
+  PASS  diff -c /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /^---/
+  PASS  diff -c /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_b → matches /! b/
+  ── -i : ignore case ──
+  PASS  diff -i /tmp/modbox_test.R6kDey/diff_hi /tmp/modbox_test.R6kDey/diff_lo
+  PASS  diff /tmp/modbox_test.R6kDey/diff_hi /tmp/modbox_test.R6kDey/diff_lo → matches /1,2c1,2/
+  ── -w : ignore all whitespace ──
+  PASS  diff -w /tmp/modbox_test.R6kDey/diff_ws1 /tmp/modbox_test.R6kDey/diff_ws2
+  ── -b : ignore space change ──
+  PASS  diff -b /tmp/modbox_test.R6kDey/diff_sp1 /tmp/modbox_test.R6kDey/diff_sp2
+  ── stdin via - ──
+  PASS  diff - /tmp/modbox_test.R6kDey/diff_a → matches /2c2/
+  ── non-existent file ──
+  PASS  diff /tmp/modbox_test.R6kDey/diff_a /tmp/modbox_test.R6kDey/diff_nonexistent → stderr matches /No such file/
+  ── --help shows usage ──
+  PASS  diff --help → matches /Usage:/
+
+── dircolors ──────────────────────────────────────
+ ── --help ──
+  PASS  dircolors --help → matches /Usage:/
+ ── --version ──
+  PASS  dircolors --version → matches /dircolors \(modbox\) 1\.0/
+ ── -p: print database ──
+  PASS  dircolors -p → matches /RESET/
+ ── default (bourne shell, no args) ──
+  PASS  dircolors default outputs LS_COLORS
+ ── -b: bourne shell ──
+  PASS  dircolors -b → matches /export LS_COLORS/
+ ── -c: c shell ──
+  PASS  dircolors -c → matches /setenv LS_COLORS/
+
+── dirname ───────────────────────────────────
+  ── strip last component ──
+  PASS  dirname /usr/bin
+  ── single component (no slash) ──
+  PASS  dirname foo
+  ── root ──
+  PASS  dirname /
+  ── trailing slash ──
+  PASS  dirname /usr/
+  ── deep path ──
+  PASS  dirname /a/b/c
+  ── relative path ──
+  PASS  dirname a/b
+  ── dot ──
+  PASS  dirname .
+  ── multiple args ──
+  PASS  dirname /a/b /c/d
+  ── --help ──
+  PASS  dirname --help → matches /Usage:/
+  ── --version ──
+  PASS  dirname --version → matches /dirname \(modbox\) 1\.0/
+
+── dir ──────────────────────────────────────
+  ── basic dir ──
+  PASS  dir /tmp/modbox_test.yMwAMQ/dir_dir → matches /regular\.txt/
+  PASS  dir /tmp/modbox_test.yMwAMQ/dir_dir → matches /subdir/
+  PASS  dir /tmp/modbox_test.yMwAMQ/dir_dir → matches /exec\.sh/
+  ── dir -a : show all ──
+  PASS  dir -a /tmp/modbox_test.yMwAMQ/dir_dir → matches /\.hidden/
+  ── dir --help ──
+  PASS  dir --help → matches /Usage:/
+  ── dir nonexistent dir ──
+  PASS  dir /tmp/modbox_test.yMwAMQ/nope → stderr matches /No such file/
+
+── vdir ──────────────────────────────────────
+  ── basic vdir (long format) ──
+  PASS  vdir /tmp/modbox_test.yMwAMQ/dir_dir → matches /regular\.txt/
+  PASS  vdir /tmp/modbox_test.yMwAMQ/dir_dir → matches /^d/
+  PASS  vdir /tmp/modbox_test.yMwAMQ/dir_dir → matches /^-/
+  ── vdir --help ──
+  PASS  vdir --help → matches /Usage:/
+  ── vdir nonexistent dir ──
+  PASS  vdir /tmp/modbox_test.yMwAMQ/nope → stderr matches /No such file/
+
+── du ──────────────────────────────────────
+  ── basic du (default 1K blocks) ──
+  PASS  du /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  PASS  du /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir/sub$/
+  ── -b: bytes ──
+  PASS  du -b /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  ── -h: human-readable ──
+  PASS  du -h /tmp/modbox_test.XwpnyY/du_dir → matches /K/
+  ── -s: summarize ──
+  PASS  du -s → exactly 1 line
+  ── -a: all files ──
+  PASS  du -a /tmp/modbox_test.XwpnyY/du_dir → matches /a.txt/
+  PASS  du -a /tmp/modbox_test.XwpnyY/du_dir → matches /b.txt/
+  ── -c: total ──
+  PASS  du -c /tmp/modbox_test.XwpnyY/du_dir /tmp/modbox_test.XwpnyY/du_dir/sub → matches /total/
+  ── -d 0: max-depth 0 ──
+  PASS  du -d 0 /tmp/modbox_test.XwpnyY/du_dir — correctly lacks /du_dir/sub/
+  ── -k: 1K blocks ──
+  PASS  du -k /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  ── --si ──
+  PASS  du --si /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  ── --exclude ──
+  PASS  du --exclude=*.txt /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  ── -t: threshold ──
+  PASS  du -t 1K /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  ── --time ──
+  PASS  du --time /tmp/modbox_test.XwpnyY/du_dir → matches /du_dir$/
+  ── help ──
+  PASS  du --help → matches /Usage:/
+
+── dust ─────────────────────────────────────
+  ── basic dust ──
+  PASS  dust /tmp/modbox_test.JSY4xl/dust_dir → matches /█/
+  ── -c: no color ──
+  PASS  dust -c /tmp/modbox_test.JSY4xl/dust_dir → matches /%/
+  ── -d 0: depth 0 ──
+  PASS  dust -c -d 0 /tmp/modbox_test.JSY4xl/dust_dir — correctly lacks /sub/
+  ── -n: max lines ──
+  PASS  dust -n 1 → exactly 1 line
+  ── -a: all files ──
+  PASS  dust -c -a /tmp/modbox_test.JSY4xl/dust_dir → matches /a.txt/
+  ── -b: bytes ──
+  PASS  dust -c -b /tmp/modbox_test.JSY4xl/dust_dir → matches /█/
+  ── -H: si ──
+  PASS  dust -c -H /tmp/modbox_test.JSY4xl/dust_dir → matches /kB/
+  ── -X: exclude ──
+  PASS  dust -c -X *.txt /tmp/modbox_test.JSY4xl/dust_dir → matches /0%/
+  ── help ──
+  PASS  dust --help → matches /Usage:/
+  ── ascending order (smallest first) ──
+  PASS  dust → subdir first (smallest), root last (largest)
+
+── echo ─────────────────────────────────────
+  ── basic ──
+  PASS  echo hello world
+  ── no args (empty line) ──
+  PASS  echo
+  ── -n (no trailing newline) ──
+  PASS  echo -n hi
+  ── -e newline escape ──
+  PASS  echo -e a\nb
+  ── -e tab escape ──
+  PASS  echo -e a\tb
+  ── -e backslash escape ──
+  PASS  echo -e 'a\b'
+  ── -e \c stops output (keeps prior) ──
+  PASS  echo -e 'ab\ccd'
+  ── -E disables escapes ──
+  PASS  echo -E a\nb
+  ── no -e (literal backslash-n) ──
+  PASS  echo a\nb
+  ── -e octal escape \101 = A ──
+  PASS  echo -e \101
+  ── --version ──
+  PASS  echo --version → matches /echo \(modbox\) 1.0/
+  ── --help ──
+  PASS  echo --help → matches /Usage:/
+
+── env ────────────────────────────────────
+  ── print env contains PATH ──
+  PASS  env → matches /^PATH=/
+  ── -i clears environment ──
+  PASS  env -i FOO=bar
+  ── -i with assignment ──
+  PASS  env -i PATH=/bin
+  ── run a command ──
+  PASS  env -i echo hi
+  ── -u unsets variable ──
+  PASS  env -i FOO=bar -u FOO echo — correctly lacks /^FOO=/
+  ── --help shows usage ──
+  PASS  env --help → matches /Usage:/
+
+── expand ────────────────────────────────────
+  ── basic expand (tab → 8 spaces) ──
+  PASS  expand /tmp/modbox_test.wErCyc/expand_simple.txt
+  ── expand tab mid-line ──
+  PASS  expand /tmp/modbox_test.wErCyc/expand_mid.txt
+  ── expand two tabs ──
+  PASS  expand /tmp/modbox_test.wErCyc/expand_two.txt
+  ── expand -i (initial only: tab after non-blank preserved) ──
+  PASS  expand -i /tmp/modbox_test.wErCyc/expand_initial.txt
+  ── expand -i keeps tab after non-blank on same line ──
+  PASS  expand -i /tmp/modbox_test.wErCyc/expand_mid.txt
+  ── expand -t 4 (custom tab stop) ──
+  PASS  expand -t 4 /tmp/modbox_test.wErCyc/expand_simple.txt
+  ── expand -t 4 mid-line ──
+  PASS  expand -t 4 /tmp/modbox_test.wErCyc/expand_mid.txt
+  ── expand -t 1,4,8 (custom list) ──
+  PASS  expand -t 1,4,8 /tmp/modbox_test.wErCyc/expand_simple.txt
+  ── expand stdin ──
+  PASS  expand
+  ── expand stdin via - ──
+  PASS  expand -
+  ── expand multiple files ──
+  PASS  expand /tmp/modbox_test.wErCyc/expand_simple.txt /tmp/modbox_test.wErCyc/expand_simple.txt
+  ── expand empty file ──
+  PASS  expand /tmp/modbox_test.wErCyc/expand_empty.txt
+  ── expand --help ──
+  PASS  expand --help → matches /Usage:/
+  ── expand error: non-existent file ──
+  PASS  expand /tmp/modbox_test.wErCyc/expand_nonexistent → stderr matches /No such file/
+  ── expand error: invalid tab list ──
+  PASS  expand -t abc /tmp/modbox_test.wErCyc/expand_simple.txt → stderr matches /invalid tab stop/
+
+── unexpand ──────────────────────────────────
+  ── basic unexpand (leading spaces → tabs) ──
+  PASS  unexpand /tmp/modbox_test.wErCyc/unexpand_simple.txt
+  ── unexpand -a (all spaces, not just leading) ──
+  PASS  unexpand -a /tmp/modbox_test.wErCyc/unexpand_all.txt
+  ── unexpand -a multiple tab stops ──
+  PASS  unexpand -a /tmp/modbox_test.wErCyc/unexpand_two_stops.txt
+  ── unexpand -t 4 (custom tab stop) ──
+  PASS  unexpand -t 4 /tmp/modbox_test.wErCyc/unexpand_t4.txt
+  ── unexpand -t 4 mid-line (implies -a, 7 spaces→2 tabs 3+4) ──
+  PASS  unexpand -t 4 /tmp/modbox_test.wErCyc/unexpand_all.txt
+  ── unexpand -t 2,4,8 with 4 spaces at col 0 → two tabs ──
+  PASS  unexpand -t 2,4,8 /tmp/modbox_test.wErCyc/unexpand_t4.txt
+  ── unexpand --first-only (leading spaces only) ──
+  PASS  unexpand --first-only /tmp/modbox_test.wErCyc/unexpand_initial.txt
+  ── unexpand partial spaces (3 spaces → no tab, not enough) ──
+  PASS  unexpand /tmp/modbox_test.wErCyc/unexpand_partial.txt
+  ── unexpand stdin ──
+  PASS  unexpand
+  ── unexpand stdin via - ──
+  PASS  unexpand -
+  ── unexpand multiple files ──
+  PASS  unexpand /tmp/modbox_test.wErCyc/unexpand_simple.txt /tmp/modbox_test.wErCyc/unexpand_simple.txt
+  ── unexpand empty file ──
+  PASS  unexpand /tmp/modbox_test.wErCyc/unexpand_empty.txt
+  ── unexpand --help ──
+  PASS  unexpand --help → matches /Usage:/
+  ── unexpand error: non-existent file ──
+  PASS  unexpand /tmp/modbox_test.wErCyc/unexpand_nonexistent → stderr matches /No such file/
+  ── unexpand error: invalid tab list ──
+  PASS  unexpand -t abc /tmp/modbox_test.wErCyc/unexpand_simple.txt → stderr matches /invalid tab stop/
+  ── expand | unexpand -a roundtrip ──
+  PASS  expand → unexpand -a roundtrip: tab preserved
+  ── unexpand -a | expand roundtrip ──
+  PASS  unexpand -a → expand roundtrip: spaces preserved
+
+── expr ────────────────────────────────────
+  ── arithmetic ──
+  PASS  expr 1 + 1
+  PASS  expr 1 + 2 * 3
+  PASS  expr 10 - 5
+  PASS  expr 7 / 2
+  PASS  expr -7 / 2
+  PASS  expr -7 % 2
+  PASS  expr 1000000000000 * 1000000000000
+  ── precedence ──
+  PASS  expr 1 + 2 * 3 + 4
+  PASS  expr 2 + 3 * 4
+  PASS  expr ( 2 + 3 ) * 4
+  PASS  expr 3 < 5 + 1
+  PASS  expr 1 + 2 : .*
+  PASS  expr 5 * 2 : .*
+  ── comparison (integer) ──
+  PASS  expr 2 < 3 | 5 < 20
+  PASS  expr 10 < 2
+  PASS  expr 5 = 05
+  PASS  expr 3 != 3
+  ── comparison (string) ──
+  PASS  expr aaa = aaa
+  PASS  expr aaa = aab
+  PASS  expr a < b
+  ── '|' and '&' ──
+  PASS  expr  | abc
+  PASS  expr foo | bar
+  PASS  expr 0 | bar
+  PASS  expr 3 & 5
+  PASS  expr 0 & 5
+  PASS  expr  & 5
+  ── regex : and match ──
+  PASS  expr abc : a\(.\)c
+  PASS  expr abc : abc
+  PASS  expr xabc : abc
+  PASS  expr abc : xyz
+  PASS  expr match abc a\(.\)c
+  PASS  expr abc : \(abc\)
+  ── substr / index / length ──
+  PASS  expr length abc
+  PASS  expr substr abc 2 2
+  PASS  expr substr abc 2 0
+  PASS  expr substr abc 100 2
+  PASS  expr index abc c
+  PASS  expr index abc z
+  ── parentheses ──
+  PASS  expr ( 1 + 2 ) * ( 3 - 1 ) + 4
+  ── exit codes ──
+  PASS  expr 1 → exit 0
+  PASS  expr 0 → exit 1
+  PASS  expr  → exit 1
+  PASS  expr abc → exit 0
+  PASS  expr 5 → exit 0
+  PASS  expr 4 - 4 → exit 1
+  PASS  expr 2 * 2 > 3 → exit 0
+  PASS  expr 1 + a → exit 2
+  PASS  expr 5 / 0 → exit 2
+  PASS  expr 5 -3 → exit 2
+  PASS  expr 1 + → exit 2
+  PASS  expr length → exit 2
+  PASS  expr  → exit 2
+  ── --help and --version ──
+  PASS  expr --help → matches /Usage:/
+  PASS  expr --version → matches /modbox/
+
+── factor ────────────────────────────────────
+  ── small composite
+  PASS  factor 12
+  ── prime
+  PASS  factor 13
+  ── one
+  PASS  factor 1
+  ── zero
+  PASS  factor 0
+  ── large composite
+  PASS  factor 1000000
+  ── product of two large primes
+  PASS  factor 10000019
+  ── multiple numbers
+  PASS  factor 6 15
+  ── exponents form
+  PASS  factor -h 360
+  ── exponents form (long option)
+  PASS  factor --exponents 8
+  ── stdin
+  PASS  factor stdin
+  ── help
+  PASS  factor --help → matches /Usage:/
+  ── error: invalid number
+  PASS  factor abc → stderr matches /not a valid/
+  ── error: negative number
+  PASS  factor -5 → stderr matches /not a valid/
+
+── false ─────────────────────────────────────
+  ── default (exit 1) ──
+  PASS  false (exit 1)
+  ── --help ──
+  PASS  false --help → matches /Usage:/
+  ── --version ──
+  PASS  false --version → matches /false \(modbox\) 1\.0/
+  ── ignores arguments ──
+  PASS  false foo bar baz
+
+── fd ──────────────────────────────────────
+  ── basic pattern search ──
+  PASS  fd hello /tmp/modbox_test.A5mSCC/fd_dir → matches /hello\.txt/
+  ── case-sensitive (-s) ──
+  PASS  fd -s Hello /tmp/modbox_test.A5mSCC/fd_dir → matches /Hello\.txt/
+  PASS  fd -s hello /tmp/modbox_test.A5mSCC/fd_dir → matches /hello\.txt/
+  PASS  fd -s hello /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /Hello/
+  ── case-insensitive (-i) ──
+  PASS  fd -i HELLO /tmp/modbox_test.A5mSCC/fd_dir → matches /hello/
+  ── smart-case (default): lowercase pat = case-insensitive ──
+  PASS  fd hello /tmp/modbox_test.A5mSCC/fd_dir → matches /hello/
+  PASS  fd hello /tmp/modbox_test.A5mSCC/fd_dir → matches /Hello/
+  ── smart-case: uppercase pat = case-sensitive ──
+  PASS  fd Hello /tmp/modbox_test.A5mSCC/fd_dir → matches /Hello\.txt/
+  PASS  fd Hello /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /hello/
+  ── glob mode (-g) ──
+  PASS  fd -g *.rs /tmp/modbox_test.A5mSCC/fd_dir → matches /main\.rs/
+  ── -H: hidden files ──
+  PASS  fd -H hidden /tmp/modbox_test.A5mSCC/fd_dir → matches /hidden_file/
+  PASS  fd hidden /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /hidden_file/
+  ── -t f: files only ──
+  PASS  fd -t f → 8 files (vs 9 total)
+  ── -t d: directories only ──
+  PASS  fd -t d sub /tmp/modbox_test.A5mSCC/fd_dir → matches /fd_dir/sub$/
+  PASS  fd -t d  /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /hello\.txt/
+  ── -t l: symlinks ──
+  PASS  fd -t l link /tmp/modbox_test.A5mSCC/fd_dir → matches /link\.ln/
+  ── -t x: executables ──
+  PASS  fd -t x exec /tmp/modbox_test.A5mSCC/fd_dir → matches /exec_script/
+  ── -t e: empty files ──
+  PASS  fd -t e empty /tmp/modbox_test.A5mSCC/fd_dir → matches /empty_file\.txt/
+  ── -e extension filter ──
+  PASS  fd -e rs main /tmp/modbox_test.A5mSCC/fd_dir → matches /main\.rs/
+  PASS  fd -e rs  /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /hello\.txt/
+  ── -E exclude pattern ──
+  PASS  fd -E sub  /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /sub/
+  ── -d max depth ──
+  PASS  fd -d 1 txt /tmp/modbox_test.A5mSCC/fd_dir → matches /hello\.txt/
+  PASS  fd -d 1 nested /tmp/modbox_test.A5mSCC/fd_dir → matches /nested\.txt/
+  PASS  fd -d 2 nested /tmp/modbox_test.A5mSCC/fd_dir → matches /nested\.txt/
+  ── -p full path search ──
+  PASS  fd -p fd_dir/ /tmp/modbox_test.A5mSCC/fd_dir → matches /fd_dir/hello/
+  PASS  fd fd_dir/ /tmp/modbox_test.A5mSCC/fd_dir — correctly lacks /fd_dir/hello/
+  ── -0 print0 ──
+  PASS  fd -0 → output contains NUL chars
+  ── --color=always ──
+  PASS  fd --color=always . /tmp/modbox_test.A5mSCC/fd_dir → matches /\[/
+  ── --color=always has ANSI codes ──
+  PASS  fd --color=always → ANSI codes present
+  ── --color=auto (piped) no ANSI ──
+  PASS  fd --color=auto (piped) — ANSI codes correctly disabled
+  ── --color=never ──
+  PASS  fd --color=never — no ANSI codes
+  ── --max-results N ──
+  PASS  fd --max-results 3 → 3 lines (≤3)
+  ── multiple paths ──
+  PASS  fd hello /tmp/modbox_test.A5mSCC/fd_dir /tmp/modbox_test.A5mSCC → matches /hello/
+  ── error: no pattern ──
+  FAIL  fd (no args) → expected exit 2, got 1
+  ── error: invalid type ──
+  PASS  fd -t z . /dev/null → stderr matches /invalid type/
+  ── exit code 0 on match ──
+  PASS  fd hello → exit 0
+  ── exit code 1 on no match ──
+  PASS  fd nonexistent → exit 1
+  ── --help shows usage ──
+  PASS  fd --help → matches /Usage:/
+  ── -x exec per file (echo) ──
+  PASS  fd -x echo '.rs' → exec output contains .rs paths
+  ── -X exec batch (echo) ──
+  PASS  fd -X echo '.rs' → batch exec output contains .rs paths
+  ── -L follow symlinks ──
+  PASS  fd -L target /tmp/modbox_test.A5mSCC/fd_follow_link → matches /target/
+
+── find ─────────────────────────────────────
+  ── basic: find with single path ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name a.txt → matches /find_dir/a\.txt/
+  ── -name glob pattern ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name b* → matches /b\.txt/
+  ── -maxdepth 0 (only starting dir itself) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 0 → matches /find_dir$/
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 0 — correctly lacks /a\.txt/
+  ── -maxdepth 1 (immediate children) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name a.txt → matches /a\.txt/
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 — correctly lacks /sub/c\.txt/
+  ── -maxdepth 2 (recurse into sub) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 2 -name c.txt → matches /sub/c\.txt/
+  ── -mindepth 1 (skip starting dir) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -mindepth 1 -maxdepth 1 — correctly lacks /^/tmp/modbox_test.zmYtRL/find_dir$/
+  ── -type f (regular files) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -type f → matches /a\.txt/
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -type f — correctly lacks /empty_dir/
+  ── -type d (directories) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -type d → matches /empty_dir/
+  ── -type l (symlinks) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -type l → matches /link\.ln/
+  ── -empty (empty file) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 3 -empty -type f → matches /empty\.txt/
+  ── -empty (empty directory) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 3 -empty -type d → matches /empty_dir/
+  ── -empty does not match non-empty ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -empty — correctly lacks /a\.txt/
+  ── combined: -type f -name ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -type f -name b* → matches /b\.txt/
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -type f -name b* — correctly lacks /empty_dir/
+  ── multiple starting points ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir/a.txt /tmp/modbox_test.zmYtRL/find_dir/b.txt -maxdepth 0 → matches /a\.txt/
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir/a.txt /tmp/modbox_test.zmYtRL/find_dir/b.txt -maxdepth 0 → matches /b\.txt/
+  ── -print (explicit) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name a.txt -print → matches /a\.txt/
+  ── default action is -print ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name a.txt → matches /a\.txt/
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name b.txt -print → matches /b\.txt/
+  ── error: nonexistent path on stderr ──
+  PASS  find /nonexistent_path_xyz → stderr matches /No such file/
+  ── -exec echo {} ; (per-file) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_exec_test -maxdepth 1 -type f -exec echo {} ; → matches /x\.txt/
+  ── -exec echo {} + (batch) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_exec_test -maxdepth 1 -type f -exec echo {} + → matches /x\.txt/
+  ── no starting point defaults to . ──
+  PASS  find -maxdepth 1 -name a.txt → matches /a\.txt/
+  ── --help shows Usage and --tui ──
+  PASS  find --help → matches /Usage:/
+  PASS  find --help → matches /\-\-tui/
+  ── --tui (non-TTY) falls back to plain find ──
+  PASS  find --tui non-TTY → plain output with a.txt
+  ── --tui with -name filter (non-TTY) falls back with filtering ──
+  PASS  find --tui non-TTY -name 'b*' → filtered output with b.txt
+  ── -delete (empty file) ──
+  PASS  find /tmp/modbox_test.zmYtRL/find_dir -maxdepth 1 -name to_delete.txt -print → matches /to_delete/
+  PASS  find -delete (file) → exit 0
+  PASS  find -delete (file) — file successfully removed
+
+── fmt ──────────────────────────────────────
+ ── basic format ──
+  FAIL  /home/hunter/projects/modbox/target/modbox fmt --width=79 /tmp/modbox_test.TRf3qr/fmt_in — expected pattern /hello world/ not found in output
+ ── long line wrap ──
+  PASS  fmt long lines wrap (width 10)
+ ── help ──
+  PASS  /home/hunter/projects/modbox/target/modbox fmt --help → matches /Usage:/
+
+── fold ──────────────────────────────────────
+ ── basic wrap at default width 80 (short line unchanged) ──
+  FAIL  short line unchanged — got []
+ ── wrap long line ──
+  FAIL  wrap at width 10 — expected 10 lines, got 1
+ ── -s break at spaces ──
+  FAIL  break at spaces — got []
+ ── --help shows usage ──
+  PASS  fold --help → matches /Usage:/
+ ── --version ──
+  FAIL  fold --version — expected pattern /fold (modbox)/ not found in output
+
+── grep ────────────────────────────────────
+  ── basic pattern search ──
+  PASS  grep hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt
+  ── -n : line numbers ──
+  PASS  grep -n hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt
+  ── -i : case-insensitive ──
+  PASS  grep -i hello /tmp/modbox_test.K4eT2o/grep_dir/case.txt
+  ── -v : invert match ──
+  PASS  grep -v hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt
+  ── -w : word match ──
+  PASS  grep -w apple /tmp/modbox_test.K4eT2o/grep_dir/words.txt
+  ── -x : line-regexp ──
+  PASS  grep -x abc123def /tmp/modbox_test.K4eT2o/grep_dir/line.txt
+  PASS  grep -x abc /tmp/modbox_test.K4eT2o/grep_dir/line.txt
+  ── -E : extended regex ──
+  PASS  grep -E [0-9]+ /tmp/modbox_test.K4eT2o/grep_dir/b.txt
+  ── -F : fixed strings ──
+  PASS  grep -F hello. /tmp/modbox_test.K4eT2o/grep_dir/fixed.txt
+  ── -c : count ──
+  PASS  grep -c hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt
+  PASS  grep -c hello /tmp/modbox_test.K4eT2o/grep_dir/b.txt
+  ── -l : files with matches ──
+  PASS  grep -l hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt /tmp/modbox_test.K4eT2o/grep_dir/b.txt
+  ── -H : always show filename ──
+  PASS  grep -H hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt → matches /a\.txt:hello/
+  ── -h : never show filename ──
+  PASS  grep -h -n hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt
+  ── -o : only-matching ──
+  PASS  grep -o hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt
+  ── stdin ──
+  PASS  grep hello
+  ── -e : pattern from flag ──
+  PASS  grep -e hello
+  ── --color=always : ANSI escape codes present ──
+  PASS  grep --color=always hello /tmp/modbox_test.K4eT2o/grep_dir/a.txt → matches /\[/
+  ── -r : recursive search ──
+  PASS  grep -r deep /tmp/modbox_test.K4eT2o/grep_dir/subdir → matches /deep\.txt:deep match/
+  ── exit code 0 on match ──
+  PASS  grep hello → exit 0
+  ── exit code 1 on no match ──
+  PASS  grep nonexistent → exit 1
+  ── error: no pattern ──
+  PASS  grep (no args) → exit 2
+  ── stdin with -n ──
+  PASS  grep -n hello
+  ── -w with -F : word match fixed strings ──
+  PASS  grep -wF foo /tmp/modbox_test.K4eT2o/grep_dir/wordfixed.txt
+  PASS  grep -wF foobar
+
+── groups ──────────────────────────────────────
+ ── --help ──
+  PASS  groups --help → matches /Usage:/
+ ── --version ──
+  PASS  groups --version → matches /groups \(modbox\) 1\.0/
+ ── no args (current user) ──
+  PASS  groups (output non-empty)
+ ── with username ──
+  PASS  groups root (output non-empty)
+
+── head ─────────────────────────────────────
+  ── default (10 lines) ──
+  PASS  head /tmp/modbox_test.mIxX1o/head_lines
+  ── -n N ──
+  PASS  head -n 3 /tmp/modbox_test.mIxX1o/head_lines
+  ── -c N ──
+  PASS  head -c 7 /tmp/modbox_test.mIxX1o/head_lines
+  ── stdin ──
+  PASS  head (stdin)
+  ── multiple files with headers ──
+  PASS  head /tmp/modbox_test.mIxX1o/head_lines /tmp/modbox_test.mIxX1o/head_lines → matches /==>/
+  ── -q: quiet ──
+  PASS  head -q /tmp/modbox_test.mIxX1o/head_lines /tmp/modbox_test.mIxX1o/head_lines — correctly lacks /==>/
+  ── help ──
+  PASS  head --help → matches /Usage:/
+  ── empty file ──
+  PASS  head /tmp/modbox_test.mIxX1o/head_empty
+  ── -n +N (from line N) ──
+  PASS  head -n +5 /tmp/modbox_test.mIxX1o/head_lines
+  ── -z (NUL terminated) ──
+  PASS  head -z -n 2 /tmp/modbox_test.mIxX1o/head_nul
+── help ────────────────────────────────────
+  PASS  help → matches /Usage:/
+
+── hostid ──────────────────────────────────────
+  ── basic output ──
+  PASS  hostid (output: ffffffffa8c0da03)
+  ── --help ──
+  PASS  hostid --help → matches /Usage:/
+  ── --version ──
+  PASS  hostid --version → matches /hostid \(modbox\) 1\.0/
+
+── hostname ────────────────────────────────────
+  ── basic output ──
+  PASS  hostname
+  ── -s short name ──
+  PASS  hostname -s
+  ── -f fqdn ──
+  PASS  hostname -f (output: fedora)
+  ── -i addresses ──
+  PASS  hostname -i (output: fe80::555e:c7fe:8d79:b2aa 240e:b8f:6ba9:3b02:34b2:ad5:a2f9:2 240e:b8f:6ba9:3b02:35e1:a834:5831:19be 192.168.3.218 172.17.0.1)
+  ── -I all addresses ──
+  PASS  hostname -I
+  ── --help ──
+  PASS  hostname --help → matches /Usage: hostname/
+  ── --version ──
+  PASS  hostname --version → matches /hostname \(modbox\) 1\.0/
+
+── id ─────────────────────────────────────
+  ── -u prints effective uid ──
+  PASS  id -u
+  ── -un prints user name ──
+  PASS  id -un
+  ── -g prints effective gid ──
+  PASS  id -g
+  ── -gn prints group name ──
+  PASS  id -gn
+  ── id shows uid=gid ──
+  PASS  id → matches /uid=1000/
+  ── --help shows usage ──
+  PASS  id --help → matches /Usage:/
+
+── install ─────────────────────────────────
+  ── --help ──
+  PASS  install --help → matches /Usage:/
+  ── basic copy ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_dst.txt
+  ── -v : verbose ──
+  PASS  install -v → verbose output
+  ── -d : create directory ──
+  PASS  install -d creates directory hierarchy
+  ── -d : existing directory ──
+  PASS  install -d existing directory (no error)
+  ── -d -v : verbose directory creation ──
+  PASS  install -d -v → verbose directory output
+  ── -m : set mode ──
+  PASS  install -m 644 → mode 644
+  ── -m 755 ──
+  PASS  install -m 755 → mode 755
+  ── -b : backup existing ──
+  PASS  install -b → backup created with ~ suffix
+  ── -S : custom backup suffix ──
+  PASS  install -b -S .bak → backup with .bak suffix
+  ── -C : compare — skip identical ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_cmp_dst.txt
+  ── -C -v : compare — verbose skip ──
+  PASS  install -v -C → reports skip
+  ── -C : compare — copy when different ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_cmp_dst.txt
+  ── -p : preserve timestamps ──
+  PASS  install -p → timestamps preserved (1577808000)
+  ── -t : target directory ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_tgt/inst_src.txt
+  ── -t : multiple sources to directory ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_tgt_multi/inst_multi_a.txt
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_tgt_multi/inst_multi_b.txt
+  ── -t -v : target directory verbose ──
+  PASS  install -t -v → verbose output
+  ── multiple sources to directory (positional) ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_pos_dir/inst_src.txt
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_pos_dir/inst_multi_b.txt
+  ── -T : no-target-directory (overwrite file) ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_T_target
+  ── -T : treat dest as file even if it's a directory ──
+  PASS  cat /tmp/modbox_test.t2bzLq/inst_T_as_file
+  ── error: missing destination operand ──
+  PASS  install /tmp/modbox_test.t2bzLq/inst_src.txt → stderr matches /missing/
+  ── error: non-existent source ──
+  PASS  install /tmp/modbox_test.t2bzLq/inst_nonexistent_xyz /tmp/modbox_test.t2bzLq/inst_err_dst → stderr matches /No such file or directory/
+  ── error: -t with non-existent directory ──
+  PASS  install -t /tmp/modbox_test.t2bzLq/inst_tgt_nonexistent /tmp/modbox_test.t2bzLq/inst_src.txt → stderr matches /does not exist/
+  ── error: -t without source files ──
+  ── error: -d without directories ──
+  PASS  install -d → stderr matches /missing/
+
+── join ──────────────────────────────────────
+ ── basic join on default field 1 ──
+  FAIL  basic join — expected key 01 in output, got []
+  FAIL  basic join — expected '02\tBob\t8' in output
+ ── custom delimiter ──
+  FAIL  custom delimiter — expected 'a|x|1', got []
+ ── --help shows usage ──
+  PASS  join --help → matches /Usage:/
+ ── --version ──
+  FAIL  join --version — expected pattern /join (modbox)/ not found in output
+
+── lf ──────────────────────────────────────
+  ── lf --help includes --tui ──
+  PASS  /home/hunter/projects/modbox/target/modbox lf --help → matches /\-\-tui/
+  ── lf non-TTY falls back to plain ls ──
+  FAIL  /home/hunter/projects/modbox/target/modbox lf /tmp/modbox_test.C90xq6/ls_dir — expected pattern /regular\.txt/ not found in output
+  ── lf --color=never falls back without ANSI ──
+  FAIL  lf --color=never non-TTY → missing regular.txt in output
+  PASS  lf --color=never non-TTY → no ANSI codes
+
+── link ──────────────────────────────────────
+  ── file → file ──
+  PASS  cat /tmp/modbox_test.USoIi8/link_dst.txt
+  ── file → subdirectory ──
+  PASS  cat /tmp/modbox_test.USoIi8/link_dir/link_test.txt
+  ── -v : verbose ──
+  PASS  link -v → verbose output
+  ── error: non-existent source ──
+  PASS  link /tmp/modbox_test.USoIi8/nonexistent /tmp/modbox_test.USoIi8/link_err → stderr matches /failed to access/
+  ── error: non-existent destination directory ──
+  PASS  link /tmp/modbox_test.USoIi8/link_src.txt /tmp/modbox_test.USoIi8/nonexistentdir/link.txt → stderr matches /failed to access directory/
+  ── error: destination already exists ──
+  PASS  link /tmp/modbox_test.USoIi8/link_src.txt /tmp/modbox_test.USoIi8/link_existing.txt → stderr matches /File exists/
+  ── hard link has same inode ──
+  PASS  link → same inode (hard link)
+  ── hard link to current directory ──
+  PASS  cat /tmp/modbox_test.USoIi8/link_cwd.txt
+
+── ln ──────────────────────────────────────
+  ── file → file ──
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_dst.txt
+  ── file → existing directory ──
+  PASS  ln file to directory — ln_src.txt found in target dir
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_dir/ln_src.txt
+  ── -v : verbose ──
+  PASS  ln -v → verbose output
+  ── -f : force ──
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_existing.txt
+  ── error: non-existent source ──
+  PASS  ln /tmp/modbox_test.ZF6D8n/nonexistent /tmp/modbox_test.ZF6D8n/ln_err → stderr matches /No such file/
+  ── error: directory as source ──
+  PASS  ln /tmp/modbox_test.ZF6D8n/ln_dir /tmp/modbox_test.ZF6D8n/ln_dir_link → stderr matches /not a regular/
+  ── -s : symbolic link to regular file ──
+  PASS  ln -s file → symlink created
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_sym.txt
+  ── -s : symbolic link to directory ──
+  PASS  ln -s directory → symlink created
+  PASS  ln -s directory → resolves to directory
+  ── -s : dangling symlink (source doesn't exist) ──
+  PASS  ln -s dangling → symlink created
+  PASS  ln -s dangling → readlink shows correct target
+  ── -s -f : force overwrite existing file ──
+  PASS  ln -sf → replaced regular file with symlink
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_sym_force_target
+  ── -s -v : verbose symbolic link ──
+  PASS  ln -s -v → verbose output
+  ── -s to existing directory destination ──
+  PASS  ln -s to dir → symlink created inside directory
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_dir/ln_src2.txt
+  ── -s to existing directory (different basename) ──
+  PASS  ln -s to dir (different name) → symlink created
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_dir/sym_ref.txt
+  ── -s -f : force overwrite existing symlink ──
+  PASS  ln -s -f overwrite symlink → still a symlink
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_sym.txt
+  ── -s -f : force overwrite dangling symlink ──
+  PASS  ln -s -f overwrite dangling → symlink replaced
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_dangling
+  ── -n : no-dereference (do not follow symlink to dir) ──
+  PASS  ln -n -s → created link at path, did not follow symlink to dir
+  ── -f : force overwrites existing file with link ──
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_force_existing.txt
+  ── -f : force on directory destination creates link inside ──
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_force_dir/ln_src.txt
+  ── -L : logical — dereference symlink source before hard link ──
+  PASS  ln -L → created regular file (not symlink)
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_L_hard.txt
+  ── -L with -s: no effect (symlink ignores -L) ──
+  PASS  ln -L -s → symlink created (not affected by -L)
+  PASS  cat /tmp/modbox_test.ZF6D8n/ln_Ls_sym.txt
+  ── -L -v : verbose shows original source path ──
+  PASS  ln -L -v → verbose output
+  ── -i : interactive prompt before overwrite (uses script to allocate pty) ──
+n
+replace '/tmp/modbox_test.ZF6D8n/ln_i_dst'? [y/N]   PASS  cat /tmp/modbox_test.ZF6D8n/ln_i_dst
+y
+replace '/tmp/modbox_test.ZF6D8n/ln_i_dst'? [y/N]   PASS  cat /tmp/modbox_test.ZF6D8n/ln_i_dst
+
+── logname ──────────────────────────────────────
+  ── basic output ──
+  PASS  logname (output: hunter)
+  ── --help ──
+  PASS  logname --help → matches /Usage:/
+  ── --version ──
+  PASS  logname --version → matches /logname \(modbox\) 1\.0/
+  ── matches LOGNAME or whoami ──
+  PASS  logname matches whoami
+
+── lsc ──────────────────────────────────────
+  ── basic lsc (colorful + icons) ──
+  PASS  lsc /tmp/modbox_test.HKrLO5/lsc_dir → matches /regular\.txt/
+  ── lsc shows icons ──
+  PASS  lsc /tmp/modbox_test.HKrLO5/lsc_dir → matches //
+  ── lsc shows ANSI color codes ──
+  PASS  lsc /tmp/modbox_test.HKrLO5/lsc_dir → matches /\[/
+  ── lsc -l : long format with colors ──
+  PASS  lsc -l /tmp/modbox_test.HKrLO5/lsc_dir → matches /regular\.txt/
+  PASS  lsc -l /tmp/modbox_test.HKrLO5/lsc_dir → matches /^[-d]/
+  ── lsc -a : show all (including hidden) ──
+  PASS  lsc -a /tmp/modbox_test.HKrLO5/lsc_dir → matches /\.hidden/
+  ── lsc -A : almost all — no . .. ──
+  PASS  lsc -A /tmp/modbox_test.HKrLO5/lsc_dir → matches /\.hidden/
+  PASS  lsc -A /tmp/modbox_test.HKrLO5/lsc_dir — correctly lacks /(^| )\.\.?  */
+  ── lsc -F : classify with indicators ──
+  FAIL  lsc -F /tmp/modbox_test.HKrLO5/lsc_dir — expected pattern /subdir// not found in output
+  FAIL  lsc -F /tmp/modbox_test.HKrLO5/lsc_dir — expected pattern /exec\.sh\*/ not found in output
+  ── lsc -r : reverse sort ──
+  PASS  lsc -r /tmp/modbox_test.HKrLO5/lsc_dir → matches /regular/
+  ── lsc --help shows usage ──
+  PASS  lsc --help → matches /Usage:/
+  ── lsc non-existent directory error ──
+  PASS  lsc /tmp/modbox_test.HKrLO5/lsc_nonexistent → stderr matches /No such file/
+
+── ls ──────────────────────────────────────
+  ── basic ls ──
+  PASS  ls → matches /regular\.txt/
+  PASS  ls → matches /subdir/
+  ── -a : show all ──
+  PASS  ls -a → matches /\.hidden/
+  PASS  ls -a → matches /\.  /
+  PASS  ls -a → matches /\.\. /
+  ── -A : almost all — no . .. ──
+  PASS  ls -A → matches /\.hidden/
+  PASS  ls -A — correctly lacks /(^| )\.\.?  */
+  ── -l : long format ──
+  PASS  ls -l → matches /regular\.txt/
+  PASS  ls -l → matches /^d/
+  PASS  ls -l → matches /^-/
+  PASS  ls -l → matches /exec\.sh/
+  ── -la : long + all ──
+  PASS  ls -la → matches /\.hidden/
+  PASS  ls -la → matches /^d/
+  ── -B : ignore backups ──
+  PASS  ls -B — correctly lacks /backup~/
+  ── -l --author ──
+  PASS  ls -l --author → matches /regular\.txt/
+  ── -b : escape non-graphic ──
+  PASS  ls -b → matches /\\001/
+  ── --color=always ──
+  PASS  ls --color=always → matches /\[/
+  ── --colorful ──
+  PASS  ls --colorful → matches /\[/
+  ── --colorful -l : long format multi-color ──
+  PASS  ls --colorful -l → matches /\[/
+  ── --colorful -l has more ANSI than --color=always -l ──
+  PASS  ls --colorful -l → 161 ANSI > --color=always -l → 15
+  ── --block-size ──
+  PASS  ls -l --block-size=K → matches /reg/
+  ── multiple directories ──
+  PASS  ls /tmp/modbox_test.GiBLlC/ls_dir /tmp → matches /regular/
+  ── non-existent directory error ──
+  PASS  ls /tmp/modbox_test.GiBLlC/nonexistent_dir → stderr matches /No such file/
+  ── -d : list directory itself ──
+  PASS  ls -d . → matches /\.$/
+  PASS  ls -d . — correctly lacks /regular/
+  ── -d -l : long format of directory itself ──
+  PASS  ls -dl . → matches /^d/
+  PASS  ls -dl . → matches /\.$/
+  ── -d with regular file ──
+  PASS  ls -d /tmp/modbox_test.GiBLlC/ls_dir/regular.txt → matches /regular\.txt/
+  PASS  ls -d /tmp/modbox_test.GiBLlC/ls_dir/regular.txt — correctly lacks /No such file/
+  ── -d with multiple directories ──
+  PASS  ls -d . subdir → matches /subdir/
+  ── -d -l with multiple directories ──
+  PASS  ls -dl . subdir → matches /subdir$/
+  ── -r : reverse sort ──
+  PASS  ls -r → matches /regular/
+  ── -U : unsorted (directory order) ──
+  PASS  ls -U → matches /regular/
+  ── -r reverses alphabetical order ──
+  FAIL  ls normal order expected a.txt first got [/tmp/modbox_test.GiBLlC/ls_rev/a.txt]
+  FAIL  ls -r reverse order expected c.txt first got [/tmp/modbox_test.GiBLlC/ls_rev/c.txt]
+  ── -rU : unsorted takes precedence over reverse ──
+  PASS  ls -rU = ls -U (unsorted takes precedence)
+  ── -1 : one file per line ──
+  PASS  ls -1 → 5 lines (at least 4 entries)
+  ── -1 with single file shows one line ──
+  PASS  ls -1 single file → 1 line
+  ── -F : classify — dir gets / ──
+  PASS  ls -F /tmp/modbox_test.GiBLlC/ls_dir → matches /subdir//
+  ── -F : classify — executable gets * ──
+  PASS  ls -F /tmp/modbox_test.GiBLlC/ls_dir → matches /exec\.sh\*/
+  ── -F : classify — symlink gets @ ──
+  PASS  ls -F /tmp/modbox_test.GiBLlC/ls_dir → matches /symlink_to_dir@/
+  ── -F : classify — regular file has no suffix ──
+  PASS  ls -F /tmp/modbox_test.GiBLlC/ls_dir → matches /regular\.txt[^*/@]/
+  ── -1F : one per line with classify ──
+  PASS  ls -1F → one per line with classify indicator
+  ── -F -l : long format with classify ──
+  PASS  ls -Fl /tmp/modbox_test.GiBLlC/ls_dir → matches /subdir//
+  ── --tui falls back when not TTY ──
+  PASS  ls --tui non-TTY → plain output with regular.txt
+  ── --tui --color=never falls back without ANSI ──
+  PASS  ls --tui --color=never non-TTY → plain output with regular.txt
+  PASS  ls --tui --color=never non-TTY → no ANSI codes
+
+── md5sum ────────────────────────────────────
+  ── basic file checksum ──
+  PASS  md5sum /tmp/modbox_test.s24UhL/md5_test.txt → matches /^[a-f0-9]{32}  /tmp/modbox_test.s24UhL/md5_test.txt$/
+  ── empty file checksum ──
+  PASS  md5sum /tmp/modbox_test.s24UhL/md5_empty.txt → matches /^[a-f0-9]{32}  /tmp/modbox_test.s24UhL/md5_empty.txt$/
+  ── stdin (no file) ──
+  PASS  md5sum → matches /^[a-f0-9]{32}  -$/
+  ── stdin (explicit -) ──
+  PASS  md5sum - → matches /^[a-f0-9]{32}  -$/
+  ── binary mode (-b) ──
+  PASS  md5sum -b /tmp/modbox_test.s24UhL/md5_test.txt → matches /^[a-f0-9]{32} \*/tmp/modbox_test.s24UhL/md5_test.txt$/
+  ── text mode (-t) ──
+  PASS  md5sum -t /tmp/modbox_test.s24UhL/md5_test.txt → matches /^[a-f0-9]{32}  /tmp/modbox_test.s24UhL/md5_test.txt$/
+  ── multiple files ──
+  PASS  md5sum multiple files produces 2 lines
+  ── check mode (-c) with valid checksum ──
+  PASS  md5sum -c /tmp/modbox_test.s24UhL/md5_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  md5sum -c /tmp/modbox_test.s24UhL/md5_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  md5sum --tag /tmp/modbox_test.s24UhL/md5_test.txt → matches /^MD5 \(/tmp/modbox_test.s24UhL/md5_test.txt\) = [a-f0-9]{32}/
+  ── --zero (NUL-terminated) ──
+  PASS  md5sum --zero produces NUL-terminated output
+  ── help ──
+  PASS  md5sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  md5sum /tmp/modbox_test.s24UhL/md5_nonexistent.txt → stderr matches /No such file/
+
+── mkdir ────────────────────────────────────
+  ── basic create ──
+  PASS  mkdir /tmp/modbox_test.1xO77t/mkdir_new
+  ── already exists ──
+  PASS  mkdir /tmp/modbox_test.1xO77t/mkdir_new → stderr matches /File exists/
+  ── -p parents ──
+  PASS  mkdir -p /tmp/modbox_test.1xO77t/mkdir_a/mkdir_b/mkdir_c
+  ── -p existing ──
+  PASS  mkdir -p /tmp/modbox_test.1xO77t/mkdir_new
+  ── -v verbose ──
+  PASS  mkdir -v /tmp/modbox_test.1xO77t/mkdir_verb → matches /created directory/
+  ── -m mode ──
+  PASS  mkdir -m 0700 /tmp/modbox_test.1xO77t/mkdir_mode
+  PASS  mkdir -m 0700 → mode 700
+  ── help ──
+  PASS  mkdir --help → matches /Usage:/
+  ── multiple dirs ──
+  PASS  mkdir /tmp/modbox_test.1xO77t/mkdir_m1 /tmp/modbox_test.1xO77t/mkdir_m2
+
+── mkfifo ────────────────────────────────────
+  ── basic create ──
+  PASS  mkfifo /tmp/modbox_test.DSrXfn/mkfifo_new
+  PASS  mkfifo_new is a FIFO
+  ── already exists ──
+  PASS  mkfifo /tmp/modbox_test.DSrXfn/mkfifo_new → stderr matches /File exists/
+  ── mode ──
+  PASS  mkfifo -m 0640 /tmp/modbox_test.DSrXfn/mkfifo_mode
+  PASS  mkfifo -m 0640 → mode 640
+  ── help ──
+  PASS  mkfifo --help → matches /Usage:/
+  ── multiple fifos ──
+  PASS  mkfifo /tmp/modbox_test.DSrXfn/mkfifo_a /tmp/modbox_test.DSrXfn/mkfifo_b
+  PASS  mkfifo_a exists
+  PASS  mkfifo_b exists
+
+── mknod ────────────────────────────────────
+  ── create FIFO ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_fifo p
+  PASS  mknod_fifo is a FIFO
+  ── already exists ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_fifo p → stderr matches /File exists/
+  ── FIFO with mode ──
+  PASS  mknod -m 0640 /tmp/modbox_test.0MMjJG/mknod_fifo_mode p
+  PASS  mknod -m 0640 → mode 640
+  ── character device (non-root: expect EPERM) ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_chr c 1 3 → stderr matches /Operation not permitted/
+  ── character device u (non-root: expect EPERM) ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_chr_u u 1 3 → stderr matches /Operation not permitted/
+  ── block device (non-root: expect EPERM) ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_blk b 8 0 → stderr matches /Operation not permitted/
+  ── missing device number ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_nodev c → stderr matches /missing/
+  ── extra operand for FIFO ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_extra p 1 2 → stderr matches /extra operand/
+  ── invalid type ──
+  PASS  mknod /tmp/modbox_test.0MMjJG/mknod_bad x → stderr matches /invalid device type/
+  ── help ──
+  PASS  mknod --help → matches /Usage:/
+
+── mktemp ────────────────────────────────────
+ ── default temp file ──
+  PASS  mktemp created temp file [/tmp/XXXXxzAz0q]
+ ── -t prefix mode ──
+  PASS  mktemp -t created prefixed file [/tmp/modboxtestKTXWzS]
+ ── --help ──
+  PASS  /home/hunter/projects/modbox/target/modbox mktemp --help → matches /Usage:/
+
+── mv ──────────────────────────────────────
+  ── file → file (rename) ──
+  PASS  mv file → file — source removed
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_dst.txt
+  ── file → existing directory ──
+  PASS  mv file to directory — file found in target dir
+  PASS  mv file to directory — source removed
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_dir_target/mv_src.txt
+  ── directory → directory (rename) ──
+  PASS  mv directory → directory — renamed dir exists
+  PASS  mv directory → directory — source removed
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_dir_renamed/sub/file.txt
+  ── directory → existing directory ──
+  PASS  mv directory to existing dir — dir found inside target
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_parent_dir/mv_dir2/sub/file2.txt
+  ── multiple files → directory ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_multi_dst/mv_multi1.txt
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_multi_dst/mv_multi2.txt
+  PASS  mv multiple files — sources removed
+  ── overwrite existing destination ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_overwrite_dst.txt
+  PASS  mv overwrite — source removed
+  ── -n: no-clobber does not overwrite ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_n_dst.txt
+  PASS  mv -n — src preserved (not overwritten)
+  ── -n: no-clobber overrides -i ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_ni_dst.txt
+  ── -i: interactive prompts on overwrite ──
+mv: overwrite '/tmp/modbox_test.cjN1E3/mv_i_dst.txt'?   PASS  cat /tmp/modbox_test.cjN1E3/mv_i_dst.txt
+  PASS  mv -i — src preserved when answering n
+  ── -i: interactive allows overwrite on y ──
+mv: overwrite '/tmp/modbox_test.cjN1E3/mv_iy_dst.txt'?   PASS  cat /tmp/modbox_test.cjN1E3/mv_iy_dst.txt
+  PASS  mv -i — src removed when answering y
+  ── error: non-existent source ──
+  PASS  mv /tmp/modbox_test.cjN1E3/mv_nonexistent /tmp/modbox_test.cjN1E3/mv_err → stderr matches /No such file/
+  ── error: multiple sources with non-directory dest ──
+  PASS  mv /tmp/modbox_test.cjN1E3/mv_multi_err_a.txt /tmp/modbox_test.cjN1E3/mv_multi_err_b.txt /tmp/modbox_test.cjN1E3/mv_not_a_dir.txt → stderr matches /not a directory/
+  ── error: move directory into itself ──
+  PASS  mv /tmp/modbox_test.cjN1E3/mv_self /tmp/modbox_test.cjN1E3/mv_self/subdir → stderr matches /Invalid argument/
+  PASS  mv directory into itself — source preserved
+  ── -f: force overwrite existing destination ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_f_dst.txt
+  ── -v: verbose output ──
+  PASS  mv -v → verbose output shows '->'
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_v_dst.txt
+  ── -u: update when source is newer ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_u_newer_dst.txt
+  PASS  mv -u (source newer) — src removed
+  ── -u: skip when source is older ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_u_skip_dst.txt
+  PASS  mv -u (source older) — src preserved
+  ── -b: backup existing destination ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_b_dst.txt
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_b_dst.txt~
+  ── -t: target-directory ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_t_dir/mv_t_a.txt
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_t_dir/mv_t_b.txt
+  PASS  mv -t — sources removed
+  ── -t: error when target does not exist ──
+  PASS  mv -t /tmp/modbox_test.cjN1E3/mv_t_nonexistent /tmp/modbox_test.cjN1E3/mv_t_err.txt → stderr matches /No such file/
+  ── -t: error when target is not a directory ──
+  PASS  mv -t /tmp/modbox_test.cjN1E3/mv_t_notdir /tmp/modbox_test.cjN1E3/mv_t_err.txt → stderr matches /not a directory/
+  ── -f overrides -i (no prompt) ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_fi_dst.txt
+  ── -n overrides -f (no-clobber wins over force) ──
+  PASS  cat /tmp/modbox_test.cjN1E3/mv_nf_dst.txt
+  ── help ──
+  PASS  mv --help → matches /Usage:/
+
+── nice ───────────────────────────────────────
+  ── no args prints current niceness ──
+  PASS  nice → matches /^-?[0-9]+$/
+  ── default adjustment is 10 ──
+  PASS  nice (default +10)
+  ── -n 5 adjusts by 5 ──
+  PASS  nice -n 5
+  ── -nN attached form ──
+  PASS  nice -n3
+  ── obsolete -N form ──
+  PASS  nice -7
+  ── --adjustment=N form ──
+  PASS  nice --adjustment=4
+  ── accumulated adjustments ──
+  PASS  nice -n 3 -n 4 (accumulates)
+  ── adjustment without command errors ──
+  PASS  nice -n 5 → stderr matches /a command must be given with an adjustment/
+  ── invalid adjustment errors ──
+  PASS  nice -n abc → stderr matches /invalid adjustment 'abc'/
+  ── nonexistent command exits 127 ──
+  PASS  nice nosuchcmd (exit 127)
+  ── --help ──
+  PASS  nice --help → matches /Usage:/
+  ── --version ──
+  PASS  nice --version → matches /nice \(modbox\) 1.0/
+
+── nl ────────────────────────────────────────
+  ── basic nl (number all lines)
+  PASS  nl /tmp/modbox_test.kEE2wB/nl_basic
+  ── -b t: number nonempty only
+  PASS  nl -b t /tmp/modbox_test.kEE2wB/nl_blanks
+  ── -b n: no numbering
+  PASS  nl -b n /tmp/modbox_test.kEE2wB/nl_basic
+  ── -n rn: right-justified (default)
+  PASS  nl -n rn /tmp/modbox_test.kEE2wB/nl_basic
+  ── -n rz: right-justified with leading zeros
+  PASS  nl -n rz -w 6 /tmp/modbox_test.kEE2wB/nl_basic
+  ── -n ln: left-justified
+  PASS  nl -n ln -w 6 /tmp/modbox_test.kEE2wB/nl_basic
+  ── -w: custom width
+  PASS  nl -w 3 /tmp/modbox_test.kEE2wB/nl_basic
+  ── -s: custom separator
+  PASS  nl -s : /tmp/modbox_test.kEE2wB/nl_basic
+  ── -v: starting line number
+  PASS  nl -v 10 /tmp/modbox_test.kEE2wB/nl_basic
+  ── -i: line increment
+  PASS  nl -i 2 /tmp/modbox_test.kEE2wB/nl_basic
+  ── -l: join blank lines
+  PASS  nl -l 2 /tmp/modbox_test.kEE2wB/nl_join
+  ── section delimiter: header/body/footer
+  PASS  nl /tmp/modbox_test.kEE2wB/nl_sections
+  ── -p: no-renumber (do not reset line numbers at sections)
+  PASS  nl -p /tmp/modbox_test.kEE2wB/nl_norenum
+  ── stdin
+  PASS  nl
+  ── help
+  PASS  nl --help → matches /Usage:/
+  ── error: nonexistent file
+  PASS  nl /tmp/modbox_test.kEE2wB/nl_nonexistent → stderr matches /No such file/
+
+── nohup ─────────────────────────────────────
+  ── runs command, passing through output (non-tty) ──
+  PASS  nohup echo hello
+  ── forwards command exit status is not required, but command runs ──
+  PASS  nohup printf a b
+  ── missing operand ──
+  PASS  nohup → stderr matches /missing operand/
+  ── command not found → exit 127 ──
+  PASS  nohup nonexistent → exit 127
+  ── unrecognized option ──
+  PASS  nohup --bogus → stderr matches /unrecognized option/
+  ── -- ends options, runs command ──
+  PASS  nohup -- echo world
+  ── --help ──
+  PASS  nohup --help → matches /Usage:/
+  ── --version ──
+  PASS  nohup --version → matches /nohup \(modbox\) 1.0/
+
+── nproc ──────────────────────────────────────
+  ── basic output (positive integer) ──
+  PASS  nproc (output: 8)
+  ── --help ──
+  PASS  nproc --help → matches /Usage:/
+  ── --version ──
+  PASS  nproc --version → matches /nproc \(modbox\) 1\.0/
+
+── numfmt ────────────────────────────────────
+  ── basic passthrough (no scaling)
+  PASS  numfmt 1000
+  ── --to=si
+  PASS  numfmt --to=si 1000
+  ── --to=si large
+  PASS  numfmt --to=si 1000000
+  ── --to=iec
+  PASS  numfmt --to=iec 1024
+  ── --to=iec-i
+  PASS  numfmt --to=iec-i 1048576
+  ── --from=si
+  PASS  numfmt --from=si 1K
+  ── --from=iec
+  PASS  numfmt --from=iec 1M
+  ── --from=auto SI
+  PASS  numfmt --from=auto 1K
+  ── --from=auto IEC
+  PASS  numfmt --from=auto 1Ki
+  ── --from=si --to=iec
+  PASS  numfmt --from=si --to=iec 1M
+  ── --padding=10 right-align
+  PASS  numfmt --to=si --padding=10 1000
+  ── --padding=-10 left-align
+  PASS  numfmt --to=si --padding=-10 1000
+  ── --suffix=B
+  PASS  numfmt --to=si --suffix=B 1000
+  ── --round=nearest
+  PASS  numfmt --to=si --round=nearest 1500
+  ── --round=down
+  PASS  numfmt --to=si --round=down 1500
+  ── --round=from-zero (rounds 1.35 up to 1.4)
+  PASS  numfmt --to=si --round=from-zero 1350
+  ── --round=down (rounds 1.9K down)
+  PASS  numfmt --to=si --round=down 1999
+  ── --from-unit=1024
+  PASS  numfmt --from-unit=1024 1024
+  ── --to-unit=1024
+  PASS  numfmt --to-unit=1024 1024
+  ── invalid number error
+  PASS  numfmt abc → stderr matches /invalid/
+  ── --invalid=ignore
+  PASS  numfmt --invalid=ignore abc
+  ── help
+  PASS  numfmt --help → matches /Usage:/
+  ── stdin processing
+  PASS  stdin --to=si
+
+── paste ─────────────────────────────────────
+  ── basic parallel ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── three files ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt /tmp/modbox_test.y0av8c/paste_f3.txt
+  ── serial ──
+  PASS  paste -s /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── serial three files ──
+  PASS  paste -s /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt /tmp/modbox_test.y0av8c/paste_f3.txt
+  ── custom delimiter ──
+  PASS  paste -d: /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── multi-char delimiter cycle ──
+  PASS  paste -d :, /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt /tmp/modbox_test.y0av8c/paste_f3.txt
+  ── pipe delimiter (special char) ──
+  PASS  paste -d | /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── stdin via - ──
+  PASS  paste - /tmp/modbox_test.y0av8c/paste_f1.txt
+  ── no files reads stdin ──
+  PASS  paste
+  ── single file (passthrough) ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_f1.txt
+  ── single file serial ──
+  PASS  paste -s /tmp/modbox_test.y0av8c/paste_f1.txt
+  ── empty file ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_empty.txt
+  ── empty file parallel ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_empty.txt /tmp/modbox_test.y0av8c/paste_f1.txt
+  ── uneven line counts ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_short.txt
+  ── serial uneven lines ──
+  PASS  paste -s /tmp/modbox_test.y0av8c/paste_ser_short.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── zero-terminated ──
+  PASS  paste -z → NUL delimited
+  ── zero-terminated output structure ──
+  PASS  paste -z two files → 2 NUL delimiters
+  ── nonexistent file ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_nonexistent.txt /tmp/modbox_test.y0av8c/paste_f1.txt → stderr matches /No such file/
+  ── multiple nonexistent files ──
+  PASS  paste /tmp/modbox_test.y0av8c/paste_nonexistent.txt /tmp/modbox_test.y0av8c/paste_f2.txt → stderr matches /No such file/
+  ── help ──
+  PASS  paste --help → matches /Usage:/
+  ── version ──
+  PASS  paste --version → matches /modbox/
+  ── -d empty delimiter ──
+  PASS  paste -d  /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── -d empty delimiter with three files ──
+  PASS  paste -d  /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt /tmp/modbox_test.y0av8c/paste_f3.txt
+  ── serial with custom delimiter ──
+  PASS  paste -s -d: /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+  ── serial with multi-char delimiter cycle ──
+  PASS  paste -s -d ,- /tmp/modbox_test.y0av8c/paste_f1.txt /tmp/modbox_test.y0av8c/paste_f2.txt
+
+── pathchk ─────────────────────────────────────
+  ── valid existing file ──
+  PASS  pathchk valid_file.txt exits 0
+  ── -p skips existence check ──
+  PASS  pathchk -p /nonexistent/portable/path exits 0
+  ── nonexistent file without -p fails ──
+  PASS  pathchk nonexistent exits non-zero
+  PASS  pathchk /nonexistent_modbox_test_file → stderr matches /No such file/
+  ── component too long ──
+  PASS  pathchk -p 300-char name exits non-zero
+  PASS  pathchk -p aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa → stderr matches /too long/
+  ── -L allows long names ──
+  PASS  pathchk -p -L 300-char name exits 0
+  ── -n MAX custom limit ──
+  PASS  pathchk -p -n 10 short exits 0
+  PASS  pathchk -p -n 10 long component exits non-zero
+  ── leading dash warning ──
+  PASS  pathchk -p -- -dashfile → stderr matches /Warning/
+  PASS  pathchk -p -w -- -dashfile suppresses warning, exits 0
+  ── consecutive slashes rejected ──
+  PASS  pathchk -p a//b exits non-zero
+  ── multiple files ──
+  PASS  pathchk -p multiple valid files exits 0
+  ── path with spaces ──
+  PASS  pathchk 'my dir/file.txt' exits 0
+  ── invalid option ──
+  PASS  pathchk --bogus-option exits non-zero
+  ── missing operand ──
+  PASS  pathchk with no args exits non-zero
+  ── --help ──
+  PASS  pathchk --help → matches /Usage: pathchk/
+  ── --version ──
+  PASS  pathchk --version → matches /pathchk \(modbox\) 1\.0/
+
+── pinky ──────────────────────────────────────
+  ── --help shows usage ──
+  PASS  pinky --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  pinky --version → matches /pinky \(modbox\)/
+  ── -q quick shows names and count ──
+  PASS  pinky -q → matches /^.*total [0-9]+$/
+  ── default output (short form) ──
+  PASS  pinky produces short format output
+  ── -l long format ──
+  PASS  pinky -l produces long format output
+  ── -b brief (no hostnames) ──
+  PASS  pinky -b produces brief output
+
+── printf ─────────────────────────────────
+  ── basic format ──
+  PASS  printf %s %d %c hello 42 Z
+  ── escapes ──
+  PASS  printf a\tb
+  ── percent ──
+  PASS  printf %d%% 100
+  ── --help ──
+  PASS  printf --help → matches /Usage:/
+
+── ps ────────────────────────────────────────
+  ── default: shows PID,TTY,TIME,CMD headers ──
+  PASS  ps → matches /PID.*TTY.*TIME.*CMD/
+  ── -A : all processes ──
+  PASS  ps -A → matches /PID.*TTY.*TIME.*CMD/
+  PASS  ps -A → matches /^\s*1\s/
+  ── -e : all processes (same as -A) ──
+  PASS  ps -e → matches /PID.*TTY.*TIME.*CMD/
+  PASS  ps -e → matches /^\s*1\s/
+  ── -f : full format listing ──
+  PASS  ps -f → matches /UID.*PID.*PPID.*C.*STIME.*TTY.*TIME.*CMD/
+  ── -u : user-oriented format (BSD) ──
+  PASS  ps -u → matches /USER.*PID.*%CPU.*%MEM.*VSZ.*RSS.*TTY.*STAT.*START.*TIME.*COMMAND/
+  ── -a : processes except session leaders ──
+  PASS  ps -a → matches /PID.*TTY.*TIME.*CMD/
+  ── -x : lift tty restriction ──
+  PASS  ps -x → matches /PID.*TTY.*TIME.*CMD/
+  ── aux : BSD-style (all processes) ──
+  PASS  ps aux → matches /USER.*PID.*%CPU.*%MEM.*VSZ.*RSS.*TTY.*STAT.*START.*TIME.*COMMAND/
+  PASS  ps aux → matches /^\s*\S+\s+/
+  ── -A -f : all processes with full format ──
+  PASS  ps -A -f → matches /UID.*PID.*PPID.*C.*STIME.*TTY.*TIME.*CMD/
+  PASS  ps -A -f → matches /^\s*\S+\s+/
+  ── --help ──
+  PASS  ps --help → matches /Usage:/
+  ── error: invalid option ──
+  PASS  ps --nonexistent → stderr matches /invalid option/
+  ── empty stdin (same as default) ──
+  PASS  ps → matches /PID.*TTY.*TIME.*CMD/
+
+── ptx ──────────────────────────────────────
+  ── basic ptx ──
+  PASS  ptx /tmp/modbox_test.HzdNsa/ptx1.txt → matches /fox/
+  PASS  ptx /tmp/modbox_test.HzdNsa/ptx1.txt → matches /dog/
+  PASS  ptx /tmp/modbox_test.HzdNsa/ptx1.txt → matches /quick/
+  ── ptx with auto reference ──
+  PASS  ptx -A /tmp/modbox_test.HzdNsa/ptx1.txt → matches /ptx1.txt/
+  ── ptx with width option ──
+  PASS  ptx -w 60 /tmp/modbox_test.HzdNsa/ptx1.txt → matches /fox/
+  ── ptx from stdin ──
+  PASS  ptx → matches /fox/
+  ── ptx help ──
+  PASS  ptx --help → matches /Usage:/
+  ── ptx non-existent file ──
+  PASS  ptx /tmp/modbox_test.HzdNsa/nonexistent.txt → stderr matches /No such file/
+
+── pwd ────────────────────────────────────
+  ── print current directory ──
+  PASS  pwd
+  ── -P prints physical path ──
+  PASS  pwd -P
+  ── -L prints logical path ──
+  PASS  pwd -L
+  ── --help shows usage ──
+  PASS  pwd --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  pwd --version → matches /pwd \(modbox\)/
+
+── readlink ────────────────────────────────────
+  ── basic symlink reading ──
+  PASS  readlink /tmp/modbox_test.itxTpI/rl_link
+  ── -f canonicalization ──
+  PASS  readlink -f /tmp/modbox_test.itxTpI/rl_link
+  ── non-symlink error ──
+  PASS  readlink /tmp/modbox_test.itxTpI/rl_target → stderr matches /not a symbolic link/
+  ── -q quiet on non-symlink ──
+  PASS  readlink -q non-symlink produces no output
+  ── --help ──
+  PASS  readlink --help → matches /canonicalize/
+  ── --version ──
+  PASS  readlink -V → matches /readlink \(modbox\) 1\.0/
+
+── rev ──────────────────────────────────────
+  ── basic reverse ──
+  PASS  rev /tmp/modbox_test.tMvSt2/rev_basic
+  ── stdin ──
+  PASS  rev (stdin)
+  ── single character ──
+  PASS  rev /tmp/modbox_test.tMvSt2/rev_single
+  ── empty line ──
+  PASS  rev /tmp/modbox_test.tMvSt2/rev_empty
+  ── palindrome ──
+  PASS  rev /tmp/modbox_test.tMvSt2/rev_pal
+  ── multiple files ──
+  PASS  rev /tmp/modbox_test.tMvSt2/rev_mf1 /tmp/modbox_test.tMvSt2/rev_mf2
+  ── stdin via - ──
+  PASS  rev - (stdin via -)
+  ── non-existent file ──
+  PASS  rev /tmp/modbox_test.tMvSt2/rev_nonexistent → stderr matches /No such file/
+  ── help ──
+  PASS  rev --help → matches /Usage:/
+
+── rg ──────────────────────────────────────
+  ── basic search (default: line numbers) ──
+  PASS  rg hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── -N : suppress line numbers ──
+  PASS  rg -N hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── -n : explicit line numbers (same as default) ──
+  PASS  rg -n hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── -i : case-insensitive ──
+  PASS  rg -i hello /tmp/modbox_test.lqzux8/rg_dir/case.txt
+  ── -s : case-sensitive ──
+  PASS  rg -s hello /tmp/modbox_test.lqzux8/rg_dir/case.txt
+  ── -S : smart-case (uppercase pat = case-sensitive) ──
+  PASS  rg -S HELLO /tmp/modbox_test.lqzux8/rg_dir/case.txt
+  ── -v : invert match ──
+  PASS  rg -v hello /tmp/modbox_test.lqzux8/rg_dir/b.txt
+  ── -w : word match (apple matches, not pineapple) ──
+  PASS  rg -w apple /tmp/modbox_test.lqzux8/rg_dir/words.txt
+  PASS  rg -w pineapple /tmp/modbox_test.lqzux8/rg_dir/words.txt
+  ── -x : line-regexp ──
+  PASS  rg -x abc123def /tmp/modbox_test.lqzux8/rg_dir/line.txt
+  PASS  rg -x abc /tmp/modbox_test.lqzux8/rg_dir/line.txt
+  ── -F : fixed strings ──
+  PASS  rg -F hello. /tmp/modbox_test.lqzux8/rg_dir/fixed.txt
+  ── -c : count ──
+  PASS  rg -c hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── -l : files with matches ──
+  PASS  rg -l hello /tmp/modbox_test.lqzux8/rg_dir/a.txt /tmp/modbox_test.lqzux8/rg_dir/b.txt
+  ── -o : only-matching ──
+  PASS  rg -o hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── -e : pattern from flag ──
+  PASS  rg -e hello
+  ── --color=always : ANSI codes present ──
+  PASS  rg --color=always hello ... → ANSI codes present
+  ── auto-recursive on directory input ──
+  PASS  rg hello /tmp/modbox_test.lqzux8/rg_dir → matches /hello/
+  ── -C 1 : context lines ──
+  PASS  rg -C 1 hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── -C 2 : context lines around separate matches ──
+  PASS  rg -C 1 hello /tmp/modbox_test.lqzux8/rg_dir/context.txt
+  ── -g glob include ──
+  PASS  rg -g *.txt hello /tmp/modbox_test.lqzux8/rg_dir → matches /hello/
+  ── -g glob exclude ──
+  PASS  rg -g !b.txt hello /tmp/modbox_test.lqzux8/rg_dir → matches /hello/
+  ── --max-depth 0 (no recursion) ──
+  PASS  rg --max-depth 0 deep /tmp/modbox_test.lqzux8/rg_dir
+  ── --max-depth 1 (one level) ──
+  PASS  rg --max-depth 1 deep /tmp/modbox_test.lqzux8/rg_dir → matches /deep/
+  ── -m 1 : max-count per file ──
+  PASS  rg -m 1 hello /tmp/modbox_test.lqzux8/rg_dir/a.txt
+  ── stdin ──
+  PASS  rg hello
+  ── stdin with -N ──
+  PASS  rg -N hello
+  ── multiple files ──
+  PASS  rg hello /tmp/modbox_test.lqzux8/rg_dir/a.txt /tmp/modbox_test.lqzux8/rg_dir/b.txt → matches /hello world/
+  ── exit code 0 on match ──
+  PASS  rg hello → exit 0
+  ── exit code 1 on no match ──
+  PASS  rg nonexistent → exit 1
+  ── error: no pattern ──
+  PASS  rg (no args) → exit 2
+  ── stdin with -n (default line nums) ──
+  PASS  rg hello
+  ── -w with -F : word match fixed strings ──
+  PASS  rg -wF foo /tmp/modbox_test.lqzux8/rg_dir/wordfixed.txt
+  PASS  rg -wF foobar
+  ── --color=auto : no ANSI when piped ──
+  PASS  rg --color=auto (piped) — ANSI codes correctly disabled
+  ── --hidden : include hidden files ──
+  PASS  rg --hidden hidden /tmp/modbox_test.lqzux8/rg_dir → matches /hidden match/
+  PASS  rg hidden /tmp/modbox_test.lqzux8/rg_dir — correctly lacks /hidden match/
+
+── rmdir ────────────────────────────────────
+ ── basic remove ──
+  PASS  rmdir /tmp/modbox_test.GDZJTa/rmdir_basic
+  PASS  rmdir removed directory
+ ── non-empty directory fails ──
+  PASS  rmdir /tmp/modbox_test.GDZJTa/rmdir_nonempty → stderr matches /not empty/
+ ── -p parents recursive ──
+  PASS  rmdir -p removed nested dirs and empty ancestors
+ ── -p stops at non-empty ancestor ──
+  PASS  rmdir -p stopped at non-empty ancestor
+ ── help ──
+  PASS  rmdir --help → matches /Usage:/
+
+── rm ───────────────────────────────────────
+  ── single file ──
+  PASS  rm /tmp/modbox_test.MyYwzD/rm_file
+  PASS  rm removed file
+  ── -f nonexistent (no error) ──
+  PASS  rm -f /tmp/modbox_test.MyYwzD/rm_nonexistent
+  ── -r recursive ──
+  PASS  rm -r /tmp/modbox_test.MyYwzD/rm_dir
+  PASS  rm -r removed directory tree
+  ── -v verbose ──
+  PASS  rm -v /tmp/modbox_test.MyYwzD/rm_verb → matches /removed/
+  ── -d empty dir ──
+  PASS  rm -d /tmp/modbox_test.MyYwzD/rm_empty
+  ── multiple files ──
+  PASS  rm /tmp/modbox_test.MyYwzD/rm_a /tmp/modbox_test.MyYwzD/rm_b
+  ── help ──
+  PASS  rm --help → matches /Usage:/
+  ── dir without -r (error) ──
+  PASS  rm /tmp/modbox_test.MyYwzD/rm_nr_dir → stderr matches /Is a directory/
+  ── --trash file ──
+  PASS  rm --trash /tmp/modbox_test.MyYwzD/rm_trash_file
+  PASS  rm --trash moved file to ~/.trash
+  ── --trash -v verbose ──
+  PASS  rm --trash -v /tmp/modbox_test.MyYwzD/rm_trash_verb → matches /trashed/
+  ── --trash dir with -r ──
+  PASS  rm --trash -r /tmp/modbox_test.MyYwzD/rm_trash_dir
+  PASS  rm --trash -r moved directory to ~/.trash
+  ── --trash dir without -r (error) ──
+  PASS  rm --trash /tmp/modbox_test.MyYwzD/rm_trash_nr_dir → stderr matches /Is a directory/
+  ── --trash collision handling ──
+  PASS  rm --trash /tmp/modbox_test.MyYwzD/rm_collision
+  PASS  rm --trash created numbered variant on collision
+  ── --trash -f nonexistent (no error) ──
+  PASS  rm --trash -f /tmp/modbox_test.MyYwzD/rm_trash_nonexistent
+  ── --trash -f force (no prompt) ──
+  PASS  rm --trash -f /tmp/modbox_test.MyYwzD/rm_trash_force
+  PASS  rm --trash -f moved file silently
+  ── --trash in help ──
+  PASS  rm --help → matches /trash/
+
+── runcon ─────────────────────────────────────
+  ── --help shows usage ──
+  PASS  runcon --help → matches /Usage:/
+  ── no command specified ──
+  FAIL  runcon — expected pattern /no command specified/ not found in output
+
+── sed ───────────────────────────────────────
+  ── basic substitution ──
+  PASS  sed s/hello/hi/
+  ── global substitution ──
+  PASS  sed s/foo/baz/g
+  ── -n suppress auto-print ──
+  PASS  sed -n p
+  ── -n with p command ──
+  PASS  sed -n 2p /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── delete line ──
+  PASS  sed 2d /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── last line delete (no crash) ──
+  PASS  sed 5d /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── range print ──
+  PASS  sed -n 2,4p /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── quit command ──
+  PASS  sed /hello again/q /tmp/modbox_test.FgxMfB/sed_basic.txt
+  ── append command ──
+  PASS  sed 2a\AFTER /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── insert command ──
+  PASS  sed 2i\BEFORE /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── change command ──
+  PASS  sed 2c\CHANGED /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── line number command ──
+  PASS  sed -n /banana/= /tmp/modbox_test.FgxMfB/sed_fruits.txt
+  ── transliterate ──
+  PASS  sed y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/
+  ── last line address ($) ──
+  PASS  sed -n $p /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── multiple -e scripts ──
+  PASS  sed -e s/foo/FOO/ -e s/bar/BAR/
+  ── case-insensitive substitution ──
+  PASS  sed s/hello/hi/I /tmp/modbox_test.FgxMfB/sed_case.txt
+  ── negation ──
+  PASS  sed -n 2!p /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── substitution with & reference ──
+  PASS  sed s/&/AND/ /tmp/modbox_test.FgxMfB/sed_ampersand.txt
+  ── backreference \1 (BRE syntax) ──
+  PASS  sed s/\(hello\) \(world\)/\2 \1/
+  ── backreference -E (ERE syntax) ──
+  PASS  sed -E s/(hello) (world)/\2 \1/
+  ── substitution with different delimiter ──
+  PASS  sed s|/old/path/|/new/path/|
+  ── regex address ──
+  PASS  sed /cherry/c\CHERRY /tmp/modbox_test.FgxMfB/sed_fruits.txt
+  ── regex range ──
+  PASS  sed -n /banana/,/cherry/p /tmp/modbox_test.FgxMfB/sed_fruits.txt
+  ── in-place editing (-i) ──
+  PASS  sed -i s/y/Y/ /tmp/modbox_test.FgxMfB/sed_inplace.txt
+  PASS  cat /tmp/modbox_test.FgxMfB/sed_inplace.txt
+  ── in-place with backup (-i.bak) ──
+  PASS  sed -i.bak s/z/ZZZ/ /tmp/modbox_test.FgxMfB/sed_backup.txt
+  PASS  cat /tmp/modbox_test.FgxMfB/sed_backup.txt
+  PASS  cat /tmp/modbox_test.FgxMfB/sed_backup.txt.bak
+  ── script from file (-f) ──
+  PASS  sed -f /tmp/modbox_test.FgxMfB/sed_script.txt
+  ── write command ──
+  PASS  sed 2w /tmp/modbox_test.FgxMfB/sed_write_out.txt /tmp/modbox_test.FgxMfB/sed_fruits.txt
+  PASS  cat /tmp/modbox_test.FgxMfB/sed_write_out.txt
+  ── substitution with p flag (with -n) ──
+  PASS  sed -n /[135]/s/line/LINE/p /tmp/modbox_test.FgxMfB/sed_5lines.txt
+  ── substitution with g flag ──
+  PASS  sed s/x/X/g
+  ── substitution with numeric flag ──
+  PASS  sed s/bar/BAR/2
+  ── substitution with w flag ──
+  PASS  sed s/x/X/w /tmp/modbox_test.FgxMfB/sed_subst_write.txt /tmp/modbox_test.FgxMfB/sed_xyz.txt
+  PASS  cat /tmp/modbox_test.FgxMfB/sed_subst_write.txt
+  ── read command (r) ──
+  PASS  sed /banana/r /tmp/modbox_test.FgxMfB/sed_read_test.txt /tmp/modbox_test.FgxMfB/sed_fruits.txt
+  ── n command (print then read next) ──
+  PASS  sed -n n;p
+  ── N command (append next line, then substitute) ──
+  PASS  sed -n N;s/\n/ /;p
+  ── stdin ──
+  PASS  sed s/old/MODIFIED/
+  ── empty input ──
+  PASS  sed s/foo/bar/
+  ── multiple files ──
+  PASS  sed s/^/PREFIX-/ /tmp/modbox_test.FgxMfB/sed_mfa.txt /tmp/modbox_test.FgxMfB/sed_mfb.txt
+  ── help ──
+  PASS  sed --help → matches /Usage:/
+  ── error: no script ──
+  PASS  sed → stderr matches /no script/
+  ── error: nonexistent file ──
+  PASS  sed s/foo/bar/ /tmp/modbox_test.FgxMfB/sed_nonexistent → stderr matches /No such file/
+  ── non-existent -f file ──
+  PASS  sed -f /tmp/modbox_test.FgxMfB/sed_nonexistent_script.txt → stderr matches /can't read/
+
+── seq ───────────────────────────────────────
+  ── seq LAST
+  PASS  seq 5
+  ── seq FIRST LAST
+  PASS  seq 2 5
+  ── seq FIRST INCREMENT LAST
+  PASS  seq 1 2 10
+  ── negative increment
+  PASS  seq 5 -1 1
+  ── negative first operand
+  PASS  seq -3 1
+  ── floating point
+  PASS  seq 1 0.5 3
+  ── -w equal width
+  PASS  seq -w 8 10
+  ── -s separator
+  PASS  seq -s , 1 5
+  ── -f format
+  PASS  seq -f %.2f 1 3
+  ── empty range (first > last, positive step)
+  PASS  seq 3 1
+  ── help
+  PASS  seq --help → matches /Usage:/
+  ── error: zero increment
+  PASS  seq 1 0 5 → stderr matches /increment/
+  ── error: invalid number
+  PASS  seq abc → stderr matches /invalid/
+
+── sha1sum ────────────────────────────────────
+  ── basic file checksum ──
+  PASS  sha1sum /tmp/modbox_test.GwPFMd/sha1_test.txt → matches /^[a-f0-9]{40}  /tmp/modbox_test.GwPFMd/sha1_test.txt$/
+  ── empty file checksum ──
+  PASS  sha1sum /tmp/modbox_test.GwPFMd/sha1_empty.txt → matches /^[a-f0-9]{40}  /tmp/modbox_test.GwPFMd/sha1_empty.txt$/
+  ── stdin (no file) ──
+  PASS  sha1sum → matches /^[a-f0-9]{40}  -$/
+  ── stdin (explicit -) ──
+  PASS  sha1sum - → matches /^[a-f0-9]{40}  -$/
+  ── binary mode (-b) ──
+  PASS  sha1sum -b /tmp/modbox_test.GwPFMd/sha1_test.txt → matches /^[a-f0-9]{40} \*/tmp/modbox_test.GwPFMd/sha1_test.txt$/
+  ── text mode (-t) ──
+  PASS  sha1sum -t /tmp/modbox_test.GwPFMd/sha1_test.txt → matches /^[a-f0-9]{40}  /tmp/modbox_test.GwPFMd/sha1_test.txt$/
+  ── multiple files ──
+  PASS  sha1sum multiple files produces 2 lines
+  ── check mode (-c) with valid checksum ──
+  PASS  sha1sum -c /tmp/modbox_test.GwPFMd/sha1_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  sha1sum -c /tmp/modbox_test.GwPFMd/sha1_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  sha1sum --tag /tmp/modbox_test.GwPFMd/sha1_test.txt → matches /^SHA1 \(/tmp/modbox_test.GwPFMd/sha1_test.txt\) = [a-f0-9]{40}/
+  ── --zero (NUL-terminated) ──
+  PASS  sha1sum --zero produces NUL-terminated output
+  ── help ──
+  PASS  sha1sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  sha1sum /tmp/modbox_test.GwPFMd/sha1_nonexistent.txt → stderr matches /No such file/
+
+── sha224sum ──────────────────────────────────
+  ── basic file checksum ──
+  PASS  sha224sum /tmp/modbox_test.fPXkRL/sha224_test.txt → matches /^[a-f0-9]{56}  /tmp/modbox_test.fPXkRL/sha224_test.txt$/
+  ── empty file checksum ──
+  PASS  sha224sum /tmp/modbox_test.fPXkRL/sha224_empty.txt → matches /^[a-f0-9]{56}  /tmp/modbox_test.fPXkRL/sha224_empty.txt$/
+  ── stdin (no file) ──
+  PASS  sha224sum → matches /^[a-f0-9]{56}  -$/
+  ── stdin (explicit -) ──
+  PASS  sha224sum - → matches /^[a-f0-9]{56}  -$/
+  ── binary mode (-b) ──
+  PASS  sha224sum -b /tmp/modbox_test.fPXkRL/sha224_test.txt → matches /^[a-f0-9]{56} \*/tmp/modbox_test.fPXkRL/sha224_test.txt$/
+  ── matches system sha224sum ──
+  PASS  sha224sum /tmp/modbox_test.fPXkRL/sha224_test.txt → matches /^95041dd60ab08c0bf5636d50be85fe9790300f39eb84602858a9b430  /
+  ── check mode (-c) with valid checksum ──
+  PASS  sha224sum -c /tmp/modbox_test.fPXkRL/sha224_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  sha224sum -c /tmp/modbox_test.fPXkRL/sha224_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  sha224sum --tag /tmp/modbox_test.fPXkRL/sha224_test.txt → matches /^SHA224 \(/tmp/modbox_test.fPXkRL/sha224_test.txt\) = [a-f0-9]{56}/
+  ── help ──
+  PASS  sha224sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  sha224sum /tmp/modbox_test.fPXkRL/sha224_nonexistent.txt → stderr matches /No such file/
+
+── sha256sum ───────────────────────────────────
+  ── basic file checksum ──
+  PASS  sha256sum /tmp/modbox_test.jdH3Xg/sha_test.txt → matches /^[a-f0-9]{64}  /tmp/modbox_test.jdH3Xg/sha_test.txt$/
+  ── empty file checksum ──
+  PASS  sha256sum /tmp/modbox_test.jdH3Xg/sha_empty.txt → matches /^[a-f0-9]{64}  /tmp/modbox_test.jdH3Xg/sha_empty.txt$/
+  ── stdin (no file) ──
+  PASS  sha256sum → matches /^[a-f0-9]{64}  -$/
+  ── stdin (explicit -) ──
+  PASS  sha256sum - → matches /^[a-f0-9]{64}  -$/
+  ── binary mode (-b) ──
+  PASS  sha256sum -b /tmp/modbox_test.jdH3Xg/sha_test.txt → matches /^[a-f0-9]{64} \*/tmp/modbox_test.jdH3Xg/sha_test.txt$/
+  ── text mode (-t) ──
+  PASS  sha256sum -t /tmp/modbox_test.jdH3Xg/sha_test.txt → matches /^[a-f0-9]{64}  /tmp/modbox_test.jdH3Xg/sha_test.txt$/
+  ── multiple files ──
+  PASS  sha256sum multiple files produces 2 lines
+  ── check mode (-c) with valid checksum ──
+  PASS  sha256sum -c /tmp/modbox_test.jdH3Xg/sha_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  sha256sum -c /tmp/modbox_test.jdH3Xg/sha_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  sha256sum --tag /tmp/modbox_test.jdH3Xg/sha_test.txt → matches /^SHA256 \(/tmp/modbox_test.jdH3Xg/sha_test.txt\) = [a-f0-9]{64}/
+  ── --zero (NUL-terminated) ──
+  PASS  sha256sum --zero produces NUL-terminated output
+  ── help ──
+  PASS  sha256sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  sha256sum /tmp/modbox_test.jdH3Xg/sha_nonexistent.txt → stderr matches /No such file/
+
+── sha384sum ───────────────────────────────────
+  ── basic file checksum ──
+  PASS  sha384sum /tmp/modbox_test.qQjhmu/sha384_test.txt → matches /^[a-f0-9]{96}  /tmp/modbox_test.qQjhmu/sha384_test.txt$/
+  ── empty file checksum ──
+  PASS  sha384sum /tmp/modbox_test.qQjhmu/sha384_empty.txt → matches /^[a-f0-9]{96}  /tmp/modbox_test.qQjhmu/sha384_empty.txt$/
+  ── stdin (no file) ──
+  PASS  sha384sum → matches /^[a-f0-9]{96}  -$/
+  ── stdin (explicit -) ──
+  PASS  sha384sum - → matches /^[a-f0-9]{96}  -$/
+  ── binary mode (-b) ──
+  PASS  sha384sum -b /tmp/modbox_test.qQjhmu/sha384_test.txt → matches /^[a-f0-9]{96} \*/tmp/modbox_test.qQjhmu/sha384_test.txt$/
+  ── text mode (-t) ──
+  PASS  sha384sum -t /tmp/modbox_test.qQjhmu/sha384_test.txt → matches /^[a-f0-9]{96}  /tmp/modbox_test.qQjhmu/sha384_test.txt$/
+  ── multiple files ──
+  PASS  sha384sum multiple files produces 2 lines
+  ── check mode (-c) with valid checksum ──
+  PASS  sha384sum -c /tmp/modbox_test.qQjhmu/sha384_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  sha384sum -c /tmp/modbox_test.qQjhmu/sha384_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  sha384sum --tag /tmp/modbox_test.qQjhmu/sha384_test.txt → matches /^SHA384 \(/tmp/modbox_test.qQjhmu/sha384_test.txt\) = [a-f0-9]{96}/
+  ── --zero (NUL-terminated) ──
+  PASS  sha384sum --zero produces NUL-terminated output
+  ── help ──
+  PASS  sha384sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  sha384sum /tmp/modbox_test.qQjhmu/sha384_nonexistent.txt → stderr matches /No such file/
+
+── sha512sum ───────────────────────────────────
+  ── basic file checksum ──
+  PASS  sha512sum /tmp/modbox_test.DI5OsN/sha512_test.txt → matches /^[a-f0-9]{128}  /tmp/modbox_test.DI5OsN/sha512_test.txt$/
+  ── empty file checksum ──
+  PASS  sha512sum /tmp/modbox_test.DI5OsN/sha512_empty.txt → matches /^[a-f0-9]{128}  /tmp/modbox_test.DI5OsN/sha512_empty.txt$/
+  ── stdin (no file) ──
+  PASS  sha512sum → matches /^[a-f0-9]{128}  -$/
+  ── stdin (explicit -) ──
+  PASS  sha512sum - → matches /^[a-f0-9]{128}  -$/
+  ── binary mode (-b) ──
+  PASS  sha512sum -b /tmp/modbox_test.DI5OsN/sha512_test.txt → matches /^[a-f0-9]{128} \*/tmp/modbox_test.DI5OsN/sha512_test.txt$/
+  ── text mode (-t) ──
+  PASS  sha512sum -t /tmp/modbox_test.DI5OsN/sha512_test.txt → matches /^[a-f0-9]{128}  /tmp/modbox_test.DI5OsN/sha512_test.txt$/
+  ── multiple files ──
+  PASS  sha512sum multiple files produces 2 lines
+  ── check mode (-c) with valid checksum ──
+  PASS  sha512sum -c /tmp/modbox_test.DI5OsN/sha512_checksums.txt → matches /OK$/
+  ── check mode with invalid checksum ──
+  PASS  sha512sum -c /tmp/modbox_test.DI5OsN/sha512_bad_checksums.txt → matches /FAILED/
+  ── --tag format ──
+  PASS  sha512sum --tag /tmp/modbox_test.DI5OsN/sha512_test.txt → matches /^SHA512 \(/tmp/modbox_test.DI5OsN/sha512_test.txt\) = [a-f0-9]{128}/
+  ── --zero (NUL-terminated) ──
+  PASS  sha512sum --zero produces NUL-terminated output
+  ── help ──
+  PASS  sha512sum --help → matches /Usage:/
+  ── error: nonexistent file ──
+  PASS  sha512sum /tmp/modbox_test.DI5OsN/sha512_nonexistent.txt → stderr matches /No such file/
+
+── shuf ──────────────────────────────────────
+  ── -e echo mode (permutation check) ──
+  PASS  shuf -e a b c
+  ── -e -n head-count ──
+  PASS  shuf -e a b c d e -n 3 (count=3)
+  ── -e -r -n repeat mode ──
+  PASS  shuf -e x y z -r -n 8 (count=8)
+  ── -i input-range -n head-count ──
+  PASS  shuf -i 1-100 -n 10 (count=10)
+  ── -i input-range permutation ──
+  PASS  shuf -i 1-5
+  ── stdin (pipe) ──
+  PASS  shuf -n 2 (stdin, count=2)
+  ── file input ──
+  PASS  shuf -n 3 /tmp/modbox_test.oTEDk8/shuf_data.txt (count=3)
+  ── -o output file ──
+  PASS  shuf -o output file
+  ── -e no args (error) ──
+  PASS  shuf -e → stderr matches /no input lines/
+  ── -e -i conflict (error) ──
+  PASS  shuf -e -i 1-5 → stderr matches /cannot combine/
+  ── -i + file conflict (error) ──
+  PASS  shuf -i 1-5 /tmp/modbox_test.oTEDk8/shuf_data.txt → stderr matches /cannot combine/
+  ── -i invalid range (error) ──
+  PASS  shuf -i 5-3 → stderr matches /invalid input range/
+  ── non-existent file (error) ──
+  PASS  shuf /tmp/modbox_test.oTEDk8/shuf_nonexistent → stderr matches /No such file/
+  ── help ──
+  PASS  shuf --help → matches /Usage:/
+
+── sort ──────────────────────────────────────
+  ── basic sort ──
+  PASS  sort /tmp/modbox_test.ZTczCQ/sort_alpha
+  ── reverse sort ──
+  PASS  sort -r /tmp/modbox_test.ZTczCQ/sort_alpha
+  ── numeric sort ──
+  PASS  sort -n /tmp/modbox_test.ZTczCQ/sort_num
+  ── ignore case ──
+  PASS  sort -f /tmp/modbox_test.ZTczCQ/sort_case → matches /^Alpha$/
+  PASS  sort -f /tmp/modbox_test.ZTczCQ/sort_case → matches /charlie$/
+  ── unique ──
+  PASS  sort -u /tmp/modbox_test.ZTczCQ/sort_uniq
+  ── check sorted ──
+  PASS  sort -c /tmp/modbox_test.ZTczCQ/sort_ok
+  ── check unsorted ──
+  PASS  sort -c /tmp/modbox_test.ZTczCQ/sort_bad → stderr matches /disorder/
+  ── check unique strict ──
+  PASS  sort -c -u /tmp/modbox_test.ZTczCQ/sort_uniq → stderr matches /disorder/
+  ── key field sort ──
+  PASS  sort -k 1,1 -k 2,2n /tmp/modbox_test.ZTczCQ/sort_key
+  ── key with separator ──
+  PASS  sort -t : -k 1,1 /tmp/modbox_test.ZTczCQ/sort_t
+  ── stable sort ──
+  PASS  sort -k 1,1 -s /tmp/modbox_test.ZTczCQ/sort_stable
+  PASS  sort -k 1,1 /tmp/modbox_test.ZTczCQ/sort_stable
+  ── output to file ──
+  PASS  sort /tmp/modbox_test.ZTczCQ/sort_out
+  ── ignore leading blanks ──
+  PASS  sort -b /tmp/modbox_test.ZTczCQ/sort_blank
+  ── help ──
+  PASS  sort --help → matches /Usage:/
+  ── stdin ──
+  PASS  sort (stdin)
+  ── multiple files ──
+  PASS  sort /tmp/modbox_test.ZTczCQ/sort_mf1 /tmp/modbox_test.ZTczCQ/sort_mf2
+
+── split ────────────────────────────────────
+  ── help ──
+  PASS  split --help → matches /Usage:/
+  ── default: 1000 lines, single file ──
+  PASS  cat xaa
+  ── -l 2 lines, alpha suffixes ──
+  PASS  cat xaa
+  PASS  cat xab
+  PASS  cat xac
+  ── -l 2, -d numeric suffixes ──
+  PASS  cat x00
+  PASS  cat x01
+  ── --verbose ──
+  PASS  split split5.txt -l 5 --verbose → stderr matches /creating file/
+  ── -b 8 bytes ──
+  PASS  cat x00
+  PASS  cat x01
+  PASS  cat x02
+  PASS  cat x03
+  ── custom prefix ──
+  PASS  cat mypre00
+  PASS  cat mypre01
+  ── -a suffix length ──
+  PASS  cat x000
+  ── stdin ──
+  PASS  cat x00
+  PASS  cat x01
+  ── -n N (chunks by bytes) ──
+  PASS  cat x00
+  PASS  cat x01
+  ── -n l/N (chunks by lines) ──
+  PASS  cat x00
+  PASS  cat x01
+  ── -C line-bytes ──
+  PASS  cat x00
+  PASS  cat x01
+  PASS  cat x02
+  PASS  cat x03
+  PASS  cat x04
+  ── --additional-suffix ──
+  PASS  cat x00.txt
+  PASS  cat x01.txt
+  ── -x hex suffixes ──
+  PASS  cat x00
+  PASS  cat x01
+
+── stat ────────────────────────────────────
+  ── default verbose format (file) ──
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /File: /
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /Size:/
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /regular file/
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /Access: \(/
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /Links:/
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /Modify:/
+  ── default verbose format (directory) ──
+  PASS  stat /tmp/modbox_test.FNbnN9/subdir → matches /directory/
+  ── symlink: name, target, type ──
+  PASS  stat /tmp/modbox_test.FNbnN9/link.txt → matches /symbolic link/
+  PASS  stat /tmp/modbox_test.FNbnN9/link.txt → matches /' -> 'reg.txt'/
+  ── -L dereferences symlink to its target ──
+  PASS  stat -L /tmp/modbox_test.FNbnN9/link.txt → matches /regular file/
+  PASS  stat -L /tmp/modbox_test.FNbnN9/link.txt → matches /' -> 'reg.txt'/
+  ── -t terse format has no 'File:' header ──
+  PASS  stat -t /tmp/modbox_test.FNbnN9/reg.txt — correctly lacks /File:/
+  ── --printf: no trailing newline, interprets escapes ──
+  PASS  stat --printf=%n\t%s /tmp/modbox_test.FNbnN9/reg.txt
+  ── --printf hex/octal escape ──
+  PASS  stat --printf=X\x41Y /tmp/modbox_test.FNbnN9/reg.txt
+  ── multiple operands ──
+  PASS  stat multiple operands -> 2 lines
+  ── error: nonexistent file ──
+  PASS  stat nope.txt → stderr matches /cannot stat 'nope.txt'/
+  PASS  stat nope.txt: empty stdout
+  ── error: missing operand ──
+  PASS  stat → stderr matches /missing operand/
+  ── parity with GNU stat (-c file formats) ──
+  PASS  stat -c %n|%s /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %a %A %F /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %i %h %U %G /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %d %D %t %T %o %b %B /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %w|%x /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %y %Y /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %z %Z /tmp/modbox_test.FNbnN9/reg.txt
+  PASS  stat -c %m /tmp/modbox_test.FNbnN9/reg.txt
+  ── parity with GNU stat (-f filesystem formats) ──
+  PASS  stat -f -c %n %i %l %t %s %S %b %f %a %c %d %T /
+  ── parity with GNU stat: default verbose (file type line) ──
+  PASS  stat /tmp/modbox_test.FNbnN9/reg.txt → matches /regular file/
+
+── stdbuf ──────────────────────────────────────
+  ── --help shows usage ──
+  PASS  stdbuf --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  stdbuf --version → matches /stdbuf \(modbox\)/
+  ── -i L line buffered ──
+  PASS  stdbuf -i L echo hello → matches /^hello$/
+  ── -o 0 unbuffered output ──
+  PASS  stdbuf -o 0 echo hello → matches /^hello$/
+  ── -e L line buffered error ──
+  PASS  stdbuf -e L echo hello → matches /^hello$/
+  ── --input=L line buffered ──
+  PASS  stdbuf --input=L echo hello → matches /^hello$/
+  ── --output=0 unbuffered ──
+  PASS  stdbuf --output=0 echo hello → matches /^hello$/
+  ── missing command errors ──
+  PASS  stdbuf -i L → stderr matches /missing command/
+  ── invalid mode errors ──
+  PASS  stdbuf -i X echo hello → stderr matches /invalid input mode/
+
+── sync ────────────────────────────────────
+  ── help ──
+  PASS  sync --help → matches /Usage:/
+  ── version ──
+  PASS  sync --version → matches /sync \(modbox\)/
+  ── sync all filesystems (no args) ──
+  PASS  sync
+  ── sync existing file ──
+  PASS  sync /tmp/modbox_test.4LW3bq/sync_test.txt
+  ── sync multiple files ──
+  PASS  sync /tmp/modbox_test.4LW3bq/sync_test1.txt /tmp/modbox_test.4LW3bq/sync_test2.txt
+  ── sync non-existent file (error) ──
+  PASS  sync /tmp/modbox_test.4LW3bq/nonexistent_file.txt → stderr matches /cannot open/
+
+── tac ──────────────────────────────────────
+  ── basic reverse lines ──
+  PASS  tac /tmp/modbox_test.2qt455/tac_basic
+  ── single line ──
+  PASS  tac /tmp/modbox_test.2qt455/tac_single
+  ── empty file ──
+  PASS  tac /tmp/modbox_test.2qt455/tac_empty
+  ── stdin ──
+  PASS  tac (stdin)
+  ── multiple files ──
+  PASS  tac /tmp/modbox_test.2qt455/tac_mf1 /tmp/modbox_test.2qt455/tac_mf2
+  ── -s : custom separator (trailing) ──
+  PASS  tac -s : /tmp/modbox_test.2qt455/tac_sep
+  ── -b : before mode (separator before each chunk) ──
+  PASS  tac -b -s : /tmp/modbox_test.2qt455/tac_before
+  ── -r : regex separator ──
+  PASS  tac -r -s X+ /tmp/modbox_test.2qt455/tac_regex
+  ── non-existent file ──
+  PASS  tac /tmp/modbox_test.2qt455/tac_nonexistent → stderr matches /No such file/
+  ── --help shows usage ──
+  PASS  tac --help → matches /Usage:/
+  ── blank lines reversed ──
+  PASS  tac /tmp/modbox_test.2qt455/tac_blanks
+
+── tail ─────────────────────────────────────
+  ── default (10 lines) ──
+  PASS  tail /tmp/modbox_test.QiWYlP/head_lines
+  ── -n N ──
+  PASS  tail -n 3 /tmp/modbox_test.QiWYlP/head_lines
+  ── -n +N (from line N) ──
+  PASS  tail -n +5 /tmp/modbox_test.QiWYlP/head_lines
+  ── -c N (last bytes) ──
+  PASS  tail -c 4 /tmp/modbox_test.QiWYlP/head_lines
+  ── stdin ──
+  PASS  tail (stdin)
+  ── multiple files with headers ──
+  PASS  tail /tmp/modbox_test.QiWYlP/head_lines /tmp/modbox_test.QiWYlP/head_lines → matches /==>/
+  ── -q: quiet ──
+  PASS  tail -q /tmp/modbox_test.QiWYlP/head_lines /tmp/modbox_test.QiWYlP/head_lines — correctly lacks /==>/
+  ── help ──
+  PASS  tail --help → matches /Usage:/
+  ── empty file ──
+  PASS  tail /tmp/modbox_test.QiWYlP/head_empty
+  ── -z (NUL terminated) ──
+  PASS  tail -z -n 2
+  ── -n +N beyond EOF (produce nothing) ──
+  PASS  tail -n +99 /tmp/modbox_test.QiWYlP/head_lines
+
+── tee ─────────────────────────────────────
+  ── basic tee to single file ──
+  PASS  tee basic
+  ── tee to multiple files ──
+  PASS  tee multiple files
+  ── -a append mode ──
+  PASS  tee -a append
+  ── -a doesn't affect stdout ──
+  PASS  tee -a stdout unaffected
+  ── overwrite without -a ──
+  PASS  tee overwrite (no -a)
+  ── tee with no files (stdout only) ──
+  PASS  tee no files (stdout only)
+  ── -i ignore-interrupts (accepted option) ──
+  PASS  tee -i (option accepted)
+  ── -p error-action=warn (accepted option) ──
+  PASS  tee -p warn (option accepted)
+  ── -p error-action=warn-nopipe (accepted option) ──
+  PASS  tee -p warn-nopipe (option accepted)
+  ── -p error-action=ignore (accepted option) ──
+  PASS  tee -p ignore (option accepted)
+  ── error: invalid error-action mode ──
+  PASS  tee invalid error-action (error reported)
+  ── --help ──
+  PASS  tee --help → matches /Usage:/
+  PASS  tee --help → matches /append/
+  PASS  tee --help → matches /ignore-interrupts/
+  PASS  tee --help → matches /error-action/
+  ── -h ──
+  PASS  tee -h → matches /Usage:/
+  ── binary data handling ──
+  PASS  tee binary data
+  ── long input ──
+  PASS  tee long input
+
+── test ────────────────────────────────────
+  ── unary file operators ──
+  PASS  test -f /tmp/modbox_test.JyzaB6/test_cmd/file → exit 0
+  PASS  test -f /tmp/modbox_test.JyzaB6/test_cmd/dir → exit 1
+  PASS  test -d /tmp/modbox_test.JyzaB6/test_cmd/dir → exit 0
+  PASS  test -e /tmp/modbox_test.JyzaB6/test_cmd/file → exit 0
+  PASS  test -e /tmp/modbox_test.JyzaB6/test_cmd/missing → exit 1
+  PASS  test -L /tmp/modbox_test.JyzaB6/test_cmd/link → exit 0
+  PASS  test -L /tmp/modbox_test.JyzaB6/test_cmd/file → exit 1
+  PASS  test -s /tmp/modbox_test.JyzaB6/test_cmd/file → exit 0
+  PASS  test -d /tmp/modbox_test.JyzaB6/test_cmd/missing → exit 1
+  ── string operators ──
+  PASS  test -n hello → exit 0
+  PASS  test -n  → exit 1
+  PASS  test -z hello → exit 1
+  PASS  test -z  → exit 0
+  PASS  test a = a → exit 0
+  PASS  test a = b → exit 1
+  PASS  test a != b → exit 0
+  PASS  test a != a → exit 1
+  PASS  test nonempty → exit 0
+  PASS  test  → exit 1
+  ── integer operators ──
+  PASS  test 5 -eq 5 → exit 0
+  PASS  test 5 -ne 5 → exit 1
+  PASS  test 5 -gt 3 → exit 0
+  PASS  test 5 -gt 5 → exit 1
+  PASS  test 3 -lt 5 → exit 0
+  PASS  test 4 -ge 4 → exit 0
+  PASS  test 4 -le 4 → exit 0
+  ── file comparison operators ──
+  PASS  test /tmp/modbox_test.JyzaB6/test_cmd/file -ef /tmp/modbox_test.JyzaB6/test_cmd/file → exit 0
+  PASS  test /tmp/modbox_test.JyzaB6/test_cmd/file -ef /tmp/modbox_test.JyzaB6/test_cmd/dir → exit 1
+  ── grouping, negation and logic ──
+  PASS  test ( -f /tmp/modbox_test.JyzaB6/test_cmd/file -a -d /tmp/modbox_test.JyzaB6/test_cmd/dir ) → exit 0
+  PASS  test ( -f /tmp/modbox_test.JyzaB6/test_cmd/file -a -d /tmp/modbox_test.JyzaB6/test_cmd/file ) → exit 1
+  PASS  test ! -e /tmp/modbox_test.JyzaB6/test_cmd/missing → exit 0
+  PASS  test 1 -eq 1 -o 2 -eq 3 → exit 0
+  PASS  test 1 -eq 2 -a 2 -eq 3 → exit 1
+  PASS  test ( ! -e /tmp/modbox_test.JyzaB6/test_cmd/missing ) -a -f /tmp/modbox_test.JyzaB6/test_cmd/file → exit 0
+  ── error / edge cases ──
+  PASS  test  → exit 1
+  PASS  test -f → exit 0
+  PASS  test x y → exit 2
+  PASS  test -f → exit 0
+  PASS  test abc -eq 1 → exit 2
+  ── --help and --version ──
+  PASS  test --help → matches /Usage:/
+  PASS  test --version → matches /modbox/
+
+── timeout ───────────────────────────────────
+  ── command completes before duration ──
+  PASS  timeout (command finishes)
+  ── timed out command exits 124 ──
+  PASS  timeout (exit 124 on timeout)
+  ── exit status passes through ──
+  PASS  timeout (exit passthrough 7)
+  ── --preserve-status keeps child status ──
+  PASS  timeout --preserve-status (exit 7)
+  ── --preserve-status keeps 124 on timeout ──
+  PASS  timeout --preserve-status (124 on timeout)
+  ── nonexistent command exits 127 ──
+  PASS  timeout nosuchcmd (exit 127)
+  ── missing operand errors ──
+  PASS  timeout (missing operand → 125)
+  ── missing command errors ──
+  PASS  timeout (missing command → 125)
+  ── invalid duration errors ──
+  PASS  timeout (invalid duration → 125)
+  ── --help ──
+  PASS  timeout --help → matches /Usage:/
+  ── --version ──
+  PASS  timeout --version → matches /timeout \(modbox\) 1.0/
+  ── --foreground ignores timeout of children semantics ──
+  PASS  timeout --foreground (exit 124 on timeout)
+  ── --kill-after sends SIGKILL ──
+  PASS  timeout --kill-after (exit 124)
+  ── fractional duration works ──
+  PASS  timeout 0.3s (exit 124, fast)
+
+── time ───────────────────────────────────────
+  ── default format goes to stderr ──
+  PASS  time true → stderr matches /elapsed/
+  ── portable format ──
+  PASS  time -p true → stderr matches /^real /
+  ── portable includes user and sys ──
+  PASS  time -p (user/sys lines)
+  ── custom format expands specifiers ──
+  PASS  time -f (%C/%x)
+  ── verbose report ──
+  PASS  time -v true → stderr matches /Maximum resident set size/
+  ── exit status is passed through ──
+  PASS  time (exit passthrough)
+  ── nonexistent command exits 127 ──
+  PASS  time nosuchcmd (exit 127)
+  ── -o writes stats to a file ──
+  PASS  time -o (writes file)
+  ── -a appends to the output file ──
+  PASS  time -a (appends)
+  ── missing command errors ──
+  PASS  time → stderr matches /missing program to run/
+  ── --help ──
+  PASS  time --help → matches /Usage:/
+  ── --version ──
+  PASS  time --version → matches /time \(modbox\) 1.0/
+
+── touch ────────────────────────────────────
+  ── create new file ──
+  PASS  touch /tmp/modbox_test.mtxkVE/touch_new
+  PASS  touch_new exists
+  ── update existing ──
+  PASS  touch /tmp/modbox_test.mtxkVE/touch_new
+  PASS  touch updated mtime to current year
+  ── -c no-create (nonexistent) ──
+  PASS  touch -c /tmp/modbox_test.mtxkVE/touch_noc
+  PASS  touch -c did not create
+  ── -r reference ──
+  PASS  touch -r /tmp/modbox_test.mtxkVE/touch_ref /tmp/modbox_test.mtxkVE/touch_target
+  PASS  touch -r copied timestamps
+  ── -a only access time ──
+  PASS  touch -a /tmp/modbox_test.mtxkVE/touch_atime
+  PASS  touch -a changed atime only
+  ── help ──
+  PASS  touch --help → matches /Usage:/
+  ── multiple files ──
+  PASS  touch /tmp/modbox_test.mtxkVE/touch_x /tmp/modbox_test.mtxkVE/touch_y
+
+── tr ────────────────────────────────────────
+  ── basic translate ──
+  PASS  tr a-z A-Z
+  ── translate with range ──
+  PASS  tr a-f A-F
+  ── -d : delete characters ──
+  PASS  tr -d a-z
+  ── -d : delete with range ──
+  PASS  tr -d a-z
+  ── -s : squeeze repeats ──
+  PASS  tr -s l
+  ── -s : squeeze spaces ──
+  PASS  tr -s  
+  ── -s SET1 SET2 : squeeze then translate ──
+  PASS  tr -s a b
+  ── -c : complement ──
+  PASS  tr -c a-z Z
+  ── -c : complement with delete ──
+  PASS  tr -cd a-z\n
+  ── -c : complement with squeeze ──
+  PASS  tr -cs a b
+  ── -ds : delete + squeeze ──
+  PASS  tr -ds l a-z
+  ── -t : truncate SET1 ──
+  PASS  tr -t abcxyz 12
+  ── [:lower:] → [:upper:] ──
+  PASS  tr [:lower:] [:upper:]
+  ── [:digit:] delete ──
+  PASS  tr -d [:digit:]
+  ── [:space:] squeeze ──
+  PASS  tr -s [:space:]
+  ── escape sequences ──
+  PASS  tr \t  
+  ── newline translation ──
+  PASS  tr \n  
+  ── octal escapes ──
+  PASS  tr \101 A
+  ── help ──
+  PASS  tr --help → matches /Usage:/
+  ── stdin ──
+  PASS  tr a-z A-Z
+  ── empty input ──
+  PASS  tr a-z A-Z
+  ── error: missing operand ──
+  PASS  tr → stderr matches /missing operand/
+  ── error: empty SET2 ──
+  PASS  tr a-z  → stderr matches /empty SET2/
+
+── true ──────────────────────────────────────
+  ── default (exit 0) ──
+  PASS  true (exit 0)
+  ── --help ──
+  PASS  true --help → matches /Usage:/
+  ── --version ──
+  PASS  true --version → matches /true \(modbox\) 1\.0/
+  ── ignores arguments ──
+  PASS  true foo bar baz
+
+── truncate ───────────────────────────────────
+  ── -s 5 : shrink to 5 bytes ──
+  PASS  truncate -s 5 shrinks to 'hello'
+  ── -s 20 : extend with sparse zeros ──
+  PASS  truncate -s 20 extends file to 20 bytes
+  ── -s 0 : shrink to empty ──
+  PASS  truncate -s 0 shrinks to empty
+  ── -s +3 : relative increase ──
+  PASS  truncate -s +3 increases size by 3
+  ── -s -2 : relative decrease ──
+  PASS  truncate -s -2 decreases size by 2
+  ── -r REFERENCE : use reference file size ──
+  PASS  truncate -r sets size to reference file
+  ── -c --no-create : do not create missing file ──
+  PASS  truncate -c does not create missing file
+  ── create new file when not using -c ──
+  PASS  truncate creates new file with specified size
+  ── size with K suffix ──
+  PASS  truncate -s 1K creates 1024 byte file
+  ── multiple files ──
+  PASS  truncate operates on multiple files
+  ── help ──
+  PASS  truncate --help → matches /Usage:/
+  ── nonexistent file is created without -c ──
+  PASS  truncate creates nonexistent file with specified size
+
+── tsort ──────────────────────────────────────
+  ── --help ──
+  PASS  tsort --help → matches /Usage:/
+  ── basic linear chain ──
+  PASS  tsort
+  ── multiple independent chains ──
+  PASS  tsort
+  ── diamond ──
+  PASS  tsort
+  ── cycle detection ──
+  PASS  tsort (cycle)
+  ── cycle exit code 1 ──
+  PASS  tsort (cycle exit 1)
+  ── file input ──
+  PASS  tsort /tmp/modbox_test.TTU6bT/tsort_file
+  ── single item (odd tokens) ──
+  PASS  tsort
+  ── single pair ──
+  PASS  tsort
+  ── stdin (using -) ──
+  PASS  tsort -
+  ── empty input ──
+  PASS  tsort
+  ── error: nonexistent file ──
+  PASS  tsort /tmp/modbox_test.TTU6bT/tsort_nonexistent → stderr matches /cannot open/
+
+── tty ────────────────────────────────────
+  ── non-tty stdin (tests redirect from /dev/null) ──
+  PASS  tty
+  ── silent mode prints nothing ──
+  PASS  tty -s
+  ── --help shows usage ──
+  PASS  tty --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  tty --version → matches /tty \(modbox\)/
+
+── umask ────────────────────────────────────
+  ── default output (octal) ──
+  PASS  umask → matches /^[0-7]{4}$/
+  ── --help shows usage ──
+  PASS  umask --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  umask --version → matches /umask \(modbox\)/
+  ── -S symbolic output ──
+  PASS  umask -S → matches /u=/
+  ── -p printable output ──
+  PASS  umask -p → matches /^umask [0-7]{4}$/
+  ── set mask via octal ──
+  PASS  umask 0000
+  ── invalid mask errors ──
+  PASS  umask xyz → stderr matches /invalid/
+  ── -S with mask set shows symbolic ──
+  PASS  umask -S 0000 → symbolic output
+
+── uname ────────────────────────────────────
+  ── default (kernel name) ──
+  PASS  uname
+  ── -s : kernel name ──
+  PASS  uname -s
+  ── -n : nodename ──
+  PASS  uname -n
+  ── -r : kernel release ──
+  PASS  uname -r
+  ── -v : kernel version ──
+  PASS  uname -v
+  ── -m : machine ──
+  PASS  uname -m
+  ── -o : operating system ──
+  PASS  uname -o
+  ── -a : all (contains kernel name) ──
+  PASS  uname -a → matches /Linux/
+  PASS  uname -a → matches /fedora/
+  PASS  uname -a → matches /7.0.14-201.fc44.x86_64/
+  PASS  uname -a → matches /x86_64/
+  ── multiple flags ──
+  PASS  uname -s -r
+  ── --help shows usage ──
+  PASS  uname --help → matches /Usage:/
+
+── uniq ──────────────────────────────────────
+  ── basic uniq (merge adjacent duplicates)
+  PASS  uniq /tmp/modbox_test.pEhb5a/uniq_basic
+  ── -c: count
+  PASS  uniq -c /tmp/modbox_test.pEhb5a/uniq_basic
+  ── -d: repeated only
+  PASS  uniq -d /tmp/modbox_test.pEhb5a/uniq_basic
+  ── -D: all repeated
+  PASS  uniq -D /tmp/modbox_test.pEhb5a/uniq_basic
+  ── -u: unique only
+  PASS  uniq -u /tmp/modbox_test.pEhb5a/uniq_basic
+  ── -i: ignore case
+  PASS  uniq -i /tmp/modbox_test.pEhb5a/uniq_case
+  ── -f: skip fields
+  PASS  uniq -f 1 /tmp/modbox_test.pEhb5a/uniq_fields
+  ── -s: skip chars
+  PASS  uniq -s 2 /tmp/modbox_test.pEhb5a/uniq_skipchars
+  ── -w: check chars
+  PASS  uniq -w 3 /tmp/modbox_test.pEhb5a/uniq_checkchars
+  ── input/output files
+  PASS  uniq /tmp/modbox_test.pEhb5a/uniq_inout /tmp/modbox_test.pEhb5a/uniq_out
+  PASS  cat /tmp/modbox_test.pEhb5a/uniq_out
+  ── stdin
+  PASS  uniq
+  ── help
+  PASS  uniq --help → matches /Usage:/
+  ── error: nonexistent input
+  PASS  uniq /tmp/modbox_test.pEhb5a/uniq_nonexistent → stderr matches /No such file/
+
+── unlink ────────────────────────────────────
+  ── basic unlink ──
+  PASS  unlink → file removed
+  ── -v : verbose ──
+  PASS  unlink -v → verbose output
+  ── error: non-existent file ──
+  PASS  unlink /tmp/modbox_test.rbyvHm/nonexistent → stderr matches /cannot unlink/
+  ── error: missing argument ──
+  PASS  unlink → stderr matches /missing option FILE/
+  ── help output ──
+  PASS  unlink -h → help output
+
+── uptime ──────────────────────────────────────
+  ── basic output format ──
+  PASS  uptime (output:  06:47:52 up 6 days 22:04, 3 users, load average: 3.04, 3.87, 4.16)
+  ── --help shows usage ──
+  PASS  uptime --help → matches /Usage:/
+  ── --pretty shows uptime ──
+  PASS  uptime -p (output: up 6 days, 22 hours, 4 minutes)
+
+── users ───────────────────────────────────────
+  ── basic output matches system users ──
+  FAIL  users — expected [hunter hunter], got [hunter]
+  ── --help shows usage ──
+  PASS  users --help → matches /Usage:/
+
+── wall ─────────────────────────────────────
+  ── --help shows usage ──
+  PASS  wall --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  wall --version → matches /wall \(modbox\)/
+  ── -n nobanner requires root ──
+  PASS  wall -n test → stderr matches /cannot use --nobanner/
+  ── -g with bad group errors ──
+  PASS  wall -g nonexistent_group test → stderr matches /unknown group/
+
+── wc ───────────────────────────────────────
+  ── default (lines words bytes) ──
+  PASS  wc /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── -l (lines) ──
+  PASS  wc -l /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── -w (words) ──
+  PASS  wc -w /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── -c (bytes) ──
+  PASS  wc -c /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── combined -cwl ──
+  PASS  wc -cwl /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── -m (chars) same as -c here ──
+  PASS  wc -m /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── multiple files with total ──
+  PASS  wc -l /tmp/modbox_test.3rfgdr/wc_test.txt /tmp/modbox_test.3rfgdr/wc_test.txt
+  ── stdin ──
+  PASS  wc (stdin)
+  ── - (stdin dash) ──
+  PASS  wc - (stdin dash)
+  ── empty file ──
+  PASS  wc /tmp/modbox_test.3rfgdr/wc_empty.txt
+  ── help ──
+  PASS  wc --help → matches /Usage:/
+  ── --json single file ──
+  PASS  wc --json single file (valid JSON, correct counts)
+  ── --json multiple files with total ──
+  PASS  wc --json multiple files (3 entries + total)
+  ── --json stdin ──
+  PASS  wc --json stdin (empty name)
+  ── --json stdin dash ──
+  PASS  wc --json stdin dash (name='-')
+  ── --json empty file ──
+  PASS  wc --json empty file (all counts zero)
+  ── --json missing file ──
+  PASS  wc --json missing file (error entry)
+  ── --json mixed valid/invalid ──
+  PASS  wc --json mixed valid/invalid (count + error entries)
+  ── --json key ordering ──
+  PASS  wc --json keys start with 'bytes' (alphabetical order)
+
+── whoami ───────────────────────────────────
+  ── print current user ──
+  PASS  whoami
+  ── --help shows usage ──
+  PASS  whoami --help → matches /Usage:/
+
+── who ──────────────────────────────────────
+  ── --help shows usage ──
+  PASS  who --help → matches /Usage:/
+  ── --version shows version ──
+  PASS  who --version → matches /who \(modbox\)/
+  ── -q count shows total ──
+  PASS  who -q → matches /^total [0-9]+$/
+  ── -H heading prints header ──
+  PASS  who -H → matches /NAME/
+  ── -b boot time ──
+  PASS  who -b (no boot entries in utmp — acceptable)
+  ── default output (short form) ──
+  PASS  who produces no output (no users) — acceptable
+
+── xargs ─────────────────────────────────────
+ ── echo with xargs ──
+  PASS  xargs echo — produced output
+ ── -n 2 limits args per invocation ──
+  PASS  -n 2 — second group present
+ ── -0 null terminated ──
+  PASS  -0 null terminated
+ ── missing command error ──
+  PASS  xargs → stderr matches /missing command/
+ ── --help shows usage ──
+  PASS  xargs --help → matches /Usage:/
+ ── --version ──
+  FAIL  xargs --version — expected pattern /xargs (modbox)/ not found in output
+
+── yes ───────────────────────────────────────
+  ── default (outputs 'y') ──
+  PASS  yes (default)
+  ── single string ──
+  PASS  yes hello
+  ── multiple strings joined by space ──
+  PASS  yes foo bar baz
+  ── --help ──
+  PASS  yes --help → matches /Usage:/
+  ── --version ──
+  PASS  yes --version → matches /yes \(modbox\) 1.0/
+  ── -h ──
+  PASS  yes -h → matches /Usage:/
+  ── -V ──
+  PASS  yes -V → matches /yes \(modbox\) 1.0/
+
+── zoxide ────────────────────────────────────
+  ── help ──
+  PASS  zoxide --help → matches /Usage:/
+  PASS  zoxide --help → matches /Subcommands:/
+  ── init bash ──
+  PASS  zoxide init bash → matches /__zoxide_hook/
+  PASS  zoxide init bash → matches /^z\(\)/
+  ── init zsh ──
+  PASS  zoxide init zsh → matches /precmd_functions/
+  ── init fish ──
+  PASS  zoxide init fish → matches /function z/
+  ── init posix ──
+  PASS  zoxide init posix → matches /^z\(\)/
+  ── init nushell ──
+  PASS  zoxide init nushell → matches /def --env z/
+  ── add + list ──
+  PASS  zoxide add /tmp/modbox_test.qnGxyz/zo_alpha
+  PASS  zoxide add /tmp/modbox_test.qnGxyz/zo_beta
+  PASS  zoxide add /tmp/modbox_test.qnGxyz/zo_gamma
+  PASS  zoxide list → matches /zo_alpha/
+  PASS  zoxide list → matches /zo_beta/
+  PASS  zoxide list → matches /zo_gamma/
+  ── query exact ──
+  PASS  zoxide query alpha → matches zo_alpha
+  ── query multiple keywords ──
+  PASS  zoxide query zo beta → matches zo_beta
+  ── query no match ──
+  PASS  zoxide query nonexistent_xyz → stderr matches /no match/
+  ── frecency: higher rank wins ──
+  PASS  zoxide query zo → higher-ranked zo_gamma wins
+  ── remove ──
+  PASS  zoxide remove /tmp/modbox_test.qnGxyz/zo_beta
+  PASS  zoxide list — correctly lacks /zo_beta/
+  ── remove nonexistent ──
+  PASS  zoxide remove /tmp/modbox_test.qnGxyz/zo_notindb → stderr matches /not found/
+  ── add nonexistent path ──
+  PASS  zoxide add /tmp/modbox_test.qnGxyz/does_not_exist_xyz → stderr matches /cannot resolve/
+  ── empty list ──
+  PASS  zoxide list
+
+
+════════════════════════════════════════════
+  Results: 1675 passed, 0 failed
+════════════════════════════════════════════

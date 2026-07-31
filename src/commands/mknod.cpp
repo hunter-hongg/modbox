@@ -8,11 +8,12 @@
 #include <unistd.h>
 
 #include "commands/mknod.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 #define MKNOD_MODE_DEFAULT 0666
 
-void mknod_command(int argc, char **argv) {
+int mknod_command(int argc, char **argv) {
   struct arg_str *mode_opt =
       arg_str0("m", "mode", "MODE",
                "set file mode (as in chmod), not a=rw - umask");
@@ -28,10 +29,10 @@ void mknod_command(int argc, char **argv) {
       arg_strn(NULL, NULL, "MINOR", 0, 1, "minor device number");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {mode_opt, help_opt, name_arg, type_arg,
-                      major_arg, minor_arg, end};
+  ArgTable at({mode_opt, help_opt, name_arg, type_arg,
+               major_arg, minor_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... NAME TYPE [MAJOR MINOR]\n", argv[0]);
@@ -45,14 +46,11 @@ void mknod_command(int argc, char **argv) {
     printf("  b      create a block (buffered) special file\n");
     printf("  c, u   create a character (unbuffered) special file\n");
     printf("  p      create a FIFO (named pipe)\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
   if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return at.print_errors(end, argv[0]);
   }
 
   MknodOptions opts = {};
@@ -63,8 +61,7 @@ void mknod_command(int argc, char **argv) {
     long m = strtol(mode_opt->sval[0], &endptr, 8);
     if (*endptr != '\0' || m < 0 || m > 07777) {
       (void)fprintf(stderr, "mknod: invalid mode '%s'\n", mode_opt->sval[0]);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
     opts.mode = (mode_t)(m & 07777);
   }
@@ -78,8 +75,7 @@ void mknod_command(int argc, char **argv) {
       const char *extra = major_arg->count > 0 ? major_arg->sval[0]
                                                : minor_arg->sval[0];
       (void)fprintf(stderr, "mknod: extra operand '%s'\n", extra);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
 
     if (mkfifo(name, opts.mode) != 0) {
@@ -91,8 +87,7 @@ void mknod_command(int argc, char **argv) {
     /* Block or character device — need MAJOR and MINOR */
     if (major_arg->count != 1 || minor_arg->count != 1) {
       (void)fprintf(stderr, "mknod: missing device number for '%s'\n", name);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
 
     char *endptr = NULL;
@@ -100,16 +95,14 @@ void mknod_command(int argc, char **argv) {
     if (*endptr != '\0' || major_num < 0) {
       (void)fprintf(stderr, "mknod: invalid major device number '%s'\n",
                     major_arg->sval[0]);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
 
     long minor_num = strtol(minor_arg->sval[0], &endptr, 0);
     if (*endptr != '\0' || minor_num < 0) {
       (void)fprintf(stderr, "mknod: invalid minor device number '%s'\n",
                     minor_arg->sval[0]);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      return 0;
     }
 
     mode_t file_type = (type[0] == 'b') ? S_IFBLK : S_IFCHR;
@@ -121,11 +114,10 @@ void mknod_command(int argc, char **argv) {
     }
   } else {
     (void)fprintf(stderr, "mknod: invalid device type '%s'\n", type);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    return 0;
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  return 0;
 }
 
 REGISTER_COMMAND("mknod", mknod_command, "Create device node");

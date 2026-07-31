@@ -12,6 +12,7 @@
 
 #include "commands/time.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 namespace {
 
@@ -167,7 +168,7 @@ void print_verbose(FILE* fp, const TimeInfo& info) {
 
 }  // namespace
 
-void time_command(int argc, char** argv) {
+int time_command(int argc, char** argv) {
     const char* prog = argv[0];
 
     bool portable = false;
@@ -186,11 +187,11 @@ void time_command(int argc, char** argv) {
         }
         if (strcmp(s, "--help") == 0) {
             print_help(prog);
-            return;
+            return 0;
         }
         if (strcmp(s, "--version") == 0) {
-            printf("time (modbox) 1.0\n");
-            return;
+            print_version("time");
+            return 0;
         }
         if (strcmp(s, "-p") == 0 || strcmp(s, "--portable") == 0) {
             portable = true;

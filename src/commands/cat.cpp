@@ -7,6 +7,8 @@
 #include <argtable3.h>
 
 #include "commands/cat.hpp"
+#include "commands/arg_util.hpp"
+#include "commands/cmd_error.hpp"
 #include "commands/pager.hpp"
 #include "commands/cat/helpers.hpp"
 #include "commands/cat/blame.hpp"
@@ -304,7 +306,7 @@ static void run_pipeline(const char* path, const CatOptions* opts, int* line_num
 // NOLINTNEXTLINE(readability-function-cognitive-complexity, misc-use-internal-linkage)
 void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool nonempty_number_mode, int number_format, bool highlight_mode);
 
-void cat_command(int argc, char** argv) {
+int cat_command(int argc, char** argv) {
     CatOptions opts = {0};
     char* pager_buf = NULL;
     size_t pager_buf_size = 0;
@@ -342,16 +344,16 @@ void cat_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file to read");
     struct arg_end* end = arg_end(ARG_END_SIZE);
 
-    void* argtable[] = { number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt,
+    ArgTable at({ number_opt, nonempty_number_opt, show_ends_opt, show_tabs_opt,
         squeeze_blank_opt, show_nonprinting_opt, show_all_opt,
         show_nonprinting_and_ends_opt, show_tabs_and_nonprinting_opt,
         less_opt, tui_opt, help_opt,
         blame_opt, highlight_opt, header_opt, diff_opt,
         range_opt, grep_opt, context_opt, head_opt, tail_opt,
         number_format_opt, stats_opt,
-        file_arg, end };
+        file_arg, end });
 
-    int nerrors = arg_parse(argc, my_argv, argtable);
+    int nerrors = at.parse(argc, my_argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -387,25 +389,22 @@ void cat_command(int argc, char** argv) {
         printf("      --number-format=FMT  line number format: decimal|hex|octal\n");
         printf("      --stats              show line/word/char count\n");
         printf("  -h, --help               display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+        int rc = at.print_errors(end, argv[0]);
         do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
-        return;
+        return rc;
     }
 
     if (tui_opt->count > 0 && isatty(STDOUT_FILENO)) {
         cat_tui_main(file_arg->count, file_arg->filename,
                      number_opt->count > 0, nonempty_number_opt->count > 0,
                      opts.number_format, highlight_opt->count > 0);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
-        return;
+        return 0;
     }
 
     opts.show_line_numbers = (number_opt->count > 0);
@@ -499,8 +498,7 @@ void cat_command(int argc, char** argv) {
                     fp = fopen(file_arg->filename[i], "r");
                 }
                 if (fp == NULL) {
-                    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-                    (void)fprintf(stderr, "cat: %s: No such file or directory\n", file_arg->filename[i]);
+                    cmd_perror("cat", file_arg->filename[i]);
                     prev_file_had_newline = 1;
                     continue;
                 }
@@ -514,8 +512,6 @@ void cat_command(int argc, char** argv) {
             }
         }
     }
-
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     if (out_fp != stdout) {
         // NOLINTNEXTLINE(bugprone-unused-return-value)
@@ -537,6 +533,7 @@ void cat_command(int argc, char** argv) {
     }
 
     do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
+    return 0;
 }
 
 REGISTER_COMMAND("cat", cat_command, "Concatenate files and print");

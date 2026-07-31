@@ -10,6 +10,7 @@
 
 #include "commands/factor.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 using u64 = uint64_t;
 using u128 = __uint128_t;
@@ -162,7 +163,7 @@ static void print_help(const char* prog) {
     printf("      --version     output version information and exit\n");
 }
 
-void factor_command(int argc, char** argv) {
+int factor_command(int argc, char** argv) {
     const char* prog = argv[0];
     bool exponents = false;
     std::vector<const char*> operands;
@@ -177,11 +178,11 @@ void factor_command(int argc, char** argv) {
         if (!no_more_opts && a[0] == '-' && a[1] != '\0' && isdigit((unsigned char)a[1]) == 0) {
             if (strcmp(a, "--help") == 0) {
                 print_help(prog);
-                return;
+                return 0;
             }
             if (strcmp(a, "--version") == 0) {
-                printf("factor (modbox) 1.0\n");
-                return;
+                print_version("factor");
+                return 0;
             }
             if (strcmp(a, "-h") == 0 || strcmp(a, "--exponents") == 0) {
                 exponents = true;
@@ -189,7 +190,7 @@ void factor_command(int argc, char** argv) {
             }
             fprintf(stderr, "factor: invalid option: '%s'\n", a);
             fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-            return;
+            return 0;
         }
         operands.push_back(a);
     }
@@ -198,7 +199,7 @@ void factor_command(int argc, char** argv) {
         for (const char* s : operands) {
             print_factors(s, exponents);
         }
-        return;
+        return 0;
     }
 
     std::string tok;
@@ -216,6 +217,7 @@ void factor_command(int argc, char** argv) {
     if (!tok.empty()) {
         print_factors(tok.c_str(), exponents);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("factor", factor_command, "Print prime factors");

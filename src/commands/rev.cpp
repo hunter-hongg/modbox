@@ -2,6 +2,7 @@
 #include <cstring>
 #include <argtable3.h>
 #include "commands/rev.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
 static void reverse_string(char* s, size_t len) {
@@ -31,27 +32,24 @@ static void rev_file(FILE* fp) {
     }
 }
 
-void rev_command(int argc, char** argv) {
+int rev_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "input file(s)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {help_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({help_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
         printf("Reverse lines characterwise.\n");
         printf("\n");
         printf("  -h, --help    display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     if (file_arg->count == 0) {
@@ -73,7 +71,7 @@ void rev_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("rev", rev_command, "Reverse lines characterwise");

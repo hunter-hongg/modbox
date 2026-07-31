@@ -1,4 +1,4 @@
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -163,7 +163,7 @@ static int search_directory(const char* dirpath, const GrepOptions* opts,
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void grep_command(int argc, char** argv) {
+int grep_command(int argc, char** argv) {
   GrepOptions opts;
   opts.mode = GrepMode::BASIC;
   opts.color_mode = GrepColor::NEVER;
@@ -184,7 +184,7 @@ void grep_command(int argc, char** argv) {
       }
       argc--;
       grep_tui_main(argc, argv);
-      return;
+      return 0;
     }
   }
 
@@ -231,17 +231,15 @@ void grep_command(int argc, char** argv) {
       arg_filen(nullptr, nullptr, "FILE", 0, GREP_MAX_FILES, "file to search");
   struct arg_end* end = arg_end(20);
 
-  // NOLINTNEXTLINE(misc-use-internal-linkage)
-  void* argtable[] = {extended_opt,  fixed_opt,
-                      ignore_case_opt, invert_opt,     line_number_opt,
-                      count_opt,       recursive_opt,  recursive2_opt,
-                      word_regexp_opt, line_regexp_opt, only_matching_opt,
-                      files_opt,       with_filename_opt, no_filename_opt,
-                      color_opt,       pattern_opt,
-                      help_opt,
-                      file_arg,        end};
-
-  int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({extended_opt, fixed_opt,
+                 ignore_case_opt, invert_opt, line_number_opt,
+                 count_opt, recursive_opt, recursive2_opt,
+                 word_regexp_opt, line_regexp_opt, only_matching_opt,
+                 files_opt, with_filename_opt, no_filename_opt,
+                 color_opt, pattern_opt,
+                 help_opt,
+                 file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... PATTERN [FILE]...\n", argv[0]);
@@ -291,15 +289,13 @@ void grep_command(int argc, char** argv) {
     printf("  -Z, --null               output NUL byte after filename\n");
     printf("\n");
     printf("Note: Basic regex uses std::regex syntax (ECMAScript).\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
+    
+    return 0;
   }
 
-  if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    exit(2); // NOLINT(misc-include-cleaner)
-  }
+if (nerrors > 0) {
+        return at.print_errors(end, argv[0]);
+    }
 
   // --- Parse options ---
   if (extended_opt->count > 0) {
@@ -357,7 +353,7 @@ void grep_command(int argc, char** argv) {
   if (pattern == nullptr) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "grep: no pattern specified\n");
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
     exit(2); // NOLINT(misc-include-cleaner)
   }
 
@@ -379,7 +375,7 @@ void grep_command(int argc, char** argv) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "grep: invalid pattern '%s': %s\n", pattern,
                     e.what());
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+      
       exit(2); // NOLINT(misc-include-cleaner)
     }
   }
@@ -434,7 +430,7 @@ void grep_command(int argc, char** argv) {
 
   // --- Cleanup ---
   // regex destructor handles cleanup
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  
 
   // Exit with 0 if match found, 1 otherwise
   if (total_matches > 0) {

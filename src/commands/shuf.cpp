@@ -7,6 +7,7 @@
 #include <random>
 #include <algorithm>
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/shuf.hpp"
 #include "commands/command_macros.hpp"
@@ -53,7 +54,7 @@ static std::vector<std::string> read_lines(int file_count, const char** filename
     return lines;
 }
 
-void shuf_command(int argc, char** argv) {
+int shuf_command(int argc, char** argv) {
     struct arg_lit* echo_opt = arg_lit0("e", "echo", "treat each argument as an input line");
     struct arg_str* input_range_opt = arg_str0("i", "input-range", "LO-HI", "treat each number LO through HI as an input line");
     struct arg_int* head_count_opt = arg_int0("n", "head-count", "COUNT", "output at most COUNT lines");
@@ -63,8 +64,9 @@ void shuf_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(nullptr, nullptr, "FILE", 0, 100, "input file(s)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {echo_opt, input_range_opt, head_count_opt, repeat_opt, output_opt, help_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({echo_opt, input_range_opt, head_count_opt, repeat_opt, output_opt, help_opt, file_arg, end});
+
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -76,26 +78,21 @@ void shuf_command(int argc, char** argv) {
         printf("  -r, --repeat              output lines can be repeated\n");
         printf("  -o, --output=FILE         write result to FILE instead of standard output\n");
         printf("  -h, --help                display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     if (echo_opt->count > 0 && input_range_opt->count > 0) {
         fprintf(stderr, "shuf: cannot combine -e and -i\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (input_range_opt->count > 0 && file_arg->count > 0) {
         fprintf(stderr, "shuf: cannot combine -i with file arguments\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     int repeat = (repeat_opt->count > 0);
@@ -109,8 +106,7 @@ void shuf_command(int argc, char** argv) {
         int lo = 0, hi = 0;
         if (sscanf(range, "%d-%d", &lo, &hi) != 2 || lo > hi) {
             fprintf(stderr, "shuf: invalid input range: %s\n", range);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         lines.reserve((size_t)(hi - lo + 1));
         for (int i = lo; i <= hi; i++) {
@@ -124,8 +120,7 @@ void shuf_command(int argc, char** argv) {
         }
         if (lines.empty()) {
             fprintf(stderr, "shuf: no input lines\n");
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     } else {
         int file_count = file_arg->count;
@@ -134,8 +129,7 @@ void shuf_command(int argc, char** argv) {
     }
 
     if (lines.empty()) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     FILE* out_fp = stdout;
@@ -143,8 +137,7 @@ void shuf_command(int argc, char** argv) {
         out_fp = fopen(output_file, "w");
         if (out_fp == nullptr) {
             fprintf(stderr, "shuf: %s: Cannot open for writing: %s\n", output_file, strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -174,7 +167,7 @@ void shuf_command(int argc, char** argv) {
         fclose(out_fp);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("shuf", shuf_command, "Shuffle lines");

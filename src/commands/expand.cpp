@@ -6,6 +6,7 @@
 #include "commands/expand.hpp"
 #include <argtable3.h>
 #include "commands/command_macros.hpp"
+#include "commands/arg_util.hpp"
 
 static int next_tab_col(int col, const std::vector<int>& stops, bool interval_mode)
 {
@@ -108,7 +109,7 @@ static bool parse_tab_stops(const char* s, std::vector<int>& stops, bool& interv
     return true;
 }
 
-void expand_command(int argc, char** argv)
+int expand_command(int argc, char** argv)
 {
     struct arg_lit* initial_opt = arg_lit0("i", "initial", "do not convert tabs after non-blanks");
     struct arg_str* tabs_opt = arg_str0("t", "tabs", "N", "tab stops (number or comma-separated list)");
@@ -116,8 +117,8 @@ void expand_command(int argc, char** argv)
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "input file(s)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {initial_opt, tabs_opt, help_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({initial_opt, tabs_opt, help_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0)
     {
@@ -129,15 +130,12 @@ void expand_command(int argc, char** argv)
         printf("  -h, --help      display this help and exit\n");
         printf("\n");
         printf("With no FILE, or when FILE is -, read standard input.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0)
     {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     bool initial_only = (initial_opt->count > 0);
@@ -151,8 +149,7 @@ void expand_command(int argc, char** argv)
         if (!parse_tab_stops(tabs_opt->sval[0], tab_stops, interval_mode))
         {
             fprintf(stderr, "expand: invalid tab stop list: %s\n", tabs_opt->sval[0]);
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -183,7 +180,7 @@ void expand_command(int argc, char** argv)
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("expand", expand_command, "Convert tabs to spaces");

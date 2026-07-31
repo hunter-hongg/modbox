@@ -8,15 +8,16 @@
 #include <queue>
 #include <argtable3.h>
 #include "commands/tsort.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 
-void tsort_command(int argc, char** argv) {
+int tsort_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 1, "input file");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {help_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({help_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -27,14 +28,11 @@ void tsort_command(int argc, char** argv) {
         printf("Input format: pairs of whitespace-separated items.\n");
         printf("Each pair 'A B' means A must precede B in the output.\n");
         printf("With no FILE, or when FILE is -, read standard input.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     FILE* fp = stdin;
@@ -43,8 +41,7 @@ void tsort_command(int argc, char** argv) {
         if (!fp) {
             fprintf(stderr, "%s: cannot open '%s': %s\n",
                     argv[0], file_arg->filename[0], strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -77,8 +74,7 @@ void tsort_command(int argc, char** argv) {
     }
 
     if (tokens.empty()) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // Build directed graph (adjacency list) and in-degree counts.
@@ -139,11 +135,10 @@ void tsort_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-
     if (has_cycle) {
         exit(1);
     }
+    return 0;
 }
 
 REGISTER_COMMAND("tsort", tsort_command, "Topological sort");

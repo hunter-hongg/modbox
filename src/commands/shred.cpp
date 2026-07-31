@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/shred.hpp"
 #include "commands/command_macros.hpp"
@@ -142,7 +143,7 @@ static void shred_file(const char* filename, ShredOptions& opts) {
 
 }
 
-void shred_command(int argc, char** argv) {
+int shred_command(int argc, char** argv) {
     struct arg_int* iter_opt = arg_int0("n", "iterations", "num", "overwrite N times (default 3)");
     struct arg_lit* zero_opt = arg_lit0("z", "zero", "add a final overwrite with zeros");
     struct arg_lit* remove_opt = arg_lit0("u", "remove", "remove file after overwriting");
@@ -153,10 +154,10 @@ void shred_command(int argc, char** argv) {
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 1, 100, "files to shred");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {iter_opt, zero_opt, remove_opt, verbose_opt, force_opt,
-                        size_opt, help_opt, files_arg, end};
+    ArgTable at({iter_opt, zero_opt, remove_opt, verbose_opt, force_opt,
+                 size_opt, help_opt, files_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -172,14 +173,11 @@ void shred_command(int argc, char** argv) {
         printf("  -h, --help           display this help and exit\n");
         printf("\n");
         printf("At least one of --iterations, --zero, or --remove must be specified.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     ShredOptions opts;
@@ -197,8 +195,7 @@ void shred_command(int argc, char** argv) {
 
     if (opts.iterations == 0 && !opts.zero_pass && !opts.remove) {
         fprintf(stderr, "shred: no action specified (use -n, -z, or -u)\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     srand((unsigned int)time(nullptr));
@@ -207,7 +204,7 @@ void shred_command(int argc, char** argv) {
         shred_file(files_arg->filename[i], opts);
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("shred", shred_command, "Overwrite file to hide its contents");

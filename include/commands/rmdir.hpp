@@ -7,6 +7,6 @@ struct RmdirOptions {
   int is_parents = 0;
 };
 
-void rmdir_command(int argc, char** argv);
+int rmdir_command(int argc, char** argv);
 
 #endif

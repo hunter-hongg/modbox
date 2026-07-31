@@ -8,6 +8,6 @@ struct JoinOptions {
   int file2_field = 1;
 };
 
-void join_command(int argc, char** argv);
+int join_command(int argc, char** argv);
 
 #endif

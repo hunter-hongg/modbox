@@ -15,6 +15,6 @@ struct CpOptions {
     const struct stat* src_stat = nullptr;
 };
 
-void cp_command(int argc, char** argv);
+int cp_command(int argc, char** argv);
 
 #endif

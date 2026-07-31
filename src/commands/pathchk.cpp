@@ -9,6 +9,7 @@
 
 #include "commands/pathchk.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/version_util.hpp"
 
 static constexpr size_t POSIX_NAME_MAX = 255;
 static constexpr size_t POSIX_PATH_MAX = 255;
@@ -91,7 +92,7 @@ static bool check_path(const std::string& path, const PathchkOptions* opts) {
     return ok;
 }
 
-void pathchk_command(int argc, char** argv) {
+int pathchk_command(int argc, char** argv) {
     PathchkOptions opts;
     bool name_max_set = false;
     size_t custom_name_max = 0;
@@ -152,13 +153,13 @@ void pathchk_command(int argc, char** argv) {
             printf("  -w, --no-check-warnings do not warn about potentially problematic file names\n");
             printf("  -h, --help              display this help and exit\n");
             printf("  -V, --version           output version information and exit\n");
-            return;
+            return 0;
         }
         if (strcmp(a, "-V") == 0 || strcmp(a, "--version") == 0) {
-            printf("pathchk (modbox) 1.0\n");
+            print_version("pathchk");
             printf("Copyright (C) 2026 modbox\n");
             printf("License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n");
-            return;
+            return 0;
         }
         fprintf(stderr, "pathchk: invalid option -- '%s'\nTry 'pathchk --help' for more information.\n", a);
         exit(2);
@@ -183,6 +184,7 @@ void pathchk_command(int argc, char** argv) {
     }
 
     if (!all_ok) exit(1);
+    return 0;
 }
 
 REGISTER_COMMAND("pathchk", pathchk_command, "Check file names for validity and portability");

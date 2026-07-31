@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/diff.hpp"
 #include "commands/command_macros.hpp"
@@ -574,7 +574,7 @@ static int files_differ(char** old_lines, int old_len,
 
 /* ── Main command ───────────────────────────────────────────────────────── */
 
-void diff_command(int argc, char** argv) {
+int diff_command(int argc, char** argv) {
     DiffOptions opts = {0};
     opts.context_lines = 3;
 
@@ -596,17 +596,17 @@ void diff_command(int argc, char** argv) {
     struct arg_file* file2_arg = arg_filen(NULL, NULL, "FILE2", 1, 1, "second file (or - for stdin)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {
-        brief_opt, report_identical_opt,
-        ignore_case_opt, ignore_all_space_opt, ignore_space_change_opt,
-        show_c_function_opt, expand_tabs_opt,
-        unified_opt, unified_ctx_opt, context_opt, context_ctx_opt,
-        color_opt, normal_opt,
-        help_opt,
-        file1_arg, file2_arg, end
-    };
+    ArgTable at({
+    brief_opt, report_identical_opt,
+    ignore_case_opt, ignore_all_space_opt, ignore_space_change_opt,
+    show_c_function_opt, expand_tabs_opt,
+    unified_opt, unified_ctx_opt, context_opt, context_ctx_opt,
+    color_opt, normal_opt,
+    help_opt,
+    file1_arg, file2_arg, end
+});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE1 FILE2\n", argv[0]);
@@ -627,14 +627,12 @@ void diff_command(int argc, char** argv) {
         printf("      --color=WHEN              colorize output (always, auto, never)\n");
         printf("      --normal                  output a normal diff (default)\n");
         printf("  -h, --help                    display this help and exit\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     opts.brief = (brief_opt->count > 0);
@@ -670,16 +668,16 @@ void diff_command(int argc, char** argv) {
     char** old_lines = read_lines(file1, &old_len);
     if (old_lines == NULL && old_len == -1) {
         fprintf(stderr, "diff: %s: No such file or directory\n", file1);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     char** new_lines = read_lines(file2, &new_len);
     if (new_lines == NULL && new_len == -1) {
         fprintf(stderr, "diff: %s: No such file or directory\n", file2);
         free_lines(old_lines, old_len);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     if (opts.brief) {
@@ -691,8 +689,8 @@ void diff_command(int argc, char** argv) {
         }
         free_lines(old_lines, old_len);
         free_lines(new_lines, new_len);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     auto changes = compute_changes(old_lines, old_len, new_lines, new_len, &opts);
@@ -719,7 +717,8 @@ void diff_command(int argc, char** argv) {
 
     free_lines(old_lines, old_len);
     free_lines(new_lines, new_len);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    
+    return 0;
 }
 
 REGISTER_COMMAND("diff", diff_command, "Compare files line by line");

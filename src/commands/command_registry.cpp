@@ -6,7 +6,7 @@ CommandRegistry &CommandRegistry::instance() {
 }
 
 void CommandRegistry::add(const char *name, const char *help,
-                          void (*run)(int, char **)) {
+                          int (*run)(int, char **)) {
     entries_.push_back({name, help, run});
 }
 

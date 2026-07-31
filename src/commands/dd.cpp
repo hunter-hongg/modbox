@@ -963,18 +963,18 @@ static void usage(const char* argv0) {
     printf("  seek_bytes   seek=N is in bytes\n");
 }
 
-void dd_command(int argc, char** argv) {
+int dd_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             usage(argv[0]);
-            return;
+            return 0;
         }
     }
 
     DdOptions opts = {};
     if (!scanargs(argc, argv, &opts)) {
         usage(argv[0]);
-        return;
+        return 0;
     }
 
     for (int i = 0; i < 256; i++)
@@ -1011,7 +1011,7 @@ void dd_command(int argc, char** argv) {
         infd = open(opts.input_file, flags, 0666);
         if (infd < 0) {
             dd_error(strerror(errno));
-            return;
+            return 0;
         }
     }
 
@@ -1029,7 +1029,7 @@ void dd_command(int argc, char** argv) {
         outfd = open(opts.output_file, flags, 0666);
         if (outfd < 0) {
             dd_error(strerror(errno));
-            return;
+            return 0;
         }
     }
 
@@ -1041,6 +1041,7 @@ void dd_command(int argc, char** argv) {
     print_stats(opts.status_level);
 
     if (status != 0) exit(status);
+    return 0;
 }
 
 REGISTER_COMMAND("dd", dd_command, "Convert and copy a file");

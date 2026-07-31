@@ -13,6 +13,7 @@
 #include <vector>
 #include <unordered_map>
 #include <argtable3.h>
+#include "commands/arg_util.hpp"
 
 #include "commands/du.hpp"
 #include "commands/command_macros.hpp"
@@ -263,7 +264,7 @@ static void print_entry(const DuEntry *e, const DuOptions *opts,
 /* ── Main command ────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void du_command(int argc, char **argv) {
+int du_command(int argc, char **argv) {
     DuOptions opts = {0};
     du_entries.clear();
     du_glob_opts = &opts;
@@ -293,18 +294,16 @@ void du_command(int argc, char **argv) {
     struct arg_file *file_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "file or directory");
     struct arg_end *end = arg_end(20);
 
-    void *argtable[] = {
-        bytes_opt, block_k_opt, block_m_opt, human_opt,
-        summarize_opt, total_opt, all_opt, max_depth_opt,
-        one_fs_opt, count_links_opt, si_opt, apparent_opt,
-        time_opt, separate_opt, null_opt,
-        exclude_opt, threshold_opt,
-        json_opt,
-        help_opt,
-        file_arg, end
-    };
+    ArgTable at({bytes_opt, block_k_opt, block_m_opt, human_opt,
+                 summarize_opt, total_opt, all_opt, max_depth_opt,
+                 one_fs_opt, count_links_opt, si_opt, apparent_opt,
+                 time_opt, separate_opt, null_opt,
+                 exclude_opt, threshold_opt,
+                 json_opt,
+                 help_opt,
+                 file_arg, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -332,14 +331,11 @@ void du_command(int argc, char **argv) {
         printf("  -h, --help               display this help and exit\n");
         printf("\n");
         printf("With no FILE, read current directory.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     /* Populate options */
@@ -527,7 +523,7 @@ void du_command(int argc, char **argv) {
     if (opts.exclude) {
         free(opts.exclude);
     }
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("du", du_command, "Estimate file space usage");

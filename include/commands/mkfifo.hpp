@@ -7,6 +7,6 @@ struct MkfifoOptions {
     mode_t mode = 0666;
 };
 
-void mkfifo_command(int argc, char** argv);
+int mkfifo_command(int argc, char** argv);
 
 #endif

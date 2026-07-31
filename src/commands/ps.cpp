@@ -28,6 +28,7 @@
 #include <ftxui/screen/color.hpp>
 
 #include "commands/ps.hpp"
+#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/json_stringifier.hpp"
 
@@ -262,7 +263,7 @@ static void format_cputime(int total_ticks, char* out, size_t out_size) {
 // Forward declaration for TUI mode
 static void ps_tui_main();
 
-void ps_command(int argc, char** argv) {
+int ps_command(int argc, char** argv) {
     g_clk_tck = (int)sysconf(_SC_CLK_TCK);
     if (g_clk_tck <= 0) g_clk_tck = 100;
     read_boot_time();
@@ -302,8 +303,8 @@ void ps_command(int argc, char** argv) {
     struct arg_lit* json_opt = arg_lit0(NULL, "json", "output in JSON format");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {all_opt, a_opt, d_opt, e_opt, f_opt, u_opt, help_opt, x_opt, tui_opt, json_opt, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+    ArgTable at({all_opt, a_opt, d_opt, e_opt, f_opt, u_opt, help_opt, x_opt, tui_opt, json_opt, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -332,21 +333,17 @@ void ps_command(int argc, char** argv) {
         printf("By default, ps selects all processes with the same effective user ID\n");
         printf("(EUID) as the current user and associated with the same terminal as the\n");
         printf("invoker.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     // TUI mode
     if (tui_opt->count > 0) {
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
         ps_tui_main();
-        return;
+        return 0;
     }
 
     bool select_all = (all_opt->count > 0) || (e_opt->count > 0);
@@ -379,8 +376,7 @@ void ps_command(int argc, char** argv) {
     DIR* proc_dir = opendir("/proc");
     if (!proc_dir) {
         perror("ps: cannot open /proc");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     struct dirent* entry;
@@ -459,8 +455,7 @@ void ps_command(int argc, char** argv) {
             fprintf(stdout, "  }%s\n", (i + 1 < matched_procs.size()) ? "," : "");
         }
         fprintf(stdout, "]\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     int pid_w = 3, ppid_w = 3, cpu_w = 1, user_w = 3;
@@ -622,7 +617,7 @@ void ps_command(int argc, char** argv) {
                    pid_w, info.pid, tty_w, tty_str, time_w, time_str, info.cmd);
         }
     }
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 // ---------------------------------------------------------------------------

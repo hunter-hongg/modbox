@@ -11,6 +11,6 @@ struct CommOptions {
     const char* output_delimiter = "\t"; // --output-delimiter
 };
 
-void comm_command(int argc, char** argv);
+int comm_command(int argc, char** argv);
 
 #endif

@@ -26,6 +26,6 @@ struct SortOptions {
     std::vector<ParsedKey> keys;     // parsed key specs
 };
 
-void sort_command(int argc, char** argv);
+int sort_command(int argc, char** argv);
 
 #endif

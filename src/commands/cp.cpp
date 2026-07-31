@@ -1,4 +1,4 @@
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 #include <dirent.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "commands/cp.hpp"
+#include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
 
 #define COPY_BUF_SIZE 8192
@@ -59,8 +60,7 @@ static int copy_file(const char *src, const char *dst,
     src_stat = opts->src_stat;
   } else {
     if (stat(src, &src_stat_buf) != 0) {
-      // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-      (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+      cmd_perror("cp", src);
       return -1;
     }
     src_stat = &src_stat_buf;
@@ -95,8 +95,7 @@ static int copy_file(const char *src, const char *dst,
 
   FILE *fsrc = fopen(src, "rb");
   if (fsrc == NULL) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+    cmd_perror("cp", src);
     return -1;
   }
 
@@ -160,8 +159,7 @@ static int copy_recursive(const char *src, const char *dst,
                           const CpOptions *opts) {
   struct stat src_stat;
   if (stat(src, &src_stat) != 0) {
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+    cmd_perror("cp", src);
     return -1;
   }
 
@@ -249,7 +247,7 @@ static int copy_recursive(const char *src, const char *dst,
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void cp_command(int argc, char **argv) {
+int cp_command(int argc, char **argv) {
   struct arg_lit *recursive_opt =
       arg_lit0("r", "recursive", "copy directories recursively");
   struct arg_lit *verbose_opt =
@@ -274,18 +272,16 @@ void cp_command(int argc, char **argv) {
                 "source(s) followed by destination");
   struct arg_end *end = arg_end(20);
 
-  void *argtable[] = {recursive_opt, verbose_opt, force_opt,
-                      no_clobber_opt, interactive_opt, update_opt,
-                      preserve_opt, target_dir_opt,
-                      files_arg,     end};
+ArgTable at({recursive_opt, verbose_opt, force_opt,
+              no_clobber_opt, interactive_opt, update_opt,
+              preserve_opt, target_dir_opt,
+              files_arg, end});
 
-  int nerrors = arg_parse(argc, argv, argtable);
+  int nerrors = at.parse(argc, argv);
 
-  if (nerrors > 0) {
-    arg_print_errors(stderr, end, argv[0]);
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-    return;
-  }
+if (nerrors > 0) {
+    return at.print_errors(end, argv[0]);
+}
 
   CpOptions opts = {};
 
@@ -321,28 +317,28 @@ void cp_command(int argc, char **argv) {
           ? "No such file or directory" : "is not a directory";
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "cp: target '%s': %s\n", dst, msg);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      
+      return 0;
     }
     if (!S_ISDIR(tgt_stat.st_mode)) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "cp: target '%s' is not a directory\n", dst);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      
+      return 0;
     }
 
     if (num_files < 1) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "cp: missing file operand\n");
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      
+      return 0;
     }
   } else {
     if (num_files < 2) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "cp: missing destination operand\n");
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      
+      return 0;
     }
     /* Last argument is destination, all preceding are sources */
     dst = files_arg->filename[num_files - 1];
@@ -357,8 +353,8 @@ void cp_command(int argc, char **argv) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr,
                     "cp: expected one source file (use -r for recursive)\n");
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      
+      return 0;
     }
 
     for (int i = 0; i < num_srcs; i++) {
@@ -366,8 +362,7 @@ void cp_command(int argc, char **argv) {
 
       struct stat src_stat;
       if (stat(src, &src_stat) != 0) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+        cmd_perror("cp", src);
         ret = -1;
         continue;
       }
@@ -405,8 +400,8 @@ void cp_command(int argc, char **argv) {
     if (num_srcs > 1 && !dst_is_dir) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "cp: target '%s' is not a directory\n", dst);
-      arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-      return;
+      
+      return 0;
     }
 
     for (int i = 0; i < num_srcs; i++) {
@@ -414,8 +409,7 @@ void cp_command(int argc, char **argv) {
 
       struct stat src_stat;
       if (stat(src, &src_stat) != 0) {
-        // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "cp: %s: No such file or directory\n", src);
+        cmd_perror("cp", src);
         continue;
       }
 
@@ -438,8 +432,9 @@ void cp_command(int argc, char **argv) {
     }
   }
 
-  arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+  
   (void)ret;
+  return 0;
 }
 
 REGISTER_COMMAND("cp", cp_command, "Copy files and directories");

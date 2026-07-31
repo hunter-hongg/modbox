@@ -1,4 +1,4 @@
-#include <argtable3.h>
+#include "commands/arg_util.hpp"
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -71,7 +71,7 @@ static bool parse_userspec(const char* spec, uid_t* uid, gid_t* gid,
     return true;
 }
 
-void chroot_command(int argc, char** argv) {
+int chroot_command(int argc, char** argv) {
     struct arg_str* userspec_opt = arg_str0(NULL, "userspec", "USER[:GROUP]",
                                              "specify the user and group to use");
     struct arg_str* groups_opt = arg_str0(NULL, "groups", "GROUPS",
@@ -84,10 +84,10 @@ void chroot_command(int argc, char** argv) {
     struct arg_str* cmd_args = arg_strn(NULL, NULL, "ARG", 0, 100, "command arguments");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {userspec_opt, groups_opt, skip_chdir_opt,
-                        help_opt, newroot_arg, command_arg, cmd_args, end};
+    ArgTable at({userspec_opt, groups_opt, skip_chdir_opt,
+                 help_opt, newroot_arg, command_arg, cmd_args, end});
 
-    int nerrors = arg_parse(argc, argv, argtable);
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION] NEWROOT [COMMAND [ARG]...]\n", argv[0]);
@@ -100,14 +100,11 @@ void chroot_command(int argc, char** argv) {
         printf("      --help                   display this help and exit\n");
         printf("\n");
         printf("If no command is given, run /bin/sh.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     const char* newroot = newroot_arg->filename[0];
@@ -130,8 +127,7 @@ void chroot_command(int argc, char** argv) {
     // chroot requires root privileges
     if (geteuid() != 0) {
         fprintf(stderr, "chroot: must be run as root\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // Step 1: Set supplementary groups (before chroot)
@@ -152,8 +148,7 @@ void chroot_command(int argc, char** argv) {
                 struct group* gr = getgrnam(token.c_str());
                 if (!gr) {
                     fprintf(stderr, "chroot: invalid group '%s'\n", token.c_str());
-                    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                    return;
+                    return 0;
                 }
                 gid_list.push_back(gr->gr_gid);
             }
@@ -161,8 +156,7 @@ void chroot_command(int argc, char** argv) {
         }
         if (setgroups(gid_list.size(), gid_list.data()) != 0) {
             fprintf(stderr, "chroot: failed to set groups: %s\n", strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -170,8 +164,7 @@ void chroot_command(int argc, char** argv) {
     if (chroot(newroot) != 0) {
         fprintf(stderr, "chroot: failed to change root directory to '%s': %s\n",
                 newroot, strerror(errno));
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // Step 3: cd to root (unless --skip-chdir)
@@ -179,8 +172,7 @@ void chroot_command(int argc, char** argv) {
         if (chdir("/") != 0) {
             fprintf(stderr, "chroot: failed to change working directory: %s\n",
                     strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
@@ -189,24 +181,20 @@ void chroot_command(int argc, char** argv) {
         uid_t uid = 0;
         gid_t gid = 0;
         if (!parse_userspec(userspec_opt->sval[0], &uid, &gid, nullptr, nullptr)) {
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
 
         // Set GID first, then UID (permissions check)
         if (setgid(gid) != 0) {
             fprintf(stderr, "chroot: failed to set group ID: %s\n", strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
         if (setuid(uid) != 0) {
             fprintf(stderr, "chroot: failed to set user ID: %s\n", strerror(errno));
-            arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-            return;
+            return 0;
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
 
     // Step 5: exec the command
     execvp(cmd, (char* const*)exec_argv.data());

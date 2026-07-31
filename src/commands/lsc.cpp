@@ -5,7 +5,7 @@
 #include "commands/ls.hpp"
 #include "commands/command_macros.hpp"
 
-void lsc_command(int argc, char** argv) {
+int lsc_command(int argc, char** argv) {
     int new_argc = argc + 2;
     char** new_argv = (char**)malloc((size_t)(new_argc + 1) * sizeof(char*));
 
@@ -21,6 +21,7 @@ void lsc_command(int argc, char** argv) {
     ls_command(new_argc, new_argv);
 
     free(new_argv);
+    return 0;
 }
 
 REGISTER_COMMAND("lsc", lsc_command, "Alias for ls --colorful --icons");

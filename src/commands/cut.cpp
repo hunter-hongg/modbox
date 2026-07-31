@@ -10,6 +10,7 @@
 
 #include <argtable3.h>
 
+#include "commands/arg_util.hpp"
 #include "commands/cut.hpp"
 #include "commands/command_macros.hpp"
 
@@ -371,7 +372,7 @@ static char parse_delimiter_char(const char* s) {
 // Entry point
 // -------------------------------------------------------------------
 
-void cut_command(int argc, char** argv) {
+int cut_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_str* byte_opt  = arg_str0("b", "bytes", "LIST", "select only these bytes");
     struct arg_str* char_opt  = arg_str0("c", "characters", "LIST", "select only these characters");
@@ -385,10 +386,10 @@ void cut_command(int argc, char** argv) {
     struct arg_file* file_arg = arg_filen(nullptr, nullptr, "FILE", 0, 100, "input file(s)");
     struct arg_end* end = arg_end(20);
 
-    void* argtable[] = {help_opt, byte_opt, char_opt, delim_opt, field_opt,
+    ArgTable at({help_opt, byte_opt, char_opt, delim_opt, field_opt,
                         out_delim_opt, complement_opt, only_delimited_opt,
-                        zero_opt, n_opt, file_arg, end};
-    int nerrors = arg_parse(argc, argv, argtable);
+                        zero_opt, n_opt, file_arg, end});
+    int nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s OPTION... [FILE]...\n", argv[0]);
@@ -417,14 +418,11 @@ void cut_command(int argc, char** argv) {
         printf("  -M    from first to M'th (included) byte, character or field\n");
         printf("\n");
         printf("With no FILE, or when FILE is -, read standard input.\n");
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (nerrors > 0) {
-        arg_print_errors(stderr, end, argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return at.print_errors(end, argv[0]);
     }
 
     // Exactly one of -b, -c, -f is required
@@ -436,15 +434,13 @@ void cut_command(int argc, char** argv) {
         fprintf(stderr, "%s: you must specify a list of bytes, characters, or fields\n",
                 argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     if (mode_count > 1) {
         fprintf(stderr, "%s: only one type of list may be specified\n", argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // -d requires -f
@@ -452,8 +448,8 @@ void cut_command(int argc, char** argv) {
         fprintf(stderr, "%s: an input delimiter may be specified only when operating on fields\n",
                 argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        
+        return 0;
     }
 
     // -s requires -f
@@ -461,8 +457,7 @@ void cut_command(int argc, char** argv) {
         fprintf(stderr, "%s: an input delimiter may be specified only when operating on fields\n",
                 argv[0]);
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-        return;
+        return 0;
     }
 
     // Parse list
@@ -530,7 +525,7 @@ void cut_command(int argc, char** argv) {
         }
     }
 
-    arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+    return 0;
 }
 
 REGISTER_COMMAND("cut", cut_command, "Remove sections from each line");

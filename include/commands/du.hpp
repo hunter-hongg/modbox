@@ -26,6 +26,6 @@ struct DuOptions {
     uint64_t scale = 0;          // display unit in bytes
 };
 
-void du_command(int argc, char** argv);
+int du_command(int argc, char** argv);
 
 #endif

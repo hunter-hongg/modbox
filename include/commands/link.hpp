@@ -5,6 +5,6 @@ struct LinkOptions {
     int is_verbose = 0;
 };
 
-void link_command(int argc, char** argv);
+int link_command(int argc, char** argv);
 
 #endif
