@@ -408,6 +408,60 @@ modbox mv *.log logs/
 
 ---
 
+## rm
+
+Remove (unlink) the FILE(s).
+
+### Synopsis
+
+```
+modbox rm [OPTION]... FILE...
+```
+
+### Options
+
+| Option                            | Description                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `-d`, `--dir`                     | Remove empty directories                                                             |
+| `-f`, `--force`                   | Ignore nonexistent files and arguments, never prompt                                 |
+| `-i`, `--interactive`             | Prompt before every removal (`y/N`)                                                  |
+| `-r`, `--recursive`               | Remove directories and their contents recursively                                    |
+| `-v`, `--verbose`                 | Explain what is being done                                                           |
+| `--one-file-system`               | Skip directories on different file systems when removing recursively                 |
+| `--no-preserve-root`              | Do not treat `/` specially                                                           |
+| `--preserve-root`                 | Do not remove `/` (default)                                                          |
+| `--trash`                         | Move files to `~/.trash` instead of deleting                                         |
+| `-h`, `--help`                    | Display help and exit                                                                |
+
+### Examples
+
+```bash
+modbox rm file.txt
+modbox rm -r dir/
+modbox rm -rf dir/
+modbox rm -v file.txt
+modbox rm -i file.txt
+modbox rm -d emptydir/
+modbox rm --trash file.txt
+modbox rm --trash -r dir/
+```
+
+### Notes
+
+- `-f` overrides `-i` (if both are given, `-f` takes precedence).
+- By default, `rm` does not remove directories. Use `-r` or `-d` for directories.
+- The `--trash` option moves files to `~/.trash` instead of permanently deleting them. This is a modbox extension.
+- `--preserve-root` is the default; `--no-preserve-root` is dangerous and not recommended.
+- When using `--one-file-system`, directories on different filesystems are skipped during recursive removal.
+- The `--trash` option creates the trash directory `~/.trash` if it doesn't exist.
+
+### Exit status
+
+- `0` — success
+- `1` — error
+
+---
+
 ## ptx
 
 Generate a permuted index (KWIC - Key Word In Context) for files.

@@ -14,11 +14,16 @@
 #   make clean                        remove build/, target/, compile_commands.json
 #   make refresh                      clean + full rebuild
 #   make refresh-tidy                 clean + full rebuild with clang-tidy
+#   make man                          generate man pages from markdown
+#   make install-man                  install man pages to $(PREFIX)/share/man/man1/
+#   make uninstall-man                remove installed man pages
 #
 # Options:
 #   DEBUG=1         add -g -O0
 #   TIDY=1          run clang-tidy during compilation (build-time analysis)
 #   CXX=clang++     select compiler
+#   PREFIX=/usr/local  installation prefix
+#   DESTDIR=         staging directory for packaging
 
 # --------------------------------------------------------------------------
 # Directories & target
@@ -73,6 +78,25 @@ LDLIBS   := $(PKG_LIBS) $(RPATH_FLAGS) -lstdc++fs
 
 # clang-tidy location (may be empty)
 CLANG_TIDY := $(shell command -v clang-tidy 2>/dev/null)
+
+# pandoc location (for man page generation)
+PANDOC := $(shell command -v pandoc 2>/dev/null)
+
+# Installation prefix
+PREFIX ?= /usr/local
+DESTDIR ?=
+
+# Man page directories
+MAN_SRC_DIR := docs/man
+MAN_BUILD_DIR := $(BUILD_DIR)/man
+MAN_INSTALL_DIR := $(DESTDIR)$(PREFIX)/share/man/man1
+
+# Man page sources and targets
+MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
+               $(MAN_SRC_DIR)/modbox-ls.1.md \
+               $(MAN_SRC_DIR)/modbox-rm.1.md
+MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
+MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 
 # --------------------------------------------------------------------------
 # Default target
@@ -142,6 +166,35 @@ endif
 .PHONY: run
 run: compile
 	./target/modbox
+
+# --------------------------------------------------------------------------
+# Man pages
+# --------------------------------------------------------------------------
+.PHONY: man
+man: $(MAN_PAGES)
+
+$(MAN_BUILD_DIR)/%: $(MAN_SRC_DIR)/%.md | $(MAN_BUILD_DIR)
+ifeq ($(PANDOC),)
+	@echo "pandoc not found; install it to generate man pages"
+	@exit 1
+endif
+	$(PANDOC) -s -t man $< -o $@
+
+$(MAN_BUILD_DIR):
+	@mkdir -p $@
+
+.PHONY: install-man
+install-man: $(MAN_INSTALLED)
+
+$(MAN_INSTALL_DIR)/%.gz: $(MAN_BUILD_DIR)/% | $(MAN_INSTALL_DIR)
+	gzip -9 -c $< > $@
+
+$(MAN_INSTALL_DIR):
+	@mkdir -p $@
+
+.PHONY: uninstall-man
+uninstall-man:
+	rm -f $(MAN_INSTALLED)
 
 # --------------------------------------------------------------------------
 # Clean / refresh
