@@ -32,7 +32,7 @@ echo "  ── --version ──"
 assert_cmd_pat 'getenforce \(modbox\) 1\.0' getenforce --version
 
 echo "  ── unknown option rejected ──"
-assert_cmd_pat_stderr 'invalid option' getenforce --foo
+assert_cmd_pat_stderr 'unrecognized option' getenforce --foo
 
 echo "  ── positional argument rejected ──"
 assert_cmd_pat_stderr 'unexpected argument' getenforce foo

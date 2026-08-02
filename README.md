@@ -28,7 +28,7 @@ modbox currently provides the following commands (130 in total):
 
 > Note: `[` is aliased to `test`.
 
-Not yet implemented (relative to GNU coreutils): `pinky`, `stdbuf`.
+All standard GNU coreutils commands implemented.
 
 Run `modbox help <command>` for usage of a specific command.
 
@@ -388,12 +388,12 @@ modbox follows these principles:
 
 See CHANGELOG.md for release notes and recent notable changes.
 
-- ✅ Implemented commands: 129 commands including all standard GNU coreutils (except pinky and stdbuf) plus additional utilities
+- ✅ Implemented commands: 130 commands including all standard GNU coreutils plus additional utilities
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing
 - ✅ Multi-call binary architecture
-- 🔄 Future work: pinky, stdbuf, man pages
+- 🔄 Future work: man pages
 
 ## See Also
 

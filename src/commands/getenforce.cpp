@@ -8,6 +8,19 @@
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 
+static int print_arg_errors(struct arg_end* end, const char* prog) {
+    for (int i = 0; i < end->count; i++) {
+        const char* argval = end->argval[i] ? end->argval[i] : "";
+        if (end->error[i] == ARG_ELONGOPT) {
+            fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argval);
+        } else {
+            fprintf(stderr, "%s: unexpected argument '%s'\n", prog, argval);
+        }
+    }
+    fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+    return 1;
+}
+
 int getenforce_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0(NULL, "help", "display this help and exit");
     struct arg_lit* version_opt = arg_lit0(NULL, "version", "output version information and exit");
@@ -18,7 +31,7 @@ int getenforce_command(int argc, char** argv) {
     int nerrors = at.parse(argc, argv);
 
     if (nerrors > 0) {
-        return at.print_errors(end, argv[0]);
+        return print_arg_errors(end, argv[0]);
     }
 
     if (help_opt->count > 0) {
@@ -34,20 +47,6 @@ int getenforce_command(int argc, char** argv) {
     if (version_opt->count > 0) {
         print_version("getenforce");
         return 0;
-    }
-
-    // Reject any extra arguments
-    for (int i = 1; i < argc; i++) {
-        const char* a = argv[i];
-        if (a[0] == '-' && a[1] != '\0') {
-            fprintf(stderr, "getenforce: unrecognized option '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            return 1;
-        } else {
-            fprintf(stderr, "getenforce: cannot specify positional argument '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-            return 1;
-        }
     }
 
     int enforce = security_getenforce();

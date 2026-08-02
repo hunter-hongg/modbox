@@ -31,48 +31,13 @@ Commands:
 
 Concatenate FILE(s) to standard output. With no FILE, or when FILE is `-`, read from standard input.
 
+See `man modbox-cat` for full documentation.
+
 ### Synopsis
 
 ```
 modbox cat [OPTION]... [FILE]...
 ```
-
-### Standard options
-
-| Option                       | Description                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------- |
-| `-b`, `--number-nonblank`    | Number nonempty output lines                                                                |
-| `-E`, `--show-ends`          | Display `$` at end of each line                                                             |
-| `-n`, `--number`             | Number all output lines                                                                     |
-| `-s`, `--squeeze-blank`      | Suppress repeated empty lines (collapse runs of blank lines to one)                         |
-| `-T`, `--show-tabs`          | Display TAB characters as `^I`                                                              |
-| `-v`, `--show-nonprinting`   | Use `^` and `M-` notation for non-printing characters (except LFD and TAB)                 |
-| `-e`                         | Equivalent to `-vE`                                                                         |
-| `-t`                         | Equivalent to `-vT`                                                                         |
-| `-A`, `--show-all`           | Equivalent to `-vET`                                                                        |
-| `--less`                     | Pager mode (interactive: `j` next, `k` previous, `q` quit)                                  |
-| `-h`, `--help`               | Display help and exit                                                                       |
-
-### Dev-tool options
-
-| Option                | Description                                                            |
-| --------------------- | ---------------------------------------------------------------------- |
-| `--blame`             | Prefix each line with git blame info (`commit author date`)            |
-| `--highlight`         | Syntax-highlight output based on file extension (auto, TTY only)       |
-| `--header`            | Print a file metadata banner before the content                        |
-| `--diff=FILE`         | Print unified diff between the input file and FILE                     |
-
-### Content navigation
-
-| Option                   | Description                                                  |
-| ------------------------ | ------------------------------------------------------------ |
-| `--range=N-M`            | Show only lines N through M (1-indexed, inclusive)           |
-| `--grep=PATTERN`         | Keep only lines matching the extended regex PATTERN           |
-| `--context=N`            | With `--grep`, also show N context lines around each match   |
-| `--head=N`               | Show only the first N lines                                  |
-| `--tail=N`               | Show only the last N lines                                   |
-| `--number-format=FMT`    | Line-number format: `decimal` (default), `hex`, or `octal`   |
-| `--stats`                | Print line / word / character counts after the output        |
 
 ### Examples
 
@@ -89,12 +54,6 @@ modbox cat --less long.txt
 modbox cat a.txt b.txt > combined.txt
 echo "hello" | modbox cat
 ```
-
-### Notes
-
-- Short options can be combined: `-vET` is equivalent to `-A`.
-- `--grep` and `--range` apply after the file is read; the rest of the pipeline (`--squeeze-blank`, `--head`, `--tail`) chains in order.
-- `--diff`, `--grep`, `--range`, `--head`, `--tail` cannot be combined freely — they operate on the line stream and may filter each other out.
 
 ---
 
@@ -298,48 +257,13 @@ modbox ln -L symlinked.txt hardlink.txt
 
 List directory contents. With no DIR, list the current directory.
 
+See `man modbox-ls` for full documentation.
+
 ### Synopsis
 
 ```
 modbox ls [OPTION]... [DIR]...
 ```
-
-### Display options
-
-| Option                       | Description                                                            |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| `-a`, `--all`                | Do not ignore entries starting with `.`                                |
-| `-A`, `--almost-all`         | Do not list implied `.` and `..`                                       |
-| `-l`, `--long`               | Use the long listing format                                            |
-| `--author`                   | With `-l`, also print the author of each file                          |
-| `-b`, `--escape`             | Print C-style escapes (`\ooo`) for non-graphic characters              |
-| `-B`, `--ignore-backups`     | Do not list entries ending with `~`                                    |
-| `-d`, `--directory`          | List directories themselves, not their contents                        |
-| `-C`                         | List entries by columns (default for terminal output)                  |
-| `-1`                         | List one file per line                                                 |
-| `-F`, `--classify`           | Append indicator: `*` executable, `/` dir, `@` symlink                |
-| `--colorful`                 | Multi-color output (eza/lsd style)                                     |
-| `--icons`                    | Display icons before file names (lsd style)                            |
-
-### Sorting
-
-| Option                       | Description                                                |
-| ---------------------------- | ---------------------------------------------------------- |
-| `-r`, `--reverse`            | Reverse order when sorting                                 |
-| `-U`                         | Do not sort; list entries in directory order               |
-
-### Sizing
-
-| Option                       | Description                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------- |
-| `--block-size=SIZE`          | Scale sizes by SIZE (e.g., `K` for KiB, `M` for MiB)                          |
-| `--color=WHEN`               | Colorize output: `always`, `auto`, or `never`                                |
-
-### Other
-
-| Option                       | Description                                                |
-| ---------------------------- | ---------------------------------------------------------- |
-| `-h`, `--help`               | Display help and exit                                       |
 
 ### Examples
 
@@ -359,13 +283,6 @@ modbox ls src/ include/
 modbox ls -d */
 modbox ls --icons --colorful
 ```
-
-### Notes
-
-- `-a` implies `-A` is ignored — both list hidden files.
-- When output is not a terminal (e.g., piped), color is disabled unless `--color=always`.
-- `--color` (with no value) is treated as `--color=always` for convenience.
-- Multiple directory arguments are supported; each is listed in turn.
 
 ---
 
@@ -405,60 +322,6 @@ modbox mv *.log logs/
 - Multiple SOURCEs require DEST to be an existing directory.
 - Moving a directory into itself is rejected with: `mv: cannot move '...' to '...': Invalid argument`.
 - `-i`, `-n`, `-f`, `-v` flags are not yet implemented.
-
----
-
-## rm
-
-Remove (unlink) the FILE(s).
-
-### Synopsis
-
-```
-modbox rm [OPTION]... FILE...
-```
-
-### Options
-
-| Option                            | Description                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------ |
-| `-d`, `--dir`                     | Remove empty directories                                                             |
-| `-f`, `--force`                   | Ignore nonexistent files and arguments, never prompt                                 |
-| `-i`, `--interactive`             | Prompt before every removal (`y/N`)                                                  |
-| `-r`, `--recursive`               | Remove directories and their contents recursively                                    |
-| `-v`, `--verbose`                 | Explain what is being done                                                           |
-| `--one-file-system`               | Skip directories on different file systems when removing recursively                 |
-| `--no-preserve-root`              | Do not treat `/` specially                                                           |
-| `--preserve-root`                 | Do not remove `/` (default)                                                          |
-| `--trash`                         | Move files to `~/.trash` instead of deleting                                         |
-| `-h`, `--help`                    | Display help and exit                                                                |
-
-### Examples
-
-```bash
-modbox rm file.txt
-modbox rm -r dir/
-modbox rm -rf dir/
-modbox rm -v file.txt
-modbox rm -i file.txt
-modbox rm -d emptydir/
-modbox rm --trash file.txt
-modbox rm --trash -r dir/
-```
-
-### Notes
-
-- `-f` overrides `-i` (if both are given, `-f` takes precedence).
-- By default, `rm` does not remove directories. Use `-r` or `-d` for directories.
-- The `--trash` option moves files to `~/.trash` instead of permanently deleting them. This is a modbox extension.
-- `--preserve-root` is the default; `--no-preserve-root` is dangerous and not recommended.
-- When using `--one-file-system`, directories on different filesystems are skipped during recursive removal.
-- The `--trash` option creates the trash directory `~/.trash` if it doesn't exist.
-
-### Exit status
-
-- `0` — success
-- `1` — error
 
 ---
 

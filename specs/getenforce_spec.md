@@ -69,12 +69,10 @@ We implement the fallback only if compilation against libselinux fails, but give
 
 ### Version Format
 
+Uses the shared `print_version()` utility (see `include/commands/version_util.hpp`), consistent with all other modbox commands:
+
 ```
 getenforce (modbox) 1.0
-Copyright (C) 2026 modbox
-License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
-This is free software: you are free to change and redistribute.
-There is NO WARRANTY, to the extent permitted by law.
 ```
 
 ## Testing Decisions
@@ -89,8 +87,8 @@ Use the existing test framework at `tests/run_tests.sh`. Follow the pattern of s
 2. **Output format**: The output must be exactly one of `Enforcing`, `Permissive`, or `Disabled` — nothing else on stdout.
 3. **--help**: `assert_cmd_pat 'Usage:' getenforce --help`
 4. **--version**: `assert_cmd_pat 'getenforce \(modbox\) 1\.0' getenforce --version`
-5. **No positional arguments accepted**: Pass an unexpected argument and verify it produces an error on stderr (`assert_cmd_pat_stderr`).
-6. **Unknown option rejected**: Pass `--foo` and verify stderr contains an error message.
+5. **No positional arguments accepted**: Pass an unexpected argument and verify it produces an error on stderr (`assert_cmd_pat_stderr 'unexpected argument' getenforce foo`).
+6. **Unknown option rejected**: Pass `--foo` and verify stderr contains `unrecognized option` (`assert_cmd_pat_stderr 'unrecognized option' getenforce --foo`).
 7. **Exit code on success**: Verify exit code is 0 for valid invocations.
 8. **Exit code on error**: Verify exit code is non-zero for invalid invocations.
 

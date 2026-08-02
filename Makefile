@@ -54,8 +54,9 @@ DEP := $(OBJ:.o=.d)
 # --------------------------------------------------------------------------
 # Dependencies (pkg-config)
 # --------------------------------------------------------------------------
-# Ensure linuxbrew pkg-config path is discoverable, as the CMake build did.
-PKG_CONFIG_PATH := /home/linuxbrew/.linuxbrew/lib/pkgconfig:$(PKG_CONFIG_PATH)
+# Support linuxbrew pkg-config path (can be overridden via environment)
+LINUXBREW_PKGCONFIG ?= /home/linuxbrew/.linuxbrew/lib/pkgconfig
+PKG_CONFIG_PATH := $(LINUXBREW_PKGCONFIG):$(PKG_CONFIG_PATH)
 PKGS := argtable3 ftxui openssl libselinux libacl
 
 PKG_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags $(PKGS))
@@ -202,6 +203,7 @@ uninstall-man:
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET_DIR) compile_commands.json
+	rm -rf $(MAN_BUILD_DIR)
 
 .PHONY: refresh
 refresh: clean
