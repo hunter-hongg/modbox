@@ -43,4 +43,4 @@ modbox rmdir dir1 dir2 dir3
 
 # SEE ALSO
 
-**modbox-cat**(1), **modbox-ls**(1), **modbox-rm**(1), **modbox**(1)
+**modbox-cat**(1), **modbox-ls**(1), **modbox-rm**(1), **modbox-cp**(1), **modbox-mv**(1), **modbox**(1)
