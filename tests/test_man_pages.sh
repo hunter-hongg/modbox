@@ -27,6 +27,24 @@ else
     fail "docs/man/modbox-rm.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-cp.1.md" ]]; then
+    pass "docs/man/modbox-cp.1.md exists"
+else
+    fail "docs/man/modbox-cp.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-mv.1.md" ]]; then
+    pass "docs/man/modbox-mv.1.md exists"
+else
+    fail "docs/man/modbox-mv.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-rmdir.1.md" ]]; then
+    pass "docs/man/modbox-rmdir.1.md exists"
+else
+    fail "docs/man/modbox-rmdir.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 if grep -q "^man:" Makefile; then
     pass "Makefile has man target"
@@ -52,7 +70,7 @@ else
     fail "Makefile missing pandoc check"
 fi
 
-if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile; then
+if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile; then
     pass "Makefile lists all man page sources"
 else
     fail "Makefile missing man page sources"
@@ -89,6 +107,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "build/man/modbox-rm.1 generated"
     else
         fail "build/man/modbox-rm.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-cp.1" ]]; then
+        pass "build/man/modbox-cp.1 generated"
+    else
+        fail "build/man/modbox-cp.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-mv.1" ]]; then
+        pass "build/man/modbox-mv.1 generated"
+    else
+        fail "build/man/modbox-mv.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-rmdir.1" ]]; then
+        pass "build/man/modbox-rmdir.1 generated"
+    else
+        fail "build/man/modbox-rmdir.1 not generated"
     fi
 
     # Test that cat man page contains key options
@@ -148,6 +184,51 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing --trash"
     fi
 
+    # Test that cp man page contains key options
+    if man ./build/man/modbox-cp.1 2>/dev/null | col -b | grep -q "recursive"; then
+        pass "man page contains -r/--recursive (cp)"
+    else
+        fail "man page missing -r/--recursive (cp)"
+    fi
+
+    if man ./build/man/modbox-cp.1 2>/dev/null | col -b | grep -q "preserve"; then
+        pass "man page contains -p/--preserve (cp)"
+    else
+        fail "man page missing -p/--preserve (cp)"
+    fi
+
+    if man ./build/man/modbox-cp.1 2>/dev/null | col -b | grep -q "target-directory"; then
+        pass "man page contains -t/--target-directory (cp)"
+    else
+        fail "man page missing -t/--target-directory (cp)"
+    fi
+
+    # Test that mv man page contains key options
+    if man ./build/man/modbox-mv.1 2>/dev/null | col -b | grep -q "backup"; then
+        pass "man page contains -b/--backup (mv)"
+    else
+        fail "man page missing -b/--backup (mv)"
+    fi
+
+    if man ./build/man/modbox-mv.1 2>/dev/null | col -b | grep -q "no-target-directory"; then
+        pass "man page contains -T/--no-target-directory (mv)"
+    else
+        fail "man page missing -T/--no-target-directory (mv)"
+    fi
+
+    if man ./build/man/modbox-mv.1 2>/dev/null | col -b | grep -q "update"; then
+        pass "man page contains -u/--update (mv)"
+    else
+        fail "man page missing -u/--update (mv)"
+    fi
+
+    # Test that rmdir man page contains key options
+    if man ./build/man/modbox-rmdir.1 2>/dev/null | col -b | grep -q "parents"; then
+        pass "man page contains -p/--parents (rmdir)"
+    else
+        fail "man page missing -p/--parents (rmdir)"
+    fi
+
     # Test install-man with DESTDIR
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
     if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then
@@ -166,6 +247,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "install-man places modbox-rm.1.gz correctly"
     else
         fail "install-man missing modbox-rm.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cp.1.gz" ]]; then
+        pass "install-man places modbox-cp.1.gz correctly"
+    else
+        fail "install-man missing modbox-cp.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-mv.1.gz" ]]; then
+        pass "install-man places modbox-mv.1.gz correctly"
+    else
+        fail "install-man missing modbox-mv.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-rmdir.1.gz" ]]; then
+        pass "install-man places modbox-rmdir.1.gz correctly"
+    else
+        fail "install-man missing modbox-rmdir.1.gz"
     fi
 
     # Verify installed files are gzipped
