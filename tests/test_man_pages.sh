@@ -45,6 +45,24 @@ else
     fail "docs/man/modbox-rmdir.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-arch.1.md" ]]; then
+    pass "docs/man/modbox-arch.1.md exists"
+else
+    fail "docs/man/modbox-arch.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-audit2allow.1.md" ]]; then
+    pass "docs/man/modbox-audit2allow.1.md exists"
+else
+    fail "docs/man/modbox-audit2allow.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-awk.1.md" ]]; then
+    pass "docs/man/modbox-awk.1.md exists"
+else
+    fail "docs/man/modbox-awk.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 if grep -q "^man:" Makefile; then
     pass "Makefile has man target"
@@ -70,7 +88,7 @@ else
     fail "Makefile missing pandoc check"
 fi
 
-if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile; then
+if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile; then
     pass "Makefile lists all man page sources"
 else
     fail "Makefile missing man page sources"
@@ -125,6 +143,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "build/man/modbox-rmdir.1 generated"
     else
         fail "build/man/modbox-rmdir.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-arch.1" ]]; then
+        pass "build/man/modbox-arch.1 generated"
+    else
+        fail "build/man/modbox-arch.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-audit2allow.1" ]]; then
+        pass "build/man/modbox-audit2allow.1 generated"
+    else
+        fail "build/man/modbox-audit2allow.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-awk.1" ]]; then
+        pass "build/man/modbox-awk.1 generated"
+    else
+        fail "build/man/modbox-awk.1 not generated"
     fi
 
     # Test that cat man page contains key options
@@ -229,6 +265,81 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing -p/--parents (rmdir)"
     fi
 
+    # Test that arch man page contains key options
+    if man ./build/man/modbox-arch.1 2>/dev/null | col -b | grep -q "help"; then
+        pass "man page contains --help (arch)"
+    else
+        fail "man page missing --help (arch)"
+    fi
+
+    if man ./build/man/modbox-arch.1 2>/dev/null | col -b | grep -q "version"; then
+        pass "man page contains --version (arch)"
+    else
+        fail "man page missing --version (arch)"
+    fi
+
+    # Test that audit2allow man page contains key options
+    if man ./build/man/modbox-audit2allow.1 2>/dev/null | col -b | grep -q "input"; then
+        pass "man page contains -i/--input (audit2allow)"
+    else
+        fail "man page missing -i/--input (audit2allow)"
+    fi
+
+    if man ./build/man/modbox-audit2allow.1 2>/dev/null | col -b | grep -q "module"; then
+        pass "man page contains -m/--module (audit2allow)"
+    else
+        fail "man page missing -m/--module (audit2allow)"
+    fi
+
+    if man ./build/man/modbox-audit2allow.1 2>/dev/null | col -b | grep -q "dontaudit"; then
+        pass "man page contains -D/--dontaudit (audit2allow)"
+    else
+        fail "man page missing -D/--dontaudit (audit2allow)"
+    fi
+
+    if man ./build/man/modbox-audit2allow.1 2>/dev/null | col -b | grep -q "requires"; then
+        pass "man page contains -r/--requires (audit2allow)"
+    else
+        fail "man page missing -r/--requires (audit2allow)"
+    fi
+
+    if man ./build/man/modbox-audit2allow.1 2>/dev/null | col -b | grep -q "why"; then
+        pass "man page contains -w/--why (audit2allow)"
+    else
+        fail "man page missing -w/--why (audit2allow)"
+    fi
+
+    # Test that awk man page contains key content
+    if man ./build/man/modbox-awk.1 2>/dev/null | col -b | grep -q "split"; then
+        pass "man page contains split function (awk)"
+    else
+        fail "man page missing split function (awk)"
+    fi
+
+    if man ./build/man/modbox-awk.1 2>/dev/null | col -b | grep -q "BEGINFILE"; then
+        pass "man page mentions BEGINFILE (awk)"
+    else
+        fail "man page missing BEGINFILE note (awk)"
+    fi
+
+    if man ./build/man/modbox-awk.1 2>/dev/null | col -b | grep -q "for.*in"; then
+        pass "man page contains for-in (awk)"
+    else
+        fail "man page missing for-in (awk)"
+    fi
+
+    if man ./build/man/modbox-awk.1 2>/dev/null | col -b | grep -q "OFS"; then
+        pass "man page contains OFS variable (awk)"
+    else
+        fail "man page missing OFS variable (awk)"
+    fi
+
+    if man ./build/man/modbox-awk.1 2>/dev/null | col -b | grep -q "gsub"; then
+        pass "man page contains gsub function (awk)"
+    else
+        fail "man page missing gsub function (awk)"
+    fi
+
     # Test install-man with DESTDIR
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
     if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then
@@ -267,11 +378,47 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-rmdir.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-arch.1.gz" ]]; then
+        pass "install-man places modbox-arch.1.gz correctly"
+    else
+        fail "install-man missing modbox-arch.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-audit2allow.1.gz" ]]; then
+        pass "install-man places modbox-audit2allow.1.gz correctly"
+    else
+        fail "install-man missing modbox-audit2allow.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-awk.1.gz" ]]; then
+        pass "install-man places modbox-awk.1.gz correctly"
+    else
+        fail "install-man missing modbox-awk.1.gz"
+    fi
+
     # Verify installed files are gzipped
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" | grep -q "gzip compressed data"; then
         pass "installed man page is gzipped"
     else
         fail "installed man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-arch.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed arch man page is gzipped"
+    else
+        fail "installed arch man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-audit2allow.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed audit2allow man page is gzipped"
+    else
+        fail "installed audit2allow man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-awk.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed awk man page is gzipped"
+    else
+        fail "installed awk man page is not gzipped"
     fi
 
     # Test uninstall-man
