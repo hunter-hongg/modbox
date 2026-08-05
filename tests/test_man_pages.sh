@@ -63,6 +63,24 @@ else
     fail "docs/man/modbox-awk.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-head.1.md" ]]; then
+    pass "docs/man/modbox-head.1.md exists"
+else
+    fail "docs/man/modbox-head.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-tail.1.md" ]]; then
+    pass "docs/man/modbox-tail.1.md exists"
+else
+    fail "docs/man/modbox-tail.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-sort.1.md" ]]; then
+    pass "docs/man/modbox-sort.1.md exists"
+else
+    fail "docs/man/modbox-sort.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 if grep -q "^man:" Makefile; then
     pass "Makefile has man target"
@@ -88,7 +106,7 @@ else
     fail "Makefile missing pandoc check"
 fi
 
-if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile; then
+if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile && grep -q "modbox-head.1.md" Makefile && grep -q "modbox-tail.1.md" Makefile && grep -q "modbox-sort.1.md" Makefile; then
     pass "Makefile lists all man page sources"
 else
     fail "Makefile missing man page sources"
@@ -161,6 +179,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "build/man/modbox-awk.1 generated"
     else
         fail "build/man/modbox-awk.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-head.1" ]]; then
+        pass "build/man/modbox-head.1 generated"
+    else
+        fail "build/man/modbox-head.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-tail.1" ]]; then
+        pass "build/man/modbox-tail.1 generated"
+    else
+        fail "build/man/modbox-tail.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-sort.1" ]]; then
+        pass "build/man/modbox-sort.1 generated"
+    else
+        fail "build/man/modbox-sort.1 not generated"
     fi
 
     # Test that cat man page contains key options
@@ -340,6 +376,63 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing gsub function (awk)"
     fi
 
+    # Test that head man page contains key options
+    if man ./build/man/modbox-head.1 2>/dev/null | col -b | grep -q "lines"; then
+        pass "man page contains --lines (head)"
+    else
+        fail "man page missing --lines (head)"
+    fi
+
+    if man ./build/man/modbox-head.1 2>/dev/null | col -b | grep -q "bytes"; then
+        pass "man page contains --bytes (head)"
+    else
+        fail "man page missing --bytes (head)"
+    fi
+
+    # Test that tail man page contains key options
+    if man ./build/man/modbox-tail.1 2>/dev/null | col -b | grep -q "follow"; then
+        pass "man page contains --follow (tail)"
+    else
+        fail "man page missing --follow (tail)"
+    fi
+
+    if man ./build/man/modbox-tail.1 2>/dev/null | col -b | grep -q "reopen"; then
+        pass "man page contains reopen note (tail)"
+    else
+        fail "man page missing reopen note (tail)"
+    fi
+
+    # Test that sort man page contains key options
+    if man ./build/man/modbox-sort.1 2>/dev/null | col -b | grep -q "numeric-sort"; then
+        pass "man page contains --numeric-sort (sort)"
+    else
+        fail "man page missing --numeric-sort (sort)"
+    fi
+
+    if man ./build/man/modbox-sort.1 2>/dev/null | col -b | grep -q "key"; then
+        pass "man page contains --key (sort)"
+    else
+        fail "man page missing --key (sort)"
+    fi
+
+    if man ./build/man/modbox-sort.1 2>/dev/null | col -b | grep -q "field-separator"; then
+        pass "man page contains --field-separator (sort)"
+    else
+        fail "man page missing --field-separator (sort)"
+    fi
+
+    if man ./build/man/modbox-sort.1 2>/dev/null | col -b | grep -q "ignore-leading-blanks"; then
+        pass "man page contains --ignore-leading-blanks (sort)"
+    else
+        fail "man page missing --ignore-leading-blanks (sort)"
+    fi
+
+    if man ./build/man/modbox-sort.1 2>/dev/null | col -b | grep -q "C locale"; then
+        pass "man page contains C locale note (sort)"
+    else
+        fail "man page missing C locale note (sort)"
+    fi
+
     # Test install-man with DESTDIR
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
     if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then
@@ -396,6 +489,24 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-awk.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-head.1.gz" ]]; then
+        pass "install-man places modbox-head.1.gz correctly"
+    else
+        fail "install-man missing modbox-head.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-tail.1.gz" ]]; then
+        pass "install-man places modbox-tail.1.gz correctly"
+    else
+        fail "install-man missing modbox-tail.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-sort.1.gz" ]]; then
+        pass "install-man places modbox-sort.1.gz correctly"
+    else
+        fail "install-man missing modbox-sort.1.gz"
+    fi
+
     # Verify installed files are gzipped
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" | grep -q "gzip compressed data"; then
         pass "installed man page is gzipped"
@@ -419,6 +530,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "installed awk man page is gzipped"
     else
         fail "installed awk man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-head.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed head man page is gzipped"
+    else
+        fail "installed head man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-tail.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed tail man page is gzipped"
+    else
+        fail "installed tail man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-sort.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed sort man page is gzipped"
+    else
+        fail "installed sort man page is not gzipped"
     fi
 
     # Test uninstall-man

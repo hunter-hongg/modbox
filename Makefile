@@ -101,7 +101,10 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                 $(MAN_SRC_DIR)/modbox-rmdir.1.md \
                 $(MAN_SRC_DIR)/modbox-arch.1.md \
                 $(MAN_SRC_DIR)/modbox-audit2allow.1.md \
-                $(MAN_SRC_DIR)/modbox-awk.1.md
+                $(MAN_SRC_DIR)/modbox-awk.1.md \
+                $(MAN_SRC_DIR)/modbox-head.1.md \
+                $(MAN_SRC_DIR)/modbox-tail.1.md \
+                $(MAN_SRC_DIR)/modbox-sort.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 
