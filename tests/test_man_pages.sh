@@ -81,6 +81,24 @@ else
     fail "docs/man/modbox-sort.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-grep.1.md" ]]; then
+    pass "docs/man/modbox-grep.1.md exists"
+else
+    fail "docs/man/modbox-grep.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-sed.1.md" ]]; then
+    pass "docs/man/modbox-sed.1.md exists"
+else
+    fail "docs/man/modbox-sed.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-find.1.md" ]]; then
+    pass "docs/man/modbox-find.1.md exists"
+else
+    fail "docs/man/modbox-find.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 if grep -q "^man:" Makefile; then
     pass "Makefile has man target"
@@ -106,7 +124,7 @@ else
     fail "Makefile missing pandoc check"
 fi
 
-if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile && grep -q "modbox-head.1.md" Makefile && grep -q "modbox-tail.1.md" Makefile && grep -q "modbox-sort.1.md" Makefile; then
+if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile && grep -q "modbox-head.1.md" Makefile && grep -q "modbox-tail.1.md" Makefile && grep -q "modbox-sort.1.md" Makefile && grep -q "modbox-grep.1.md" Makefile && grep -q "modbox-sed.1.md" Makefile && grep -q "modbox-find.1.md" Makefile; then
     pass "Makefile lists all man page sources"
 else
     fail "Makefile missing man page sources"
@@ -197,6 +215,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "build/man/modbox-sort.1 generated"
     else
         fail "build/man/modbox-sort.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-grep.1" ]]; then
+        pass "build/man/modbox-grep.1 generated"
+    else
+        fail "build/man/modbox-grep.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-sed.1" ]]; then
+        pass "build/man/modbox-sed.1 generated"
+    else
+        fail "build/man/modbox-sed.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-find.1" ]]; then
+        pass "build/man/modbox-find.1 generated"
+    else
+        fail "build/man/modbox-find.1 not generated"
     fi
 
     # Test that cat man page contains key options
@@ -433,6 +469,75 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing C locale note (sort)"
     fi
 
+    # Test that grep man page contains key options
+    if man ./build/man/modbox-grep.1 2>/dev/null | col -b | grep -q "extended-regexp"; then
+        pass "man page contains --extended-regexp (grep)"
+    else
+        fail "man page missing --extended-regexp (grep)"
+    fi
+
+    if man ./build/man/modbox-grep.1 2>/dev/null | col -b | grep -q "invert-match"; then
+        pass "man page contains --invert-match (grep)"
+    else
+        fail "man page missing --invert-match (grep)"
+    fi
+
+    if man ./build/man/modbox-grep.1 2>/dev/null | col -b | grep -q "color"; then
+        pass "man page contains --color (grep)"
+    else
+        fail "man page missing --color (grep)"
+    fi
+
+    if man ./build/man/modbox-grep.1 2>/dev/null | col -b | grep -q "recursive"; then
+        pass "man page contains --recursive (grep)"
+    else
+        fail "man page missing --recursive (grep)"
+    fi
+
+    # Test that sed man page contains key options
+    if man ./build/man/modbox-sed.1 2>/dev/null | col -b | grep -q "Substitute"; then
+        pass "man page contains substitute command (sed)"
+    else
+        fail "man page missing substitute command (sed)"
+    fi
+
+    if man ./build/man/modbox-sed.1 2>/dev/null | col -b | grep -q "Delete"; then
+        pass "man page contains delete command (sed)"
+    else
+        fail "man page missing delete command (sed)"
+    fi
+
+    if man ./build/man/modbox-sed.1 2>/dev/null | col -b | grep -q "in-place"; then
+        pass "man page contains --in-place (sed)"
+    else
+        fail "man page missing --in-place (sed)"
+    fi
+
+    # Test that find man page contains key options
+    if man ./build/man/modbox-find.1 2>/dev/null | col -b | grep -q "maxdepth"; then
+        pass "man page contains --maxdepth (find)"
+    else
+        fail "man page missing --maxdepth (find)"
+    fi
+
+    if man ./build/man/modbox-find.1 2>/dev/null | col -b | grep -q "name PATTERN"; then
+        pass "man page contains -name predicate (find)"
+    else
+        fail "man page missing -name predicate (find)"
+    fi
+
+    if man ./build/man/modbox-find.1 2>/dev/null | col -b | grep -q "exec"; then
+        pass "man page contains -exec action (find)"
+    else
+        fail "man page missing -exec action (find)"
+    fi
+
+    if man ./build/man/modbox-find.1 2>/dev/null | col -b | grep -q "json"; then
+        pass "man page contains --json mode (find)"
+    else
+        fail "man page missing --json mode (find)"
+    fi
+
     # Test install-man with DESTDIR
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
     if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then
@@ -507,6 +612,24 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-sort.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-grep.1.gz" ]]; then
+        pass "install-man places modbox-grep.1.gz correctly"
+    else
+        fail "install-man missing modbox-grep.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-sed.1.gz" ]]; then
+        pass "install-man places modbox-sed.1.gz correctly"
+    else
+        fail "install-man missing modbox-sed.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-find.1.gz" ]]; then
+        pass "install-man places modbox-find.1.gz correctly"
+    else
+        fail "install-man missing modbox-find.1.gz"
+    fi
+
     # Verify installed files are gzipped
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" | grep -q "gzip compressed data"; then
         pass "installed man page is gzipped"
@@ -548,6 +671,24 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "installed sort man page is gzipped"
     else
         fail "installed sort man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-grep.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed grep man page is gzipped"
+    else
+        fail "installed grep man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-sed.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed sed man page is gzipped"
+    else
+        fail "installed sed man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-find.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed find man page is gzipped"
+    else
+        fail "installed find man page is not gzipped"
     fi
 
     # Test uninstall-man
