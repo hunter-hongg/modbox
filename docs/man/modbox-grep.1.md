@@ -14,7 +14,7 @@ modbox-grep - search for patterns in files
 
 Print lines matching a pattern to standard output.
 With no FILE, or when FILE is `-`, read from standard input.
-The pattern is treated as a basic regular expression by default.
+The pattern is matched using C++ `std::regex` (ECMAScript) syntax by default.
 Use **-E** for extended regular expressions or **-F** for fixed strings.
 When multiple files are given, the file name is prefixed to each match.
 
@@ -79,15 +79,15 @@ When multiple files are given, the file name is prefixed to each match.
 **-R**, **--dereference-recursive**
 :   Like `-r`, but follow all symbolic links.
 
+**-h**, **--help**
+:   Display help and exit.
+
 ## Interactive mode
 
 **--tui**
 :   Open an interactive TUI viewer for the search results.
     Requires a TTY; falls back to normal output when stdout is not a terminal.
     This is a modbox extension not found in standard grep.
-
-**-h**, **--help**
-:   Display help and exit.
 
 # EXIT STATUS
 

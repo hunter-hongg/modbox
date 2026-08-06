@@ -8,7 +8,7 @@ modbox-find - search for files in a directory hierarchy
 
 # SYNOPSIS
 
-**modbox find** [*starting-point*]... [\-**name* *PATTERN*]...
+**modbox find** [*starting-point*]... [\-name *PATTERN*]...
 
 # DESCRIPTION
 
@@ -111,8 +111,8 @@ non-zero
 
 Not implemented: `-size`, `-mtime`, `-newer`, `-perm`, `-user`, `-group`,
 `-regex`, `-ipath`, `-prune`, `-delete` with non-empty directories,
-`-execdir`, `-ok`, `-ls`, `-printf`, `-fprintf`, `-path`, `-iname`
-(with glob variants), `-links`, `-context`, `-xtype`.
+`-execdir`, `-ok`, `-ls`, `-printf`, `-fprintf`, `-path`, `-links`,
+`-context`, `-xtype`.
 
 # EXAMPLES
 
