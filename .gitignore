@@ -10,3 +10,16 @@ compile_commands.json
 .devin/
 .qoder/
 .claude/
+
+# Agent workspace artifacts
+.pi-subagents/
+.playwright-mcp/
+.qwen/
+.scratch/
+
+# Project specs (external to main codebase)
+specs/
+
+# One-off files
+index.html
+payload.json
