@@ -100,6 +100,23 @@ strftime-style conversion specifiers are supported:
 Additional specifiers supported by the system `strftime`:
 `%c`, `%x`, `%X`, `%j`, `%U`, `%W`, `%w`, `%G`, `%V`, etc.
 
+# NOTES
+
+- When no format is given and no option specifies a time source,
+  the default format is `%a %b %e %H:%M:%S %Z %Y` (local time).
+- The `-d` option accepts a limited set of date string formats;
+  arbitrary natural language parsing is not supported.
+- `%N` (nanoseconds) always outputs 9 digits even if the underlying
+  clock resolution is coarser.
+- The `--version` option is a modbox extension.
+
+## Differences from GNU date
+
+Not implemented: `--set` (requires root), `--file` (read dates from
+file), `--date=STRING` with relative expressions like `next monday`
+or `2 hours ago`, `%n` (newline), `%t` (tab), `%s` (seconds since
+Epoch), custom locale with `--locale`.
+
 # EXAMPLES
 
 ```bash
@@ -131,23 +148,6 @@ modbox date "+%Y-%m-%d %H:%M:%S.%N"
 modbox date -d "2026-01-01"
 ```
 
-# NOTES
-
-- When no format is given and no option specifies a time source,
-  the default format is `%a %b %e %H:%M:%S %Z %Y` (local time).
-- The `-d` option accepts a limited set of date string formats;
-  arbitrary natural language parsing is not supported.
-- `%N` (nanoseconds) always outputs 9 digits even if the underlying
-  clock resolution is coarser.
-- The `--version` option is a modbox extension.
-
-## Differences from GNU date
-
-Not implemented: `--set` (requires root), `--file` (read dates from
-file), `--date=STRING` with relative expressions like `next monday`
-or `2 hours ago`, `%n` (newline), `%t` (tab), `%s` (seconds since
-Epoch), custom locale with `--locale`.
-
 # EXIT STATUS
 
 `0`
@@ -158,4 +158,4 @@ non-zero
 
 # SEE ALSO
 
-**modbox-cal**(1), **modbox**(1)
+**modbox**(1)

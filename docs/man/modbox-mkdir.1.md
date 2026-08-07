@@ -109,4 +109,4 @@ non-zero
 
 # SEE ALSO
 
-**modbox-rmdir**(1), **modbox-rm**(1), **modbox-chmod**(1), **modbox**(1)
+**modbox-rmdir**(1), **modbox-rm**(1), **modbox**(1)

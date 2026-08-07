@@ -184,4 +184,4 @@ modbox diff -s file1.txt file2.txt
 
 # SEE ALSO
 
-**modbox-diff3**(1), **modbox-patch**(1), **modbox**(1)
+**modbox**(1)

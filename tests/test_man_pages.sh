@@ -659,6 +659,12 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing --printf (stat)"
     fi
 
+    if man ./build/man/modbox-stat.1 2>/dev/null | col -b | grep -q "json"; then
+        pass "man page contains --json (stat)"
+    else
+        fail "man page missing --json (stat)"
+    fi
+
     # Test that diff man page contains key options
     if man ./build/man/modbox-diff.1 2>/dev/null | col -b | grep -q "unified"; then
         pass "man page contains unified format (diff)"
@@ -746,6 +752,12 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing %H format (date)"
     fi
 
+    if man ./build/man/modbox-date.1 2>/dev/null | col -b | grep -q "%N"; then
+        pass "man page contains %N format (date)"
+    else
+        fail "man page missing %N format (date)"
+    fi
+
     # Test that uniq man page contains key options
     if man ./build/man/modbox-uniq.1 2>/dev/null | col -b | grep -q "count"; then
         pass "man page contains --count (uniq)"
@@ -788,6 +800,12 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "man page contains --error-action (tee)"
     else
         fail "man page missing --error-action (tee)"
+    fi
+
+    if man ./build/man/modbox-tee.1 2>/dev/null | col -b | grep -q "warn"; then
+        pass "man page contains warn error mode (tee)"
+    else
+        fail "man page missing warn error mode (tee)"
     fi
 
     # Test that wc man page contains key options
