@@ -82,8 +82,7 @@ int umount_command(int argc, char** argv) {
         if (errno == EINVAL) {
             fprintf(stderr, "umount: %s: not mounted\n", target.c_str());
         } else if (errno == EPERM || errno == EACCES) {
-            fprintf(stderr, "umount: %s: %s\n", target.c_str(),
-                    (errno == EPERM) ? "Operation not permitted" : "Permission denied");
+            fprintf(stderr, "umount: operation not permitted\n");
         } else {
             fprintf(stderr, "umount: %s: %s\n", target.c_str(), strerror(errno));
         }

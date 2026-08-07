@@ -19,10 +19,10 @@
 #include "commands/version_util.hpp"
 
 struct MountEntry {
-    std::string source;
-    std::string target;
-    std::string fstype;
-    std::string options;
+    std::string source{};
+    std::string target{};
+    std::string fstype{};
+    std::string options{};
     unsigned int dump{0};
     unsigned int passno{0};
 };
@@ -47,13 +47,13 @@ static std::vector<MountEntry> read_proc_mounts() {
 }
 
 static void print_help(const char* prog) {
-    printf("Usage: %s [-a|--all] [--fake] [-t fstype] [-O options] [--target dir] [device [dir [type [options]]]]\n", prog);
+    printf("Usage: %s [-a|--all] [--fake] [-t fstype] [-o options] [--target dir] [device [dir [type [options]]]]\n", prog);
     printf("Mount a filesystem or list mounted filesystems.\n");
     printf("\n");
     printf("  -a, --all            list all currently mounted filesystems\n");
     printf("      --fake           dry-run: print what would be done without executing\n");
     printf("  -t, --type fstype    filesystem type (e.g. ext4, tmpfs, bind)\n");
-    printf("  -O, --options opts   comma-separated mount options\n");
+    printf("  -o, --options opts   comma-separated mount options\n");
     printf("      --target dir     explicit mount point directory\n");
     printf("      --help           display this help and exit\n");
     printf("      --version        output version information and exit\n");
@@ -119,14 +119,14 @@ int mount_command(int argc, char** argv) {
             fstype = argv[i];
         } else if (strncmp(a, "-t", 2) == 0) {
             fstype = a + 2;
-        } else if (strcmp(a, "-O") == 0) {
+        } else if (strcmp(a, "-o") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "mount: option '-O' requires an argument\n");
+                fprintf(stderr, "mount: option '-o' requires an argument\n");
                 return 1;
             }
             options = argv[i];
-        } else if (strncmp(a, "-O", 2) == 0) {
+        } else if (strncmp(a, "-o", 2) == 0) {
             options = a + 2;
         } else if (strcmp(a, "--options") == 0) {
             i++;
@@ -229,8 +229,8 @@ int mount_command(int argc, char** argv) {
     if (fake) {
         printf("mount %s on %s type %s", device.c_str(), target.c_str(),
                fstype_c ? fstype_c : "auto");
-        if (!data.empty()) {
-            printf(" (%s)", data.c_str());
+        if (!options.empty()) {
+            printf(" (%s)", options.c_str());
         }
         printf("\n");
         return 0;
@@ -238,8 +238,11 @@ int mount_command(int argc, char** argv) {
 
     int ret = mount(device.c_str(), target.c_str(), fstype_c, flags, data_c);
     if (ret != 0) {
-        fprintf(stderr, "mount: %s: %s\n", strerror(errno),
-                (errno == EPERM) ? "Operation not permitted" : strerror(errno));
+        if (errno == EPERM || errno == EACCES) {
+            fprintf(stderr, "mount: operation not permitted\n");
+        } else {
+            fprintf(stderr, "mount: %s\n", strerror(errno));
+        }
         return 1;
     }
     return 0;
