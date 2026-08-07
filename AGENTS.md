@@ -67,3 +67,17 @@
 ### Special Notes
 
 - `tests/test_sh.sh` has been removed intentionally — do NOT add a `sh` command test back.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo with ADRs in `docs/adr/`. Read relevant ADRs before exploring the area you're working in. See `docs/agents/domain.md`.
