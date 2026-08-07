@@ -7,7 +7,7 @@
 - `make` or `make compile` - build project
 - `make run` - build and run `./target/modbox`
 - `make clean` - remove `build` and `target` directories
-- `make refresh` - full rebuild (clean + regenerate CMake)
+- `make refresh` - 完全重建（clean + rebuild）
 
 ### Code Convention
 
@@ -30,26 +30,28 @@
 
 1. Create header: `include/commands/<cmd>.hpp`
 2. Implement: `src/commands/<cmd>.cpp`
-3. Register in `src/main.cpp`:
+3. Register in `src/commands/<cmd>.cpp` using the `REGISTER_COMMAND` macro:
    ```cpp
-   g_hash_table_insert(commands, "<cmd>", <cmd>_command);
-   ```
-   Replace with unordered_map:
-   ```cpp
-   commands["<cmd>"] = <cmd>_command;
+   #include "commands/command_macros.hpp"
+
+   int <cmd>_command(int argc, char** argv) {
+       // ...
+   }
+
+   REGISTER_COMMAND("<cmd>", <cmd>_command, "Description");
    ```
 
 ### Command Interface
 
-- Signature: `void command(int argc, char** argv)`
+- Signature: `int command(int argc, char** argv)`
 - Uses argtable3 for argument parsing
-- Command lookup via `std::unordered_map` in `src/main.cpp`
+- Command lookup via `CommandRegistry` singleton in `src/main.cpp`
 
 ### Dependencies
 
-- vcpkg (manages argtable3)
-- No glib dependency
-- CMake toolchain hardcoded to `$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake`
+- argtable3, ftxui, openssl, libselinux, libacl (via pkg-config)
+- No GLib dependency
+- Pure Makefile build — no CMake or vcpkg required
 
 ### Static Analysis (clang-tidy)
 

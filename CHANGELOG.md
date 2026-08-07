@@ -2,7 +2,9 @@ CHANGELOG
 
 All notable changes to this project are documented in this file.
 
-Unreleased (2026-07-29)
+## Unreleased
+
+## v0.1.0 (2026-08-04)
 -----------------------
 - Added `fd` command: recursive file search with regex/glob, filters, color, and exec support. (Implemented in src/commands/fd.cpp)
 - Added interactive `ls --tui` and `lf` alias: two-pane file browser using ftxui. (src/commands/ls_tui.cpp, src/commands/lf.cpp)

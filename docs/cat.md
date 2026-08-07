@@ -185,7 +185,7 @@ $ cat longfile.c --less
 | Mode | Trigger | Behavior |
 |------|---------|----------|
 | Stream | No dev/nav options active | Line-by-line via `fgets`, on-the-fly output |
-| Buffer | Any dev/nav option active | Read file into `GPtrArray` of lines, then pipeline stages |
+| Buffer | Any dev/nav option active | Read file into `std::vector<PipelineLine*>` of lines, then pipeline stages |
 
 When no advanced option is active, `cat` processes files in streaming mode — reading each line and writing it immediately. This is memory-efficient for large files.
 
@@ -242,76 +242,76 @@ output lines[]
 
 ## Internal Data Structures
 
-### `CatOptions` (include/commands/cat.h)
+### `CatOptions` (include/commands/cat.hpp)
 
 All configuration options packed into a single struct, passed as `const CatOptions*` through the pipeline:
 
-```c
-typedef struct {
-    int show_line_numbers;
-    int show_nonempty_line_numbers;
-    int show_ends;
-    int squeeze_blank;
-    int show_tabs;
-    int show_nonprinting;
-    int less_mode;
+```cpp
+struct CatOptions {
+    bool show_line_numbers = false;
+    bool show_nonempty_line_numbers = false;
+    bool show_ends = false;
+    bool squeeze_blank = false;
+    bool show_tabs = false;
+    bool show_nonprinting = false;
+    bool less_mode = false;
 
-    int blame_mode;
-    int highlight_mode;
-    int header_mode;
-    char* diff_file;
+    bool blame_mode = false;
+    bool highlight_mode = false;
+    bool header_mode = false;
+    const char* diff_file = nullptr;
 
-    int range_start;
-    int range_end;
-    char* grep_pattern;
-    int context_lines;
-    int head_lines;
-    int tail_lines;
-    int show_stats;
-    int number_format;  // 0=decimal, 1=hex, 2=octal
-} CatOptions;
+    int range_start = 0;
+    int range_end = 0;
+    const char* grep_pattern = nullptr;
+    int context_lines = 0;
+    int head_lines = 0;
+    int tail_lines = 0;
+    bool show_stats = false;
+    int number_format = 0;  // 0=decimal, 1=hex, 2=octal
+};
 ```
 
-### `PipelineLine` (include/commands/cat/helpers.h)
+### `PipelineLine` (include/commands/cat/helpers.hpp)
 
 Each line in the buffer pipeline:
 
-```c
-typedef struct {
-    char* text;
+```cpp
+struct PipelineLine {
+    std::string text;
     int orig_index;     // original line index (used for --blame mapping)
-} PipelineLine;
+};
 ```
 
-### `BlameInfo` (include/commands/cat/blame.h)
+### `BlameInfo` (include/commands/cat/blame.hpp)
 
 Per-line blame data parsed from `git blame --porcelain`:
 
-```c
-typedef struct {
+```cpp
+struct BlameInfo {
     char commit[9];     // short SHA (7 chars + null)
     char author[32];
     char date[16];      // YYYY-MM-DD
-} BlameInfo;
+};
 ```
 
 ## File Layout
 
 ```
-include/commands/cat.h                  — CatOptions struct, cat_command() entry
+include/commands/cat.hpp                — CatOptions struct, cat_command() entry
 include/commands/cat/
-  helpers.h                             — PipelineLine, buffer ops, stats, header, formatting
-  blame.h                               — BlameInfo, parse_blame, free_blame
-  highlight.h                           — get_file_extension, print_highlighted
-  diff.h                                — run_diff
+  helpers.hpp                           — PipelineLine, buffer ops, stats, header, formatting
+  blame.hpp                             — BlameInfo, parse_blame, free_blame
+  highlight.hpp                         — get_file_extension, print_highlighted
+  diff.hpp                              — run_diff
 
-src/commands/cat.c                      — cat_command() + pipeline orchestrator + expand_short_options
+src/commands/cat.cpp                    — cat_command() + pipeline orchestrator + expand_short_options
 src/commands/cat/
-  helpers.c                             — buffer mode: read/read_stdin, slice_range/head/tail,
+  helpers.cpp                           — buffer mode: read/read_stdin, slice_range/head/tail,
                                           grep/context, stats, header banner, visual output
-  blame.c                               — git blame --porcelain parser
-  highlight.c                           — keyword-based syntax highlighting engine
-  diff.c                                — spawn diff -u, capture output
+  blame.cpp                             — git blame --porcelain parser
+  highlight.cpp                         — keyword-based syntax highlighting engine
+  diff.cpp                              — spawn diff -u, capture output
 ```
 
 ## Short Option Expansion
@@ -322,8 +322,8 @@ The `cat` command supports combined short options (e.g., `-vTE` instead of `-v -
 
 | Feature | Dependency |
 |---------|------------|
-| Argument parsing | argtable3 (via vcpkg) |
-| Data structures | glib-2.0 (GPtrArray, GArray, GString) |
+| Argument parsing | argtable3 (via pkg-config) |
+| Data structures | C++ STL (`std::vector`, `std::string`) |
 | grep | POSIX `regex.h` (system) |
 | header | POSIX `sys/stat.h` (system) |
 | blame | `git` binary on PATH |

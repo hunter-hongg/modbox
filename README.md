@@ -13,20 +13,20 @@ Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism t
 ## Features
 
 - **Multi-call binary architecture**: All commands contained in a single executable
-- **Command dispatch via unordered_map**: O(1) command lookup using `std::unordered_map`
+- **Command dispatch via CommandRegistry**: Singleton registry with O(n) linear lookup (n ≈ 137 commands)
 - **Modern C++20**: Uses the C++ STL exclusively — no GLib dependency
 - **GNU-style argument parsing**: Uses argtable3 for robust CLI option handling
-- **Minimal dependencies**: Only requires argtable3 and the C++ standard library
+- **Minimal dependencies**: argtable3, ftxui, openssl, libselinux, libacl (resolved via pkg-config)
 - **Static analysis support**: Built-in clang-tidy integration
 - **Comprehensive test suite**: Bash-based testing framework
 
 ## Available Commands
 
-modbox currently provides the following commands (130 in total):
+modbox currently provides the following commands (137 in total):
 
-`arch`, `awk`, `b2sum`, `base32`, `base64`, `basename`, `basenc`, `cat`, `cat_tui`, `chcon`, `chgrp`, `chmod`, `chown`, `chroot`, `cksum`, `comm`, `cp`, `csplit`, `cut`, `date`, `dd`, `df`, `diff`, `diff3`, `dir`, `dircolors`, `dirname`, `du`, `dust`, `echo`, `getenforce`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `find`, `find_tui`, `fmt`, `fold`, `grep`, `grep_tui`, `groups`, `head`, `help`, `hostid`, `hostname`, `htop`, `id`, `install`, `join`, `kill`, `lf`, `link`, `ln`, `logname`, `ls`, `ls_tui`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mktemp`, `mtop`, `mv`, `nice`, `nl`, `nohup`, `nproc`, `numfmt`, `od`, `paste`, `pathchk`, `pr`, `printenv`, `printf`, `prompts`, `ps`, `ptx`, `pwd`, `readlink`, `realpath`, `rev`, `rg`, `rm`, `rmdir`, `runcon`, `sed`, `seq`, `sh`, `sha1sum`, `sha224sum`, `sha256sum`, `sha384sum`, `sha512sum`, `shred`, `shuf`, `sleep`, `sort`, `split`, `stat`, `stty`, `sum`, `sync`, `tac`, `tail`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `true`, `truncate`, `tsort`, `tty`, `umask`, `uname`, `unexpand`, `uniq`, `unlink`, `uptime`, `users`, `vdir`, `wall`, `wc`, `who`, `whoami`, `xargs`, `yes`, `zoxide`
+`arch`, `audit2allow`, `awk`, `b2sum`, `base32`, `base64`, `basename`, `basenc`, `cat`, `chattr`, `chcon`, `chgrp`, `chmod`, `chown`, `chroot`, `cksum`, `comm`, `cp`, `csplit`, `curl`, `cut`, `date`, `dd`, `df`, `diff`, `diff3`, `dir`, `dircolors`, `dirname`, `du`, `dust`, `echo`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `find`, `fmt`, `fold`, `getenforce`, `getfacl`, `grep`, `groups`, `head`, `help`, `hostid`, `hostname`, `htop`, `id`, `install`, `join`, `kill`, `lf`, `link`, `ln`, `logname`, `ls`, `lsc`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mktemp`, `mtop`, `mv`, `nice`, `nl`, `nohup`, `nproc`, `numfmt`, `od`, `paste`, `pathchk`, `pinky`, `pr`, `printenv`, `printf`, `prompts`, `ps`, `ptx`, `pwd`, `readlink`, `realpath`, `rev`, `rg`, `rm`, `rmdir`, `runcon`, `sed`, `seq`, `setfacl`, `sh`, `sha1sum`, `sha224sum`, `sha256sum`, `sha384sum`, `sha512sum`, `shred`, `shuf`, `sleep`, `sort`, `split`, `stat`, `stdbuf`, `stty`, `sum`, `sync`, `tac`, `tail`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `true`, `truncate`, `tsort`, `tty`, `umask`, `uname`, `unexpand`, `uniq`, `unlink`, `uptime`, `users`, `vdir`, `wall`, `wc`, `who`, `whoami`, `xargs`, `yes`, `zoxide`
 
-> Note: `[` is aliased to `test`.
+> Note: `[` is aliased to `test`. Several commands also have interactive TUI modes via `--tui` (e.g. `modbox ls --tui`, `modbox grep --tui`).
 
 All standard GNU coreutils commands implemented.
 
@@ -320,20 +320,16 @@ Add direct includes for functions used:
 
 ### Command Registration
 
-Commands are registered in a `std::unordered_map` at runtime:
+Commands are registered via the `REGISTER_COMMAND` macro at namespace scope. Each command's `.cpp` file includes `command_macros.hpp` and registers itself with the singleton `CommandRegistry`:
 
 ```cpp
-using CommandFunc = void (*)(int, char**);
+#include "commands/command_macros.hpp"
 
-static const std::unordered_map<std::string, CommandFunc> commands = {
-    {"help", help_command},
-    {"cat", cat_command},
-    {"ls", ls_command},
-    {"cp", cp_command},
-    {"mv", mv_command},
-    {"ln", ln_command},
+int mycmd_command(int argc, char** argv) {
     // ...
-};
+}
+
+REGISTER_COMMAND("mycmd", mycmd_command, "My command description");
 ```
 
 ### Command Interface
@@ -341,7 +337,7 @@ static const std::unordered_map<std::string, CommandFunc> commands = {
 Each command follows a standard function signature:
 
 ```cpp
-void command(int argc, char** argv);
+int command(int argc, char** argv);
 ```
 
 ### Argument Parsing
@@ -369,9 +365,9 @@ To add a new command:
 
 2. Create the implementation in `src/commands/newcmd.cpp`
 
-3. Register the command in `src/main.cpp`:
+3. Add the `REGISTER_COMMAND` macro at the bottom of `src/commands/newcmd.cpp`:
    ```cpp
-   commands["newcmd"] = newcmd_command;
+   REGISTER_COMMAND("newcmd", newcmd_command, "Description of newcmd");
    ```
 
 ## Design Philosophy
@@ -381,14 +377,14 @@ modbox follows these principles:
 - **Simplicity**: Minimal code, straightforward implementation
 - **Composability**: Multiple commands in one binary
 - **Standards compliance**: GNU-style options where appropriate
-- **Lean dependencies**: Only essential libraries required (C++ STL + argtable3)
+- **Lean dependencies**: Only essential libraries required (C++ STL + argtable3 + ftxui + openssl)
 - **Code quality**: Static analysis and comprehensive testing
 
 ## Current Status
 
 See CHANGELOG.md for release notes and recent notable changes.
 
-- ✅ Implemented commands: 130 commands including all standard GNU coreutils plus additional utilities
+- ✅ Implemented commands: 137 commands including all standard GNU coreutils plus additional utilities
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing
@@ -399,7 +395,6 @@ See CHANGELOG.md for release notes and recent notable changes.
 
 - [BusyBox](https://www.busybox.net/) - The original multi-call binary
 - [argtable3](https://argtable.org/) - Command-line parser
-- [vcpkg](https://vcpkg.io/) - C++ package manager
 
 ## License
 

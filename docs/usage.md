@@ -8,23 +8,59 @@ modbox is a small multi-command binary. Invocation:
 
 Run `./modbox help` for a command listing, or `./modbox <command> --help` for per-command help.
 
-Commands:
+Commands (137 total, select subset shown here — run `modbox help` for the full list):
 
-| Command  | Purpose                                       |
-| -------- | --------------------------------------------- |
-| `cat`    | Concatenate files and print to standard output |
-| `chgrp`  | Change group ownership                         |
-| `chmod`  | Change file mode bits                          |
-| `chown`  | Change file owner and group                    |
-| `cp`     | Copy files and directories                     |
-| `find`   | Search for files in a directory hierarchy      |
-| `grep`   | Search for patterns in files                   |
-| `help`   | List available commands                        |
-| `ln`     | Create hard or symbolic links                  |
-| `ls`     | List directory contents                        |
-| `mv`     | Move (rename) files                            |
-| `ptx`    | Generate a permuted index (KWIC index)         |
-| `rg`     | Recursive pattern search (ripgrep-style)       |
+| Command   | Purpose                                         |
+| --------- | ----------------------------------------------- |
+| `arch`    | Print machine architecture                      |
+| `awk`     | Pattern scanning and processing language        |
+| `basename`| Strip directory and suffix from a filename      |
+| `cat`     | Concatenate files and print to standard output  |
+| `chgrp`   | Change group ownership                          |
+| `chmod`   | Change file mode bits                           |
+| `chown`   | Change file owner and group                     |
+| `cp`      | Copy files and directories                      |
+| `curl`    | Transfer data from or to a server               |
+| `date`    | Print or set the system date and time           |
+| `df`      | Report file system disk space usage             |
+| `diff`    | Compare files line by line                      |
+| `du`      | Estimate file space usage                       |
+| `env`     | Run a command after modifying the environment   |
+| `echo`    | Display a line of text                          |
+| `expr`    | Evaluate expressions                            |
+| `fd`      | Recursive file search with filters              |
+| `find`    | Search for files in a directory hierarchy       |
+| `grep`    | Search for patterns in files                    |
+| `head`    | Output the first part of files                  |
+| `help`    | List available commands                         |
+| `hostname`| Print or set the system hostname                |
+| `id`      | Print user and group information                |
+| `install` | Copy files and set attributes                   |
+| `kill`    | Signal a process                                |
+| `lf`      | Interactive file browser (alias for ls --tui)   |
+| `ln`      | Create hard or symbolic links                   |
+| `ls`      | List directory contents                         |
+| `md5sum`  | Compute and check MD5 message digest            |
+| `mkdir`   | Create directories                              |
+| `mktemp`  | Create a temporary file or directory            |
+| `mv`      | Move (rename) files                             |
+| `ps`      | Report process status                           |
+| `pwd`     | Print working directory                         |
+| `readlink`| Print value of a symbolic link                  |
+| `realpath`| Print resolved absolute path                    |
+| `rm`      | Remove files or directories                     |
+| `rmdir`   | Remove empty directories                        |
+| `sed`     | Stream editor for filtering and transforming text|
+| `sha256sum`| Compute and check SHA256 message digest        |
+| `sort`    | Sort lines of text                              |
+| `stat`    | Display file or file system status              |
+| `tac`     | Concatenate and print files in reverse          |
+| `tail`    | Output the last part of files                   |
+| `tee`     | Read from stdin and write to stdout and files   |
+| `touch`   | Change file timestamps                          |
+| `uniq`    | Report or omit repeated lines                   |
+| `wc`      | Print newline, word, and byte counts            |
+| `whoami`  | Print effective username                        |
 ---
 
 ## cat
@@ -299,11 +335,17 @@ modbox mv [OPTION]... SOURCE... DIRECTORY
 
 ### Options
 
-`mv` currently takes no flags beyond `-h, --help`. All options are positional.
-
-| Option     | Description          |
-| ---------- | -------------------- |
-| `-h`       | Display help and exit |
+| Option | Description |
+| ------ | ----------- |
+| `-f`, `--force` | Remove existing destination, never prompt |
+| `-i`, `--interactive` | Prompt before overwrite |
+| `-n`, `--no-clobber` | Do not overwrite existing files |
+| `-u`, `--update` | Move only when SOURCE is newer than DEST |
+| `-v`, `--verbose` | Explain what is being done |
+| `-b`, `--backup` | Back up existing destination files (append ~) |
+| `-t`, `--target-directory=DIR` | Move all sources into DIRECTORY |
+| `-T`, `--no-target-directory` | Treat DEST as a normal file |
+| `-h`, `--help` | Display help and exit |
 
 ### Examples
 
@@ -313,6 +355,11 @@ modbox mv file.txt /tmp/
 modbox mv a.txt b.txt destdir/
 modbox mv project/ /tmp/projects/
 modbox mv *.log logs/
+modbox mv -v source.txt dest.txt
+modbox mv -i source.txt existing_dest/
+modbox mv -f source.txt existing_dest/
+modbox mv -b file.txt /backup/
+modbox mv -t /tmp dest/
 ```
 
 ### Notes
@@ -321,7 +368,7 @@ modbox mv *.log logs/
 - **Cross-filesystem:** Falls back to copy-then-unlink (`EXDEV` handling). Slower; preserves content but does not preserve hard-link count, sparse regions, or special files.
 - Multiple SOURCEs require DEST to be an existing directory.
 - Moving a directory into itself is rejected with: `mv: cannot move '...' to '...': Invalid argument`.
-- `-i`, `-n`, `-f`, `-v` flags are not yet implemented.
+- `-n` overrides `-f` and `-i` (safer takes precedence).
 
 ---
 
