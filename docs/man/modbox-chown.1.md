@@ -35,7 +35,9 @@ changed to OWNER's login group.
 :   Affect the referent of each symbolic link (the default).
 
 **-h**, **--no-dereference**
-:   Affect symbolic links instead of any referent.
+:   Affect symbolic links instead of any referent. (Note: **-h** is
+    **--no-dereference** here, not help.)
+
 
 **--from=***CURRENT_OWNER*:*CURRENT_GROUP*
 :   Change the owner/group of each file only if its current owner/group
@@ -62,8 +64,10 @@ changed to OWNER's login group.
 **-P**
 :   If **-R** is given, do not follow any symbolic links (the default).
 
-**-h**, **--help**
-:   Display help and exit.
+**--help**
+:   Display help and exit (long option only; there is no **-h** short
+    form for help, because **-h** means **--no-dereference**).
+
 
 # EXAMPLES
 

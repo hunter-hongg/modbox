@@ -1402,6 +1402,54 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "installed mkdir man page is not gzipped"
     fi
 
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-chmod.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed chmod man page is gzipped"
+    else
+        fail "installed chmod man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-chown.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed chown man page is gzipped"
+    else
+        fail "installed chown man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-ln.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed ln man page is gzipped"
+    else
+        fail "installed ln man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-dd.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed dd man page is gzipped"
+    else
+        fail "installed dd man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-tr.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed tr man page is gzipped"
+    else
+        fail "installed tr man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-uname.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed uname man page is gzipped"
+    else
+        fail "installed uname man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-echo.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed echo man page is gzipped"
+    else
+        fail "installed echo man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-xargs.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed xargs man page is gzipped"
+    else
+        fail "installed xargs man page is not gzipped"
+    fi
+
     # Test uninstall-man
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make uninstall-man >/dev/null 2>&1 || true
     if [[ ! -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then

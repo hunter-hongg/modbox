@@ -9,7 +9,8 @@ modbox-ln - create hard and symbolic links
 # SYNOPSIS
 
 **modbox ln** [*OPTION*]... *SOURCE* *DEST*
-**modbox ln** [*OPTION*]... *SOURCE*... *DIRECTORY*
+**modbox ln** [*OPTION*]... *SOURCE* *DIRECTORY*
+
 
 # DESCRIPTION
 
@@ -21,7 +22,8 @@ For hard links, SOURCE must exist and be a regular file. For symbolic
 links, SOURCE need not exist.
 
 If DEST is an existing directory, a link named after SOURCE's basename is
-created inside that directory.
+created inside that directory. Exactly one SOURCE is accepted.
+
 
 # OPTIONS
 
@@ -40,16 +42,10 @@ created inside that directory.
 
 **-n**, **--no-dereference**
 :   Do not dereference DEST if it is a symbolic link to a directory.
-    Without this, a link would be created inside the directory the
-    symlink points to.
-
-**-L**, **--logical**
+    Without this, a link would be created inside the direc**-L**, **--logical**
 :   When creating hard links, dereference SOURCE symbolic links first
     (link to the target, not the link itself).
-
-**-h**, **--help**
-:   Display help and exit. (Note: this command does not yet implement a
-    long **--help** flag; pass **-h** to see usage.)
+ flag; pass **-h** to see usage.)
 
 # EXAMPLES
 
@@ -76,8 +72,14 @@ modbox ln -sv config.conf config.link
 :   Success (or a skipped interactive prompt answered "no").
 
 `1`
-:   An error occurred (e.g. SOURCE missing for a hard link, SOURCE not a
-    regular file, or link creation failure).
+:   Returned by the argument parser when an invalid or missing option is
+    given (e.g. unknown flag).
+
+`0`
+:   Otherwise, including when SOURCE is missing for a hard link, SOURCE is
+    not a regular file, or the user declines an interactive prompt. The
+    error is still printed to stderr; only the exit status is 0.
+
 
 # NOTES
 

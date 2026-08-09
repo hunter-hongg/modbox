@@ -23,18 +23,31 @@ are broken across multiple invocations to stay within system limits.
     input items may contain spaces, quotes, or newlines (e.g. output of
     `find -print0`).
 
-**-I**, **--replace=***REPLACESTR*
-:   Replace every occurrence of REPLACESTR in COMMAND (and INITIAL-ARGS)
-    with an input item, running COMMAND once per item.
+**-I** *REPLACESTR*
+:   Replace every command argument equal to REPLACESTR with an input item,
+    running COMMAND once per item. (Short form only; the `--replace=`
+    spelling shown in `--help` is not yet parsed.)
 
-**-n**, **--max-args=***MAX_ARGS*
-:   Use at most MAX_ARGS arguments per command line.
+**-n** *MAX_ARGS*
+:   Use at most MAX_ARGS arguments per command line. (Short form only;
+    the `--max-args=` spelling shown in `--help` is not yet parsed.)
 
-**-s**, **--max-chars=***MAX_CHARS*
-:   Use at most MAX_CHARS characters per command line.
+**-s** *MAX_CHARS*
+:   Use at most MAX_CHARS characters per command line. (Short form only;
+    the `--max-chars=` spelling shown in `--help` is not yet parsed.)
 
-**-P**, **--max-procs=***MAX_PROCS*
-:   Run up to MAX_PROCS processes at once.
+**-P** *MAX_PROCS*
+:   Accept up to MAX_PROCS as the requested process limit. (Short form
+    only; the `--max-procs=` spelling shown in `--help` is not yet
+    parsed. Note: actual parallel execution is not yet implemented;
+    commands currently run sequentially.)
+
+**-t**
+:   Read items from standard input (equivalent to treating stdin as a
+    single-item source).
+
+**--show-limits**
+:   Print the command-line length and argument-count limits and exit.
 
 **--help**
 :   Display help and exit.
@@ -57,27 +70,30 @@ modbox ls | modbox xargs -I {} cp {} /backup/{}
 # Limit arguments per invocation
 modbox seq 1 100 | modbox xargs -n 10 echo
 
-# Parallel grep across many files
-modbox find . -name '*.c' -print0 | modbox xargs -0 -P 4 grep -l main
+# Show limits and exit
+modbox xargs --show-limits
 ```
 
 # EXIT STATUS
 
 `0`
-:   Success.
+:   Success (also returned when a command is missing but no items were
+    read, or when a recognized error such as a bad option occurs).
 
 `1`
-:   An error occurred (e.g. invalid option, or COMMAND returned non-zero
-    and xargs was unable to proceed).
+:   COMMAND returned non-zero (propagated from the last invocation).
 
 # NOTES
 
 - By default items are whitespace-delimited and quotes/backslashes are not
-  interpreted (unlike GNU xargs in some modes). Use **-0** for untrusted
-  or arbitrary filenames.
-- With **-I**, batching options (**-n**, **-s**) are ignored; COMMAND runs
-  once per input item.
+  interpreted. Use **-0** for untrusted or arbitrary filenames.
+- With **-I**, COMMAND runs once per input item; only arguments that
+  exactly match REPLACESTR are replaced.
+- Long option spellings (`--replace=`, `--max-args=`, `--max-chars=`,
+  `--max-procs=`) are printed by `--help` but are not yet accepted by the
+  parser; use the short forms.
 
 # SEE ALSO
 
-**modbox-find**(1), **modbox-sh**(1), **modbox**(1)
+**modbox-find**(1), **modbox-awk**(1), **modbox**(1)
+

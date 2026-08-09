@@ -86,4 +86,5 @@ modbox uname -o
 
 # SEE ALSO
 
-**modbox-hostname**(1), **modbox-arch**(1), **modbox**(1)
+**modbox-arch**(1), **modbox**(1)
+

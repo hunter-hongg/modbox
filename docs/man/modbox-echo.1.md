@@ -26,6 +26,7 @@ by a newline (unless **-n** is given).
 **-E**
 :   Disable interpretation of backslash escapes (the default).
 
+
 # ESCAPE SEQUENCES (with -e)
 
 When **-e** is used, the following backslash escapes are interpreted:
@@ -63,8 +64,6 @@ When **-e** is used, the following backslash escapes are interpreted:
 `\0NNN`
 :   Byte with octal value NNN.
 
-`\xHH`
-:   Byte with hexadecimal value HH.
 
 # EXAMPLES
 
@@ -89,12 +88,15 @@ modbox echo -e "\a"
 
 # NOTES
 
-- This implementation supports **short options only** (`-n`, `-e`, `-E`).
-  Long options such as `--help` are NOT recognized; `modbox echo --help`
-  will print "--help" as a literal string rather than showing usage.
 - By default backslash escapes are **not** interpreted (equivalent to
   `-E`). Use `-e` to enable them.
+- The `--help` and `--version` options are recognized; `--help` prints
+  usage and `--version` prints version information, both exiting 0.
+- Hexadecimal escapes (`\xHH`) are not currently interpreted; only octal
+  (`\0NNN`) byte escapes are supported with `-e`.
+
 
 # SEE ALSO
 
-**modbox-printf**(1), **modbox-printenv**(1), **modbox**(1)
+**modbox-cat**(1), **modbox-tee**(1), **modbox**(1)
+
