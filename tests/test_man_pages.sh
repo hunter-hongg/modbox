@@ -147,7 +147,56 @@ else
     fail "docs/man/modbox-mkdir.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-chmod.1.md" ]]; then
+    pass "docs/man/modbox-chmod.1.md exists"
+else
+    fail "docs/man/modbox-chmod.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-chown.1.md" ]]; then
+    pass "docs/man/modbox-chown.1.md exists"
+else
+    fail "docs/man/modbox-chown.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-ln.1.md" ]]; then
+    pass "docs/man/modbox-ln.1.md exists"
+else
+    fail "docs/man/modbox-ln.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-dd.1.md" ]]; then
+    pass "docs/man/modbox-dd.1.md exists"
+else
+    fail "docs/man/modbox-dd.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-tr.1.md" ]]; then
+    pass "docs/man/modbox-tr.1.md exists"
+else
+    fail "docs/man/modbox-tr.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-uname.1.md" ]]; then
+    pass "docs/man/modbox-uname.1.md exists"
+else
+    fail "docs/man/modbox-uname.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-echo.1.md" ]]; then
+    pass "docs/man/modbox-echo.1.md exists"
+else
+    fail "docs/man/modbox-echo.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-xargs.1.md" ]]; then
+    pass "docs/man/modbox-xargs.1.md exists"
+else
+    fail "docs/man/modbox-xargs.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
+
 if grep -q "^man:" Makefile; then
     pass "Makefile has man target"
 else
@@ -172,11 +221,12 @@ else
     fail "Makefile missing pandoc check"
 fi
 
-if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile && grep -q "modbox-head.1.md" Makefile && grep -q "modbox-tail.1.md" Makefile && grep -q "modbox-sort.1.md" Makefile && grep -q "modbox-grep.1.md" Makefile && grep -q "modbox-sed.1.md" Makefile && grep -q "modbox-find.1.md" Makefile && grep -q "modbox-stat.1.md" Makefile && grep -q "modbox-diff.1.md" Makefile && grep -q "modbox-cut.1.md" Makefile && grep -q "modbox-date.1.md" Makefile && grep -q "modbox-uniq.1.md" Makefile && grep -q "modbox-tee.1.md" Makefile && grep -q "modbox-wc.1.md" Makefile && grep -q "modbox-mkdir.1.md" Makefile; then
+if grep -q "modbox-cat.1.md" Makefile && grep -q "modbox-ls.1.md" Makefile && grep -q "modbox-rm.1.md" Makefile && grep -q "modbox-cp.1.md" Makefile && grep -q "modbox-mv.1.md" Makefile && grep -q "modbox-rmdir.1.md" Makefile && grep -q "modbox-arch.1.md" Makefile && grep -q "modbox-audit2allow.1.md" Makefile && grep -q "modbox-awk.1.md" Makefile && grep -q "modbox-head.1.md" Makefile && grep -q "modbox-tail.1.md" Makefile && grep -q "modbox-sort.1.md" Makefile && grep -q "modbox-grep.1.md" Makefile && grep -q "modbox-sed.1.md" Makefile && grep -q "modbox-find.1.md" Makefile && grep -q "modbox-stat.1.md" Makefile && grep -q "modbox-diff.1.md" Makefile && grep -q "modbox-cut.1.md" Makefile && grep -q "modbox-date.1.md" Makefile && grep -q "modbox-uniq.1.md" Makefile && grep -q "modbox-tee.1.md" Makefile && grep -q "modbox-wc.1.md" Makefile && grep -q "modbox-mkdir.1.md" Makefile && grep -q "modbox-chmod.1.md" Makefile && grep -q "modbox-chown.1.md" Makefile && grep -q "modbox-ln.1.md" Makefile && grep -q "modbox-dd.1.md" Makefile && grep -q "modbox-tr.1.md" Makefile && grep -q "modbox-uname.1.md" Makefile && grep -q "modbox-echo.1.md" Makefile && grep -q "modbox-xargs.1.md" Makefile; then
     pass "Makefile lists all man page sources"
 else
     fail "Makefile missing man page sources"
 fi
+
 
 if grep -q "gzip -9" Makefile; then
     pass "Makefile uses gzip compression for install"
@@ -331,7 +381,56 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "build/man/modbox-mkdir.1 not generated"
     fi
 
+    if [[ -f "build/man/modbox-chmod.1" ]]; then
+        pass "build/man/modbox-chmod.1 generated"
+    else
+        fail "build/man/modbox-chmod.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-chown.1" ]]; then
+        pass "build/man/modbox-chown.1 generated"
+    else
+        fail "build/man/modbox-chown.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-ln.1" ]]; then
+        pass "build/man/modbox-ln.1 generated"
+    else
+        fail "build/man/modbox-ln.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-dd.1" ]]; then
+        pass "build/man/modbox-dd.1 generated"
+    else
+        fail "build/man/modbox-dd.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-tr.1" ]]; then
+        pass "build/man/modbox-tr.1 generated"
+    else
+        fail "build/man/modbox-tr.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-uname.1" ]]; then
+        pass "build/man/modbox-uname.1 generated"
+    else
+        fail "build/man/modbox-uname.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-echo.1" ]]; then
+        pass "build/man/modbox-echo.1 generated"
+    else
+        fail "build/man/modbox-echo.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-xargs.1" ]]; then
+        pass "build/man/modbox-xargs.1 generated"
+    else
+        fail "build/man/modbox-xargs.1 not generated"
+    fi
+
     # Test that cat man page contains key options
+
     if man ./build/man/modbox-cat.1 2>/dev/null | col -b | grep -q "number-nonblank"; then
         pass "man page contains -b/--number-nonblank"
     else
@@ -858,7 +957,154 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing --verbose (mkdir)"
     fi
 
+    # Test that chmod man page contains key options
+    if man ./build/man/modbox-chmod.1 2>/dev/null | col -b | grep -q "recursive"; then
+        pass "man page contains --recursive (chmod)"
+    else
+        fail "man page missing --recursive (chmod)"
+    fi
+
+    if man ./build/man/modbox-chmod.1 2>/dev/null | col -b | grep -q "reference"; then
+        pass "man page contains --reference (chmod)"
+    else
+        fail "man page missing --reference (chmod)"
+    fi
+
+    if man ./build/man/modbox-chmod.1 2>/dev/null | col -b | grep -q "verbose"; then
+        pass "man page contains --verbose (chmod)"
+    else
+        fail "man page missing --verbose (chmod)"
+    fi
+
+    # Test that chown man page contains key options
+    if man ./build/man/modbox-chown.1 2>/dev/null | col -b | grep -q "recursive"; then
+        pass "man page contains --recursive (chown)"
+    else
+        fail "man page missing --recursive (chown)"
+    fi
+
+    if man ./build/man/modbox-chown.1 2>/dev/null | col -b | grep -q "reference"; then
+        pass "man page contains --reference (chown)"
+    else
+        fail "man page missing --reference (chown)"
+    fi
+
+    if man ./build/man/modbox-chown.1 2>/dev/null | col -b | grep -q "no-dereference"; then
+        pass "man page contains --no-dereference (chown)"
+    else
+        fail "man page missing --no-dereference (chown)"
+    fi
+
+    # Test that ln man page contains key options
+    if man ./build/man/modbox-ln.1 2>/dev/null | col -b | grep -q "symbolic"; then
+        pass "man page contains --symbolic (ln)"
+    else
+        fail "man page missing --symbolic (ln)"
+    fi
+
+    if man ./build/man/modbox-ln.1 2>/dev/null | col -b | grep -q "force"; then
+        pass "man page contains --force (ln)"
+    else
+        fail "man page missing --force (ln)"
+    fi
+
+    if man ./build/man/modbox-ln.1 2>/dev/null | col -b | grep -q "interactive"; then
+        pass "man page contains --interactive (ln)"
+    else
+        fail "man page missing --interactive (ln)"
+    fi
+
+    # Test that dd man page contains key options
+    if man ./build/man/modbox-dd.1 2>/dev/null | col -b | grep -q "conv"; then
+        pass "man page contains conv= (dd)"
+    else
+        fail "man page missing conv= (dd)"
+    fi
+
+    if man ./build/man/modbox-dd.1 2>/dev/null | col -b | grep -q "iflag"; then
+        pass "man page contains iflag= (dd)"
+    else
+        fail "man page missing iflag= (dd)"
+    fi
+
+    if man ./build/man/modbox-dd.1 2>/dev/null | col -b | grep -q "status"; then
+        pass "man page contains status= (dd)"
+    else
+        fail "man page missing status= (dd)"
+    fi
+
+    # Test that tr man page contains key options
+    if man ./build/man/modbox-tr.1 2>/dev/null | col -b | grep -q "complement"; then
+        pass "man page contains --complement (tr)"
+    else
+        fail "man page missing --complement (tr)"
+    fi
+
+    if man ./build/man/modbox-tr.1 2>/dev/null | col -b | grep -q "delete"; then
+        pass "man page contains --delete (tr)"
+    else
+        fail "man page missing --delete (tr)"
+    fi
+
+    if man ./build/man/modbox-tr.1 2>/dev/null | col -b | grep -q "squeeze"; then
+        pass "man page contains --squeeze (tr)"
+    else
+        fail "man page missing --squeeze (tr)"
+    fi
+
+    # Test that uname man page contains key options
+    if man ./build/man/modbox-uname.1 2>/dev/null | col -b | grep -q "all"; then
+        pass "man page contains --all (uname)"
+    else
+        fail "man page missing --all (uname)"
+    fi
+
+    if man ./build/man/modbox-uname.1 2>/dev/null | col -b | grep -q "kernel"; then
+        pass "man page contains --kernel (uname)"
+    else
+        fail "man page missing --kernel (uname)"
+    fi
+
+    if man ./build/man/modbox-uname.1 2>/dev/null | col -b | grep -q "machine"; then
+        pass "man page contains --machine (uname)"
+    else
+        fail "man page missing --machine (uname)"
+    fi
+
+    # Test that echo man page contains key options
+    if man ./build/man/modbox-echo.1 2>/dev/null | col -b | grep -q "newline"; then
+        pass "man page contains -n (echo)"
+    else
+        fail "man page missing -n (echo)"
+    fi
+
+    if man ./build/man/modbox-echo.1 2>/dev/null | col -b | grep -q "backslash"; then
+        pass "man page contains -e (echo)"
+    else
+        fail "man page missing -e (echo)"
+    fi
+
+    # Test that xargs man page contains key options
+    if man ./build/man/modbox-xargs.1 2>/dev/null | col -b | grep -q "null"; then
+        pass "man page contains --null (xargs)"
+    else
+        fail "man page missing --null (xargs)"
+    fi
+
+    if man ./build/man/modbox-xargs.1 2>/dev/null | col -b | grep -q "replace"; then
+        pass "man page contains --replace (xargs)"
+    else
+        fail "man page missing --replace (xargs)"
+    fi
+
+    if man ./build/man/modbox-xargs.1 2>/dev/null | col -b | grep -q "max-args"; then
+        pass "man page contains --max-args (xargs)"
+    else
+        fail "man page missing --max-args (xargs)"
+    fi
+
     # Test install-man with DESTDIR
+
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
     if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then
         pass "install-man places modbox-cat.1.gz correctly"
@@ -998,7 +1244,56 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-mkdir.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-chmod.1.gz" ]]; then
+        pass "install-man places modbox-chmod.1.gz correctly"
+    else
+        fail "install-man missing modbox-chmod.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-chown.1.gz" ]]; then
+        pass "install-man places modbox-chown.1.gz correctly"
+    else
+        fail "install-man missing modbox-chown.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-ln.1.gz" ]]; then
+        pass "install-man places modbox-ln.1.gz correctly"
+    else
+        fail "install-man missing modbox-ln.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-dd.1.gz" ]]; then
+        pass "install-man places modbox-dd.1.gz correctly"
+    else
+        fail "install-man missing modbox-dd.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-tr.1.gz" ]]; then
+        pass "install-man places modbox-tr.1.gz correctly"
+    else
+        fail "install-man missing modbox-tr.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-uname.1.gz" ]]; then
+        pass "install-man places modbox-uname.1.gz correctly"
+    else
+        fail "install-man missing modbox-uname.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-echo.1.gz" ]]; then
+        pass "install-man places modbox-echo.1.gz correctly"
+    else
+        fail "install-man missing modbox-echo.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-xargs.1.gz" ]]; then
+        pass "install-man places modbox-xargs.1.gz correctly"
+    else
+        fail "install-man missing modbox-xargs.1.gz"
+    fi
+
     # Verify installed files are gzipped
+
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" | grep -q "gzip compressed data"; then
         pass "installed man page is gzipped"
     else

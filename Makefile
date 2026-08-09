@@ -115,7 +115,15 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                   $(MAN_SRC_DIR)/modbox-uniq.1.md \
                   $(MAN_SRC_DIR)/modbox-tee.1.md \
                   $(MAN_SRC_DIR)/modbox-wc.1.md \
-                  $(MAN_SRC_DIR)/modbox-mkdir.1.md
+                  $(MAN_SRC_DIR)/modbox-mkdir.1.md \
+                  $(MAN_SRC_DIR)/modbox-chmod.1.md \
+                  $(MAN_SRC_DIR)/modbox-chown.1.md \
+                  $(MAN_SRC_DIR)/modbox-ln.1.md \
+                  $(MAN_SRC_DIR)/modbox-dd.1.md \
+                  $(MAN_SRC_DIR)/modbox-tr.1.md \
+                  $(MAN_SRC_DIR)/modbox-uname.1.md \
+                  $(MAN_SRC_DIR)/modbox-echo.1.md \
+                  $(MAN_SRC_DIR)/modbox-xargs.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 
