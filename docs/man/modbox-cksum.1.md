@@ -20,8 +20,9 @@ With no FILE, or when FILE is `-`, read from standard input.
 # OPTIONS
 
 **-v**, **--verbose**
-:   Output a diagnostic for every file processed (the file name and its
-    CRC/byte count are always printed; this option adds per-file detail).
+:   Accepted for compatibility with GNU cksum. Currently has no additional
+    effect: the CRC and byte count are printed for every file regardless.
+
 
 **-h**, **--help**
 :   Display help and exit.
@@ -48,7 +49,10 @@ modbox cksum -v file.txt
 :   All files processed successfully.
 
 non-zero
-:   At least one file could not be read.
+:   Currently modbox returns 0 in all cases — even - The output format is `CRC byte_count FILE_NAME`, or `CRC byte_count`
+  (no trailing `-`) when reading standard input.
+a known modbox deviation.)
+
 
 # NOTES
 

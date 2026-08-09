@@ -44,7 +44,9 @@ digests; the **-l**, **--length** option selects the number of bits.
 **-l**, **--length**=*BITS*
 :   Digest length in bits (default 512). Must be between 8 and 512,
     inclusive. The printed digest is truncated to this length, so its
-    width in hexadecimal characters is half the bit count.
+    displayed width in hexadecimal characters is `2 × ceil(BITS/8)`
+    (e.g., 512 bits → 128 chars, 256 → 64, 12 → 4).
+
 
 The following five options are useful only when verifying checksums with
 **-c**:

@@ -62,15 +62,20 @@ modbox base32 -d -i file.b32
 :   Encoding or decoding completed successfully.
 
 non-zero
-:   At least one input could not be read, or decoding encountered a
-    non-alphabet byte (without **--ignore-garbage**), or input could not
-    be decoded.
+:   Currently modbox returns 0 in all cases — even when an input file
+    cannot be read or an encoded input cannot be decoded (invalid input is
+    silently discarded during decoding). (GNU returns non-zero in those
+    cases — a known modbox deviation.)
+
 
 # NOTES
 
 - Encoded output is wrapped at 76 columns by default; disable wrapping
   with **-w 0**.
 - Decoding accepts the standard base32 alphabet and treats `=` as padding.
+- When decoding, input that cannot be decoded is silently discarded and the
+  command still exits 0.
+
 - This page documents the current implementation; where it differs from
   GNU coreutils, the modbox behavior is authoritative.
 

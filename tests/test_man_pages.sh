@@ -227,12 +227,13 @@ else
     fail "Makefile missing man page sources"
 fi
 
-    # Test that Makefile lists the new checksum/encoding man page sources
-    if grep -q "modbox-md5sum.1.md" Makefile && grep -q "modbox-sha512sum.1.md" Makefile && grep -q "modbox-basenc.1.md" Makefile && grep -q "modbox-sum.1.md" Makefile; then
-        pass "Makefile lists checksum/encoding man page sources"
-    else
-        fail "Makefile missing checksum/encoding man page sources"
-    fi
+# Test that Makefile lists the new checksum/encoding man page sources
+if grep -q "modbox-md5sum.1.md" Makefile && grep -q "modbox-sha512sum.1.md" Makefile && grep -q "modbox-basenc.1.md" Makefile && grep -q "modbox-sum.1.md" Makefile; then
+    pass "Makefile lists checksum/encoding man page sources"
+else
+    fail "Makefile missing checksum/encoding man page sources"
+fi
+
 
 
 if grep -q "gzip -9" Makefile; then
@@ -1475,7 +1476,26 @@ if command -v pandoc >/dev/null 2>&1; then
         else
             fail "man page $cmd missing identity in rendered output"
         fi
+        # Representative option/heading sanity check per command
+        case "$cmd" in
+            md5sum|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum) tok="--check" ;;
+            b2sum) tok="--length" ;;
+            base32|base64) tok="--decode" ;;
+            basenc) tok="ENCODING" ;;
+            cksum) tok="--verbose" ;;
+            sum) tok="--sysv" ;;
+            *) tok="" ;;
+        esac
+        # Note: pandoc's man writer renders a bolded leading "--" as an en dash,
+        # so we assert the option against the authored source .md instead.
+        if [[ -n "$tok" ]] && grep -q -- "$tok" "docs/man/modbox-$cmd.1.md"; then
+            pass "man page source $cmd documents $tok"
+        else
+            fail "man page source $cmd missing $tok"
+        fi
+
         if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-$cmd.1.gz" ]]; then
+
             pass "install-man places modbox-$cmd.1.gz correctly"
         else
             fail "install-man missing modbox-$cmd.1.gz"

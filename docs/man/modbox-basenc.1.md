@@ -85,9 +85,11 @@ modbox basenc --base32 -d -i file.b32
 :   Encoding or decoding completed successfully.
 
 non-zero
-:   At least one input could not be read, no encoding was selected, more
-    than one encoding was selected, or decoding encountered a non-alphabet
-    byte (without **--ignore-garbage**).
+:   Currently modbox returns 0 in all cases — even when an input file
+    cannot be read or no/invalid encoding is selected (only invalid
+    command-line options return non-zero). (GNU returns non-zero in those
+    cases — a known modbox deviation.)
+
 
 # NOTES
 

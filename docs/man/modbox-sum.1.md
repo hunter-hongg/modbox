@@ -4,7 +4,8 @@
 
 # NAME
 
-modbox-sum - compute and check BSD- and System V-style checksums
+modbox-sum - compute BSD- and System V-style checksums
+
 
 # SYNOPSIS
 
@@ -53,13 +54,21 @@ modbox sum --sysv file.txt
 :   All files processed successfully.
 
 non-zero
-:   At least one file could not be read.
+:   Currently modbox returns 0 in all cases — even when an input file
+    cannot be read. (GNU coreutils sum returns non-zero in that case; this
+    is a known modbox deviation.)
+
 
 # NOTES
 
 - The output format is `CHECKSUM BLOCKS FILE`, where `BLOCKS` is the file
   size in 512-byte blocks (rounded up).
 - `--sysv` is the default format; `--bsd` selects the 32-bit BSD variant.
+- **`--bsd` deviation:** modbox's BSD format uses 512-byte blocks for the
+  block count (e.g., 4097 bytes reports 9 blocks) and a modbox-specific
+  checksum, so its output differs from BSD/GNU `sum` for files larger than
+  4096 bytes.
+
 - **Implementation note:** the command's `--help` text currently advertises
   short options `-s`/`--sysv` and `-r`/`--bsd`, but only the long forms
   `--sysv` and `--bsd` are actually accepted. Use the long forms. This
