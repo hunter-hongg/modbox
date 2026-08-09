@@ -227,8 +227,16 @@ else
     fail "Makefile missing man page sources"
 fi
 
+    # Test that Makefile lists the new checksum/encoding man page sources
+    if grep -q "modbox-md5sum.1.md" Makefile && grep -q "modbox-sha512sum.1.md" Makefile && grep -q "modbox-basenc.1.md" Makefile && grep -q "modbox-sum.1.md" Makefile; then
+        pass "Makefile lists checksum/encoding man page sources"
+    else
+        fail "Makefile missing checksum/encoding man page sources"
+    fi
+
 
 if grep -q "gzip -9" Makefile; then
+
     pass "Makefile uses gzip compression for install"
 else
     fail "Makefile missing gzip compression"
@@ -1450,7 +1458,37 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "installed xargs man page is not gzipped"
     fi
 
+    # Test checksum & encoding batch: md5sum, sha*, b2sum, base32, base64, basenc, cksum, sum
+    for cmd in md5sum sha1sum sha224sum sha256sum sha384sum sha512sum b2sum base32 base64 basenc cksum sum; do
+        if [[ -f "docs/man/modbox-$cmd.1.md" ]]; then
+            pass "docs/man/modbox-$cmd.1.md exists"
+        else
+            fail "docs/man/modbox-$cmd.1.md missing"
+        fi
+        if [[ -f "build/man/modbox-$cmd.1" ]]; then
+            pass "build/man/modbox-$cmd.1 generated"
+        else
+            fail "build/man/modbox-$cmd.1 not generated"
+        fi
+        if man "./build/man/modbox-$cmd.1" 2>/dev/null | col -b | grep -qi "modbox-$cmd"; then
+            pass "man page $cmd renders with its identity"
+        else
+            fail "man page $cmd missing identity in rendered output"
+        fi
+        if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-$cmd.1.gz" ]]; then
+            pass "install-man places modbox-$cmd.1.gz correctly"
+        else
+            fail "install-man missing modbox-$cmd.1.gz"
+        fi
+        if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-$cmd.1.gz" | grep -q "gzip compressed data"; then
+            pass "installed $cmd man page is gzipped"
+        else
+            fail "installed $cmd man page is not gzipped"
+        fi
+    done
+
     # Test uninstall-man
+
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make uninstall-man >/dev/null 2>&1 || true
     if [[ ! -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" ]]; then
         pass "uninstall-man removes installed files"
@@ -1459,7 +1497,10 @@ if command -v pandoc >/dev/null 2>&1; then
     fi
 
     # Clean up test directory
+
     rm -rf "/tmp/modbox-man-test"
+
+
 else
     echo "  SKIP  pandoc not installed; skipping content and install tests"
 fi

@@ -125,7 +125,20 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                   $(MAN_SRC_DIR)/modbox-uname.1.md \
                   $(MAN_SRC_DIR)/modbox-echo.1.md \
                   $(MAN_SRC_DIR)/modbox-xargs.1.md \
-                  $(MAN_SRC_DIR)/modbox-gzip.1.md
+                  $(MAN_SRC_DIR)/modbox-gzip.1.md \
+                  $(MAN_SRC_DIR)/modbox-md5sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-sha1sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-sha224sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-sha256sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-sha384sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-sha512sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-b2sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-base32.1.md \
+                  $(MAN_SRC_DIR)/modbox-base64.1.md \
+                  $(MAN_SRC_DIR)/modbox-basenc.1.md \
+                  $(MAN_SRC_DIR)/modbox-cksum.1.md \
+                  $(MAN_SRC_DIR)/modbox-sum.1.md
+
 
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
