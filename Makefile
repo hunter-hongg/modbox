@@ -137,7 +137,11 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                   $(MAN_SRC_DIR)/modbox-base64.1.md \
                   $(MAN_SRC_DIR)/modbox-basenc.1.md \
                   $(MAN_SRC_DIR)/modbox-cksum.1.md \
-                  $(MAN_SRC_DIR)/modbox-sum.1.md
+                  $(MAN_SRC_DIR)/modbox-sum.1.md \
+                  $(MAN_SRC_DIR)/modbox-basename.1.md \
+                  $(MAN_SRC_DIR)/modbox-dirname.1.md \
+                  $(MAN_SRC_DIR)/modbox-pwd.1.md \
+                  $(MAN_SRC_DIR)/modbox-sleep.1.md
 
 
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))

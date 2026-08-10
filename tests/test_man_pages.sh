@@ -195,6 +195,30 @@ else
     fail "docs/man/modbox-xargs.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-basename.1.md" ]]; then
+    pass "docs/man/modbox-basename.1.md exists"
+else
+    fail "docs/man/modbox-basename.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-dirname.1.md" ]]; then
+    pass "docs/man/modbox-dirname.1.md exists"
+else
+    fail "docs/man/modbox-dirname.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-pwd.1.md" ]]; then
+    pass "docs/man/modbox-pwd.1.md exists"
+else
+    fail "docs/man/modbox-pwd.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-sleep.1.md" ]]; then
+    pass "docs/man/modbox-sleep.1.md exists"
+else
+    fail "docs/man/modbox-sleep.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 
 if grep -q "^man:" Makefile; then
@@ -232,6 +256,13 @@ if grep -q "modbox-md5sum.1.md" Makefile && grep -q "modbox-sha512sum.1.md" Make
     pass "Makefile lists checksum/encoding man page sources"
 else
     fail "Makefile missing checksum/encoding man page sources"
+fi
+
+# Test that Makefile lists the new basename/dirname/pwd/sleep man page sources
+if grep -q "modbox-basename.1.md" Makefile && grep -q "modbox-dirname.1.md" Makefile && grep -q "modbox-pwd.1.md" Makefile && grep -q "modbox-sleep.1.md" Makefile; then
+    pass "Makefile lists basename/dirname/pwd/sleep man page sources"
+else
+    fail "Makefile missing basename/dirname/pwd/sleep man page sources"
 fi
 
 
@@ -438,6 +469,30 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "build/man/modbox-xargs.1 not generated"
     fi
 
+    if [[ -f "build/man/modbox-basename.1" ]]; then
+        pass "build/man/modbox-basename.1 generated"
+    else
+        fail "build/man/modbox-basename.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-dirname.1" ]]; then
+        pass "build/man/modbox-dirname.1 generated"
+    else
+        fail "build/man/modbox-dirname.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-pwd.1" ]]; then
+        pass "build/man/modbox-pwd.1 generated"
+    else
+        fail "build/man/modbox-pwd.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-sleep.1" ]]; then
+        pass "build/man/modbox-sleep.1 generated"
+    else
+        fail "build/man/modbox-sleep.1 not generated"
+    fi
+
     # Test that cat man page contains key options
 
     if man ./build/man/modbox-cat.1 2>/dev/null | col -b | grep -q "number-nonblank"; then
@@ -471,10 +526,10 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing -l/--long"
     fi
 
-    if man ./build/man/modbox-ls.1 2>/dev/null | col -b | grep -q "recursive"; then
-        pass "man page contains -r/--recursive"
+    if man ./build/man/modbox-ls.1 2>/dev/null | col -b | grep -q "reverse"; then
+        pass "man page contains -r/--reverse (ls)"
     else
-        fail "man page missing -r/--recursive"
+        fail "man page missing -r/--reverse (ls)"
     fi
 
     # Test that rm man page contains key options
@@ -1112,6 +1167,58 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing --max-args (xargs)"
     fi
 
+    # Test that basename man page contains key options
+    if man ./build/man/modbox-basename.1 2>/dev/null | col -b | grep -q "suffix"; then
+        pass "man page contains --suffix (basename)"
+    else
+        fail "man page missing --suffix (basename)"
+    fi
+
+    if man ./build/man/modbox-basename.1 2>/dev/null | col -b | grep -q "multiple"; then
+        pass "man page contains --multiple (basename)"
+    else
+        fail "man page missing --multiple (basename)"
+    fi
+
+    if man ./build/man/modbox-basename.1 2>/dev/null | col -b | grep -q "NUL"; then
+        pass "man page contains --zero (basename)"
+    else
+        fail "man page missing --zero (basename)"
+    fi
+
+    # Test that dirname man page contains key options
+    if man ./build/man/modbox-dirname.1 2>/dev/null | col -b | grep -q "NUL"; then
+        pass "man page contains --zero (dirname)"
+    else
+        fail "man page missing --zero (dirname)"
+    fi
+
+    # Test that pwd man page contains key options
+    if man ./build/man/modbox-pwd.1 2>/dev/null | col -b | grep -q "logical"; then
+        pass "man page contains --logical (pwd)"
+    else
+        fail "man page missing --logical (pwd)"
+    fi
+
+    if man ./build/man/modbox-pwd.1 2>/dev/null | col -b | grep -q "physical"; then
+        pass "man page contains --physical (pwd)"
+    else
+        fail "man page missing --physical (pwd)"
+    fi
+
+    # Test that sleep man page contains key options
+    if man ./build/man/modbox-sleep.1 2>/dev/null | col -b | grep -q "seconds"; then
+        pass "man page contains seconds (sleep)"
+    else
+        fail "man page missing seconds (sleep)"
+    fi
+
+    if man ./build/man/modbox-sleep.1 2>/dev/null | col -b | grep -q "sum"; then
+        pass "man page documents argument summation (sleep)"
+    else
+        fail "man page missing argument summation (sleep)"
+    fi
+
     # Test install-man with DESTDIR
 
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
@@ -1301,6 +1408,30 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-xargs.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-basename.1.gz" ]]; then
+        pass "install-man places modbox-basename.1.gz correctly"
+    else
+        fail "install-man missing modbox-basename.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-dirname.1.gz" ]]; then
+        pass "install-man places modbox-dirname.1.gz correctly"
+    else
+        fail "install-man missing modbox-dirname.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-pwd.1.gz" ]]; then
+        pass "install-man places modbox-pwd.1.gz correctly"
+    else
+        fail "install-man missing modbox-pwd.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-sleep.1.gz" ]]; then
+        pass "install-man places modbox-sleep.1.gz correctly"
+    else
+        fail "install-man missing modbox-sleep.1.gz"
+    fi
+
     # Verify installed files are gzipped
 
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" | grep -q "gzip compressed data"; then
@@ -1457,6 +1588,30 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "installed xargs man page is gzipped"
     else
         fail "installed xargs man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-basename.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed basename man page is gzipped"
+    else
+        fail "installed basename man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-dirname.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed dirname man page is gzipped"
+    else
+        fail "installed dirname man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-pwd.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed pwd man page is gzipped"
+    else
+        fail "installed pwd man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-sleep.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed sleep man page is gzipped"
+    else
+        fail "installed sleep man page is not gzipped"
     fi
 
     # Test checksum & encoding batch: md5sum, sha*, b2sum, base32, base64, basenc, cksum, sum
