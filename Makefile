@@ -24,7 +24,7 @@
 #   CXX=clang++     select compiler
 #   PREFIX=/usr/local  installation prefix
 #   DESTDIR=         staging directory for packaging
-
+#
 # --------------------------------------------------------------------------
 # Directories & target
 # --------------------------------------------------------------------------
@@ -33,66 +33,52 @@ INC_DIR    := include
 BUILD_DIR  := build
 TARGET_DIR := target
 TARGET     := $(TARGET_DIR)/modbox
-
 # --------------------------------------------------------------------------
 # Toolchain
 # --------------------------------------------------------------------------
 CXX    ?= g++
 CXXSTD := c++20
-
 ifeq ($(DEBUG),1)
 CXXFLAGS += -g -O0
 endif
-
 # --------------------------------------------------------------------------
 # Automatic recursive source discovery
 # --------------------------------------------------------------------------
 SRC := $(shell find $(SRC_DIR) -name '*.cpp' -type f | LC_ALL=C sort)
 OBJ := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRC))
 DEP := $(OBJ:.o=.d)
-
 # --------------------------------------------------------------------------
 # Dependencies (pkg-config)
 # --------------------------------------------------------------------------
 # Support linuxbrew pkg-config path (can be overridden via environment)
 LINUXBREW_PKGCONFIG ?= /home/linuxbrew/.linuxbrew/lib/pkgconfig
 PKG_CONFIG_PATH := $(LINUXBREW_PKGCONFIG):$(PKG_CONFIG_PATH)
-PKGS := argtable3 ftxui openssl libselinux libacl zlib
-
-
+PKGS := argtable3 ftxui openssl libselinux libacl zlib liblzma libzstd
 PKG_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags $(PKGS))
 PKG_LIBS   := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs   $(PKGS))
-
 # --------------------------------------------------------------------------
 # Compile / link flags
 #   -MMD -MP : emit a .d dependency file alongside every .o (smart rebuilds)
 # --------------------------------------------------------------------------
 CPPFLAGS := -I$(INC_DIR) $(PKG_CFLAGS)
 CXXFLAGS += -std=$(CXXSTD) -MMD -MP
-
 # CMake auto-injects an RPATH for every linked library into the build-tree
 # binary, which is what lets the executable find linuxbrew .so files at
 # runtime. Replicate that here from the -L flags pkg-config reported.
 RPATH_LIBDIRS := $(filter -L%,$(PKG_LIBS))
 RPATH_FLAGS   := $(RPATH_LIBDIRS:-L%=-Wl,-rpath,%)
-
 LDLIBS   := $(PKG_LIBS) $(RPATH_FLAGS) -lstdc++fs
-
 # clang-tidy location (may be empty)
 CLANG_TIDY := $(shell command -v clang-tidy 2>/dev/null)
-
 # pandoc location (for man page generation)
 PANDOC := $(shell command -v pandoc 2>/dev/null)
-
 # Installation prefix
 PREFIX ?= /usr/local
 DESTDIR ?=
-
 # Man page directories
 MAN_SRC_DIR := docs/man
 MAN_BUILD_DIR := $(BUILD_DIR)/man
 MAN_INSTALL_DIR := $(DESTDIR)$(PREFIX)/share/man/man1
-
 # Man page sources and targets
 MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                   $(MAN_SRC_DIR)/modbox-ls.1.md \
@@ -141,28 +127,23 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                   $(MAN_SRC_DIR)/modbox-basename.1.md \
                   $(MAN_SRC_DIR)/modbox-dirname.1.md \
                   $(MAN_SRC_DIR)/modbox-pwd.1.md \
-                  $(MAN_SRC_DIR)/modbox-sleep.1.md
-
-
+                  $(MAN_SRC_DIR)/modbox-sleep.1.md \
+                  $(MAN_SRC_DIR)/modbox-zstd.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
-
 # --------------------------------------------------------------------------
 # Default target
 # --------------------------------------------------------------------------
 .PHONY: all
 all: compile
-
 # --------------------------------------------------------------------------
 # Build
 # --------------------------------------------------------------------------
 .PHONY: compile
 compile: $(TARGET)
-
 # Link the executable from all object files.
 $(TARGET): $(OBJ) | $(TARGET_DIR)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
-
 # Compile one translation unit.
 # compile_commands.json is an order-only prerequisite so clang-tidy (TIDY=1)
 # can read it; it is never the cause of a rebuild.
@@ -172,15 +153,12 @@ ifeq ($(TIDY),1)
 	-$(CLANG_TIDY) -p $(CURDIR) --use-color --system-headers=false $<
 endif
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
-
 $(TARGET_DIR):
 	@mkdir -p $@
-
 # --------------------------------------------------------------------------
 # Header dependency files — drive smart rebuilds on header changes.
 # --------------------------------------------------------------------------
 -include $(DEP)
-
 # --------------------------------------------------------------------------
 # compile_commands.json (for clang-tidy / editors)
 # Regenerated only when the source set or this Makefile changes.
@@ -189,7 +167,6 @@ compile_commands.json: $(SRC) Makefile
 	@printf '[' > $@
 	@n=0; for f in $(SRC); do \
 	  obj="$(BUILD_DIR)/$${f#$(SRC_DIR)/}"; obj="$${obj%.cpp}.o"; \
-	  if [ $$n -gt 0 ]; then printf ',\n' >> $@; fi; \
 	  printf '  {\n    "directory": "%s",\n    "command": "%s",\n    "file": "%s"\n  }' \
 	    "$(CURDIR)" \
 	    "$(CXX) -std=$(CXXSTD) $(CPPFLAGS) $(CXXFLAGS) -c $$f -o $$obj" \
@@ -197,7 +174,6 @@ compile_commands.json: $(SRC) Makefile
 	  n=$$((n+1)); \
 	done
 	@printf '\n]\n' >> $@
-
 # --------------------------------------------------------------------------
 # Lint
 # --------------------------------------------------------------------------
@@ -208,43 +184,34 @@ ifeq ($(CLANG_TIDY),)
 else
 	$(CLANG_TIDY) -p $(CURDIR) --use-color --system-headers=false $(SRC)
 endif
-
 # --------------------------------------------------------------------------
 # Run
 # --------------------------------------------------------------------------
 .PHONY: run
 run: compile
 	./target/modbox
-
 # --------------------------------------------------------------------------
 # Man pages
 # --------------------------------------------------------------------------
 .PHONY: man
 man: $(MAN_PAGES)
-
 $(MAN_BUILD_DIR)/%: $(MAN_SRC_DIR)/%.md | $(MAN_BUILD_DIR)
 ifeq ($(PANDOC),)
 	@echo "pandoc not found; install it to generate man pages"
 	@exit 1
 endif
 	$(PANDOC) -s -t man $< -o $@
-
 $(MAN_BUILD_DIR):
 	@mkdir -p $@
-
 .PHONY: install-man
 install-man: $(MAN_INSTALLED)
-
 $(MAN_INSTALL_DIR)/%.gz: $(MAN_BUILD_DIR)/% | $(MAN_INSTALL_DIR)
 	gzip -9 -c $< > $@
-
 $(MAN_INSTALL_DIR):
 	@mkdir -p $@
-
 .PHONY: uninstall-man
 uninstall-man:
 	rm -f $(MAN_INSTALLED)
-
 # --------------------------------------------------------------------------
 # Clean / refresh
 # --------------------------------------------------------------------------
@@ -252,11 +219,9 @@ uninstall-man:
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET_DIR) compile_commands.json
 	rm -rf $(MAN_BUILD_DIR)
-
 .PHONY: refresh
 refresh: clean
 	$(MAKE) compile
-
 .PHONY: refresh-tidy
 refresh-tidy: clean
 	$(MAKE) compile TIDY=1
