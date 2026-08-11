@@ -219,6 +219,47 @@ else
     fail "docs/man/modbox-sleep.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-touch.1.md" ]]; then
+    pass "docs/man/modbox-touch.1.md exists"
+else
+    fail "docs/man/modbox-touch.1.md missing"
+fi
+if [[ -f "docs/man/modbox-mktemp.1.md" ]]; then
+    pass "docs/man/modbox-mktemp.1.md exists"
+else
+    fail "docs/man/modbox-mktemp.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-install.1.md" ]]; then
+    pass "docs/man/modbox-install.1.md exists"
+else
+    fail "docs/man/modbox-install.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-seq.1.md" ]]; then
+    pass "docs/man/modbox-seq.1.md exists"
+else
+    fail "docs/man/modbox-seq.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-comm.1.md" ]]; then
+    pass "docs/man/modbox-comm.1.md exists"
+else
+    fail "docs/man/modbox-comm.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-paste.1.md" ]]; then
+    pass "docs/man/modbox-paste.1.md exists"
+else
+    fail "docs/man/modbox-paste.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-nl.1.md" ]]; then
+    pass "docs/man/modbox-nl.1.md exists"
+else
+    fail "docs/man/modbox-nl.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 
 if grep -q "^man:" Makefile; then
@@ -263,6 +304,13 @@ if grep -q "modbox-basename.1.md" Makefile && grep -q "modbox-dirname.1.md" Make
     pass "Makefile lists basename/dirname/pwd/sleep man page sources"
 else
     fail "Makefile missing basename/dirname/pwd/sleep man page sources"
+fi
+
+# Test that Makefile lists the new touch/readlink/mktemp/install/seq/comm/paste/nl man page sources
+if grep -q "modbox-touch.1.md" Makefile && grep -q "modbox-readlink.1.md" Makefile && grep -q "modbox-mktemp.1.md" Makefile && grep -q "modbox-install.1.md" Makefile && grep -q "modbox-seq.1.md" Makefile && grep -q "modbox-comm.1.md" Makefile && grep -q "modbox-paste.1.md" Makefile && grep -q "modbox-nl.1.md" Makefile; then
+    pass "Makefile lists touch/readlink/mktemp/install/seq/comm/paste/nl man page sources"
+else
+    fail "Makefile missing touch/readlink/mktemp/install/seq/comm/paste/nl man page sources"
 fi
 
 
@@ -491,6 +539,54 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "build/man/modbox-sleep.1 generated"
     else
         fail "build/man/modbox-sleep.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-touch.1" ]]; then
+        pass "build/man/modbox-touch.1 generated"
+    else
+        fail "build/man/modbox-touch.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-readlink.1" ]]; then
+        pass "build/man/modbox-readlink.1 generated"
+    else
+        fail "build/man/modbox-readlink.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-mktemp.1" ]]; then
+        pass "build/man/modbox-mktemp.1 generated"
+    else
+        fail "build/man/modbox-mktemp.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-install.1" ]]; then
+        pass "build/man/modbox-install.1 generated"
+    else
+        fail "build/man/modbox-install.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-seq.1" ]]; then
+        pass "build/man/modbox-seq.1 generated"
+    else
+        fail "build/man/modbox-seq.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-comm.1" ]]; then
+        pass "build/man/modbox-comm.1 generated"
+    else
+        fail "build/man/modbox-comm.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-paste.1" ]]; then
+        pass "build/man/modbox-paste.1 generated"
+    else
+        fail "build/man/modbox-paste.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-nl.1" ]]; then
+        pass "build/man/modbox-nl.1 generated"
+    else
+        fail "build/man/modbox-nl.1 not generated"
     fi
 
     # Test that cat man page contains key options
@@ -1219,6 +1315,55 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "man page missing argument summation (sleep)"
     fi
 
+    # Test touch, readlink, mktemp, install, seq, comm, paste, nl man pages
+    if man ./build/man/modbox-touch.1 2>/dev/null | col -b | grep -q "date"; then
+        pass "man page documents date (touch)"
+    else
+        fail "man page missing date (touch)"
+    fi
+
+    if man ./build/man/modbox-readlink.1 2>/dev/null | col -b | grep -q "symlink"; then
+        pass "man page documents symlink (readlink)"
+    else
+        fail "man page missing symlink (readlink)"
+    fi
+
+    if man ./build/man/modbox-mktemp.1 2>/dev/null | col -b | grep -q "template"; then
+        pass "man page documents template (mktemp)"
+    else
+        fail "man page missing template (mktemp)"
+    fi
+
+    if man ./build/man/modbox-install.1 2>/dev/null | col -b | grep -q "destination"; then
+        pass "man page documents destination (install)"
+    else
+        fail "man page missing destination (install)"
+    fi
+
+    if man ./build/man/modbox-seq.1 2>/dev/null | col -b | grep -q "sequence"; then
+        pass "man page documents sequence (seq)"
+    else
+        fail "man page missing sequence (seq)"
+    fi
+
+    if man ./build/man/modbox-comm.1 2>/dev/null | col -b | grep -q "common"; then
+        pass "man page documents common lines (comm)"
+    else
+        fail "man page missing common lines (comm)"
+    fi
+
+    if man ./build/man/modbox-paste.1 2>/dev/null | col -b | grep -q "merge"; then
+        pass "man page documents merge (paste)"
+    else
+        fail "man page missing merge (paste)"
+    fi
+
+    if man ./build/man/modbox-nl.1 2>/dev/null | col -b | grep -q "number"; then
+        pass "man page documents number (nl)"
+    else
+        fail "man page missing number (nl)"
+    fi
+
     # Test install-man with DESTDIR
 
     DESTDIR="/tmp/modbox-man-test" PREFIX="/usr" make install-man >/dev/null 2>&1 || true
@@ -1432,6 +1577,54 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-sleep.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-touch.1.gz" ]]; then
+        pass "install-man places modbox-touch.1.gz correctly"
+    else
+        fail "install-man missing modbox-touch.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-readlink.1.gz" ]]; then
+        pass "install-man places modbox-readlink.1.gz correctly"
+    else
+        fail "install-man missing modbox-readlink.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-mktemp.1.gz" ]]; then
+        pass "install-man places modbox-mktemp.1.gz correctly"
+    else
+        fail "install-man missing modbox-mktemp.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-install.1.gz" ]]; then
+        pass "install-man places modbox-install.1.gz correctly"
+    else
+        fail "install-man missing modbox-install.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-seq.1.gz" ]]; then
+        pass "install-man places modbox-seq.1.gz correctly"
+    else
+        fail "install-man missing modbox-seq.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-comm.1.gz" ]]; then
+        pass "install-man places modbox-comm.1.gz correctly"
+    else
+        fail "install-man missing modbox-comm.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-paste.1.gz" ]]; then
+        pass "install-man places modbox-paste.1.gz correctly"
+    else
+        fail "install-man missing modbox-paste.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-nl.1.gz" ]]; then
+        pass "install-man places modbox-nl.1.gz correctly"
+    else
+        fail "install-man missing modbox-nl.1.gz"
+    fi
+
     # Verify installed files are gzipped
 
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-cat.1.gz" | grep -q "gzip compressed data"; then
@@ -1612,6 +1805,54 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "installed sleep man page is gzipped"
     else
         fail "installed sleep man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-touch.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed touch man page is gzipped"
+    else
+        fail "installed touch man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-readlink.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed readlink man page is gzipped"
+    else
+        fail "installed readlink man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-mktemp.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed mktemp man page is gzipped"
+    else
+        fail "installed mktemp man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-install.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed install man page is gzipped"
+    else
+        fail "installed install man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-seq.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed seq man page is gzipped"
+    else
+        fail "installed seq man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-comm.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed comm man page is gzipped"
+    else
+        fail "installed comm man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-paste.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed paste man page is gzipped"
+    else
+        fail "installed paste man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-nl.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed nl man page is gzipped"
+    else
+        fail "installed nl man page is not gzipped"
     fi
 
     # Test checksum & encoding batch: md5sum, sha*, b2sum, base32, base64, basenc, cksum, sum

@@ -130,7 +130,7 @@ void print_help(const char* prog) {
     printf("With no FILE, or when FILE is -, read standard input.\n");
 }
 
-void print_ratio(const char* prog, const std::string& name, size_t in_size,
+void print_ratio(const std::string& name, size_t in_size,
                  size_t out_size, const char* replaced_with) {
     double ratio =
         in_size == 0
@@ -142,7 +142,6 @@ void print_ratio(const char* prog, const std::string& name, size_t in_size,
     } else {
         printf("%s: %5.1f%%\n", name.c_str(), ratio);
     }
-    (void)prog;
 }
 
 int process_path(const ZstdOptions& opt, const std::string& path,
@@ -167,7 +166,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
             }
             fwrite(out.data(), 1, out.size(), stdout);
             if (opt.verbose)
-                print_ratio(prog, "-", in.size(), out.size(), nullptr);
+                print_ratio("-", in.size(), out.size(), nullptr);
             return 0;
         }
         std::vector<unsigned char> out;
@@ -177,7 +176,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
         }
         fwrite(out.data(), 1, out.size(), stdout);
         if (opt.verbose)
-            print_ratio(prog, "-", in.size(), out.size(), nullptr);
+            print_ratio("-", in.size(), out.size(), nullptr);
         return 0;
     }
 
@@ -236,7 +235,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
         if (opt.to_stdout) {
             fwrite(out.data(), 1, out.size(), stdout);
             if (opt.verbose)
-                print_ratio(prog, path, in.size(), out.size(), nullptr);
+                print_ratio(path, in.size(), out.size(), nullptr);
             return 0;
         }
         // -dk: keep original .zst, write decompressed alongside it
@@ -249,7 +248,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
             std::remove(path.c_str());
         }
         if (opt.verbose)
-            print_ratio(prog, path, in.size(), out.size(), outpath.c_str());
+            print_ratio(path, in.size(), out.size(), outpath.c_str());
         return 0;
     }
 
@@ -263,7 +262,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
     if (opt.to_stdout) {
         fwrite(out.data(), 1, out.size(), stdout);
         if (opt.verbose)
-            print_ratio(prog, path, in.size(), out.size(), nullptr);
+            print_ratio(path, in.size(), out.size(), nullptr);
         return 0;
     }
     if (write_output_file(out, outpath, opt.force, prog) != 0) {
@@ -273,7 +272,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
         std::remove(path.c_str());
     }
     if (opt.verbose)
-        print_ratio(prog, path, in.size(), out.size(), outpath.c_str());
+        print_ratio(path, in.size(), out.size(), outpath.c_str());
     return 0;
 }
 

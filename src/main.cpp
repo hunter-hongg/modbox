@@ -1,5 +1,4 @@
 #include <cstdio>
-#include <cstring>
 #include <string>
 #include <filesystem>
 
@@ -7,13 +6,11 @@
 #include "commands/command_registry.hpp"
 
 static int execute_command(const std::string& command, int argc, char** argv) {
-    for (const auto& e : CommandRegistry::instance().all()) {
-        if (e.name == command) {
-            return e.run(argc, argv);
-        }
+    if (const auto* e = CommandRegistry::instance().find(command)) {
+        return e->run(argc, argv);
     }
     std::string runname = std::filesystem::path(argv[0]).filename().string();
-    fprintf(stderr, "Unknown command: %s\n", command.c_str());
+    (void)fprintf(stderr, "Unknown command: %s\n", command.c_str());
     output_help(argv[0], runname.c_str());
     return 1;
 }

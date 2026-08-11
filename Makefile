@@ -128,7 +128,15 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                   $(MAN_SRC_DIR)/modbox-dirname.1.md \
                   $(MAN_SRC_DIR)/modbox-pwd.1.md \
                   $(MAN_SRC_DIR)/modbox-sleep.1.md \
-                  $(MAN_SRC_DIR)/modbox-zstd.1.md
+                  $(MAN_SRC_DIR)/modbox-touch.1.md \
+                  $(MAN_SRC_DIR)/modbox-readlink.1.md \
+                  $(MAN_SRC_DIR)/modbox-mktemp.1.md \
+                  $(MAN_SRC_DIR)/modbox-install.1.md \
+                  $(MAN_SRC_DIR)/modbox-seq.1.md \
+                  $(MAN_SRC_DIR)/modbox-comm.1.md \
+                  $(MAN_SRC_DIR)/modbox-paste.1.md \
+                  $(MAN_SRC_DIR)/modbox-nl.1.md \
+                  $(MAN_SRC_DIR)/modbox-xz.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
