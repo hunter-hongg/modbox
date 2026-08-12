@@ -259,6 +259,17 @@ if [[ -f "docs/man/modbox-nl.1.md" ]]; then
 else
     fail "docs/man/modbox-nl.1.md missing"
 fi
+if [[ -f "docs/man/modbox-ping.1.md" ]]; then
+    pass "docs/man/modbox-ping.1.md exists"
+else
+    fail "docs/man/modbox-ping.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-arping.1.md" ]]; then
+    pass "docs/man/modbox-arping.1.md exists"
+else
+    fail "docs/man/modbox-arping.1.md missing"
+fi
 
 # Test that Makefile has required targets and variables
 
@@ -311,6 +322,12 @@ if grep -q "modbox-touch.1.md" Makefile && grep -q "modbox-readlink.1.md" Makefi
     pass "Makefile lists touch/readlink/mktemp/install/seq/comm/paste/nl man page sources"
 else
     fail "Makefile missing touch/readlink/mktemp/install/seq/comm/paste/nl man page sources"
+fi
+# Test that Makefile lists the new ping/arping man page sources
+if grep -q "modbox-ping.1.md" Makefile && grep -q "modbox-arping.1.md" Makefile; then
+    pass "Makefile lists ping/arping man page sources"
+else
+    fail "Makefile missing ping/arping man page sources"
 fi
 
 
@@ -569,6 +586,17 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "build/man/modbox-seq.1 generated"
     else
         fail "build/man/modbox-seq.1 not generated"
+    fi
+    if [[ -f "build/man/modbox-ping.1" ]]; then
+        pass "build/man/modbox-ping.1 generated"
+    else
+        fail "build/man/modbox-ping.1 not generated"
+    fi
+
+    if [[ -f "build/man/modbox-arping.1" ]]; then
+        pass "build/man/modbox-arping.1 generated"
+    else
+        fail "build/man/modbox-arping.1 not generated"
     fi
 
     if [[ -f "build/man/modbox-comm.1" ]]; then
@@ -1345,6 +1373,17 @@ if command -v pandoc >/dev/null 2>&1; then
     else
         fail "man page missing sequence (seq)"
     fi
+    if man ./build/man/modbox-ping.1 2>/dev/null | col -b | grep -q "ECHO_REQUEST"; then
+        pass "man page documents ECHO_REQUEST (ping)"
+    else
+        fail "man page missing ECHO_REQUEST (ping)"
+    fi
+
+    if man ./build/man/modbox-arping.1 2>/dev/null | col -b | grep -E -q "ARP[[:space:]]+REQUEST"; then
+        pass "man page documents ARP REQUEST (arping)"
+    else
+        fail "man page missing ARP REQUEST (arping)"
+    fi
 
     if man ./build/man/modbox-comm.1 2>/dev/null | col -b | grep -q "common"; then
         pass "man page documents common lines (comm)"
@@ -1589,6 +1628,18 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "install-man missing modbox-readlink.1.gz"
     fi
 
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-ping.1.gz" ]]; then
+        pass "install-man places modbox-ping.1.gz correctly"
+    else
+        fail "install-man missing modbox-ping.1.gz"
+    fi
+
+    if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-arping.1.gz" ]]; then
+        pass "install-man places modbox-arping.1.gz correctly"
+    else
+        fail "install-man missing modbox-arping.1.gz"
+    fi
+
     if [[ -f "/tmp/modbox-man-test/usr/share/man/man1/modbox-mktemp.1.gz" ]]; then
         pass "install-man places modbox-mktemp.1.gz correctly"
     else
@@ -1817,6 +1868,18 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "installed readlink man page is gzipped"
     else
         fail "installed readlink man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-ping.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed ping man page is gzipped"
+    else
+        fail "installed ping man page is not gzipped"
+    fi
+
+    if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-arping.1.gz" | grep -q "gzip compressed data"; then
+        pass "installed arping man page is gzipped"
+    else
+        fail "installed arping man page is not gzipped"
     fi
 
     if file "/tmp/modbox-man-test/usr/share/man/man1/modbox-mktemp.1.gz" | grep -q "gzip compressed data"; then
