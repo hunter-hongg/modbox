@@ -271,6 +271,30 @@ else
     fail "docs/man/modbox-arping.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-curl.1.md" ]]; then
+    pass "docs/man/modbox-curl.1.md exists"
+else
+    fail "docs/man/modbox-curl.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-fd.1.md" ]]; then
+    pass "docs/man/modbox-fd.1.md exists"
+else
+    fail "docs/man/modbox-fd.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-lf.1.md" ]]; then
+    pass "docs/man/modbox-lf.1.md exists"
+else
+    fail "docs/man/modbox-lf.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-rg.1.md" ]]; then
+    pass "docs/man/modbox-rg.1.md exists"
+else
+    fail "docs/man/modbox-rg.1.md missing"
+fi
+
 # Test that Makefile has required targets and variables
 
 if grep -q "^man:" Makefile; then
@@ -330,6 +354,12 @@ else
     fail "Makefile missing ping/arping man page sources"
 fi
 
+# Test that Makefile lists the new fd/lf/rg/curl man page sources
+if grep -q "modbox-fd.1.md" Makefile && grep -q "modbox-lf.1.md" Makefile && grep -q "modbox-rg.1.md" Makefile && grep -q "modbox-curl.1.md" Makefile; then
+    pass "Makefile lists fd/lf/rg/curl man page sources"
+else
+    fail "Makefile missing fd/lf/rg/curl man page sources"
+fi
 
 
 if grep -q "gzip -9" Makefile; then
