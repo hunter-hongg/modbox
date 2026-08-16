@@ -229,6 +229,18 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
 // Routes from /proc/net/route
 // ---------------------------------------------------------------------------
 
+static std::string hex_to_ipv4(const char* hex) {
+    uint32_t addr;
+    if (sscanf(hex, "%08x", &addr) != 1) return "0.0.0.0";
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%u.%u.%u.%u",
+             (addr >> 24) & 0xff,
+             (addr >> 16) & 0xff,
+             (addr >> 8) & 0xff,
+             addr & 0xff);
+    return buf;
+}
+
 struct RouteEntry {
     std::string iface;
     std::string dst;
