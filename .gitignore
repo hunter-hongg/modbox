@@ -24,3 +24,10 @@ specs/
 index.html
 payload.json
 .codewhale/
+
+# Generated reference files
+man_pages.txt
+registered_cmds.txt
+
+# Completed plans (temporary reference)
+docs/superpowers/plans/*.md
