@@ -150,7 +150,17 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                    $(MAN_SRC_DIR)/modbox-curl.1.md \
                    $(MAN_SRC_DIR)/modbox-fd.1.md \
                    $(MAN_SRC_DIR)/modbox-lf.1.md \
-                   $(MAN_SRC_DIR)/modbox-rg.1.md
+                   $(MAN_SRC_DIR)/modbox-rg.1.md \
+                   $(MAN_SRC_DIR)/modbox-df.1.md \
+                   $(MAN_SRC_DIR)/modbox-du.1.md \
+                   $(MAN_SRC_DIR)/modbox-env.1.md \
+                   $(MAN_SRC_DIR)/modbox-kill.1.md \
+                   $(MAN_SRC_DIR)/modbox-id.1.md \
+                   $(MAN_SRC_DIR)/modbox-timeout.1.md \
+                   $(MAN_SRC_DIR)/modbox-truncate.1.md \
+                   $(MAN_SRC_DIR)/modbox-hostname.1.md \
+                   $(MAN_SRC_DIR)/modbox-umask.1.md \
+                   $(MAN_SRC_DIR)/modbox-whoami.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------

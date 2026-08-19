@@ -295,6 +295,15 @@ else
     fail "docs/man/modbox-rg.1.md missing"
 fi
 
+# Test that new high-priority man page sources exist
+for cmd in df du env kill id timeout truncate hostname umask whoami; do
+    if [[ -f "docs/man/modbox-${cmd}.1.md" ]]; then
+        pass "docs/man/modbox-${cmd}.1.md exists"
+    else
+        fail "docs/man/modbox-${cmd}.1.md missing"
+    fi
+done
+
 # Test that Makefile has required targets and variables
 
 if grep -q "^man:" Makefile; then
@@ -356,11 +365,17 @@ fi
 
 # Test that Makefile lists the new fd/lf/rg/curl man page sources
 if grep -q "modbox-fd.1.md" Makefile && grep -q "modbox-lf.1.md" Makefile && grep -q "modbox-rg.1.md" Makefile && grep -q "modbox-curl.1.md" Makefile; then
-    pass "Makefile lists fd/lf/rg/curl man page sources"
+    pass "Makefile includes fd/lf/rg/curl man page sources"
 else
     fail "Makefile missing fd/lf/rg/curl man page sources"
 fi
 
+# Test that Makefile lists the new high-priority man page sources
+if grep -q "modbox-df.1.md" Makefile && grep -q "modbox-du.1.md" Makefile && grep -q "modbox-env.1.md" Makefile && grep -q "modbox-kill.1.md" Makefile && grep -q "modbox-id.1.md" Makefile && grep -q "modbox-timeout.1.md" Makefile && grep -q "modbox-truncate.1.md" Makefile && grep -q "modbox-hostname.1.md" Makefile && grep -q "modbox-umask.1.md" Makefile && grep -q "modbox-whoami.1.md" Makefile; then
+    pass "Makefile includes high-priority man page sources (df/du/env/kill/id/timeout/truncate/hostname/umask/whoami)"
+else
+    fail "Makefile missing high-priority man page sources"
+fi
 
 if grep -q "gzip -9" Makefile; then
 
@@ -612,16 +627,24 @@ if command -v pandoc >/dev/null 2>&1; then
         fail "build/man/modbox-install.1 not generated"
     fi
 
-    if [[ -f "build/man/modbox-seq.1" ]]; then
-        pass "build/man/modbox-seq.1 generated"
+if [[ -f "build/man/modbox-nl.1" ]]; then
+        pass "build/man/modbox-nl.1 generated"
     else
-        fail "build/man/modbox-seq.1 not generated"
+        fail "build/man/modbox-nl.1 not generated"
     fi
     if [[ -f "build/man/modbox-ping.1" ]]; then
         pass "build/man/modbox-ping.1 generated"
     else
         fail "build/man/modbox-ping.1 not generated"
     fi
+    # Build tests for new high-priority man pages
+    for cmd in df du env kill id timeout truncate hostname umask whoami; do
+        if [[ -f "build/man/modbox-${cmd}.1" ]]; then
+            pass "build/man/modbox-${cmd}.1 generated"
+        else
+            fail "build/man/modbox-${cmd}.1 not generated"
+        fi
+    done
 
     if [[ -f "build/man/modbox-arping.1" ]]; then
         pass "build/man/modbox-arping.1 generated"
@@ -646,6 +669,15 @@ if command -v pandoc >/dev/null 2>&1; then
     else
         fail "build/man/modbox-nl.1 not generated"
     fi
+
+    # Build tests for high-priority commands
+    for cmd in df du env kill id timeout truncate hostname umask whoami; do
+        if [[ -f "build/man/modbox-${cmd}.1" ]]; then
+            pass "build/man/modbox-${cmd}.1 generated"
+        else
+            fail "build/man/modbox-${cmd}.1 not generated"
+        fi
+    done
 
     # Test that cat man page contains key options
 
@@ -1431,6 +1463,58 @@ if command -v pandoc >/dev/null 2>&1; then
         pass "man page documents number (nl)"
     else
         fail "man page missing number (nl)"
+    fi
+
+    # Content tests for high-priority commands
+    if man ./build/man/modbox-df.1 2>/dev/null | col -b | grep -q "disk space"; then
+        pass "man page documents disk space (df)"
+    else
+        fail "man page missing disk space docs (df)"
+    fi
+    if man ./build/man/modbox-du.1 2>/dev/null | col -b | grep -q "file space"; then
+        pass "man page documents file space (du)"
+    else
+        fail "man page missing file space docs (du)"
+    fi
+    if man ./build/man/modbox-env.1 2>/dev/null | col -b | grep -q "environment"; then
+        pass "man page documents environment (env)"
+    else
+        fail "man page missing environment docs (env)"
+    fi
+    if man ./build/man/modbox-kill.1 2>/dev/null | col -b | grep -q "signal"; then
+        pass "man page documents signals (kill)"
+    else
+        fail "man page missing signal docs (kill)"
+    fi
+    if man ./build/man/modbox-id.1 2>/dev/null | col -b | grep -q "user"; then
+        pass "man page documents user info (id)"
+    else
+        fail "man page missing user docs (id)"
+    fi
+    if man ./build/man/modbox-timeout.1 2>/dev/null | col -b | grep -q "timeout"; then
+        pass "man page documents timeout (timeout)"
+    else
+        fail "man page missing timeout docs (timeout)"
+    fi
+    if man ./build/man/modbox-truncate.1 2>/dev/null | col -b | grep -q "size"; then
+        pass "man page documents size (truncate)"
+    else
+        fail "man page missing size docs (truncate)"
+    fi
+    if man ./build/man/modbox-hostname.1 2>/dev/null | col -b | grep -q "hostname"; then
+        pass "man page documents hostname (hostname)"
+    else
+        fail "man page missing hostname docs (hostname)"
+    fi
+    if man ./build/man/modbox-umask.1 2>/dev/null | col -b | grep -q "mask"; then
+        pass "man page documents mask (umask)"
+    else
+        fail "man page missing mask docs (umask)"
+    fi
+    if man ./build/man/modbox-whoami.1 2>/dev/null | col -b | grep -q "user name"; then
+        pass "man page documents user name (whoami)"
+    else
+        fail "man page missing user name docs (whoami)"
     fi
 
     # Test install-man with DESTDIR
