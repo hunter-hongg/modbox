@@ -371,8 +371,8 @@ else
 fi
 
 # Test that Makefile lists the new high-priority man page sources
-if grep -q "modbox-df.1.md" Makefile && grep -q "modbox-du.1.md" Makefile && grep -q "modbox-env.1.md" Makefile && grep -q "modbox-kill.1.md" Makefile && grep -q "modbox-id.1.md" Makefile && grep -q "modbox-timeout.1.md" Makefile && grep -q "modbox-truncate.1.md" Makefile && grep -q "modbox-hostname.1.md" Makefile && grep -q "modbox-umask.1.md" Makefile && grep -q "modbox-whoami.1.md" Makefile; then
-    pass "Makefile includes high-priority man page sources (df/du/env/kill/id/timeout/truncate/hostname/umask/whoami)"
+if grep -q "modbox-df.1.md" Makefile && grep -q "modbox-du.1.md" Makefile && grep -q "modbox-env.1.md" Makefile && grep -q "modbox-kill.1.md" Makefile && grep -q "modbox-id.1.md" Makefile && grep -q "modbox-timeout.1.md" Makefile && grep -q "modbox-truncate.1.md" Makefile && grep -q "modbox-hostname.1.md" Makefile && grep -q "modbox-umask.1.md" Makefile && grep -q "modbox-whoami.1.md" Makefile && grep -q "modbox-perf.1.md" Makefile; then
+    pass "Makefile includes high-priority man page sources (df/du/env/kill/id/timeout/truncate/hostname/umask/whoami/perf)"
 else
     fail "Makefile missing high-priority man page sources"
 fi
