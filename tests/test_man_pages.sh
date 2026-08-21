@@ -295,6 +295,30 @@ else
     fail "docs/man/modbox-rg.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-csplit.1.md" ]]; then
+    pass "docs/man/modbox-csplit.1.md exists"
+else
+    fail "docs/man/modbox-csplit.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-diff3.1.md" ]]; then
+    pass "docs/man/modbox-diff3.1.md exists"
+else
+    fail "docs/man/modbox-diff3.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-dir.1.md" ]]; then
+    pass "docs/man/modbox-dir.1.md exists"
+else
+    fail "docs/man/modbox-dir.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-dircolors.1.md" ]]; then
+    pass "docs/man/modbox-dircolors.1.md exists"
+else
+    fail "docs/man/modbox-dircolors.1.md missing"
+fi
+
 # Test that new high-priority man page sources exist
 for cmd in df du env kill id timeout truncate hostname umask whoami; do
     if [[ -f "docs/man/modbox-${cmd}.1.md" ]]; then
@@ -368,6 +392,13 @@ if grep -q "modbox-fd.1.md" Makefile && grep -q "modbox-lf.1.md" Makefile && gre
     pass "Makefile includes fd/lf/rg/curl man page sources"
 else
     fail "Makefile missing fd/lf/rg/curl man page sources"
+fi
+
+# Test that Makefile lists the csplit/diff3/dir/dircolors man page sources
+if grep -q "modbox-csplit.1.md" Makefile && grep -q "modbox-diff3.1.md" Makefile && grep -q "modbox-dir.1.md" Makefile && grep -q "modbox-dircolors.1.md" Makefile; then
+    pass "Makefile includes csplit/diff3/dir/dircolors man page sources"
+else
+    fail "Makefile missing csplit/diff3/dir/dircolors man page sources"
 fi
 
 # Test that Makefile lists the new high-priority man page sources
