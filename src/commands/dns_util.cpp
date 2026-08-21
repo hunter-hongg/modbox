@@ -57,17 +57,25 @@ std::string dns_parse_name(const uint8_t* ans, int anslen, int& pos) {
 
 std::string dns_build_domain_labels(const std::string& domain) {
     std::string labels;
+    std::string d = domain;
+    // Strip trailing dot - the root label is implicit
+    if (!d.empty() && d.back() == '.') d.pop_back();
+
     size_t prev = 0;
     size_t dot;
-    while ((dot = domain.find('.', prev)) != std::string::npos) {
+    while ((dot = d.find('.', prev)) != std::string::npos) {
         size_t len = dot - prev;
-        labels += static_cast<char>(static_cast<uint8_t>(len));
-        labels.append(domain, prev, len);
+        if (len > 0) {
+            labels += static_cast<char>(static_cast<uint8_t>(len));
+            labels.append(d, prev, len);
+        }
         prev = dot + 1;
     }
-    size_t len = domain.size() - prev;
-    labels += static_cast<char>(static_cast<uint8_t>(len));
-    labels.append(domain, prev, len);
+    size_t len = d.size() - prev;
+    if (len > 0) {
+        labels += static_cast<char>(static_cast<uint8_t>(len));
+        labels.append(d, prev, len);
+    }
     labels += '\0';
     return labels;
 }
@@ -85,7 +93,7 @@ std::vector<uint8_t> dns_build_query(uint16_t id, const std::string& domain,
     pkt.push_back(0x00); pkt.push_back(0x01);  // QDCOUNT=1
     pkt.push_back(0x00); pkt.push_back(0x00);  // ANCOUNT=0
     pkt.push_back(0x00); pkt.push_back(0x00);  // NSCOUNT=0
-    pkt.push_back(0x00); pkt.push_back(0x00);  // ARCOUNT=0
+    pkt.push_back(0x00); pkt.push_back(0x01);  // ARCOUNT=1 (for EDNS0)
 
     // Question section
     std::string labels = dns_build_domain_labels(domain);
@@ -94,6 +102,20 @@ std::vector<uint8_t> dns_build_query(uint16_t id, const std::string& domain,
     pkt.push_back(qtype & 0xff);
     pkt.push_back(0x00);  // QCLASS=IN
     pkt.push_back(0x01);
+
+    // EDNS0 OPT pseudo-record
+    // Name: 0 (root)
+    pkt.push_back(0x00);
+    // Type: 41 (OPT)
+    pkt.push_back(0x00); pkt.push_back(0x29);
+    // Class: UDP payload size (4096)
+    pkt.push_back(0x10); pkt.push_back(0x00);
+    // TTL: Extended RCODE (0) + VERSION (0)
+    pkt.push_back(0x00); pkt.push_back(0x00);
+    pkt.push_back(0x00); pkt.push_back(0x00);
+    // RDLEN: 0
+    pkt.push_back(0x00); pkt.push_back(0x00);
+    // RDATA: empty
 
     return pkt;
 }
@@ -104,7 +126,37 @@ int dns_send_query(const std::string& server, const std::string& domain,
     addr.sin_family = AF_INET;
     addr.sin_port = htons(kDnsPort);
     if (inet_pton(AF_INET, server.c_str(), &addr.sin_addr) != 1) {
-        return -1;
+        // Try IPv6
+        struct sockaddr_in6 addr6{};
+        addr6.sin6_family = AF_INET6;
+        addr6.sin6_port = htons(kDnsPort);
+        if (inet_pton(AF_INET6, server.c_str(), &addr6.sin6_addr) != 1) {
+            return -1;
+        }
+        int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (sock < 0) return -1;
+
+        static uint16_t id_counter = 0;
+        uint16_t id = ++id_counter;
+        std::vector<uint8_t> query = dns_build_query(id, domain, qtype);
+
+        ssize_t sent = sendto(sock, query.data(), query.size(), 0,
+                              reinterpret_cast<struct sockaddr*>(&addr6), sizeof(addr6));
+        if (sent < 0) { close(sock); return -1; }
+
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(sock, &set);
+        struct timeval tv{5, 0};
+        int ready = select(sock + 1, &set, nullptr, nullptr, &tv);
+        if (ready <= 0) { close(sock); return -1; }
+
+        struct sockaddr_in6 from;
+        socklen_t fromlen = sizeof(from);
+        ssize_t n = recvfrom(sock, resp, resp_size, 0,
+                             reinterpret_cast<struct sockaddr*>(&from), &fromlen);
+        close(sock);
+        return n > 0 ? static_cast<int>(n) : -1;
     }
 
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -278,7 +330,7 @@ int dns_parse_response(const uint8_t* ans, int anslen, DnsResponse& out) {
         out.question_names.push_back(qname);
     }
 
-    auto parse_section = [&](std::vector<DnsRecord>& records) {
+    auto parse_answer_section = [&]() {
         for (uint16_t i = 0; i < out.ancount && pos < anslen; ++i) {
             DnsRecord rec;
             rec.name = dns_parse_name(ans, anslen, pos);
@@ -297,13 +349,59 @@ int dns_parse_response(const uint8_t* ans, int anslen, DnsResponse& out) {
 
             rec.type = type;
             rec.rdata = parse_rdata(ans, anslen, pos, rdlen, type);
-            records.push_back(rec);
+            out.answers.push_back(rec);
         }
     };
 
-    parse_section(out.answers);
-    parse_section(out.authority);
-    parse_section(out.additional);
+    auto parse_authority_section = [&]() {
+        for (uint16_t i = 0; i < out.nscount && pos < anslen; ++i) {
+            DnsRecord rec;
+            rec.name = dns_parse_name(ans, anslen, pos);
+            if (pos + 10 > anslen) break;
+
+            int type = (ans[pos] << 8) | ans[pos + 1];
+            pos += 2;
+            pos += 2;  // CLASS
+            rec.ttl = ((uint32_t)ans[pos] << 24) | ((uint32_t)ans[pos + 1] << 16) |
+                      ((uint32_t)ans[pos + 2] << 8) | ans[pos + 3];
+            pos += 4;
+            uint16_t rdlen = (ans[pos] << 8) | ans[pos + 1];
+            pos += 2;
+
+            if (pos + rdlen > anslen) break;
+
+            rec.type = type;
+            rec.rdata = parse_rdata(ans, anslen, pos, rdlen, type);
+            out.authority.push_back(rec);
+        }
+    };
+
+    auto parse_additional_section = [&]() {
+        for (uint16_t i = 0; i < out.arcount && pos < anslen; ++i) {
+            DnsRecord rec;
+            rec.name = dns_parse_name(ans, anslen, pos);
+            if (pos + 10 > anslen) break;
+
+            int type = (ans[pos] << 8) | ans[pos + 1];
+            pos += 2;
+            pos += 2;  // CLASS
+            rec.ttl = ((uint32_t)ans[pos] << 24) | ((uint32_t)ans[pos + 1] << 16) |
+                      ((uint32_t)ans[pos + 2] << 8) | ans[pos + 3];
+            pos += 4;
+            uint16_t rdlen = (ans[pos] << 8) | ans[pos + 1];
+            pos += 2;
+
+            if (pos + rdlen > anslen) break;
+
+            rec.type = type;
+            rec.rdata = parse_rdata(ans, anslen, pos, rdlen, type);
+            out.additional.push_back(rec);
+        }
+    };
+
+    parse_answer_section();
+    parse_authority_section();
+    parse_additional_section();
 
     return 0;
 }

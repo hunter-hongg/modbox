@@ -58,7 +58,11 @@ Options beginning with **+** control output format.
 :   Show only header comments.
 
 **+trace**
-:   Trace the delegation path from the root servers.
+:   Trace the delegation path from the root servers. Performs iterative
+    DNS resolution, starting from the root servers and following NS
+    delegations through TLD servers to the authoritative name servers
+    for the queried domain. Each step of the delegation chain is
+    displayed with the corresponding server and response.
 
 ## General options
 
@@ -142,6 +146,9 @@ modbox dig example.com TXT
 
 # NS record lookup
 modbox dig example.com NS
+
+# Trace delegation path from root servers
+modbox dig example.com +trace
 ```
 
 # NOTES
