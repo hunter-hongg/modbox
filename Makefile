@@ -166,7 +166,13 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
                    $(MAN_SRC_DIR)/modbox-csplit.1.md \
                    $(MAN_SRC_DIR)/modbox-diff3.1.md \
                    $(MAN_SRC_DIR)/modbox-dir.1.md \
-                   $(MAN_SRC_DIR)/modbox-dircolors.1.md
+                   $(MAN_SRC_DIR)/modbox-dircolors.1.md \
+                   $(MAN_SRC_DIR)/modbox-dust.1.md \
+                   $(MAN_SRC_DIR)/modbox-expand.1.md \
+                   $(MAN_SRC_DIR)/modbox-expr.1.md \
+                   $(MAN_SRC_DIR)/modbox-factor.1.md \
+                   $(MAN_SRC_DIR)/modbox-false.1.md \
+                   $(MAN_SRC_DIR)/modbox-fmt.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
