@@ -6,11 +6,20 @@
 #include <cctype>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
+#include <argtable3.h>
 #include "commands/jq.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
+#include "commands/arg_util.hpp"
 
 namespace {
+struct OutputOptions {
+    bool raw = false;
+    bool compact = false;
+    bool slurp = false;
+};
+
 struct JsonValue {
     enum Type { Null, Bool, Number, String, Array, Object } type;
     bool b = false;
@@ -103,6 +112,10 @@ public:
     JsonValue parse() { JsonValue v = parse_value(); return v; }
 };
 
+static void escape_json_string(const std::string& s) {
+    for(char c: s){ if(c=='"'||c=='\\') putchar('\\'); putchar(c);}
+}
+
 static void json_print(const JsonValue& v, bool compact, bool raw) {
     if (v.type == JsonValue::String && raw) { printf("%s\n", v.str.c_str()); return; }
     if (compact) {
@@ -110,9 +123,9 @@ static void json_print(const JsonValue& v, bool compact, bool raw) {
         if (v.type == JsonValue::Null) printf("null");
         else if (v.type == JsonValue::Bool) printf(v.b ? "true" : "false");
         else if (v.type == JsonValue::Number) printf("%g", v.num);
-        else if (v.type == JsonValue::String) { putchar('"'); for(char c: v.str){ if(c=='"'||c=='\\') putchar('\\'); putchar(c);} putchar('"');}
+        else if (v.type == JsonValue::String) { putchar('"'); escape_json_string(v.str); putchar('"');}
         else if (v.type == JsonValue::Array) { printf("["); for(size_t i=0;i<v.arr.size();++i){ if(i) printf(","); json_print(v.arr[i], true, raw);} printf("]"); }
-        else if (v.type == JsonValue::Object) { printf("{"); bool first=true; for(auto& p: v.obj){ if(!first) printf(","); first=false; putchar('"'); for(char c:p.first){ if(c=='"'||c=='\\') putchar('\\'); putchar(c);} printf("\":"); json_print(p.second,true,raw);} printf("}"); }
+        else if (v.type == JsonValue::Object) { printf("{"); bool first=true; for(auto& p: v.obj){ if(!first) printf(","); first=false; putchar('"'); escape_json_string(p.first); printf("\":"); json_print(p.second,true,raw);} printf("}"); }
         printf("\n");
         return;
     }
@@ -120,7 +133,7 @@ static void json_print(const JsonValue& v, bool compact, bool raw) {
     if (v.type == JsonValue::Null) printf("null\n");
     else if (v.type == JsonValue::Bool) printf(v.b ? "true\n" : "false\n");
     else if (v.type == JsonValue::Number) printf("%g\n", v.num);
-    else if (v.type == JsonValue::String) { if (raw) printf("%s\n", v.str.c_str()); else { printf("\""); for(char c: v.str){ if(c=='"'||c=='\\') putchar('\\'); putchar(c);} printf("\"\n"); } }
+    else if (v.type == JsonValue::String) { if (raw) printf("%s\n", v.str.c_str()); else { printf("\""); escape_json_string(v.str); printf("\"\n"); } }
     else if (v.type == JsonValue::Array) { printf("[\n"); for(auto& e:v.arr){ printf("  "); json_print(e,false,raw);} printf("]\n");}
     else if (v.type == JsonValue::Object) { printf("{\n"); for(auto& p:v.obj){ printf("  \"%s\": ", p.first.c_str()); json_print(p.second,false,raw);} printf("}\n");}
 }
@@ -144,12 +157,7 @@ static double json_to_number(const JsonValue& v) {
     return 0;
 }
 
-static bool compare_gt(const JsonValue& a, const JsonValue& b) { return json_to_number(a) > json_to_number(b); }
-static bool compare_eq(const JsonValue& a, const JsonValue& b) { return json_to_number(a) == json_to_number(b); }
-
-static JsonValue apply_filter(const JsonValue& input, const std::string& filt, bool raw, bool compact) {
-    // Very simplified: support dot path like .name, .a.b[0]
-    // Also support length
+static JsonValue apply_filter(const JsonValue& input, const std::string& filt, const OutputOptions&) {
     if (filt == "length") {
         if (input.type == JsonValue::Array) return JsonValue::make_number(input.arr.size());
         if (input.type == JsonValue::Object) return JsonValue::make_number(input.obj.size());
@@ -157,30 +165,28 @@ static JsonValue apply_filter(const JsonValue& input, const std::string& filt, b
     }
     std::string path = filt;
     if (!path.empty() && path[0]=='.') path = path.substr(1);
-    // split by '.' but keep [ ]
-    JsonValue cur = input;
+    JsonValue current = input;
     size_t pos = 0;
     while (pos < path.size()) {
-        size_t dot = path.find('.', pos);
-        std::string token = (dot==std::string::npos) ? path.substr(pos) : path.substr(pos, dot-pos);
-        // parse token with optional [index]
-        size_t br = token.find('[');
+        size_t dot_pos = path.find('.', pos);
+        std::string token = (dot_pos==std::string::npos) ? path.substr(pos) : path.substr(pos, dot_pos-pos);
+        size_t bracket_pos = token.find('[');
         std::string name = token;
-        long idx = -1;
-        if (br != std::string::npos) {
-            name = token.substr(0, br);
-            size_t br2 = token.find(']', br);
-            if (br2 != std::string::npos) {
-                std::string num = token.substr(br+1, br2-br-1);
-                idx = strtol(num.c_str(), nullptr, 10);
+        long index = -1;
+        if (bracket_pos != std::string::npos) {
+            name = token.substr(0, bracket_pos);
+            size_t bracket_end = token.find(']', bracket_pos);
+            if (bracket_end != std::string::npos) {
+                std::string num = token.substr(bracket_pos+1, bracket_end-bracket_pos-1);
+                index = strtol(num.c_str(), nullptr, 10);
             }
         }
-        if (!name.empty()) cur = get_field(cur, name);
-        if (idx >= 0) cur = get_index(cur, (size_t)idx);
-        if (dot == std::string::npos) break;
-        pos = dot+1;
+        if (!name.empty()) current = get_field(current, name);
+        if (index >= 0) current = get_index(current, (size_t)index);
+        if (dot_pos == std::string::npos) break;
+        pos = dot_pos+1;
     }
-    return cur;
+    return current;
 }
 
 static void print_help(const char* prog) {
@@ -199,54 +205,55 @@ static void print_help(const char* prog) {
 
 int jq_command(int argc, char** argv) {
     if (argc == 1) { print_help(argv[0]); return 2; }
-    bool raw = false, compact = false, slurp = false;
+    struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
+    struct arg_lit* version_opt = arg_lit0(NULL, "version", "output version information and exit");
+    struct arg_lit* raw_opt = arg_lit0("r", "raw-output", "output raw strings, not JSON");
+    struct arg_lit* compact_opt = arg_lit0("c", "compact-output", "compact output");
+    struct arg_lit* slurp_opt = arg_lit0("s", "slurp", "slurp all inputs into an array");
+    struct arg_str* filter_opt = arg_str0(NULL, NULL, "FILTER", "jq filter expression");
+    struct arg_file* file_opt = arg_filen(NULL, NULL, "FILE", 0, 100, "input file(s)");
+    struct arg_end* end = arg_end(20);
+    ArgTable at({ help_opt, version_opt, raw_opt, compact_opt, slurp_opt, filter_opt, file_opt, end });
+    int nerrors = at.parse(argc, argv);
+    if (nerrors > 0) { at.print_errors(end, argv[0]); return 1; }
+    if (help_opt->count > 0) { print_help(argv[0]); return 0; }
+    if (version_opt->count > 0) { print_version("jq"); return 0; }
+    OutputOptions opts;
+    opts.raw = raw_opt->count > 0;
+    opts.compact = compact_opt->count > 0;
+    opts.slurp = slurp_opt->count > 0;
     std::string filter;
+    if (filter_opt->count > 0) filter = filter_opt->sval[0];
+    else filter = ".";
     std::vector<std::string> files;
-    for (int i = 1; i < argc; i++) {
-        const char* a = argv[i];
-        if (strcmp(a, "--help")==0) { print_help(argv[0]); return 0; }
-        if (strcmp(a, "--version")==0) { print_version("jq"); return 0; }
-        if (strcmp(a, "-r")==0 || strcmp(a, "--raw-output")==0) { raw = true; continue; }
-        if (strcmp(a, "-c")==0 || strcmp(a, "--compact-output")==0) { compact = true; continue; }
-        if (strcmp(a, "-s")==0 || strcmp(a, "--slurp")==0) { slurp = true; continue; }
-        if (a[0]=='-') { fprintf(stderr, "jq: unknown option %s\n", a); return 1; }
-        if (filter.empty() && a[0]=='.') { filter = a; continue; }
-        if (filter.empty() && (a[0]!='-' || strlen(a)>1)) { /* treat as filter */ filter = a; continue; }
-        files.push_back(a);
-    }
-    if (filter.empty()) filter = ".";
+    for (int i=0;i<file_opt->count;i++) files.push_back(file_opt->filename[i]);
     if (files.empty()) {
-        // read stdin
         std::string data((std::istreambuf_iterator<char>(std::cin)), std::istreambuf_iterator<char>());
         if (data.empty()) return 0;
         JsonParser p(data);
         JsonValue v = p.parse();
-        JsonValue out = apply_filter(v, filter, raw, compact);
-        json_print(out, compact, raw);
+        JsonValue out = apply_filter(v, filter, opts);
+        json_print(out, opts.compact, opts.raw);
         return 0;
     }
-    // file processing
     std::vector<JsonValue> all;
     for (auto& f : files) {
-        FILE* fp = fopen(f.c_str(), "r");
-        if (!fp) { fprintf(stderr, "jq: cannot open %s\n", f.c_str()); return 1; }
-        fseek(fp, 0, SEEK_END);
-        long sz = ftell(fp); fseek(fp,0,SEEK_SET);
-        std::string buf(sz+1, '\0');
-        fread(&buf[0],1,sz,fp); fclose(fp);
+        std::ifstream ifs(f);
+        if (!ifs) { fprintf(stderr, "jq: cannot open %s\n", f.c_str()); return 1; }
+        std::string buf((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         JsonParser p(buf);
         JsonValue v = p.parse();
         all.push_back(v);
     }
     JsonValue input;
-    if (slurp) {
+    if (opts.slurp) {
         input = JsonValue::make_array(all);
     } else {
         if (all.size()==1) input = all[0];
         else input = JsonValue::make_array(all);
     }
-    JsonValue out = apply_filter(input, filter, raw, compact);
-    json_print(out, compact, raw);
+    JsonValue out = apply_filter(input, filter, opts);
+    json_print(out, opts.compact, opts.raw);
     return 0;
 }
 
