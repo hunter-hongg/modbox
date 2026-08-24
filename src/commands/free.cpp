@@ -10,7 +10,6 @@
 #include "commands/free.hpp"
 #include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
-#include "commands/json_stringifier.hpp"
 #include "commands/cmd_error.hpp"
 
 struct MemInfoData {
@@ -22,6 +21,14 @@ struct MemInfoData {
     int64_t buffers = 0;
     int64_t cached = 0;
     int64_t shmem = 0;
+};
+
+struct FreeOptions {
+    bool human = false;
+    bool si = false;
+    bool show_total = false;
+    bool old_format = false;
+    bool json_mode = false;
 };
 
 static std::string read_file(const std::string& path) {
@@ -41,10 +48,9 @@ static MemInfoData read_proc_meminfo() {
     while (std::getline(iss, line)) {
         std::istringstream lss(line);
         std::string key;
-        long long val_kb = 0;
+        int64_t val_kb = 0;
         lss >> key >> val_kb;
         if (key.empty()) continue;
-        // Strip trailing colon from key
         if (!key.empty() && key.back() == ':') key.pop_back();
 
         if (key == "MemTotal") d.mem_total = val_kb;
@@ -68,102 +74,85 @@ static void print_help(const char* prog) {
     printf("  -t, --total           show total row\n");
     printf("  -o, --old             use the old (legacy) format\n");
     printf("      --json            output in JSON format\n");
-    printf("  -h, --help            display this help and exit\n");
-    printf("  -V, --version         output version information and exit\n");
+    printf("      --help            display this help and exit\n");
+    printf("      --version         output version information and exit\n");
 }
 
 static void print_version() {
     printf("free (modbox) 1.0\n");
 }
 
-// Human-readable formatting: 1024-based with KiB/MiB/GiB suffixes
-static void format_human(FILE* out, int64_t val_kb) {
-    int64_t unit = 1024;
+static void format_size(FILE* out, int64_t val_kb, bool si) {
+    int64_t unit = si ? 1000 : 1024;
     if (val_kb < unit) {
         fprintf(out, "%lldB", val_kb);
         return;
     }
     double v = (double)val_kb;
-    const char* suffixes[] = {"K", "M", "G", "T", "P", "E", "Z", "Y"};
+    const char* suffixes = si ? "kBMBGTBP" : "KMGTPEZY";
     int idx = 0;
     while (v >= (double)unit && idx < 7) {
         v /= (double)unit;
         idx++;
     }
-    fprintf(out, "%.1f%s", v, suffixes[idx]);
-}
-
-// SI formatting: 1000-based with kB/MB/GB suffixes
-static void format_si(FILE* out, int64_t val_kb) {
-    int64_t unit = 1000;
-    if (val_kb < unit) {
-        fprintf(out, "%llukB", val_kb);
-        return;
-    }
-    double v = (double)val_kb;
-    const char* suffixes[] = {"kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"};
-    int idx = 0;
-    while (v >= (double)unit && idx < 7) {
-        v /= (double)unit;
-        idx++;
-    }
-    fprintf(out, "%.1f%s", v, suffixes[idx]);
-}
-
-// Print a value in the appropriate format
-static void print_value(FILE* out, int64_t val_kb, bool human, bool si) {
-    if (human || si) {
-        if (si) format_si(out, val_kb);
-        else format_human(out, val_kb);
+    if (si) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%.1f%c", v, suffixes[idx]);
+        fprintf(out, "%s", buf);
     } else {
-        fprintf(out, "%llu", (unsigned long long)val_kb);
+        fprintf(out, "%.1f%c", v, suffixes[idx]);
     }
 }
 
-// Print the header line
-static void print_header(bool old_format) {
+static void print_value(FILE* out, int64_t val_kb, const FreeOptions* opts) {
+    if (opts->human || opts->si) {
+        format_size(out, val_kb, opts->si);
+    } else {
+        fprintf(out, "%lld", val_kb);
+    }
+}
+
+static void print_header(const FreeOptions* opts) {
     printf("              ");
     printf("%-10s", "total");
     printf("%-10s", "used");
     printf("%-10s", "free");
     printf("%-10s", "shared");
     printf("%-10s", "buff/cache");
-    if (!old_format) {
+    if (!opts->old_format) {
         printf("%-10s", "available");
     }
     printf("\n");
 }
 
-// Print a data row with the label prefix
 static void print_row(const char* label, int64_t total, int64_t used,
                       int64_t free_mem, int64_t shared, int64_t buff_cache,
-                      int64_t available, bool human, bool si, bool old_format) {
+                      int64_t available, const FreeOptions* opts) {
     printf("%-13s", label);
-    print_value(stdout, total, human, si);
+    print_value(stdout, total, opts);
     printf("%13s", "");
-    print_value(stdout, used, human, si);
+    print_value(stdout, used, opts);
     printf("%13s", "");
-    print_value(stdout, free_mem, human, si);
+    print_value(stdout, free_mem, opts);
     printf("%13s", "");
-    print_value(stdout, shared, human, si);
+    print_value(stdout, shared, opts);
     printf("%13s", "");
-    print_value(stdout, buff_cache, human, si);
-    if (!old_format) {
+    print_value(stdout, buff_cache, opts);
+    if (!opts->old_format) {
         printf("%13s", "");
-        print_value(stdout, available, human, si);
+        print_value(stdout, available, opts);
     }
     printf("\n");
 }
 
 int free_command(int argc, char** argv) {
-    // -h maps to human-readable; -V for version (GNU free uses --version)
     struct arg_lit* human_opt = arg_lit0("h", "human-readable", "print sizes in human-readable format");
     struct arg_lit* si_opt = arg_lit0(NULL, "si", "use powers of 1000 not 1024");
     struct arg_lit* total_opt = arg_lit0("t", "total", "show total row");
     struct arg_lit* old_opt = arg_lit0("o", "old", "use the old (legacy) format");
     struct arg_lit* json_opt = arg_lit0(NULL, "json", "output in JSON format");
     struct arg_lit* help_opt = arg_lit0(NULL, "help", "display this help and exit");
-    struct arg_lit* version_opt = arg_lit0("V", "version", "output version information and exit");
+    struct arg_lit* version_opt = arg_lit0(NULL, "version", "output version information and exit");
     struct arg_end* end = arg_end(20);
 
     ArgTable at({human_opt, si_opt, total_opt, old_opt, json_opt, help_opt, version_opt, end});
@@ -184,13 +173,14 @@ int free_command(int argc, char** argv) {
         at.print_errors(end, argv[0]);
         return 1;
     }
-    bool human = (human_opt->count > 0);
-    bool si = (si_opt->count > 0);
-    bool show_total = (total_opt->count > 0);
-    bool old_format = (old_opt->count > 0);
-    bool json_mode = (json_opt->count > 0);
 
-    // Check for positional arguments
+    FreeOptions opts;
+    opts.human = (human_opt->count > 0);
+    opts.si = (si_opt->count > 0);
+    opts.show_total = (total_opt->count > 0);
+    opts.old_format = (old_opt->count > 0);
+    opts.json_mode = (json_opt->count > 0);
+
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] != '-') {
             cmd_error(argv[0], "unexpected argument \"%s\"", argv[i]);
@@ -200,13 +190,12 @@ int free_command(int argc, char** argv) {
 
     MemInfoData mem = read_proc_meminfo();
 
-    // Compute derived values
-    int64_t mem_used = mem.mem_total - mem.mem_free;
     int64_t buff_cache = mem.buffers + mem.cached;
     int64_t shared = mem.shmem;
+    int64_t mem_used = mem.mem_total - mem.mem_free - buff_cache - shared;
     int64_t swap_used = mem.swap_total - mem.swap_free;
 
-    if (json_mode) {
+    if (opts.json_mode) {
         fprintf(stdout, "{\n");
         fprintf(stdout, "  \"mem\": {\n");
         fprintf(stdout, "    \"available\": %lld,\n", mem.mem_available);
@@ -225,21 +214,18 @@ int free_command(int argc, char** argv) {
         return 0;
     }
 
-    // Text output
-    print_header(old_format);
+    print_header(&opts);
 
     print_row("Mem:", mem.mem_total, mem_used, mem.mem_free, shared,
-              buff_cache, mem.mem_available, human, si, old_format);
+              buff_cache, mem.mem_available, &opts);
 
-    print_row("Swap:", mem.swap_total, swap_used, mem.swap_free, 0, 0, 0,
-              human, si, old_format);
+    print_row("Swap:", mem.swap_total, swap_used, mem.swap_free, 0, 0, 0, &opts);
 
-    if (show_total) {
-        uint64_t grand_total = mem.mem_total + mem.swap_total;
-        uint64_t grand_used = mem_used + swap_used;
-        uint64_t grand_free = mem.mem_free + mem.swap_free;
-        print_row("total:", grand_total, grand_used, grand_free, shared,
-                  buff_cache, mem.mem_available, human, si, old_format);
+    if (opts.show_total) {
+        int64_t grand_total = mem.mem_total + mem.swap_total;
+        int64_t grand_used = mem_used + swap_used;
+        int64_t grand_free = mem.mem_free + mem.swap_free;
+        print_row("total:", grand_total, grand_used, grand_free, 0, 0, 0, &opts);
     }
 
     return 0;
