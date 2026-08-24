@@ -11,6 +11,7 @@
 #include "commands/arg_util.hpp"
 #include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/compress_util.hpp"
 #include "commands/version_util.hpp"
 #include "commands/xz.hpp"
 
@@ -18,16 +19,6 @@ namespace {
 
 // xz magic bytes
 constexpr uint8_t XZ_MAGIC[6] = {0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00};
-
-// Read an entire stream (including stdin) into a buffer.
-bool read_all(FILE* fp, std::vector<unsigned char>& out) {
-    unsigned char buf[65536];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
-        out.insert(out.end(), buf, buf + n);
-    }
-    return !ferror(fp);
-}
 
 // Check if data starts with xz magic.
 bool is_xz_stream(const std::vector<unsigned char>& in) {
@@ -111,41 +102,8 @@ bool xz_decompress(const std::vector<unsigned char>& in,
     return true;
 }
 
-bool ends_with(const std::string& s, const std::string& suffix) {
-    return s.size() >= suffix.size() &&
-           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
-}
-
-std::string strip_xz(const std::string& p) {
-    return ends_with(p, ".xz") ? p.substr(0, p.size() - 3) : p;
-}
-
-// Write `data` to `outname` unless it exists and !force. Returns 0 on success.
-int write_output_file(const std::vector<unsigned char>& data,
-                      const std::string& outname, bool force,
-                      const char* prog) {
-    if (!force) {
-        struct stat st;
-        if (stat(outname.c_str(), &st) == 0) {
-            fprintf(stderr, "%s: %s: File exists\n", prog, outname.c_str());
-            return 1;
-        }
-    }
-    FILE* out = fopen(outname.c_str(), "wb");
-    if (!out) {
-        cmd_perror(prog, outname.c_str());
-        return 1;
-    }
-    if (fwrite(data.data(), 1, data.size(), out) != data.size()) {
-        fclose(out);
-        cmd_perror(prog, outname.c_str());
-        return 1;
-    }
-    if (fclose(out) != 0) {
-        cmd_perror(prog, outname.c_str());
-        return 1;
-    }
-    return 0;
+inline std::string strip_xz(const std::string& p) {
+    return compress_util::strip_suffix(p, ".xz");
 }
 
 void print_help(const char* prog) {
@@ -166,24 +124,13 @@ void print_help(const char* prog) {
     printf("With no FILE, or when FILE is -, read standard input.\n");
 }
 
-void print_ratio(const std::string& name, size_t in_size,
-                 size_t out_size, const char* replaced_with) {
-    double ratio = in_size == 0 ? 100.0 : (1.0 - (double)out_size / (double)in_size) * 100.0;
-    if (replaced_with) {
-        printf("%s: %5.1f%% -- replaced with %s\n", name.c_str(), ratio,
-               replaced_with);
-    } else {
-        printf("%s: %5.1f%%\n", name.c_str(), ratio);
-    }
-}
-
 int process_path(const XzOptions& opt, const std::string& path,
                  const char* prog) {
     bool stdin_mode = (path == "-");
 
     if (stdin_mode) {
         std::vector<unsigned char> in;
-        if (!read_all(stdin, in)) {
+        if (!compress_util::read_all(stdin, in)) {
             fprintf(stderr, "%s: stdin: %s\n", prog, strerror(errno));
             return 1;
         }
@@ -198,7 +145,7 @@ int process_path(const XzOptions& opt, const std::string& path,
                 return 1;
             }
             fwrite(out.data(), 1, out.size(), stdout);
-            if (opt.verbose) print_ratio("-", in.size(), out.size(), nullptr);
+            if (opt.verbose) compress_util::print_ratio("-", in.size(), out.size(), nullptr);
             return 0;
         }
         std::vector<unsigned char> out;
@@ -207,7 +154,7 @@ int process_path(const XzOptions& opt, const std::string& path,
             return 1;
         }
         fwrite(out.data(), 1, out.size(), stdout);
-        if (opt.verbose) print_ratio("-", in.size(), out.size(), nullptr);
+        if (opt.verbose) compress_util::print_ratio("-", in.size(), out.size(), nullptr);
         return 0;
     }
 
@@ -217,7 +164,7 @@ int process_path(const XzOptions& opt, const std::string& path,
         return 1;
     }
     std::vector<unsigned char> in;
-    bool read_ok = read_all(fp, in);
+    bool read_ok = compress_util::read_all(fp, in);
     int read_errno = errno;
     fclose(fp);
     if (!read_ok) {
@@ -235,19 +182,19 @@ int process_path(const XzOptions& opt, const std::string& path,
             fwrite(out.data(), 1, out.size(), stdout);
         } else {
             std::string outname = strip_xz(path);
-            if (write_output_file(out, outname, opt.force, prog) != 0) {
+            if (compress_util::write_output_file(out, outname, opt.force, prog) != 0) {
                 return 1;
             }
             if (!opt.keep) {
                 std::remove(path.c_str());
             }
         }
-        if (opt.verbose) print_ratio(path, in.size(), out.size(), nullptr);
+        if (opt.verbose) compress_util::print_ratio(path, in.size(), out.size(), nullptr);
         return 0;
     }
 
     // Compression
-    if (ends_with(path, ".xz")) {
+    if (compress_util::ends_with(path, ".xz")) {
         if (!opt.quiet) {
             fprintf(stderr, "%s: %s: file already has .xz suffix\n", prog, path.c_str());
         }
@@ -262,15 +209,16 @@ int process_path(const XzOptions& opt, const std::string& path,
     std::string outname = path + ".xz";
     if (opt.to_stdout) {
         fwrite(out.data(), 1, out.size(), stdout);
+        if (opt.verbose) compress_util::print_ratio(path, in.size(), out.size(), nullptr);
     } else {
-        if (write_output_file(out, outname, opt.force, prog) != 0) {
+        if (compress_util::write_output_file(out, outname, opt.force, prog) != 0) {
             return 1;
         }
         if (!opt.keep) {
             std::remove(path.c_str());
         }
+        if (opt.verbose) compress_util::print_ratio(path, in.size(), out.size(), outname.c_str());
     }
-    if (opt.verbose) print_ratio(path, in.size(), out.size(), outname.c_str());
     return 0;
 }
 
@@ -291,11 +239,25 @@ int xz_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         if (a.size() >= 2 && a[0] == '-' && a[1] >= '0' && a[1] <= '9') {
-            pre_level = a[1] - '0';
-            saw_level = true;
-            if (a.size() > 2) {
-                owned.push_back("-" + a.substr(2));
-                cargv.push_back(owned.back().c_str());
+            // Parse full numeric level (e.g., -0, -6, -9) and allow combined flags
+            int level_val = 0;
+            size_t digit_end = 1;
+            for (; digit_end < a.size(); digit_end++) {
+                if (a[digit_end] >= '0' && a[digit_end] <= '9') {
+                    level_val = level_val * 10 + (a[digit_end] - '0');
+                } else {
+                    break;
+                }
+            }
+            if (level_val >= 0 && level_val <= 9) {
+                pre_level = level_val;
+                saw_level = true;
+                if (digit_end < a.size()) {
+                    owned.push_back("-" + a.substr(digit_end));
+                    cargv.push_back(owned.back().c_str());
+                }
+            } else {
+                cargv.push_back(argv[i]);
             }
         } else {
             cargv.push_back(argv[i]);

@@ -12,22 +12,13 @@
 #include "commands/arg_util.hpp"
 #include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
+#include "commands/compress_util.hpp"
 #include "commands/version_util.hpp"
 #include "commands/zstd.hpp"
 
 namespace {
 
 constexpr uint8_t ZSTD_MAGIC[4] = {0x28, 0xb5, 0x2f, 0xfd};
-
-// Read an entire stream (including stdin) into a buffer.
-bool read_all(FILE* fp, std::vector<unsigned char>& out) {
-    unsigned char buf[65536];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
-        out.insert(out.end(), buf, buf + n);
-    }
-    return !ferror(fp);
-}
 
 bool is_zstd_stream(const std::vector<unsigned char>& in) {
     return in.size() >= 4 &&
@@ -72,41 +63,8 @@ bool zstd_decompress(const std::vector<unsigned char>& in,
     return true;
 }
 
-bool ends_with(const std::string& s, const std::string& suffix) {
-    return s.size() >= suffix.size() &&
-           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
-}
-
-std::string strip_zst(const std::string& p) {
-    return ends_with(p, ".zst") ? p.substr(0, p.size() - 4) : p;
-}
-
-// Write `data` to `outname` unless it exists and !force. Returns 0 on success.
-int write_output_file(const std::vector<unsigned char>& data,
-                      const std::string& outname, bool force,
-                      const char* prog) {
-    if (!force) {
-        struct stat st;
-        if (stat(outname.c_str(), &st) == 0) {
-            fprintf(stderr, "%s: %s: File exists\n", prog, outname.c_str());
-            return 1;
-        }
-    }
-    FILE* out = fopen(outname.c_str(), "wb");
-    if (!out) {
-        cmd_perror(prog, outname.c_str());
-        return 1;
-    }
-    if (fwrite(data.data(), 1, data.size(), out) != data.size()) {
-        fclose(out);
-        cmd_perror(prog, outname.c_str());
-        return 1;
-    }
-    if (fclose(out) != 0) {
-        cmd_perror(prog, outname.c_str());
-        return 1;
-    }
-    return 0;
+inline std::string strip_zst(const std::string& p) {
+    return compress_util::strip_suffix(p, ".zst");
 }
 
 void print_help(const char* prog) {
@@ -130,27 +88,13 @@ void print_help(const char* prog) {
     printf("With no FILE, or when FILE is -, read standard input.\n");
 }
 
-void print_ratio(const std::string& name, size_t in_size,
-                 size_t out_size, const char* replaced_with) {
-    double ratio =
-        in_size == 0
-            ? 100.0
-            : (1.0 - (double)out_size / (double)in_size) * 100.0;
-    if (replaced_with) {
-        printf("%s: %5.1f%% -- replaced with %s\n", name.c_str(), ratio,
-               replaced_with);
-    } else {
-        printf("%s: %5.1f%%\n", name.c_str(), ratio);
-    }
-}
-
 int process_path(const ZstdOptions& opt, const std::string& path,
                  const char* prog) {
     bool stdin_mode = (path == "-");
 
     if (stdin_mode) {
         std::vector<unsigned char> in;
-        if (!read_all(stdin, in)) {
+        if (!compress_util::read_all(stdin, in)) {
             fprintf(stderr, "%s: stdin: %s\n", prog, strerror(errno));
             return 1;
         }
@@ -166,7 +110,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
             }
             fwrite(out.data(), 1, out.size(), stdout);
             if (opt.verbose)
-                print_ratio("-", in.size(), out.size(), nullptr);
+                compress_util::print_ratio("-", in.size(), out.size(), nullptr);
             return 0;
         }
         std::vector<unsigned char> out;
@@ -176,7 +120,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
         }
         fwrite(out.data(), 1, out.size(), stdout);
         if (opt.verbose)
-            print_ratio("-", in.size(), out.size(), nullptr);
+            compress_util::print_ratio("-", in.size(), out.size(), nullptr);
         return 0;
     }
 
@@ -187,7 +131,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
         return 1;
     }
     std::vector<unsigned char> in;
-    bool read_ok = read_all(fp, in);
+    bool read_ok = compress_util::read_all(fp, in);
     int read_errno = errno;
     fclose(fp);
     if (!read_ok) {
@@ -201,7 +145,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
             fprintf(stderr, "%s: stdin: --list requires a file\n", prog);
             return 1;
         }
-        if (!opt.decompress && !ends_with(path, ".zst")) {
+        if (!opt.decompress && !compress_util::ends_with(path, ".zst")) {
             fprintf(stderr, "%s: %s: not a zstd file\n", prog, path.c_str());
             return 1;
         }
@@ -213,7 +157,7 @@ int process_path(const ZstdOptions& opt, const std::string& path,
     }
 
     // Check if file ends with .zst (skip compress for already-compressed files)
-    if (!opt.decompress && ends_with(path, ".zst")) {
+    if (!opt.decompress && compress_util::ends_with(path, ".zst")) {
         if (!opt.quiet) {
             fprintf(stderr, "%s: %s already has .zst suffix -- nothing done\n", prog, path.c_str());
         }
@@ -235,20 +179,20 @@ int process_path(const ZstdOptions& opt, const std::string& path,
         if (opt.to_stdout) {
             fwrite(out.data(), 1, out.size(), stdout);
             if (opt.verbose)
-                print_ratio(path, in.size(), out.size(), nullptr);
+                compress_util::print_ratio(path, in.size(), out.size(), nullptr);
             return 0;
         }
         // -dk: keep original .zst, write decompressed alongside it
         // -d (no -k): replace .zst with decompressed file
         std::string outpath = strip_zst(path);
-        if (write_output_file(out, outpath, opt.force, prog) != 0) {
+        if (compress_util::write_output_file(out, outpath, opt.force, prog) != 0) {
             return 1;
         }
         if (!opt.keep) {
             std::remove(path.c_str());
         }
         if (opt.verbose)
-            print_ratio(path, in.size(), out.size(), outpath.c_str());
+            compress_util::print_ratio(path, in.size(), out.size(), outpath.c_str());
         return 0;
     }
 
@@ -262,17 +206,17 @@ int process_path(const ZstdOptions& opt, const std::string& path,
     if (opt.to_stdout) {
         fwrite(out.data(), 1, out.size(), stdout);
         if (opt.verbose)
-            print_ratio(path, in.size(), out.size(), nullptr);
+            compress_util::print_ratio(path, in.size(), out.size(), nullptr);
         return 0;
     }
-    if (write_output_file(out, outpath, opt.force, prog) != 0) {
+    if (compress_util::write_output_file(out, outpath, opt.force, prog) != 0) {
         return 1;
     }
     if (!opt.keep || opt.rm_source) {
         std::remove(path.c_str());
     }
     if (opt.verbose)
-        print_ratio(path, in.size(), out.size(), outpath.c_str());
+        compress_util::print_ratio(path, in.size(), out.size(), outpath.c_str());
     return 0;
 }
 
