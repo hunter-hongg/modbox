@@ -11,6 +11,7 @@
 #include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/json_stringifier.hpp"
+#include "commands/cmd_error.hpp"
 
 struct MemInfoData {
     long long mem_total = 0;
@@ -192,7 +193,7 @@ int free_command(int argc, char** argv) {
     // Check for positional arguments
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] != '-') {
-            fprintf(stderr, "free: unrecognized argument: %s\n", argv[i]);
+            cmd_error(argv[0], "unexpected argument \"%s\"", argv[i]);
             return 1;
         }
     }
