@@ -319,6 +319,330 @@ else
     fail "docs/man/modbox-dircolors.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-ip.1.md" ]]; then
+    pass "docs/man/modbox-ip.1.md exists"
+else
+    fail "docs/man/modbox-ip.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-join.1.md" ]]; then
+    pass "docs/man/modbox-join.1.md exists"
+else
+    fail "docs/man/modbox-join.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-link.1.md" ]]; then
+    pass "docs/man/modbox-link.1.md exists"
+else
+    fail "docs/man/modbox-link.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-logname.1.md" ]]; then
+    pass "docs/man/modbox-logname.1.md exists"
+else
+    fail "docs/man/modbox-logname.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-lsblk.1.md" ]]; then
+    pass "docs/man/modbox-lsblk.1.md exists"
+else
+    fail "docs/man/modbox-lsblk.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-lsc.1.md" ]]; then
+    pass "docs/man/modbox-lsc.1.md exists"
+else
+    fail "docs/man/modbox-lsc.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-lscpu.1.md" ]]; then
+    pass "docs/man/modbox-lscpu.1.md exists"
+else
+    fail "docs/man/modbox-lscpu.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-mkfifo.1.md" ]]; then
+    pass "docs/man/modbox-mkfifo.1.md exists"
+else
+    fail "docs/man/modbox-mkfifo.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-mknod.1.md" ]]; then
+    pass "docs/man/modbox-mknod.1.md exists"
+else
+    fail "docs/man/modbox-mknod.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-mtop.1.md" ]]; then
+    pass "docs/man/modbox-mtop.1.md exists"
+else
+    fail "docs/man/modbox-mtop.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-nice.1.md" ]]; then
+    pass "docs/man/modbox-nice.1.md exists"
+else
+    fail "docs/man/modbox-nice.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-nohup.1.md" ]]; then
+    pass "docs/man/modbox-nohup.1.md exists"
+else
+    fail "docs/man/modbox-nohup.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-nproc.1.md" ]]; then
+    pass "docs/man/modbox-nproc.1.md exists"
+else
+    fail "docs/man/modbox-nproc.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-nslookup.1.md" ]]; then
+    pass "docs/man/modbox-nslookup.1.md exists"
+else
+    fail "docs/man/modbox-nslookup.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-numfmt.1.md" ]]; then
+    pass "docs/man/modbox-numfmt.1.md exists"
+else
+    fail "docs/man/modbox-numfmt.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-od.1.md" ]]; then
+    pass "docs/man/modbox-od.1.md exists"
+else
+    fail "docs/man/modbox-od.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-pathchk.1.md" ]]; then
+    pass "docs/man/modbox-pathchk.1.md exists"
+else
+    fail "docs/man/modbox-pathchk.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-pinky.1.md" ]]; then
+    pass "docs/man/modbox-pinky.1.md exists"
+else
+    fail "docs/man/modbox-pinky.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-pr.1.md" ]]; then
+    pass "docs/man/modbox-pr.1.md exists"
+else
+    fail "docs/man/modbox-pr.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-printenv.1.md" ]]; then
+    pass "docs/man/modbox-printenv.1.md exists"
+else
+    fail "docs/man/modbox-printenv.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-printf.1.md" ]]; then
+    pass "docs/man/modbox-printf.1.md exists"
+else
+    fail "docs/man/modbox-printf.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-prompts.1.md" ]]; then
+    pass "docs/man/modbox-prompts.1.md exists"
+else
+    fail "docs/man/modbox-prompts.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-ps.1.md" ]]; then
+    pass "docs/man/modbox-ps.1.md exists"
+else
+    fail "docs/man/modbox-ps.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-ptx.1.md" ]]; then
+    pass "docs/man/modbox-ptx.1.md exists"
+else
+    fail "docs/man/modbox-ptx.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-realpath.1.md" ]]; then
+    pass "docs/man/modbox-realpath.1.md exists"
+else
+    fail "docs/man/modbox-realpath.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-rev.1.md" ]]; then
+    pass "docs/man/modbox-rev.1.md exists"
+else
+    fail "docs/man/modbox-rev.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-rsync.1.md" ]]; then
+    pass "docs/man/modbox-rsync.1.md exists"
+else
+    fail "docs/man/modbox-rsync.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-runcon.1.md" ]]; then
+    pass "docs/man/modbox-runcon.1.md exists"
+else
+    fail "docs/man/modbox-runcon.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-setfacl.1.md" ]]; then
+    pass "docs/man/modbox-setfacl.1.md exists"
+else
+    fail "docs/man/modbox-setfacl.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-sh.1.md" ]]; then
+    pass "docs/man/modbox-sh.1.md exists"
+else
+    fail "docs/man/modbox-sh.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-shred.1.md" ]]; then
+    pass "docs/man/modbox-shred.1.md exists"
+else
+    fail "docs/man/modbox-shred.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-shuf.1.md" ]]; then
+    pass "docs/man/modbox-shuf.1.md exists"
+else
+    fail "docs/man/modbox-shuf.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-split.1.md" ]]; then
+    pass "docs/man/modbox-split.1.md exists"
+else
+    fail "docs/man/modbox-split.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-ss.1.md" ]]; then
+    pass "docs/man/modbox-ss.1.md exists"
+else
+    fail "docs/man/modbox-ss.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-stdbuf.1.md" ]]; then
+    pass "docs/man/modbox-stdbuf.1.md exists"
+else
+    fail "docs/man/modbox-stdbuf.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-stty.1.md" ]]; then
+    pass "docs/man/modbox-stty.1.md exists"
+else
+    fail "docs/man/modbox-stty.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-sync.1.md" ]]; then
+    pass "docs/man/modbox-sync.1.md exists"
+else
+    fail "docs/man/modbox-sync.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-tac.1.md" ]]; then
+    pass "docs/man/modbox-tac.1.md exists"
+else
+    fail "docs/man/modbox-tac.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-test.1.md" ]]; then
+    pass "docs/man/modbox-test.1.md exists"
+else
+    fail "docs/man/modbox-test.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-time.1.md" ]]; then
+    pass "docs/man/modbox-time.1.md exists"
+else
+    fail "docs/man/modbox-time.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-top.1.md" ]]; then
+    pass "docs/man/modbox-top.1.md exists"
+else
+    fail "docs/man/modbox-top.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-true.1.md" ]]; then
+    pass "docs/man/modbox-true.1.md exists"
+else
+    fail "docs/man/modbox-true.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-tsort.1.md" ]]; then
+    pass "docs/man/modbox-tsort.1.md exists"
+else
+    fail "docs/man/modbox-tsort.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-tty.1.md" ]]; then
+    pass "docs/man/modbox-tty.1.md exists"
+else
+    fail "docs/man/modbox-tty.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-unexpand.1.md" ]]; then
+    pass "docs/man/modbox-unexpand.1.md exists"
+else
+    fail "docs/man/modbox-unexpand.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-unlink.1.md" ]]; then
+    pass "docs/man/modbox-unlink.1.md exists"
+else
+    fail "docs/man/modbox-unlink.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-uptime.1.md" ]]; then
+    pass "docs/man/modbox-uptime.1.md exists"
+else
+    fail "docs/man/modbox-uptime.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-users.1.md" ]]; then
+    pass "docs/man/modbox-users.1.md exists"
+else
+    fail "docs/man/modbox-users.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-vdir.1.md" ]]; then
+    pass "docs/man/modbox-vdir.1.md exists"
+else
+    fail "docs/man/modbox-vdir.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-wall.1.md" ]]; then
+    pass "docs/man/modbox-wall.1.md exists"
+else
+    fail "docs/man/modbox-wall.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-wget.1.md" ]]; then
+    pass "docs/man/modbox-wget.1.md exists"
+else
+    fail "docs/man/modbox-wget.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-who.1.md" ]]; then
+    pass "docs/man/modbox-who.1.md exists"
+else
+    fail "docs/man/modbox-who.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-yes.1.md" ]]; then
+    pass "docs/man/modbox-yes.1.md exists"
+else
+    fail "docs/man/modbox-yes.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-zoxide.1.md" ]]; then
+    pass "docs/man/modbox-zoxide.1.md exists"
+else
+    fail "docs/man/modbox-zoxide.1.md missing"
+fi
+
 # Test that new high-priority man page sources exist
 for cmd in df du env kill id timeout truncate hostname umask whoami; do
     if [[ -f "docs/man/modbox-${cmd}.1.md" ]]; then
