@@ -14,14 +14,14 @@
 #include "commands/cmd_error.hpp"
 
 struct MemInfoData {
-    long long mem_total = 0;
-    long long mem_free = 0;
-    long long mem_available = 0;
-    long long swap_total = 0;
-    long long swap_free = 0;
-    long long buffers = 0;
-    long long cached = 0;
-    long long shmem = 0;
+    int64_t mem_total = 0;
+    int64_t mem_free = 0;
+    int64_t mem_available = 0;
+    int64_t swap_total = 0;
+    int64_t swap_free = 0;
+    int64_t buffers = 0;
+    int64_t cached = 0;
+    int64_t shmem = 0;
 };
 
 static std::string read_file(const std::string& path) {
@@ -77,10 +77,10 @@ static void print_version() {
 }
 
 // Human-readable formatting: 1024-based with KiB/MiB/GiB suffixes
-static void format_human(FILE* out, uint64_t val_kb) {
-    uint64_t unit = 1024ULL;
+static void format_human(FILE* out, int64_t val_kb) {
+    int64_t unit = 1024;
     if (val_kb < unit) {
-        fprintf(out, "%lluB", (unsigned long long)val_kb);
+        fprintf(out, "%lldB", val_kb);
         return;
     }
     double v = (double)val_kb;
@@ -94,10 +94,10 @@ static void format_human(FILE* out, uint64_t val_kb) {
 }
 
 // SI formatting: 1000-based with kB/MB/GB suffixes
-static void format_si(FILE* out, uint64_t val_kb) {
-    uint64_t unit = 1000ULL;
+static void format_si(FILE* out, int64_t val_kb) {
+    int64_t unit = 1000;
     if (val_kb < unit) {
-        fprintf(out, "%llukB", (unsigned long long)val_kb);
+        fprintf(out, "%llukB", val_kb);
         return;
     }
     double v = (double)val_kb;
@@ -111,7 +111,7 @@ static void format_si(FILE* out, uint64_t val_kb) {
 }
 
 // Print a value in the appropriate format
-static void print_value(FILE* out, uint64_t val_kb, bool human, bool si) {
+static void print_value(FILE* out, int64_t val_kb, bool human, bool si) {
     if (human || si) {
         if (si) format_si(out, val_kb);
         else format_human(out, val_kb);
@@ -135,9 +135,9 @@ static void print_header(bool old_format) {
 }
 
 // Print a data row with the label prefix
-static void print_row(const char* label, uint64_t total, uint64_t used,
-                      uint64_t free_mem, uint64_t shared, uint64_t buff_cache,
-                      uint64_t available, bool human, bool si, bool old_format) {
+static void print_row(const char* label, int64_t total, int64_t used,
+                      int64_t free_mem, int64_t shared, int64_t buff_cache,
+                      int64_t available, bool human, bool si, bool old_format) {
     printf("%-13s", label);
     print_value(stdout, total, human, si);
     printf("%13s", "");
@@ -201,25 +201,34 @@ int free_command(int argc, char** argv) {
     MemInfoData mem = read_proc_meminfo();
 
     // Compute derived values
-    uint64_t mem_used = (uint64_t)mem.mem_total - (uint64_t)mem.mem_free;
-    uint64_t buff_cache = (uint64_t)mem.buffers + (uint64_t)mem.cached;
-    uint64_t shared = (uint64_t)mem.shmem;
-    uint64_t swap_used = (uint64_t)mem.swap_total - (uint64_t)mem.swap_free;
+    int64_t mem_used = mem.mem_total - mem.mem_free;
+    int64_t buff_cache = mem.buffers + mem.cached;
+    int64_t shared = mem.shmem;
+    int64_t swap_used = mem.swap_total - mem.swap_free;
 
     if (json_mode) {
         fprintf(stdout, "{\n");
         fprintf(stdout, "  \"mem\": {\n");
-        fprintf(stdout, "    \"available\": %lld,\n", mem.mem_available);
-        fprintf(stdout, "    \"buff_cache\": %lld,\n", buff_cache);
-        fprintf(stdout, "    \"free\": %lld,\n", mem.mem_free);
-        fprintf(stdout, "    \"shared\": %lld,\n", shared);
-        fprintf(stdout, "    \"total\": %lld,\n", mem.mem_total);
-        fprintf(stdout, "    \"used\": %lld\n", mem_used);
+        json_emit_long(stdout, "available", mem.mem_available, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "buff_cache", buff_cache, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "free", mem.mem_free, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "shared", shared, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "total", mem.mem_total, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "used", mem_used, true);
+        fprintf(stdout, "\n");
         fprintf(stdout, "  },\n");
         fprintf(stdout, "  \"swap\": {\n");
-        fprintf(stdout, "    \"free\": %lld,\n", mem.swap_free);
-        fprintf(stdout, "    \"total\": %lld,\n", mem.swap_total);
-        fprintf(stdout, "    \"used\": %lld\n", swap_used);
+        json_emit_long(stdout, "free", mem.swap_free, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "total", mem.swap_total, false);
+        fprintf(stdout, ",\n");
+        json_emit_long(stdout, "used", swap_used, true);
+        fprintf(stdout, "\n");
         fprintf(stdout, "  }\n");
         fprintf(stdout, "}\n");
         return 0;
