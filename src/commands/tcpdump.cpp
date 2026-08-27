@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -13,6 +14,9 @@
 
 namespace {
 
+constexpr size_t kGlobalHeaderSize = 24;
+constexpr size_t kRecordHeaderSize = 16;
+
 struct PcapReader {
     FILE* f = nullptr;
     bool big_endian = false;
@@ -20,18 +24,30 @@ struct PcapReader {
     bool truncated = false;
 };
 
-uint32_t rd32(const unsigned char* p, bool big_endian) {
-    if (big_endian)
-        return (static_cast<uint32_t>(p[0]) << 24) | (static_cast<uint32_t>(p[1]) << 16) |
-               (static_cast<uint32_t>(p[2]) << 8) | static_cast<uint32_t>(p[3]);
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-           (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+uint32_t b32(const unsigned char* p, size_t off) {
+    return (static_cast<uint32_t>(p[off]) << 24U) | (static_cast<uint32_t>(p[off + 1]) << 16U) |
+           (static_cast<uint32_t>(p[off + 2]) << 8U) | static_cast<uint32_t>(p[off + 3]);
 }
 
-uint32_t rd16(const unsigned char* p, bool big_endian) {
-    if (big_endian)
-        return (static_cast<uint32_t>(p[0]) << 8) | static_cast<uint32_t>(p[1]);
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8);
+uint32_t l32(const unsigned char* p, size_t off) {
+    return static_cast<uint32_t>(p[off]) | (static_cast<uint32_t>(p[off + 1]) << 8U) |
+           (static_cast<uint32_t>(p[off + 2]) << 16U) | (static_cast<uint32_t>(p[off + 3]) << 24U);
+}
+
+uint32_t b16(const unsigned char* p, size_t off) {
+    return (static_cast<uint32_t>(p[off]) << 8U) | static_cast<uint32_t>(p[off + 1]);
+}
+
+uint32_t l16(const unsigned char* p, size_t off) {
+    return static_cast<uint32_t>(p[off]) | (static_cast<uint32_t>(p[off + 1]) << 8U);
+}
+
+uint32_t rd32(const unsigned char* p, size_t off, bool big_endian) {
+    return big_endian ? b32(p, off) : l32(p, off);
+}
+
+uint32_t rd16(const unsigned char* p, size_t off, bool big_endian) {
+    return big_endian ? b16(p, off) : l16(p, off);
 }
 
 bool open_pcap(const std::string& path, PcapReader& out, std::string* err) {
@@ -40,42 +56,45 @@ bool open_pcap(const std::string& path, PcapReader& out, std::string* err) {
         f = stdin;
     } else {
         f = fopen(path.c_str(), "rb");
-        if (!f) {
-            if (err) *err = "tcpdump: cannot open " + path + ": " + std::strerror(errno);
+        if (f == nullptr) {
+            if (err != nullptr)
+                *err = "tcpdump: cannot open " + path + ": " + std::strerror(errno);
             return false;
         }
     }
 
-    unsigned char hdr[24];
+    unsigned char hdr[kGlobalHeaderSize];
     size_t n = fread(hdr, 1, sizeof(hdr), f);
     if (n < sizeof(hdr)) {
         if (f != stdin) fclose(f);
-        if (err) *err = "tcpdump: " + path + ": not a pcap file";
+        if (err != nullptr) *err = "tcpdump: " + path + ": not a pcap file";
         return false;
     }
 
     bool big_endian;
-    if (hdr[0] == 0xa1 && hdr[1] == 0xb2 && hdr[2] == 0xc3 && hdr[3] == 0xd4)
+    if (hdr[0] == 0xa1 && hdr[1] == 0xb2 && hdr[2] == 0xc3 && hdr[3] == 0xd4) {
         big_endian = false;
-    else if (hdr[0] == 0xd4 && hdr[1] == 0xc3 && hdr[2] == 0xb2 && hdr[3] == 0xa1)
+    } else if (hdr[0] == 0xd4 && hdr[1] == 0xc3 && hdr[2] == 0xb2 && hdr[3] == 0xa1) {
         big_endian = true;
-    else {
+    } else {
         if (f != stdin) fclose(f);
-        if (err) *err = "tcpdump: " + path + ": not a pcap file";
+        if (err != nullptr) *err = "tcpdump: " + path + ": not a pcap file";
         return false;
     }
 
-    uint32_t version_major = rd16(hdr + 4, big_endian);
-    uint32_t linktype = rd32(hdr + 20, big_endian);
+    uint32_t version_major = rd16(hdr, 4, big_endian);
+    uint32_t linktype = rd32(hdr, 20, big_endian);
 
     if (version_major != 2) {
         if (f != stdin) fclose(f);
-        if (err) *err = "tcpdump: " + path + ": unsupported version " + std::to_string(version_major);
+        if (err != nullptr)
+            *err = "tcpdump: " + path + ": unsupported version " + std::to_string(version_major);
         return false;
     }
     if (linktype != 1) {
         if (f != stdin) fclose(f);
-        if (err) *err = "tcpdump: " + path + ": unsupported linktype " + std::to_string(linktype);
+        if (err != nullptr)
+            *err = "tcpdump: " + path + ": unsupported linktype " + std::to_string(linktype);
         return false;
     }
 
@@ -86,7 +105,7 @@ bool open_pcap(const std::string& path, PcapReader& out, std::string* err) {
 }
 
 bool read_record(PcapReader& r, uint32_t& ts_sec, uint32_t& ts_usec, std::vector<uint8_t>& bytes) {
-    unsigned char hdr[16];
+    unsigned char hdr[kRecordHeaderSize];
     size_t n = fread(hdr, 1, sizeof(hdr), r.f);
     if (n == 0 && feof(r.f)) return false;
     if (n < sizeof(hdr)) {
@@ -94,9 +113,9 @@ bool read_record(PcapReader& r, uint32_t& ts_sec, uint32_t& ts_usec, std::vector
         return false;
     }
 
-    uint32_t incl_len = rd32(hdr + 8, r.big_endian);
-    ts_sec = rd32(hdr, r.big_endian);
-    ts_usec = rd32(hdr + 4, r.big_endian);
+    uint32_t incl_len = rd32(hdr, 8, r.big_endian);
+    ts_sec = rd32(hdr, 0, r.big_endian);
+    ts_usec = rd32(hdr, 4, r.big_endian);
 
     bytes.resize(incl_len);
     size_t got = fread(bytes.data(), 1, incl_len, r.f);
