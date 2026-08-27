@@ -211,6 +211,120 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
         inet_ntop(AF_INET, &dst_addr, dst_ip, sizeof(dst_ip));
         size_t payload_len = (len > 14 + ihl) ? len - 14 - ihl : 0;
         printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
+    } else if (ethertype == 0x86DD && len >= 14 + 40) {
+        uint8_t ver = d[14] >> 4;
+        if (ver != 6) {
+            printf("EtherType 0x%04x, length %zu\n", ethertype, len);
+            return;
+        }
+        uint16_t payload_len_field = (static_cast<uint16_t>(d[14 + 4]) << 8) | static_cast<uint16_t>(d[14 + 5]);
+        uint8_t next = d[14 + 6];
+        uint8_t hop = d[14 + 7];
+        struct in6_addr src6, dst6;
+        memcpy(&src6.s6_addr, d + 14 + 8, 16);
+        memcpy(&dst6.s6_addr, d + 14 + 24, 16);
+        char src_str[INET6_ADDRSTRLEN];
+        char dst_str[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &src6, src_str, sizeof(src_str));
+        inet_ntop(AF_INET6, &dst6, dst_str, sizeof(dst_str));
+        size_t ipv6_hdr_len = 40;
+        size_t rest_len = (len > 14 + ipv6_hdr_len) ? len - 14 - ipv6_hdr_len : 0;
+        if (next == 6) { // TCP
+            size_t tcp_off = 14 + 40;
+            if (len < tcp_off + 20) {
+                printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                if (opts->verbose) printf(", hop limit %u", hop);
+                printf("\n");
+                return;
+            }
+            uint16_t sport = (static_cast<uint16_t>(d[tcp_off]) << 8) | static_cast<uint16_t>(d[tcp_off + 1]);
+            uint16_t dport = (static_cast<uint16_t>(d[tcp_off + 2]) << 8) | static_cast<uint16_t>(d[tcp_off + 3]);
+            uint32_t seq = (static_cast<uint32_t>(d[tcp_off + 4]) << 24) | (static_cast<uint32_t>(d[tcp_off + 5]) << 16) |
+                           (static_cast<uint32_t>(d[tcp_off + 6]) << 8) | static_cast<uint32_t>(d[tcp_off + 7]);
+            uint16_t window = (static_cast<uint16_t>(d[tcp_off + 14]) << 8) | static_cast<uint16_t>(d[tcp_off + 15]);
+            uint8_t data_offset = d[tcp_off + 12] >> 4;
+            uint8_t flags = d[tcp_off + 13];
+            size_t tcp_hdr_len = static_cast<size_t>(data_offset) * 4;
+            if (tcp_hdr_len < 20) tcp_hdr_len = 20;
+            size_t tcp_payload = 0;
+            if (len > tcp_off + tcp_hdr_len) tcp_payload = len - tcp_off - tcp_hdr_len;
+            char flag_buf[16] = "";
+            int pos = 0;
+            if (flags & 0x01) flag_buf[pos++] = 'F';
+            if (flags & 0x02) flag_buf[pos++] = 'S';
+            if (flags & 0x04) flag_buf[pos++] = 'R';
+            if (flags & 0x08) flag_buf[pos++] = 'P';
+            if (flags & 0x10) flag_buf[pos++] = 'A';
+            if (flags & 0x20) flag_buf[pos++] = 'U';
+            flag_buf[pos] = '\0';
+            printf("%s.%u > %s.%u: Flags [%s], seq %u, win %u, length %zu", src_str, sport, dst_str, dport, flag_buf, seq, window, tcp_payload);
+            if (opts->verbose) printf(", hop limit %u", hop);
+            printf("\n");
+        } else if (next == 17) { // UDP
+            size_t udp_off = 14 + 40;
+            if (len < udp_off + 8) {
+                printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                if (opts->verbose) printf(", hop limit %u", hop);
+                printf("\n");
+                return;
+            }
+            uint16_t sport = (static_cast<uint16_t>(d[udp_off]) << 8) | static_cast<uint16_t>(d[udp_off + 1]);
+            uint16_t dport = (static_cast<uint16_t>(d[udp_off + 2]) << 8) | static_cast<uint16_t>(d[udp_off + 3]);
+            uint16_t udp_len_field = (static_cast<uint16_t>(d[udp_off + 4]) << 8) | static_cast<uint16_t>(d[udp_off + 5]);
+            size_t udp_payload = 0;
+            if (udp_len_field > 8) {
+                udp_payload = static_cast<size_t>(udp_len_field) - 8;
+                size_t available = (len > udp_off + 8) ? len - udp_off - 8 : 0;
+                if (udp_payload > available) udp_payload = available;
+            }
+            printf("%s.%u > %s.%u: UDP, length %zu", src_str, sport, dst_str, dport, udp_payload);
+            if (opts->verbose) printf(", hop limit %u", hop);
+            printf("\n");
+        } else if (next == 58) { // ICMPv6
+            size_t icmp_off = 14 + 40;
+            if (len < icmp_off + 4) {
+                printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                if (opts->verbose) printf(", hop limit %u", hop);
+                printf("\n");
+                return;
+            }
+            uint8_t type = d[icmp_off];
+            uint8_t code = d[icmp_off + 1];
+            size_t icmp_len = rest_len;
+            if (type == 128) {
+                if (len < icmp_off + 8) {
+                    printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                } else {
+                    uint16_t id = (static_cast<uint16_t>(d[icmp_off + 4]) << 8) | static_cast<uint16_t>(d[icmp_off + 5]);
+                    uint16_t seqv = (static_cast<uint16_t>(d[icmp_off + 6]) << 8) | static_cast<uint16_t>(d[icmp_off + 7]);
+                    printf("%s > %s: ICMP6, echo request, id %u, seq %u", src_str, dst_str, id, seqv);
+                }
+            } else if (type == 129) {
+                if (len < icmp_off + 8) {
+                    printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                } else {
+                    uint16_t id = (static_cast<uint16_t>(d[icmp_off + 4]) << 8) | static_cast<uint16_t>(d[icmp_off + 5]);
+                    uint16_t seqv = (static_cast<uint16_t>(d[icmp_off + 6]) << 8) | static_cast<uint16_t>(d[icmp_off + 7]);
+                    printf("%s > %s: ICMP6, echo reply, id %u, seq %u", src_str, dst_str, id, seqv);
+                }
+            } else if (type == 133) {
+                printf("%s > %s: ICMP6, router solicitation, length %zu", src_str, dst_str, icmp_len);
+            } else if (type == 134) {
+                printf("%s > %s: ICMP6, router advertisement, length %zu", src_str, dst_str, icmp_len);
+            } else if (type == 135) {
+                printf("%s > %s: ICMP6, neighbor solicitation, length %zu", src_str, dst_str, icmp_len);
+            } else if (type == 136) {
+                printf("%s > %s: ICMP6, neighbor advertisement, length %zu", src_str, dst_str, icmp_len);
+            } else {
+                printf("%s > %s: ICMP6 type %u code %u, length %zu", src_str, dst_str, type, code, icmp_len);
+            }
+            if (opts->verbose) printf(", hop limit %u", hop);
+            printf("\n");
+        } else {
+            printf("%s > %s: IP6, next %u, length %zu", src_str, dst_str, next, rest_len);
+            if (opts->verbose) printf(", hop limit %u", hop);
+            printf("\n");
+        }
     } else {
         printf("EtherType 0x%04x, length %zu\n", ethertype, len);
     }

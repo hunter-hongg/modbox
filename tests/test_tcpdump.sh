@@ -123,3 +123,32 @@ pcap_global "$TMPDIR/short.pcap"
 pcap_record "$TMPDIR/short.pcap" 47168a67 40e20100 0a000000 0102030405060708090a
 out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/short.pcap" 2>/dev/null); rc=$?
 if [[ $rc -eq 0 && -z "$out" ]]; then pass "short record → no output"; else fail "short record → rc=$rc out=[$out]"; fi
+
+echo "  ── IPv6/UDP decode (-tt) ──"
+pcap_global "$TMPDIR/ipv6_udp.pcap"
+pcap_record "$TMPDIR/ipv6_udp.pcap" 47168a67 40e20100 4a000000 ffffffffffffaabbccddeeff86dd600000000014114020010db800000000000000000000000220010db8000000000000000000000001829a003500140000000000000000000000000000
+assert_cmd '1737102919.123456 2001:db8::2.33434 > 2001:db8::1.53: UDP, length 12' tcpdump -tt -r "$TMPDIR/ipv6_udp.pcap"
+
+echo "  ── IPv6/UDP decode with -v (hop limit) ──"
+assert_cmd_pat '1737102919.123456 2001:db8::2.33434 > 2001:db8::1.53: UDP, length 12, hop limit 64' tcpdump -v -tt -r "$TMPDIR/ipv6_udp.pcap"
+
+echo "  ── IPv6/TCP SYN decode (-tt) ──"
+pcap_global "$TMPDIR/ipv6_tcp.pcap"
+pcap_record "$TMPDIR/ipv6_tcp.pcap" 47168a67 40e20100 4a000000 ffffffffffffaabbccddeeff86dd600000000014064020010db800000000000000000000000220010db80000000000000000000000019c40005000000007000000005002ffff00000000
+assert_cmd '1737102919.123456 2001:db8::2.40000 > 2001:db8::1.80: Flags [S], seq 7, win 65535, length 0' tcpdump -tt -r "$TMPDIR/ipv6_tcp.pcap"
+
+echo "  ── IPv6/ICMPv6 echo request decode (-tt) ──"
+pcap_global "$TMPDIR/ipv6_icmp.pcap"
+pcap_record "$TMPDIR/ipv6_icmp.pcap" 47168a67 40e20100 42000000 ffffffffffffaabbccddeeff86dd600000000014064020010db800000000000000000000000220010db8000000000000000000000001800000000001000100000000
+assert_cmd '1737102919.123456 2001:db8::2 > 2001:db8::1: ICMP6, echo request, id 1, seq 1' tcpdump -tt -r "$TMPDIR/ipv6_icmp.pcap"
+
+echo "  ── IPv6 generic next header decode (-tt) ──"
+pcap_global "$TMPDIR/ipv6_generic.pcap"
+pcap_record "$TMPDIR/ipv6_generic.pcap" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff86dd6000000000002b4020010db800000000000000000000000220010db8000000000000000000000001
+assert_cmd '1737102919.123456 2001:db8::2 > 2001:db8::1: IP6, next 43, length 0' tcpdump -tt -r "$TMPDIR/ipv6_generic.pcap"
+
+echo "  ── truncated IPv6 record skipped silently ──"
+pcap_global "$TMPDIR/ipv6_short.pcap"
+pcap_record "$TMPDIR/ipv6_short.pcap" 47168a67 40e20100 30000000 fffffffffffaabbccddeeff86dd00000000000000000000000000000000000000000000000000000000000000000000
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ipv6_short.pcap" 2>/dev/null); rc=$?
+if [[ $rc -eq 0 && -z "$out" ]]; then pass "truncated IPv6 → no output"; else fail "truncated IPv6 → rc=$rc out=[$out]"; fi
