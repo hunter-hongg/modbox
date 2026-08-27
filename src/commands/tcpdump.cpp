@@ -4,6 +4,8 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <ctime>
+#include <arpa/inet.h>
 
 #include <argtable3.h>
 
@@ -131,6 +133,8 @@ void close_pcap(PcapReader& r) {
     r.f = nullptr;
 }
 
+
+
 struct TcpdumpOptions {
     std::string input_file;
     std::string output_file;
@@ -145,6 +149,72 @@ struct TcpdumpOptions {
     bool numeric = false;
     bool epoch_ts = false;
 };
+
+static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_t ts_usec, const TcpdumpOptions* opts) {
+    if (len < 14) {
+        return;
+    }
+    if (opts->epoch_ts) {
+        printf("%u.%06u ", ts_sec, ts_usec);
+    } else {
+        time_t t = static_cast<time_t>(ts_sec);
+        struct tm tm_buf;
+        localtime_r(&t, &tm_buf);
+        printf("%02d:%02d:%02d.%06u ", tm_buf.tm_hour, tm_buf.tm_min, tm_buf.tm_sec, ts_usec);
+    }
+
+    char src_mac[18] = "";
+    char dst_mac[18] = "";
+    if (opts->show_link) {
+        snprintf(dst_mac, sizeof(dst_mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 d[0], d[1], d[2], d[3], d[4], d[5]);
+        snprintf(src_mac, sizeof(src_mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                 d[6], d[7], d[8], d[9], d[10], d[11]);
+        printf("%s > %s, ", src_mac, dst_mac);
+    }
+
+    uint16_t ethertype = (static_cast<uint16_t>(d[12]) << 8) | static_cast<uint16_t>(d[13]);
+
+    if (ethertype == 0x0806 && len >= 14 + 28) {
+        uint16_t op = (static_cast<uint16_t>(d[14 + 6]) << 8) | static_cast<uint16_t>(d[14 + 7]);
+        struct in_addr spa_addr, tpa_addr;
+        memcpy(&spa_addr.s_addr, d + 14 + 14, 4);
+        memcpy(&tpa_addr.s_addr, d + 14 + 24, 4);
+        char spa_str[INET_ADDRSTRLEN];
+        char tpa_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &spa_addr, spa_str, sizeof(spa_str));
+        inet_ntop(AF_INET, &tpa_addr, tpa_str, sizeof(tpa_str));
+        if (op == 1) {
+            printf("ARP, Request, who has %s tell %s, length %zu\n", tpa_str, spa_str, len);
+        } else if (op == 2) {
+            char sha_mac[18];
+            snprintf(sha_mac, sizeof(sha_mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                     d[14 + 8], d[14 + 9], d[14 + 10], d[14 + 11], d[14 + 12], d[14 + 13]);
+            printf("ARP, Reply, %s is-at %s, length %zu\n", spa_str, sha_mac, len);
+        } else {
+            printf("ARP, Unknown op %u, length %zu\n", op, len);
+        }
+    } else if (ethertype == 0x0800 && len >= 14 + 20) {
+        uint8_t ver_ihl = d[14];
+        uint8_t ihl = (ver_ihl & 0x0F) * 4;
+        if (len < 14 + ihl) {
+            printf("EtherType 0x%04x, length %zu\n", ethertype, len);
+            return;
+        }
+        uint8_t proto = d[14 + 9];
+        struct in_addr src_addr, dst_addr;
+        memcpy(&src_addr.s_addr, d + 14 + 12, 4);
+        memcpy(&dst_addr.s_addr, d + 14 + 16, 4);
+        char src_ip[INET_ADDRSTRLEN];
+        char dst_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &src_addr, src_ip, sizeof(src_ip));
+        inet_ntop(AF_INET, &dst_addr, dst_ip, sizeof(dst_ip));
+        size_t payload_len = (len > 14 + ihl) ? len - 14 - ihl : 0;
+        printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
+    } else {
+        printf("EtherType 0x%04x, length %zu\n", ethertype, len);
+    }
+}
 
 void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [EXPR]\n", prog);
@@ -184,6 +254,13 @@ void print_help(const char* prog) {
 int tcpdump_command(int argc, char** argv) {
     const char* prog = argv[0];
 
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "-tt") == 0) {
+            static char buf[] = "--tt\0";
+            argv[i] = buf;
+        }
+    }
+
     struct arg_str* input_opt = arg_str0("r", "read", "<file>", "read packets from <file>");
     struct arg_str* output_opt = arg_str0("w", "write", "<file>", "write raw packets to <file>");
     struct arg_str* filter_opt = arg_str0("f", "filter", "<expr>", "capture filter expression");
@@ -199,7 +276,7 @@ int tcpdump_command(int argc, char** argv) {
     struct arg_lit* epoch_opt = arg_lit0(NULL, "tt", "print unformatted timestamps");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* version_opt = arg_lit0("V", "version", "output version information and exit");
-    struct arg_end* end = arg_end(20);
+    struct arg_end* end = arg_end(15);
 
     ArgTable at({input_opt, output_opt, filter_opt, iface_opt, count_opt, snaplen_opt,
                  link_opt, brief_opt, verbose_opt, hex_opt, numeric_opt, numeric2_opt,
@@ -247,8 +324,7 @@ int tcpdump_command(int argc, char** argv) {
         uint32_t ts_sec = 0, ts_usec = 0;
         std::vector<uint8_t> bytes;
         while (read_record(reader, ts_sec, ts_usec, bytes)) {
-            (void)ts_sec;
-            (void)ts_usec;
+            decode_packet(bytes.data(), bytes.size(), ts_sec, ts_usec, &opts);
         }
         if (reader.truncated) {
             std::string rerr = "tcpdump: " + opts.input_file + ": truncated packet record";

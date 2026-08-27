@@ -88,3 +88,38 @@ echo "  ── truncated record → error ──"
 pcap_global "$TMPDIR/trunc.pcap"
 pcap_record "$TMPDIR/trunc.pcap" 00000000 00000000 00000010 0102030405060708
 assert_cmd_pat_stderr 'truncated packet record' tcpdump -r "$TMPDIR/trunc.pcap"
+
+# ── decode packet tests ───────────────────────────────────────────────────────
+echo "  ── ARP request decode (-tt) ──"
+pcap_global "$TMPDIR/arp_req.pcap"
+pcap_record "$TMPDIR/arp_req.pcap" 47168a67 40e20100 2a000000 ffffffffffffaabbccddeeff08060001080006040001aabbccddeeffc0a80101000000000000c0a80102
+assert_cmd '1737102919.123456 ARP, Request, who has 192.168.1.2 tell 192.168.1.1, length 42' tcpdump -tt -r "$TMPDIR/arp_req.pcap"
+
+echo "  ── ARP request decode with -e ──"
+assert_cmd_pat '1737102919.123456 aa:bb:cc:dd:ee:ff > ff:ff:ff:ff:ff:ff, ARP, Request, who has 192.168.1.2 tell 192.168.1.1, length 42' tcpdump -e -tt -r "$TMPDIR/arp_req.pcap"
+
+echo "  ── ARP reply decode ──"
+pcap_global "$TMPDIR/arp_reply.pcap"
+pcap_record "$TMPDIR/arp_reply.pcap" 47168a67 40e20100 2a000000 ffffffffffffaabbccddeeff08060001080006040002aabbccddeeffc0a80101000000000000c0a80102
+assert_cmd '1737102919.123456 ARP, Reply, 192.168.1.1 is-at aa:bb:cc:dd:ee:ff, length 42' tcpdump -tt -r "$TMPDIR/arp_reply.pcap"
+
+echo "  ── IPv4 generic proto 47 ──"
+pcap_global "$TMPDIR/ipv4.pcap"
+pcap_record "$TMPDIR/ipv4.pcap" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff08004500140000000000402f0000c0a80102c0a801010000000000000000000000000000000000000000
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: IP, proto 47, length 20' tcpdump -tt -r "$TMPDIR/ipv4.pcap"
+
+echo "  ── unknown EtherType ──"
+pcap_global "$TMPDIR/unknown.pcap"
+pcap_record "$TMPDIR/unknown.pcap" 47168a67 40e20100 0e000000 ffffffffffffaabbccddeeff9999
+assert_cmd '1737102919.123456 EtherType 0x9999, length 14' tcpdump -tt -r "$TMPDIR/unknown.pcap"
+
+echo "  ── default timestamp format ──"
+pcap_global "$TMPDIR/ts.pcap"
+pcap_record "$TMPDIR/ts.pcap" 47168a67 40e20100 2a000000 ffffffffffffaabbccddeeff08060001080006040001aabbccddeeffc0a80101000000000000c0a80102
+assert_cmd_pat '^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6} ' tcpdump -r "$TMPDIR/ts.pcap"
+
+echo "  ── short record skipped silently ──"
+pcap_global "$TMPDIR/short.pcap"
+pcap_record "$TMPDIR/short.pcap" 47168a67 40e20100 0a000000 0102030405060708090a
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/short.pcap" 2>/dev/null); rc=$?
+if [[ $rc -eq 0 && -z "$out" ]]; then pass "short record → no output"; else fail "short record → rc=$rc out=[$out]"; fi
