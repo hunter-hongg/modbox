@@ -271,6 +271,12 @@ else
     fail "docs/man/modbox-arping.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-tcpdump.1.md" ]]; then
+    pass "docs/man/modbox-tcpdump.1.md exists"
+else
+    fail "docs/man/modbox-tcpdump.1.md missing"
+fi
+
 if [[ -f "docs/man/modbox-curl.1.md" ]]; then
     pass "docs/man/modbox-curl.1.md exists"
 else
