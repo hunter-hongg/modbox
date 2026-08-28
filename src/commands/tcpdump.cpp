@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 #include <ctime>
+#include <cctype>
+#include <algorithm>
+#include <stdexcept>
 #include <arpa/inet.h>
 
 #include <argtable3.h>
@@ -149,6 +152,214 @@ struct TcpdumpOptions {
     bool numeric = false;
     bool epoch_ts = false;
 };
+
+// ── minimal filter expression parser (grammar + accept-all stub) ─────────────
+// Grammar:
+//   expr := term { "or" term }
+//   term := factor { "and" factor }
+//   factor := "not" factor | "(" expr ")" | atom
+//   atom := keyword value
+//   keyword := host | net | port | proto | src | dst | tcp | udp | icmp | arp | ip | ipv6 | icmp6
+// Protocol shorthands (atoms with no value) map to proto/net checks internally.
+
+namespace {
+
+enum class Fk { Or, And, Not, Host, Net, Port, Proto, Src, Dst };
+
+struct Node {
+    Fk kind;
+    int left = -1, right = -1;
+    std::string value;
+};
+
+using Filter = std::vector<Node>;
+
+static std::string to_lower(const std::string& s) {
+    std::string out = s;
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+    return out;
+}
+
+class FilterParseError : public std::runtime_error {
+public:
+    explicit FilterParseError(const std::string& msg) : std::runtime_error(msg) {}
+};
+
+static std::string peek_token(const std::string& expr, size_t& pos);
+static Filter parse_expr(const std::string& expr, size_t& pos);
+static Filter parse_term(const std::string& expr, size_t& pos);
+static Filter parse_factor(const std::string& expr, size_t& pos);
+
+static std::string peek_token(const std::string& expr, size_t& pos);
+static Filter parse_expr(const std::string& expr, size_t& pos);
+
+static std::string peek_token(const std::string& expr, size_t& pos) {
+    while (pos < expr.size() && std::isspace(static_cast<unsigned char>(expr[pos])))
+        ++pos;
+    if (pos >= expr.size()) return "";
+    size_t start = pos;
+    if (expr[pos] == '(' || expr[pos] == ')') {
+        ++pos;
+        return expr.substr(start, 1);
+    }
+    while (pos < expr.size() && !std::isspace(static_cast<unsigned char>(expr[pos])) && expr[pos] != '(' && expr[pos] != ')')
+        ++pos;
+    return expr.substr(start, pos - start);
+}
+
+static bool is_keyword(const std::string& t) {
+    return t == "host" || t == "net" || t == "port" || t == "proto" ||
+           t == "src"  || t == "dst" || t == "and" || t == "or" || t == "not";
+}
+
+static bool is_proto_shorthand(const std::string& t) {
+    return t == "tcp" || t == "udp" || t == "icmp" || t == "arp" ||
+           t == "ip" || t == "ipv6" || t == "icmp6";
+}
+
+static Filter parse_expr(const std::string& expr, size_t& pos) {
+    Filter left = parse_term(expr, pos);
+    while (pos < expr.size()) {
+        std::string tok = peek_token(expr, pos);
+        if (tok == "or") {
+            Filter right = parse_term(expr, pos);
+            Node n;
+            n.kind = Fk::Or;
+            n.left = static_cast<int>(left.size());
+            n.right = static_cast<int>(right.size());
+            left.insert(left.end(), std::make_move_iterator(right.begin()), std::make_move_iterator(right.end()));
+            left.push_back(n);
+        } else {
+            break;
+        }
+    }
+    return left;
+}
+
+static Filter parse_term(const std::string& expr, size_t& pos) {
+    Filter left = parse_factor(expr, pos);
+    while (pos < expr.size()) {
+        std::string tok = peek_token(expr, pos);
+        if (tok == "and") {
+            Filter right = parse_factor(expr, pos);
+            Node n;
+            n.kind = Fk::And;
+            n.left = static_cast<int>(left.size());
+            n.right = static_cast<int>(right.size());
+            left.insert(left.end(), std::make_move_iterator(right.begin()), std::make_move_iterator(right.end()));
+            left.push_back(n);
+        } else {
+            break;
+        }
+    }
+    return left;
+}
+
+static Filter parse_factor(const std::string& expr, size_t& pos) {
+    std::string tok = peek_token(expr, pos);
+    if (tok == "not") {
+        Filter inner = parse_factor(expr, pos);
+        Node n;
+        n.kind = Fk::Not;
+        n.left = static_cast<int>(inner.size());
+        inner.push_back(n);
+        return inner;
+    }
+    if (tok == "(") {
+        Filter inner = parse_expr(expr, pos);
+        std::string close = peek_token(expr, pos);
+        if (close != ")") throw FilterParseError("filter error: unexpected token: " + close);
+        return inner;
+    }
+    if (tok == ")") throw FilterParseError("filter error: unexpected ')'");
+    // atom
+    if (!is_keyword(tok)) {
+        if (is_proto_shorthand(tok)) {
+            // After consuming a proto shorthand like 'tcp)', check for trailing ')'
+            size_t saved = pos;
+            std::string next = peek_token(expr, pos);
+            if (next == ")") {
+                throw FilterParseError("filter error: unexpected ')'");
+            }
+            pos = saved;
+            Node n;
+            n.kind = Fk::Proto;
+            n.value = tok;
+            return Filter{ n };
+        }
+        throw FilterParseError("filter error: unexpected token: " + tok);
+    }
+    std::string kw = tok;
+    std::string val = peek_token(expr, pos);
+    if (val.empty() || (val == "and" || val == "or" || val == ")"))
+        throw FilterParseError("filter error: expected value for '" + kw + "'");
+    Node n;
+    if (kw == "host") n.kind = Fk::Host;
+    else if (kw == "net") n.kind = Fk::Net;
+    else if (kw == "port") n.kind = Fk::Port;
+    else if (kw == "proto") n.kind = Fk::Proto;
+    else if (kw == "src") n.kind = Fk::Src;
+    else if (kw == "dst") n.kind = Fk::Dst;
+    else throw FilterParseError("unexpected keyword: " + kw);
+    n.value = val;
+    return Filter{ n };
+}
+
+static Filter compile_filter(const std::string& expr, std::string* err) {
+    if (err) err->clear();
+    if (expr.empty()) {
+        throw FilterParseError("filter error: empty expression");
+    }
+    size_t pos = 0;
+    Filter f = parse_expr(expr, pos);
+    std::string tail = expr.substr(pos);
+    std::string trimmed = tail;
+    std::string::iterator end = std::remove_if(trimmed.begin(), trimmed.end(), [](char c){ return std::isspace(static_cast<unsigned char>(c)); });
+    trimmed.erase(end, trimmed.end());
+    if (!trimmed.empty()) {
+        std::string msg = "filter error: trailing characters";
+        if (err) *err = msg;
+        throw FilterParseError(msg);
+    }
+    return f;
+}
+
+static bool is_dotted_decimal_ipv4(const std::string& s) {
+    int dots = 0;
+    std::string tmp = s;
+    if (tmp.size() > 15) return false;
+    for (char c : tmp) {
+        if (c == '.') { ++dots; if (dots > 3) return false; continue; }
+        if (!std::isdigit(static_cast<unsigned char>(c))) return false;
+    }
+    if (dots != 3) return false;
+    return true;
+}
+
+static bool is_ipv6(const std::string& s) {
+    if (s.find(':') == std::string::npos) return false;
+    return true;
+}
+
+static bool is_net_with_prefix(const std::string& s) {
+    size_t slash = s.find('/');
+    if (slash == std::string::npos) return false;
+    std::string addr = s.substr(0, slash);
+    std::string prefix = s.substr(slash + 1);
+    if (!is_dotted_decimal_ipv4(addr) && !is_ipv6(addr)) return false;
+    for (char c : prefix) if (!std::isdigit(static_cast<unsigned char>(c))) return false;
+    return true;
+}
+
+// Stub evaluation: returns true for every packet.
+// The AST shape is preserved for T10 when actual evaluation is wired up.
+static bool evaluate_stub(const Filter& f) {
+    (void)f;
+    return true;
+}
+
+}  // namespace
 
 // Returns true when the record produces no output line (silently skipped).
 static bool record_is_undecodable(const uint8_t* d, size_t len) {
@@ -582,7 +793,6 @@ int tcpdump_command(int argc, char** argv) {
     TcpdumpOptions opts;
     if (input_opt->count > 0) opts.input_file = input_opt->sval[0];
     if (output_opt->count > 0) opts.output_file = output_opt->sval[0];
-    if (filter_opt->count > 0) opts.filter_expr = filter_opt->sval[0];
     if (iface_opt->count > 0) opts.interface = iface_opt->sval[0];
     if (count_opt->count > 0) opts.count = count_opt->ival[0];
     if (snaplen_opt->count > 0) opts.snaplen = snaplen_opt->ival[0];
@@ -592,6 +802,18 @@ int tcpdump_command(int argc, char** argv) {
     opts.hex_dump = (hex_opt->count > 0);
     opts.numeric = (numeric_opt->count > 0 || numeric2_opt->count > 0);
     opts.epoch_ts = (epoch_opt->count > 0);
+
+    Filter filter;
+    if (filter_opt->count > 0) {
+        opts.filter_expr = filter_opt->sval[0];
+        std::string err;
+        try {
+            filter = compile_filter(opts.filter_expr, &err);
+        } catch (const FilterParseError& e) {
+            fprintf(stderr, "tcpdump: %s\n", e.what());
+            return 2;
+        }
+    }
 
     if (!opts.input_file.empty()) {
         PcapReader reader;
@@ -604,11 +826,8 @@ int tcpdump_command(int argc, char** argv) {
         uint32_t ts_sec = 0, ts_usec = 0;
         std::vector<uint8_t> bytes;
         while (read_record(reader, ts_sec, ts_usec, bytes)) {
-            if (bytes.size() < 14) continue;  // Skip short records silently
-            if (bytes.size() >= 14) {
-                uint16_t ethertype = (static_cast<uint16_t>(bytes[12]) << 8) | bytes[13];
-                if (ethertype == 0x86dd && bytes.size() < 54) continue;  // Skip short IPv6 silently
-            }
+            if (record_is_undecodable(bytes.data(), bytes.size())) continue;
+            if (!filter.empty() && !evaluate_stub(filter)) continue;
             decode_packet(bytes.data(), bytes.size(), ts_sec, ts_usec, &opts);
         }
         if (reader.truncated) {

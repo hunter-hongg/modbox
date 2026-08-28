@@ -51,6 +51,19 @@ EOF
     printf '%s' "$data" | xxd -r -p >> "$file"
 }
 
+# Canonical 6-record corpus (5 decodable + 1 garbage), reused by filter/writer tests
+# 1 ARP request, 2 TCP SYN, 3 UDP, 4 ICMP echo, 5 IPv6/UDP, 6 10-byte garbage
+write_corpus() {
+    local file=$1
+    pcap_global "$file"
+    pcap_record "$file" 47168a67 40e20100 2a000000 ffffffffffffaabbccddeeff08060001080006040001aabbccddeeffc0a80101000000000000c0a80102
+    pcap_record "$file" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff08004500002810e1400040060000c0a80102c0a80101c82201bb0001e240000000005002faf000000000
+    pcap_record "$file" 47168a67 40e20100 54000000 ffffffffffffaabbccddeeff08004500004610e1004040110000c0a80103c0a80101cfdb003500320000787878787878787878787878787878787878787878787878787878787878787878787878787878787878
+    pcap_record "$file" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80104c0a80101080000000001000161626364
+    pcap_record "$file" 47168a67 40e20100 4a000000 ffffffffffffaabbccddeeff86dd600000000014114020010db800000000000000000000000220010db8000000000000000000000001829a0035001400007a7a7a7a7a7a7a7a7a7a7a7a
+    pcap_record "$file" 47168a67 40e20100 0a000000 0102030405060708090a
+}
+
 echo "  ── bad magic → error ──"
 pcap_global "$TMPDIR/bad.pcap"
 printf '\x00\x11\x22\x33' | dd of="$TMPDIR/bad.pcap" bs=1 conv=notrunc 2>/dev/null  # overwrite magic
@@ -176,6 +189,41 @@ echo "  ── IPv4/ICMP unknown type decode (-tt) ──"
 pcap_global "$TMPDIR/ipv4_icmp_t4.pcap"
 pcap_record "$TMPDIR/ipv4_icmp_t4.pcap" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80102c0a80101040000000000000000000000
 assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: ICMP type 4 code 0, length 12' tcpdump -tt -r "$TMPDIR/ipv4_icmp_t4.pcap"
+
+# ── canonical corpus (5 decodable records + 1 garbage) ─────────────────────
+echo "  ── corpus decodes to exactly 5 lines ──"
+write_corpus "$TMPDIR/corpus.pcap"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null); rc=$?
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $rc -eq 0 && $lines -eq 5 ]]; then pass "corpus → 5 lines"; else fail "corpus → rc=$rc lines=$lines out=[$out]"; fi
+
+echo "  ── corpus line contracts ──"
+assert_cmd_pat '1737102919.123456 ARP, Request, who has 192\.168\.1\.2 tell 192\.168\.1\.1, length 42' tcpdump -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '192\.168\.1\.2\.51234 > 192\.168\.1\.1\.443: Flags \[S\], seq 123456, win 64240, length 0' tcpdump -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '192\.168\.1\.3\.53211 > 192\.168\.1\.1\.53: UDP, length 42' tcpdump -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '192\.168\.1\.4 > 192\.168\.1\.1: ICMP echo request, id 1, seq 1, length 12' tcpdump -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '2001:db8::2\.33434 > 2001:db8::1\.53: UDP, length 12' tcpdump -tt -r "$TMPDIR/corpus.pcap"
+
+echo "  ── garbage record alone produces no line ──"
+pcap_global "$TMPDIR/garbage.pcap"
+pcap_record "$TMPDIR/garbage.pcap" 47168a67 40e20100 0a000000 0102030405060708090a
+assert_cmd_not_pat 'Flags|UDP,|ICMP|ARP,' tcpdump -tt -r "$TMPDIR/garbage.pcap"
+
+# ── filter expression parser ───────────────────────────────────────────────
+echo "  ── filter parse errors → exit 2 with filter error ──"
+for expr in '' 'frobnicate 1' 'host' '(tcp' 'tcp)' 'tcp and'; do
+    "$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -f "$expr" >/dev/null 2>"$TMPDIR/ferr"; rc=$?
+    if [[ $rc -eq 2 ]] && grep -q "filter error" "$TMPDIR/ferr"; then
+        pass "-f '$expr' → exit 2 + filter error"
+    else
+        fail "-f '$expr' → rc=$rc stderr=[$(cat "$TMPDIR/ferr")]"
+    fi
+done
+
+echo "  ── valid filter parses (accept-all stub) ──"
+a=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null)
+b=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f '(tcp or udp) and not icmp' 2>/dev/null); rc=$?
+if [[ $rc -eq 0 && "$a" == "$b" ]]; then pass "accept-all stub → identical output"; else fail "accept-all stub → rc=$rc"; fi
 
 echo "  ── unknown EtherType ──"
 pcap_global "$TMPDIR/unknown.pcap"
