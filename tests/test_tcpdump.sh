@@ -25,11 +25,6 @@ echo "  ── unknown option is a usage error (exit 2) ──"
 "$MODBOX" tcpdump --bogus >/dev/null 2>&1; rc=$?
 if [[ $rc -eq 2 ]]; then pass "tcpdump --bogus → exit 2"; else fail "tcpdump --bogus → exit $rc, expected 2"; fi
 
-echo "  ── no args prints not-yet-implemented stub (exit 1) ──"
-assert_cmd_pat_stderr 'not yet implemented' tcpdump
-"$MODBOX" tcpdump >/dev/null 2>&1; rc=$?
-if [[ $rc -eq 1 ]]; then pass "tcpdump (no args) → exit 1"; else fail "tcpdump (no args) → exit $rc, expected 1"; fi
-
 echo "  ── -h shows usage ──"
 assert_cmd_pat 'Usage:' tcpdump -h
 
@@ -454,3 +449,37 @@ echo "  ── -r stdin -w file ──"
 "$MODBOX" tcpdump -tt -r "$TMPDIR/stdin.pcap" > "$TMPDIR/stdin.txt" 2>/dev/null
 stdin_lines=$(grep -c . "$TMPDIR/stdin.txt")
 if [[ $rc -eq 0 && $stdin_lines -eq 5 ]]; then pass "-r - -w file → 5 lines"; else fail "-r - -w file → rc=$rc lines=$stdin_lines"; fi
+
+# ── AF_PACKET live capture: error paths (T13) ───────────────────────────────
+echo "  ── -i unknown interface → exit 1 (deterministic) ──"
+"$MODBOX" tcpdump -i no_such_iface0 >/dev/null 2>"$TMPDIR/iterr"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'unknown interface no_such_iface0' "$TMPDIR/iterr"; then
+    pass "-i no_such_iface0 → exit 1 + unknown interface"
+else
+    fail "-i no_such_iface0 → rc=$rc stderr=[$(cat "$TMPDIR/iterr")]"
+fi
+
+echo "  ── non-root bare capture → EPERM message ──"
+if [[ $MY_UID -ne 0 ]]; then
+    "$MODBOX" tcpdump -c 1 >/dev/null 2>"$TMPDIR/iterr"; rc=$?
+    if [[ $rc -eq 1 ]] && grep -q 'cannot open capture socket' "$TMPDIR/iterr" \
+       && grep -q 'CAP_NET_RAW' "$TMPDIR/iterr" && grep -q -- '-r' "$TMPDIR/iterr"; then
+        pass "non-root bare → EPERM message"
+    else
+        fail "non-root bare → rc=$rc stderr=[$(cat "$TMPDIR/iterr")]"
+    fi
+else
+    pass "skipped (running as root)"
+fi
+
+echo "  ── non-root -i lo -c 1 → same EPERM ──"
+if [[ $MY_UID -ne 0 ]]; then
+    "$MODBOX" tcpdump -i lo -c 1 >/dev/null 2>"$TMPDIR/iterr"; rc=$?
+    if [[ $rc -eq 1 ]] && grep -q 'cannot open capture socket' "$TMPDIR/iterr"; then
+        pass "-i lo non-root → EPERM"
+    else
+        fail "-i lo non-root → rc=$rc stderr=[$(cat "$TMPDIR/iterr")]"
+    fi
+else
+    pass "skipped (running as root)"
+fi

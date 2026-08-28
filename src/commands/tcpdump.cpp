@@ -9,6 +9,11 @@
 #include <algorithm>
 #include <stdexcept>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <linux/if_packet.h>
+#include <linux/if_ether.h>
 
 #include <argtable3.h>
 
@@ -201,6 +206,7 @@ static void close_pcap_writer(PcapWriter& w) {
 
 
 
+
 struct TcpdumpOptions {
     std::string input_file;
     std::string output_file;
@@ -215,6 +221,47 @@ struct TcpdumpOptions {
     bool numeric = false;
     bool epoch_ts = false;
 };
+
+// ── AF_PACKET capture socket ────────────────────────────────────────────────
+
+// Returns an open capture socket fd, or -1 with *err set.
+// Interface resolution: empty or "any" → no bind (all interfaces);
+// a named interface → if_nametoindex + bind.
+static int open_capture_socket(const TcpdumpOptions* opts, std::string* err) {
+    int ifindex = 0;
+    if (!opts->interface.empty() && opts->interface != "any") {
+        ifindex = if_nametoindex(opts->interface.c_str());
+        if (ifindex == 0) {
+            *err = "tcpdump: unknown interface " + opts->interface;
+            return -1;
+        }
+    }
+
+    int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (fd < 0) {
+        if (errno == EPERM) {
+            *err = "tcpdump: cannot open capture socket: Operation not permitted "
+                   "(capture needs root or CAP_NET_RAW; use -r to read a capture file)";
+        } else {
+            *err = "tcpdump: cannot open capture socket: " + std::string(std::strerror(errno));
+        }
+        return -1;
+    }
+
+    if (ifindex != 0) {
+        struct sockaddr_ll sll {};
+        sll.sll_family = AF_PACKET;
+        sll.sll_protocol = htons(ETH_P_ALL);
+        sll.sll_ifindex = ifindex;
+        if (bind(fd, reinterpret_cast<struct sockaddr*>(&sll), sizeof(sll)) < 0) {
+            *err = "tcpdump: cannot bind capture socket to " + opts->interface + ": " +
+                   std::string(std::strerror(errno));
+            close(fd);
+            return -1;
+        }
+    }
+    return fd;
+}
 
 // ── minimal filter expression parser (grammar + accept-all stub) ─────────────
 // Grammar:
@@ -1285,8 +1332,17 @@ int tcpdump_command(int argc, char** argv) {
         return 0;
     }
 
-    fprintf(stderr, "%s: capture not yet implemented\n", prog);
-    return 1;
+    // Live capture path (recv loop lands in T14).
+    std::string lerr;
+    int fd = open_capture_socket(&opts, &lerr);
+    if (fd < 0) {
+        if (writer.f) close_pcap_writer(writer);
+        fprintf(stderr, "%s\n", lerr.c_str());
+        return 1;
+    }
+    close(fd);
+    if (writer.f) close_pcap_writer(writer);
+    return 0;
 }
 
 REGISTER_COMMAND("tcpdump", tcpdump_command, "Capture and display network packets");
