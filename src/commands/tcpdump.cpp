@@ -119,6 +119,12 @@ bool read_record(PcapReader& r, uint32_t& ts_sec, uint32_t& ts_usec, std::vector
     ts_sec = rd32(hdr, 0, r.big_endian);
     ts_usec = rd32(hdr, 4, r.big_endian);
 
+    // Short records (< 14 bytes) are skipped silently
+    if (incl_len < 14) {
+        bytes.clear();
+        return true;
+    }
+
     bytes.resize(incl_len);
     size_t got = fread(bytes.data(), 1, incl_len, r.f);
     if (got < incl_len) {

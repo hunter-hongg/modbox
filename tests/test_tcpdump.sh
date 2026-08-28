@@ -139,7 +139,7 @@ assert_cmd '1737102919.123456 2001:db8::2.40000 > 2001:db8::1.80: Flags [S], seq
 
 echo "  ── IPv6/ICMPv6 echo request decode (-tt) ──"
 pcap_global "$TMPDIR/ipv6_icmp.pcap"
-pcap_record "$TMPDIR/ipv6_icmp.pcap" 47168a67 40e20100 42000000 ffffffffffffaabbccddeeff86dd600000000014064020010db800000000000000000000000220010db8000000000000000000000001800000000001000100000000
+pcap_record "$TMPDIR/ipv6_icmp.pcap" 47168a67 40e20100 42000000 ffffffffffffaabbccddeeff86dd6000000000143a4020010db800000000000000000000000220010db8000000000000000000000001800000000001000100000000
 assert_cmd '1737102919.123456 2001:db8::2 > 2001:db8::1: ICMP6, echo request, id 1, seq 1' tcpdump -tt -r "$TMPDIR/ipv6_icmp.pcap"
 
 echo "  ── IPv6 generic next header decode (-tt) ──"
