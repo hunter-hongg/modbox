@@ -192,7 +192,6 @@ static Filter parse_term(const std::string& expr, size_t& pos);
 static Filter parse_factor(const std::string& expr, size_t& pos);
 
 static std::string peek_token(const std::string& expr, size_t& pos);
-static Filter parse_expr(const std::string& expr, size_t& pos);
 
 static std::string peek_token(const std::string& expr, size_t& pos) {
     while (pos < expr.size() && std::isspace(static_cast<unsigned char>(expr[pos])))
@@ -218,9 +217,38 @@ static bool is_proto_shorthand(const std::string& t) {
            t == "ip" || t == "ipv6" || t == "icmp6";
 }
 
+static bool parse_port_strict(const std::string& s, uint16_t& out) {
+    if (s.empty()) return false;
+    for (char c : s)
+        if (c < '0' || c > '9') return false;
+    long v = std::stol(s);
+    if (v < 1 || v > 65535) return false;
+    out = static_cast<uint16_t>(v);
+    return true;
+}
+
+static bool parse_addr_strict(const std::string& s, bool& v6) {
+    if (s.find(':') != std::string::npos) {
+        struct in6_addr a;
+        if (inet_pton(AF_INET6, s.c_str(), &a) != 1) return false;
+        v6 = true;
+        return true;
+    }
+    struct in_addr a;
+    if (inet_pton(AF_INET, s.c_str(), &a) != 1) return false;
+    v6 = false;
+    return true;
+}
+
+static bool parse_family(const std::string& s) {
+    return s == "tcp" || s == "udp" || s == "icmp" || s == "icmp6" ||
+           s == "arp" || s == "ip" || s == "ipv6";
+}
+
 static Filter parse_expr(const std::string& expr, size_t& pos) {
     Filter left = parse_term(expr, pos);
     while (pos < expr.size()) {
+        size_t saved = pos;
         std::string tok = peek_token(expr, pos);
         if (tok == "or") {
             Filter right = parse_term(expr, pos);
@@ -231,6 +259,7 @@ static Filter parse_expr(const std::string& expr, size_t& pos) {
             left.insert(left.end(), std::make_move_iterator(right.begin()), std::make_move_iterator(right.end()));
             left.push_back(n);
         } else {
+            pos = saved;
             break;
         }
     }
@@ -240,6 +269,7 @@ static Filter parse_expr(const std::string& expr, size_t& pos) {
 static Filter parse_term(const std::string& expr, size_t& pos) {
     Filter left = parse_factor(expr, pos);
     while (pos < expr.size()) {
+        size_t saved = pos;
         std::string tok = peek_token(expr, pos);
         if (tok == "and") {
             Filter right = parse_factor(expr, pos);
@@ -250,6 +280,7 @@ static Filter parse_term(const std::string& expr, size_t& pos) {
             left.insert(left.end(), std::make_move_iterator(right.begin()), std::make_move_iterator(right.end()));
             left.push_back(n);
         } else {
+            pos = saved;
             break;
         }
     }
@@ -276,13 +307,6 @@ static Filter parse_factor(const std::string& expr, size_t& pos) {
     // atom
     if (!is_keyword(tok)) {
         if (is_proto_shorthand(tok)) {
-            // After consuming a proto shorthand like 'tcp)', check for trailing ')'
-            size_t saved = pos;
-            std::string next = peek_token(expr, pos);
-            if (next == ")") {
-                throw FilterParseError("filter error: unexpected ')'");
-            }
-            pos = saved;
             Node n;
             n.kind = Fk::Proto;
             n.value = tok;
@@ -295,15 +319,73 @@ static Filter parse_factor(const std::string& expr, size_t& pos) {
     if (val.empty() || (val == "and" || val == "or" || val == ")"))
         throw FilterParseError("filter error: expected value for '" + kw + "'");
     Node n;
-    if (kw == "host") n.kind = Fk::Host;
-    else if (kw == "net") n.kind = Fk::Net;
-    else if (kw == "port") n.kind = Fk::Port;
-    else if (kw == "proto") n.kind = Fk::Proto;
-    else if (kw == "src") n.kind = Fk::Src;
-    else if (kw == "dst") n.kind = Fk::Dst;
-    else throw FilterParseError("unexpected keyword: " + kw);
-    n.value = val;
-    return Filter{ n };
+    if (kw == "port") {
+        n.kind = Fk::Port;
+        uint16_t p = 0;
+        if (!parse_port_strict(val, p))
+            throw FilterParseError("filter error: port: invalid value '" + val + "'");
+        n.value = val;
+        return Filter{ n };
+    }
+    if (kw == "host") {
+        n.kind = Fk::Host;
+        bool v6 = false;
+        if (!parse_addr_strict(val, v6))
+            throw FilterParseError("filter error: host: invalid address '" + val + "'");
+        n.value = val;
+        return Filter{ n };
+    }
+    if (kw == "net") {
+        n.kind = Fk::Net;
+        size_t slash = val.find('/');
+        std::string addr = (slash != std::string::npos) ? val.substr(0, slash) : val;
+        bool v6 = false;
+        if (!parse_addr_strict(addr, v6))
+            throw FilterParseError("filter error: net: invalid address '" + addr + "'");
+        if (slash != std::string::npos) {
+            std::string pfx = val.substr(slash + 1);
+            if (pfx.empty())
+                throw FilterParseError("filter error: net: missing prefix");
+            for (char c : pfx)
+                if (c < '0' || c > '9')
+                    throw FilterParseError("filter error: net: invalid prefix '" + pfx + "'");
+            int p = std::stoi(pfx);
+            int maxp = v6 ? 128 : 32;
+            if (p < 0 || p > maxp)
+                throw FilterParseError(std::string("filter error: net: prefix out of range for ") + (v6 ? "IPv6" : "IPv4"));
+        }
+        n.value = val;
+        return Filter{ n };
+    }
+    if (kw == "proto") {
+        n.kind = Fk::Proto;
+        std::string vl = to_lower(val);
+        if (parse_family(vl)) {
+            n.value = val;
+            return Filter{ n };
+        }
+        uint16_t num = 0;
+        if (parse_port_strict(val, num) && num <= 255) {
+            n.value = val;
+            return Filter{ n };
+        }
+        throw FilterParseError("filter error: proto: unknown protocol '" + val + "'");
+    }
+    if (kw == "src" || kw == "dst") {
+        n.kind = (kw == "src") ? Fk::Src : Fk::Dst;
+        bool v6 = false;
+        if (parse_addr_strict(val, v6)) {
+            n.value = val;
+            return Filter{ n };
+        }
+        uint16_t p = 0;
+        if (parse_port_strict(val, p)) {
+            n.value = val;
+            return Filter{ n };
+        }
+        throw FilterParseError("filter error: " + kw + ": invalid value '" + val + "'");
+    }
+    throw FilterParseError("filter error: unexpected keyword '" + kw + "'");
 }
 
 static Filter compile_filter(const std::string& expr, std::string* err) {
@@ -352,11 +434,194 @@ static bool is_net_with_prefix(const std::string& s) {
     return true;
 }
 
-// Stub evaluation: returns true for every packet.
-// The AST shape is preserved for T10 when actual evaluation is wired up.
-static bool evaluate_stub(const Filter& f) {
-    (void)f;
-    return true;
+// Packet context extracted once per record, shared by filter evaluation and decode.
+struct PacketCtx {
+    bool valid = false;
+    uint16_t ethertype = 0;
+    // IPv4
+    bool ipv4 = false;
+    std::string src_ip, dst_ip;
+    uint8_t ipv4_proto = 0;
+    // IPv6
+    bool ipv6 = false;
+    std::string src6, dst6;
+    uint8_t ipv6_next = 0;
+    // ARP
+    bool arp = false;
+    std::string arp_spa, arp_tpa;
+    // Ports
+    uint16_t src_port = 0, dst_port = 0;
+    bool has_ports = false;
+};
+
+static PacketCtx build_context(const uint8_t* d, size_t len) {
+    PacketCtx ctx;
+    if (len < 14) return ctx;
+    ctx.ethertype = (static_cast<uint16_t>(d[12]) << 8) | static_cast<uint16_t>(d[13]);
+    if (ctx.ethertype == 0x0800 && len >= 34) {
+        ctx.ipv4 = true;
+        uint8_t ihl = (d[14] & 0x0F) * 4;
+        if (len >= 14 + ihl) {
+            struct in_addr src, dst;
+            memcpy(&src.s_addr, d + 14 + 12, 4);
+            memcpy(&dst.s_addr, d + 14 + 16, 4);
+            char buf[INET_ADDRSTRLEN];
+            if (inet_ntop(AF_INET, &src, buf, sizeof(buf))) ctx.src_ip = buf;
+            if (inet_ntop(AF_INET, &dst, buf, sizeof(buf))) ctx.dst_ip = buf;
+            ctx.ipv4_proto = d[14 + 9];
+            size_t t = 14 + ihl;
+            if (ctx.ipv4_proto == 6 && len >= t + 20) {
+                ctx.src_port = (static_cast<uint16_t>(d[t]) << 8) | d[t + 1];
+                ctx.dst_port = (static_cast<uint16_t>(d[t + 2]) << 8) | d[t + 3];
+                ctx.has_ports = true;
+            } else if (ctx.ipv4_proto == 17 && len >= t + 8) {
+                ctx.src_port = (static_cast<uint16_t>(d[t]) << 8) | d[t + 1];
+                ctx.dst_port = (static_cast<uint16_t>(d[t + 2]) << 8) | d[t + 3];
+                ctx.has_ports = true;
+            }
+        }
+    } else if (ctx.ethertype == 0x0806 && len >= 14 + 28) {
+        ctx.arp = true;
+        struct in_addr spa, tpa;
+        memcpy(&spa.s_addr, d + 14 + 14, 4);
+        memcpy(&tpa.s_addr, d + 14 + 24, 4);
+        char buf[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &spa, buf, sizeof(buf))) ctx.arp_spa = buf;
+        if (inet_ntop(AF_INET, &tpa, buf, sizeof(buf))) ctx.arp_tpa = buf;
+    } else if (ctx.ethertype == 0x86DD && len >= 54) {
+        ctx.ipv6 = true;
+        ctx.ipv6_next = d[14 + 6];
+        struct in6_addr src, dst;
+        memcpy(&src.s6_addr, d + 14 + 8, 16);
+        memcpy(&dst.s6_addr, d + 14 + 24, 16);
+        char buf[INET6_ADDRSTRLEN];
+        if (inet_ntop(AF_INET6, &src, buf, sizeof(buf))) ctx.src6 = buf;
+        if (inet_ntop(AF_INET6, &dst, buf, sizeof(buf))) ctx.dst6 = buf;
+        size_t t = 14 + 40;
+        if (ctx.ipv6_next == 6 && len >= t + 20) {
+            ctx.src_port = (static_cast<uint16_t>(d[t]) << 8) | d[t + 1];
+            ctx.dst_port = (static_cast<uint16_t>(d[t + 2]) << 8) | d[t + 3];
+            ctx.has_ports = true;
+        } else if (ctx.ipv6_next == 17 && len >= t + 8) {
+            ctx.src_port = (static_cast<uint16_t>(d[t]) << 8) | d[t + 1];
+            ctx.dst_port = (static_cast<uint16_t>(d[t + 2]) << 8) | d[t + 3];
+            ctx.has_ports = true;
+        }
+    }
+    ctx.valid = true;
+    return ctx;
+}
+
+static bool ip_match(const std::string& a, const std::string& b) {
+    return a == b;
+}
+
+static bool port_match(uint16_t port, uint16_t want) { return port == want; }
+
+static bool net_match(const std::string& ip_str, const std::string& spec) {
+    size_t slash = spec.find('/');
+    std::string addr = (slash != std::string::npos) ? spec.substr(0, slash) : spec;
+    std::string pfx_str = (slash != std::string::npos) ? spec.substr(slash + 1) : "32";
+    int pfx = std::stoi(pfx_str);
+
+    bool is_v6 = ip_str.find(':') != std::string::npos;
+    bool addr_v6 = addr.find(':') != std::string::npos;
+    if (is_v6 != addr_v6) return false;
+
+    struct in_addr a4, b4;
+    struct in6_addr a6, b6;
+    if (!is_v6) {
+        if (inet_pton(AF_INET, ip_str.c_str(), &a4) != 1) return false;
+        if (inet_pton(AF_INET, addr.c_str(), &b4) != 1) return false;
+        if (pfx == 0) return true;
+        uint32_t mask = (pfx == 32) ? 0xFFFFFFFFu : (~0u << (32 - pfx));
+        return (ntohl(a4.s_addr) & mask) == (ntohl(b4.s_addr) & mask);
+    } else {
+        if (inet_pton(AF_INET6, ip_str.c_str(), &a6) != 1) return false;
+        if (inet_pton(AF_INET6, addr.c_str(), &b6) != 1) return false;
+        if (pfx == 0) return true;
+        const uint8_t* ap = reinterpret_cast<const uint8_t*>(a6.s6_addr);
+        const uint8_t* bp = reinterpret_cast<const uint8_t*>(b6.s6_addr);
+        int full = pfx / 8;
+        int rem = pfx % 8;
+        for (int i = 0; i < full; ++i) {
+            if (ap[i] != bp[i]) return false;
+        }
+        if (rem > 0 && (ap[full] & (0xFFu << (8 - rem))) != (bp[full] & (0xFFu << (8 - rem)))) return false;
+        return true;
+    }
+}
+
+static bool eval_atom(const Node& n, const PacketCtx& ctx) {
+    if (n.kind == Fk::Proto) {
+        const std::string& v = to_lower(n.value);
+        if (v == "arp") return ctx.ethertype == 0x0806;
+        if (v == "ip") return ctx.ipv4;
+        if (v == "ipv6") return ctx.ipv6;
+        if (v == "tcp") return ctx.ipv4 && ctx.ipv4_proto == 6;
+        if (v == "udp") return (ctx.ipv4 && ctx.ipv4_proto == 17) || (ctx.ipv6 && ctx.ipv6_next == 17);
+        if (v == "icmp") return ctx.ipv4 && ctx.ipv4_proto == 1;
+        if (v == "icmp6") return ctx.ipv6 && ctx.ipv6_next == 58;
+        if (!v.empty()) {
+            bool all_digits = true;
+            for (char c : v)
+                if (c < '0' || c > '9') { all_digits = false; break; }
+            if (all_digits) {
+                int num = std::stoi(v);
+                return ctx.ipv4 && ctx.ipv4_proto == static_cast<uint8_t>(num);
+            }
+        }
+        return false;
+    }
+    if (!ctx.ipv4 && !ctx.ipv6 && !ctx.arp) return false;
+    if (n.kind == Fk::Host) {
+        const std::string& v = n.value;
+        return ip_match(ctx.src_ip, v) || ip_match(ctx.dst_ip, v) ||
+               ip_match(ctx.src6, v) || ip_match(ctx.dst6, v) ||
+               ip_match(ctx.arp_spa, v) || ip_match(ctx.arp_tpa, v);
+    }
+    if (n.kind == Fk::Net) {
+        return net_match(ctx.src_ip, n.value) || net_match(ctx.dst_ip, n.value) ||
+               net_match(ctx.src6, n.value) || net_match(ctx.dst6, n.value) ||
+               net_match(ctx.arp_spa, n.value) || net_match(ctx.arp_tpa, n.value);
+    }
+    if (n.kind == Fk::Port) {
+        if (!ctx.has_ports) return false;
+        uint16_t p = static_cast<uint16_t>(std::stoul(n.value));
+        return port_match(ctx.src_port, p) || port_match(ctx.dst_port, p);
+    }
+    if (n.kind == Fk::Src) {
+        const std::string& v = n.value;
+        bool as_ip = v.find('.') != std::string::npos || v.find(':') != std::string::npos;
+        if (as_ip)
+            return ip_match(ctx.src_ip, v) || ip_match(ctx.src6, v) || ip_match(ctx.arp_spa, v);
+        uint16_t p = static_cast<uint16_t>(std::stoul(v));
+        return ctx.has_ports && port_match(ctx.src_port, p);
+    }
+    if (n.kind == Fk::Dst) {
+        const std::string& v = n.value;
+        bool as_ip = v.find('.') != std::string::npos || v.find(':') != std::string::npos;
+        if (as_ip)
+            return ip_match(ctx.dst_ip, v) || ip_match(ctx.dst6, v) || ip_match(ctx.arp_tpa, v);
+        uint16_t p = static_cast<uint16_t>(std::stoul(v));
+        return ctx.has_ports && port_match(ctx.dst_port, p);
+    }
+    return false;
+}
+
+static bool evaluate_filter(const Filter& f, const PacketCtx& ctx) {
+    if (f.empty()) return true;
+    const Node& root = f.back();
+    if (root.kind == Fk::And || root.kind == Fk::Or) {
+        return (root.kind == Fk::And ? evaluate_filter(Filter(f.begin(), f.begin() + root.left), ctx) &&
+                                       evaluate_filter(Filter(f.begin() + root.left, f.end() - 1), ctx)
+                                    : evaluate_filter(Filter(f.begin(), f.begin() + root.left), ctx) ||
+                                       evaluate_filter(Filter(f.begin() + root.left, f.end() - 1), ctx));
+    }
+    if (root.kind == Fk::Not) {
+        return !evaluate_filter(Filter(f.begin(), f.begin() + root.left), ctx);
+    }
+    return eval_atom(root, ctx);
 }
 
 }  // namespace
@@ -825,10 +1090,15 @@ int tcpdump_command(int argc, char** argv) {
 
         uint32_t ts_sec = 0, ts_usec = 0;
         std::vector<uint8_t> bytes;
+        PacketCtx pctx;
+        int kept = 0;
         while (read_record(reader, ts_sec, ts_usec, bytes)) {
             if (record_is_undecodable(bytes.data(), bytes.size())) continue;
-            if (!filter.empty() && !evaluate_stub(filter)) continue;
+            pctx = build_context(bytes.data(), bytes.size());
+            if (!filter.empty() && !evaluate_filter(filter, pctx)) continue;
             decode_packet(bytes.data(), bytes.size(), ts_sec, ts_usec, &opts);
+            ++kept;
+            if (opts.count > 0 && kept >= opts.count) break;
         }
         if (reader.truncated) {
             std::string rerr = "tcpdump: " + opts.input_file + ": truncated packet record";

@@ -220,10 +220,107 @@ for expr in '' 'frobnicate 1' 'host' '(tcp' 'tcp)' 'tcp and'; do
     fi
 done
 
-echo "  ── valid filter parses (accept-all stub) ──"
-a=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null)
+echo "  ── valid filter parses and evaluates ──"
 b=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f '(tcp or udp) and not icmp' 2>/dev/null); rc=$?
-if [[ $rc -eq 0 && "$a" == "$b" ]]; then pass "accept-all stub → identical output"; else fail "accept-all stub → rc=$rc"; fi
+lines=$(printf '%s\n' "$b" | grep -c .)
+if [[ $rc -eq 0 && $lines -eq 3 ]]; then pass "filter '(tcp or udp) and not icmp' → 3 lines"; else fail "→ rc=$rc lines=$lines"; fi
+
+echo "  ── -f 'port 99999' → parse error (range) ──"
+"$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -f 'port 99999' >/dev/null 2>"$TMPDIR/ferr"; rc=$?
+if [[ $rc -eq 2 ]] && grep -q "filter error" "$TMPDIR/ferr"; then
+    pass "-f 'port 99999' → exit 2 + filter error"
+else
+    fail "-f 'port 99999' → rc=$rc stderr=[$(cat "$TMPDIR/ferr")]"
+fi
+
+# ── filter atoms + process_packet pipeline + -c ──────────────────────────
+echo "  ── filter: host 192.168.1.1 (4 lines) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'host 192.168.1.1' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 4 ]]; then pass "-f 'host 192.168.1.1' → 4 lines"; else fail "-f 'host 192.168.1.1' → $lines lines"; fi
+
+echo "  ── filter: host 2001:db8::1 (1 line) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'host 2001:db8::1' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 1 ]]; then pass "-f 'host 2001:db8::1' → 1 line"; else fail "-f 'host 2001:db8::1' → $lines lines"; fi
+
+echo "  ── filter: port 53 (2 lines: IPv4 UDP + IPv6 UDP) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'port 53' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 2 ]]; then pass "-f 'port 53' → 2 lines"; else fail "-f 'port 53' → $lines lines"; fi
+
+echo "  ── filter: tcp (1 line) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'tcp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 1 ]]; then pass "-f 'tcp' → 1 line"; else fail "-f 'tcp' → $lines lines"; fi
+
+echo "  ── filter: proto udp (2 lines: IPv4 UDP + IPv6 UDP) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'proto udp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 2 ]]; then pass "-f 'proto udp' → 2 lines"; else fail "-f 'proto udp' → $lines lines"; fi
+
+echo "  ── filter: not arp (4 lines) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'not arp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 4 ]]; then pass "-f 'not arp' → 4 lines"; else fail "-f 'not arp' → $lines lines"; fi
+
+echo "  ── filter: arp and host 192.168.1.1 (1 line) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'arp and host 192.168.1.1' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 1 ]]; then pass "-f 'arp and host 192.168.1.1' → 1 line"; else fail "-f 'arp and host 192.168.1.1' → $lines lines (got: [$out])"; fi
+
+echo "  ── filter: src 192.168.1.2 (1 line) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'src 192.168.1.2' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 1 ]]; then pass "-f 'src 192.168.1.2' → 1 line"; else fail "-f 'src 192.168.1.2' → $lines lines"; fi
+
+echo "  ── filter: dst 53 (2 lines: IPv4 UDP + IPv6 UDP) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'dst 53' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 2 ]]; then pass "-f 'dst 53' → 2 lines"; else fail "-f 'dst 53' → $lines lines"; fi
+
+echo "  ── filter: net 192.168.1.0/24 (4 lines) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'net 192.168.1.0/24' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 4 ]]; then pass "-f 'net 192.168.1.0/24' → 4 lines"; else fail "-f 'net 192.168.1.0/24' → $lines lines"; fi
+
+echo "  ── filter: net 192.168.1.0 (0 lines, /32) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'net 192.168.1.0' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 0 ]]; then pass "-f 'net 192.168.1.0' → 0 lines"; else fail "-f 'net 192.168.1.0' → $lines lines"; fi
+
+echo "  ── filter: ip (3 lines: tcp, udp, icmp) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'ip' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 3 ]]; then pass "-f 'ip' → 3 lines"; else fail "-f 'ip' → $lines lines"; fi
+
+echo "  ── filter: icmp (1 line) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'icmp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 1 ]]; then pass "-f 'icmp' → 1 line"; else fail "-f 'icmp' → $lines lines"; fi
+
+echo "  ── filter: (tcp or udp) and not arp (3 lines: TCP + 2 UDPs) ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f '(tcp or udp) and not arp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 3 ]]; then pass "-f '(tcp or udp) and not arp' → 3 lines"; else fail "-f '(tcp or udp) and not arp' → $lines lines"; fi
+
+echo "  ── -c 2 → exactly 2 lines ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -c 2 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 2 ]]; then pass "-c 2 → 2 lines"; else fail "-c 2 → $lines lines"; fi
+
+echo "  ── -c 0 = unlimited, -c 0 -f 'udp' → 2 lines ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -c 0 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 5 ]]; then pass "-c 0 → 5 lines"; else fail "-c 0 → $lines lines"; fi
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -c 0 -f 'udp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 2 ]]; then pass "-c 0 -f 'udp' → 2 lines"; else fail "-c 0 -f 'udp' → $lines lines"; fi
+
+echo "  ── undecodable record dropped by every filter ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'not arp' 2>/dev/null)
+lines=$(printf '%s\n' "$out" | grep -c .)
+if [[ $lines -eq 4 ]]; then pass "garbage never printed under filter → 4 lines"; else fail "→ $lines lines"; fi
 
 echo "  ── unknown EtherType ──"
 pcap_global "$TMPDIR/unknown.pcap"
