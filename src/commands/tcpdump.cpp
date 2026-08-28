@@ -119,12 +119,6 @@ bool read_record(PcapReader& r, uint32_t& ts_sec, uint32_t& ts_usec, std::vector
     ts_sec = rd32(hdr, 0, r.big_endian);
     ts_usec = rd32(hdr, 4, r.big_endian);
 
-    // Short records (< 14 bytes) are skipped silently
-    if (incl_len < 14) {
-        bytes.clear();
-        return true;
-    }
-
     bytes.resize(incl_len);
     size_t got = fread(bytes.data(), 1, incl_len, r.f);
     if (got < incl_len) {
@@ -444,6 +438,11 @@ int tcpdump_command(int argc, char** argv) {
         uint32_t ts_sec = 0, ts_usec = 0;
         std::vector<uint8_t> bytes;
         while (read_record(reader, ts_sec, ts_usec, bytes)) {
+            if (bytes.size() < 14) continue;  // Skip short records silently
+            if (bytes.size() >= 14) {
+                uint16_t ethertype = (static_cast<uint16_t>(bytes[12]) << 8) | bytes[13];
+                if (ethertype == 0x86dd && bytes.size() < 54) continue;  // Skip short IPv6 silently
+            }
             decode_packet(bytes.data(), bytes.size(), ts_sec, ts_usec, &opts);
         }
         if (reader.truncated) {
