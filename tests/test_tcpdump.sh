@@ -142,6 +142,41 @@ pcap_record "$TMPDIR/ipv4_tcp_short.pcap" 47168a67 40e20100 28000000 fffffffffff
 out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ipv4_tcp_short.pcap" 2>/dev/null); rc=$?
 if [[ $rc -eq 0 && -z "$out" ]]; then pass "short TCP → no output"; else fail "short TCP → rc=$rc out=[$out]"; fi
 
+echo "  ── IPv4/UDP decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_udp.pcap"
+pcap_record "$TMPDIR/ipv4_udp.pcap" 47168a67 40e20100 54000000 ffffffffffffaabbccddeeff08004500004610e1004040110000c0a80102c0a80101cfdb003500320000787878787878787878787878787878787878787878787878787878787878787878787878787878787878
+assert_cmd '1737102919.123456 192.168.1.2.53211 > 192.168.1.1.53: UDP, length 42' tcpdump -tt -r "$TMPDIR/ipv4_udp.pcap"
+
+echo "  ── IPv4/UDP declared length clamped to available bytes ──"
+pcap_global "$TMPDIR/ipv4_udp_clamp.pcap"
+pcap_record "$TMPDIR/ipv4_udp_clamp.pcap" 47168a67 40e20100 4c000000 ffffffffffffaabbccddeeff08004500003410e1004040110000c0a80102c0a80101cfdb003500c8000078787878787878787878787878787878787878787878787878787878787878787878
+assert_cmd '1737102919.123456 192.168.1.2.53211 > 192.168.1.1.53: UDP, length 34' tcpdump -tt -r "$TMPDIR/ipv4_udp_clamp.pcap"
+
+echo "  ── IPv4/ICMP echo request decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_icmp_req.pcap"
+pcap_record "$TMPDIR/ipv4_icmp_req.pcap" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80102c0a80101080000000001000161626364
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: ICMP echo request, id 1, seq 1, length 12' tcpdump -tt -r "$TMPDIR/ipv4_icmp_req.pcap"
+
+echo "  ── IPv4/ICMP echo reply decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_icmp_rep.pcap"
+pcap_record "$TMPDIR/ipv4_icmp_rep.pcap" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80102c0a80101000000000001000161626364
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: ICMP echo reply, id 1, seq 1, length 12' tcpdump -tt -r "$TMPDIR/ipv4_icmp_rep.pcap"
+
+echo "  ── IPv4/ICMP dest unreachable decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_icmp_unreach.pcap"
+pcap_record "$TMPDIR/ipv4_icmp_unreach.pcap" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80102c0a80101030400000000000000000000
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: ICMP destination unreachable, length 12' tcpdump -tt -r "$TMPDIR/ipv4_icmp_unreach.pcap"
+
+echo "  ── IPv4/ICMP time exceeded decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_icmp_ttl.pcap"
+pcap_record "$TMPDIR/ipv4_icmp_ttl.pcap" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80102c0a801010b0000000000000000000000
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: ICMP time exceeded, length 12' tcpdump -tt -r "$TMPDIR/ipv4_icmp_ttl.pcap"
+
+echo "  ── IPv4/ICMP unknown type decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_icmp_t4.pcap"
+pcap_record "$TMPDIR/ipv4_icmp_t4.pcap" 47168a67 40e20100 2e000000 ffffffffffffaabbccddeeff08004500002010e1004040010000c0a80102c0a80101040000000000000000000000
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: ICMP type 4 code 0, length 12' tcpdump -tt -r "$TMPDIR/ipv4_icmp_t4.pcap"
+
 echo "  ── unknown EtherType ──"
 pcap_global "$TMPDIR/unknown.pcap"
 pcap_record "$TMPDIR/unknown.pcap" 47168a67 40e20100 0e000000 ffffffffffffaabbccddeeff9999

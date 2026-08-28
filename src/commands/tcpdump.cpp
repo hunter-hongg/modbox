@@ -162,6 +162,8 @@ static bool record_is_undecodable(const uint8_t* d, size_t len) {
         uint8_t proto = d[14 + 9];
         size_t payload = len - 14 - ihl;
         if (proto == 6) return payload > 0 && payload < 20;
+        if (proto == 17) return payload > 0 && payload < 8;
+        if (proto == 1) return payload > 0 && payload < 4;
         return false;
     }
     if (ethertype == 0x86DD) return len < 14 + 40;
@@ -320,7 +322,55 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
                 printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
             }
         }
-        // UDP (proto 17) / ICMP (proto 1) / others: generic fallback
+        // UDP (proto 17)
+        else if (proto == 17) {
+            if (payload_len >= 8) {
+                size_t t = 14 + ihl;
+                uint16_t sport = (static_cast<uint16_t>(d[t]) << 8) | static_cast<uint16_t>(d[t + 1]);
+                uint16_t dport = (static_cast<uint16_t>(d[t + 2]) << 8) | static_cast<uint16_t>(d[t + 3]);
+                uint16_t udp_len = (static_cast<uint16_t>(d[t + 4]) << 8) | static_cast<uint16_t>(d[t + 5]);
+                size_t udp_payload = 0;
+                if (udp_len > 8) {
+                    udp_payload = static_cast<size_t>(udp_len) - 8;
+                    if (udp_payload > payload_len - 8) udp_payload = payload_len - 8;
+                }
+                printf("%s.%u > %s.%u: UDP, length %zu\n", src_ip, sport, dst_ip, dport, udp_payload);
+            }
+            // payload_len in (0, 8) is skipped (see record_is_undecodable)
+        }
+        // ICMP (proto 1)
+        else if (proto == 1) {
+            if (payload_len >= 4) {
+                uint8_t icmp_type = d[14 + ihl];
+                uint8_t icmp_code = d[14 + ihl + 1];
+                size_t icmp_len = payload_len;
+                if (icmp_type == 0) {
+                    if (payload_len >= 8) {
+                        uint16_t id = (static_cast<uint16_t>(d[14 + ihl + 4]) << 8) | static_cast<uint16_t>(d[14 + ihl + 5]);
+                        uint16_t seq = (static_cast<uint16_t>(d[14 + ihl + 6]) << 8) | static_cast<uint16_t>(d[14 + ihl + 7]);
+                        printf("%s > %s: ICMP echo reply, id %u, seq %u, length %zu\n", src_ip, dst_ip, id, seq, icmp_len);
+                    } else {
+                        printf("%s > %s: ICMP echo reply, length %zu\n", src_ip, dst_ip, icmp_len);
+                    }
+                } else if (icmp_type == 3) {
+                    printf("%s > %s: ICMP destination unreachable, length %zu\n", src_ip, dst_ip, icmp_len);
+                } else if (icmp_type == 8) {
+                    if (payload_len >= 8) {
+                        uint16_t id = (static_cast<uint16_t>(d[14 + ihl + 4]) << 8) | static_cast<uint16_t>(d[14 + ihl + 5]);
+                        uint16_t seq = (static_cast<uint16_t>(d[14 + ihl + 6]) << 8) | static_cast<uint16_t>(d[14 + ihl + 7]);
+                        printf("%s > %s: ICMP echo request, id %u, seq %u, length %zu\n", src_ip, dst_ip, id, seq, icmp_len);
+                    } else {
+                        printf("%s > %s: ICMP echo request, length %zu\n", src_ip, dst_ip, icmp_len);
+                    }
+                } else if (icmp_type == 11) {
+                    printf("%s > %s: ICMP time exceeded, length %zu\n", src_ip, dst_ip, icmp_len);
+                } else {
+                    printf("%s > %s: ICMP type %u code %u, length %zu\n", src_ip, dst_ip, icmp_type, icmp_code, icmp_len);
+                }
+            }
+            // payload_len in (0, 4) is skipped (see record_is_undecodable)
+        }
+        // Generic fallback
         else {
             printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
         }
