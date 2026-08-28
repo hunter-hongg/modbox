@@ -190,7 +190,7 @@ One worker session, 4 waves, strict dependency order; within wave 3, T11 ∥ T12
   - QA happy: `make && bash tests/test_tcpdump.sh` → zero FAIL. QA failure: `./target/modbox tcpdump -r "$TMPDIR/corpus.pcap" -c 2 2>err >/dev/null; grep -c '^2 packets captured, 2 packets received, 0 dropped$' err` → `1`.
   - Commit: `feat(tcpdump): implement live capture loop with signals and summary`
 
-- [ ] 15. TDD: no-args default = any, help final pass, full regression
+- [x] 15. TDD: no-args default = any, help final pass, full regression
   - References: spec #102 (no `-r`/`-i` → "any"); ticket #109 acceptance; ADR-014 parity rule.
   - TDD red: (a) no-args non-root → same EPERM contract as T13(b) (exits immediately with the error — **the test never invokes no-args live capture as root: it would block until traffic arrives, so root → conditional pass/skip**); (b) `--help` now documents `-i`, `-c`, `-w`, `-f` with the final semantics (assert each option name + its description keyword appears: `-i` line contains `interface`, `-c` line contains `count`, `-w` line contains `pcap`, `-f` line contains `filter`); (c) man page option set == `--help` option set (re-run T2 parity check manually); (d) `assert_cmd_pat 'tcpdump' help` still green; (e) full suite green.
   - Green: remove the last `not yet implemented` branch (bare invocation → live on any); finalize help text (usage line, options, FILTER SYNTAX, EXAMPLES incl. one live + one `-r` example); verify man/help parity; run the whole suite.

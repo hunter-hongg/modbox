@@ -537,3 +537,54 @@ if [[ $rc -eq 1 ]] && ! printf '%s\n' "$err" | grep -q 'packets captured'; then
 else
     fail "truncated → rc=$rc err=[$err]"
 fi
+
+# ── T15: help-final + no-args → live (EPERM for non-root) ─────────────────
+echo "  ── help: each option keyword present ──"
+out=$("$MODBOX" tcpdump --help)
+if printf '%s\n' "$out" | grep -q '\-i .*interface'; then
+    pass "help has -i interface"
+else
+    fail "help missing -i interface"
+fi
+if printf '%s\n' "$out" | grep -q '\-c .*count'; then
+    pass "help has -c count"
+else
+    fail "help missing -c count"
+fi
+if printf '%s\n' "$out" | grep -q '\-w .*pcap'; then
+    pass "help has -w pcap"
+else
+    fail "help missing -w pcap"
+fi
+if printf '%s\n' "$out" | grep -q '\-f .*filter'; then
+    pass "help has -f filter"
+else
+    fail "help missing -f filter"
+fi
+
+echo "  ── man page option set matches help ──"
+if command -v pandoc >/dev/null 2>&1; then
+    man_text=$(pandoc -s -t plain docs/man/modbox-tcpdump.1.md)
+    for kw in 'interface' 'count' 'filter' 'pcap'; do
+        if printf '%s\n' "$man_text" "$out" | grep -qi "$kw"; then
+            pass "man+help both contain '$kw'"
+        else
+            fail "man+help mismatch on '$kw'"
+        fi
+    done
+else
+    pass "skipped (no pandoc)"
+fi
+
+echo "  ── no-args non-root → EPERM (live any) ──"
+if [[ $MY_UID -ne 0 ]]; then
+    "$MODBOX" tcpdump >/dev/null 2>"$TMPDIR/iterr"; rc=$?
+    if [[ $rc -eq 1 ]] && grep -q 'cannot open capture socket' "$TMPDIR/iterr" \
+       && grep -q 'CAP_NET_RAW' "$TMPDIR/iterr"; then
+        pass "no-args non-root → EPERM"
+    else
+        fail "no-args non-root → rc=$rc stderr=[$(cat "$TMPDIR/iterr")]"
+    fi
+else
+    pass "skipped (running as root)"
+fi

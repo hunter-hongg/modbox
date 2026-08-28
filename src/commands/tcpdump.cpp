@@ -1197,7 +1197,7 @@ void print_help(const char* prog) {
     printf("Capture and display network packets.\n");
     printf("\n");
     printf("  -r <file>       read packets from <file> (pcap format)\n");
-    printf("  -w <file>       write raw packets to <file>\n");
+    printf("  -w <file>       write packets to <file> (pcap format)\n");
     printf("  -c <count>      exit after receiving <count> packets\n");
     printf("  -i <interface>  listen on <interface>\n");
     printf("  -s <snaplen>    capture <snaplen> bytes of each packet (default 262144)\n");
