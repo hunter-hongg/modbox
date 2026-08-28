@@ -402,3 +402,55 @@ pcap_global "$TMPDIR/ipv6_short.pcap"
 pcap_record "$TMPDIR/ipv6_short.pcap" 47168a67 40e20100 30000000 eb001122334400ab3c2d1e0086dd600000000014064020010db800000000000000000000000220010db8000000000000
 out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ipv6_short.pcap" 2>/dev/null); rc=$?
 if [[ $rc -eq 0 && -z "$out" ]]; then pass "truncated IPv6 → no output"; else fail "truncated IPv6 → rc=$rc out=[$out]"; fi
+
+# ── pcap writer -w ─────────────────────────────────────────────────────────
+echo "  ── -w round trip: decode output byte-identical ──"
+"$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -w "$TMPDIR/rt.pcap" >/dev/null 2>"$TMPDIR/werr"; rc=$?
+if [[ $rc -ne 0 ]]; then
+    fail "-w round trip → rc=$rc stderr=[$(cat "$TMPDIR/werr")]"
+else
+    "$MODBOX" tcpdump -tt -r "$TMPDIR/rt.pcap" > "$TMPDIR/rt.txt" 2>/dev/null
+    "$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" > "$TMPDIR/corpus.txt" 2>/dev/null
+    if diff -q "$TMPDIR/rt.txt" "$TMPDIR/corpus.txt" > /dev/null; then
+        pass "-w round trip → decode output identical"
+    else
+        fail "-w round trip → decode output differs"
+    fi
+fi
+
+echo "  ── -w output magic is LE a1b2c3d4 ──"
+magic=$(xxd -p -l 4 "$TMPDIR/rt.pcap" 2>/dev/null)
+if [[ "$magic" == "a1b2c3d4" ]]; then pass "-w magic → a1b2c3d4"; else fail "-w magic → $magic"; fi
+
+echo "  ── -w file size = 24 + 5*(16+incl) (garbage excluded) ──"
+size=$(stat -c%s "$TMPDIR/rt.pcap" 2>/dev/null)
+# incl: ARP 42, TCP 54, UDP 84, ICMP 46, IPv6/UDP 74 → 24 + 5*16 + 300 = 404
+if [[ "$size" -eq 404 ]]; then pass "-w size → 404"; else fail "-w size → $size (expected 404)"; fi
+
+echo "  ── -r and -w same path → exit 2 ──"
+"$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -w "$TMPDIR/corpus.pcap" >/dev/null 2>"$TMPDIR/werr"; rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'same file' "$TMPDIR/werr"; then
+    pass "-r and -w same file → exit 2"
+else
+    fail "-r and -w same file → rc=$rc stderr=[$(cat "$TMPDIR/werr")]"
+fi
+
+echo "  ── -w to nonexistent dir → exit 1 ──"
+"$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -w "/nonexistent_dir/x.pcap" >/dev/null 2>"$TMPDIR/werr"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'cannot create' "$TMPDIR/werr"; then
+    pass "-w nonexistent dir → exit 1"
+else
+    fail "-w nonexistent dir → rc=$rc stderr=[$(cat "$TMPDIR/werr")]"
+fi
+
+echo "  ── -w with filter: only kept packets written ──"
+"$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -w "$TMPDIR/udp.pcap" -f 'udp' >/dev/null 2>/dev/null
+"$MODBOX" tcpdump -tt -r "$TMPDIR/udp.pcap" > "$TMPDIR/udp.txt" 2>/dev/null
+udp_lines=$(grep -c 'UDP, length' "$TMPDIR/udp.txt")
+if [[ $udp_lines -eq 2 ]]; then pass "-w + filter → 2 UDP records"; else fail "-w + filter → $udp_lines lines"; fi
+
+echo "  ── -r stdin -w file ──"
+"$MODBOX" tcpdump -r - -w "$TMPDIR/stdin.pcap" < "$TMPDIR/corpus.pcap" >/dev/null 2>/dev/null; rc=$?
+"$MODBOX" tcpdump -tt -r "$TMPDIR/stdin.pcap" > "$TMPDIR/stdin.txt" 2>/dev/null
+stdin_lines=$(grep -c . "$TMPDIR/stdin.txt")
+if [[ $rc -eq 0 && $stdin_lines -eq 5 ]]; then pass "-r - -w file → 5 lines"; else fail "-r - -w file → rc=$rc lines=$stdin_lines"; fi
