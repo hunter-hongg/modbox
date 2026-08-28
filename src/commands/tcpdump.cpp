@@ -150,8 +150,26 @@ struct TcpdumpOptions {
     bool epoch_ts = false;
 };
 
+// Returns true when the record produces no output line (silently skipped).
+static bool record_is_undecodable(const uint8_t* d, size_t len) {
+    if (len < 14) return true;
+    uint16_t ethertype = (static_cast<uint16_t>(d[12]) << 8) | static_cast<uint16_t>(d[13]);
+    if (ethertype == 0x0806) return len < 14 + 28;
+    if (ethertype == 0x0800) {
+        if (len < 14 + 20) return true;
+        uint8_t ihl = (d[14] & 0x0F) * 4;
+        if (len < 14 + ihl) return true;
+        uint8_t proto = d[14 + 9];
+        size_t payload = len - 14 - ihl;
+        if (proto == 6) return payload > 0 && payload < 20;
+        return false;
+    }
+    if (ethertype == 0x86DD) return len < 14 + 40;
+    return false;
+}
+
 static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_t ts_usec, const TcpdumpOptions* opts) {
-    if (len < 14) {
+    if (record_is_undecodable(d, len)) {
         return;
     }
     if (opts->epoch_ts) {
@@ -175,7 +193,10 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
 
     uint16_t ethertype = (static_cast<uint16_t>(d[12]) << 8) | static_cast<uint16_t>(d[13]);
 
-    if (ethertype == 0x0806 && len >= 14 + 28) {
+    if (ethertype == 0x0806) {
+        if (len < 14 + 28) {
+            return;
+        }
         uint16_t op = (static_cast<uint16_t>(d[14 + 6]) << 8) | static_cast<uint16_t>(d[14 + 7]);
         struct in_addr spa_addr, tpa_addr;
         memcpy(&spa_addr.s_addr, d + 14 + 14, 4);
@@ -194,10 +215,16 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
         } else {
             printf("ARP, Unknown op %u, length %zu\n", op, len);
         }
-    } else if (ethertype == 0x0800 && len >= 14 + 20) {
+    } else if (ethertype == 0x0800) {
+        if (len < 14 + 20) {
+            return;
+        }
         uint8_t ver_ihl = d[14];
         uint8_t ihl = (ver_ihl & 0x0F) * 4;
         if (len < 14 + ihl) {
+            return;
+        }
+        if ((ver_ihl >> 4) != 4) {
             printf("EtherType 0x%04x, length %zu\n", ethertype, len);
             return;
         }
@@ -209,9 +236,98 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
         char dst_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &src_addr, src_ip, sizeof(src_ip));
         inet_ntop(AF_INET, &dst_addr, dst_ip, sizeof(dst_ip));
-        size_t payload_len = (len > 14 + ihl) ? len - 14 - ihl : 0;
-        printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
-    } else if (ethertype == 0x86DD && len >= 14 + 40) {
+        size_t payload_len = len - 14 - ihl;
+        // TCP (proto 6)
+        if (proto == 6) {
+            if (payload_len >= 20) {
+                size_t t = 14 + ihl;
+                uint16_t sport = (static_cast<uint16_t>(d[t]) << 8) | static_cast<uint16_t>(d[t + 1]);
+                uint16_t dport = (static_cast<uint16_t>(d[t + 2]) << 8) | static_cast<uint16_t>(d[t + 3]);
+                uint32_t seq = (static_cast<uint32_t>(d[t + 4]) << 24) | (static_cast<uint16_t>(d[t + 5]) << 16) |
+                               (static_cast<uint16_t>(d[t + 6]) << 8) | static_cast<uint16_t>(d[t + 7]);
+                uint32_t ack_no = (static_cast<uint32_t>(d[t + 8]) << 24) | (static_cast<uint16_t>(d[t + 9]) << 16) |
+                                  (static_cast<uint16_t>(d[t + 10]) << 8) | static_cast<uint16_t>(d[t + 11]);
+                uint8_t data_offset = d[t + 12] >> 4;
+                uint8_t flags = d[t + 13];
+                uint16_t window = (static_cast<uint16_t>(d[t + 14]) << 8) | static_cast<uint16_t>(d[t + 15]);
+                size_t tcp_hdr_len = static_cast<size_t>(data_offset) * 4;
+                if (tcp_hdr_len < 20) tcp_hdr_len = 20;
+                size_t tcp_payload = (payload_len > tcp_hdr_len) ? payload_len - tcp_hdr_len : 0;
+
+                char flag_buf[16] = "";
+                int pos = 0;
+                if (flags & 0x01) flag_buf[pos++] = 'F';
+                if (flags & 0x02) flag_buf[pos++] = 'S';
+                if (flags & 0x04) flag_buf[pos++] = 'R';
+                if (flags & 0x08) flag_buf[pos++] = 'P';
+                if (flags & 0x10) flag_buf[pos++] = '.';
+                if (flags & 0x20) flag_buf[pos++] = 'U';
+                flag_buf[pos] = '\0';
+
+                printf("%s.%u > %s.%u: Flags [%s], seq %u", src_ip, sport, dst_ip, dport, flag_buf, seq);
+                if ((flags & 0x10) != 0 || opts->verbose) printf(", ack %u", ack_no);
+                printf(", win %u, length %zu", window, tcp_payload);
+
+                if (opts->verbose) {
+                    if (tcp_hdr_len > 20) {
+                        std::string opt_desc;
+                        size_t o = t + 20;
+                        size_t opt_end = t + tcp_hdr_len;
+                        while (o < opt_end) {
+                            uint8_t kind = d[o];
+                            if (kind == 0) break;
+                            if (kind == 1) {
+                                if (!opt_desc.empty()) opt_desc += ", ";
+                                opt_desc += "nop";
+                                o += 1;
+                                continue;
+                            }
+                            if (o + 1 >= opt_end) break;
+                            uint8_t olen = d[o + 1];
+                            if (olen < 2 || o + static_cast<size_t>(olen) > opt_end) break;
+                            if (kind == 2 && olen == 4) {
+                                if (!opt_desc.empty()) opt_desc += ", ";
+                                opt_desc += "mss " + std::to_string((static_cast<uint16_t>(d[o + 2]) << 8) | d[o + 3]);
+                            } else if (kind == 3 && olen == 3) {
+                                if (!opt_desc.empty()) opt_desc += ", ";
+                                opt_desc += "wscale " + std::to_string(static_cast<int>(d[o + 2]));
+                            } else if (kind == 4 && olen == 2) {
+                                if (!opt_desc.empty()) opt_desc += ", ";
+                                opt_desc += "sackOK";
+                            } else if (kind == 8 && olen == 10) {
+                                if (!opt_desc.empty()) opt_desc += ", ";
+                                uint32_t ts_val = (static_cast<uint32_t>(d[o + 2]) << 24) | (static_cast<uint16_t>(d[o + 3]) << 16) |
+                                                  (static_cast<uint16_t>(d[o + 4]) << 8) | static_cast<uint16_t>(d[o + 5]);
+                                uint32_t ts_ecr = (static_cast<uint32_t>(d[o + 6]) << 24) | (static_cast<uint16_t>(d[o + 7]) << 16) |
+                                                  (static_cast<uint16_t>(d[o + 8]) << 8) | static_cast<uint16_t>(d[o + 9]);
+                                opt_desc += "TS val " + std::to_string(ts_val) + " ecr " + std::to_string(ts_ecr);
+                            }
+                            o += olen;
+                        }
+                        if (!opt_desc.empty()) printf(", options [%s]", opt_desc.c_str());
+                    }
+                    uint8_t ttl = d[14 + 8];
+                    uint16_t id_val = (static_cast<uint16_t>(d[14 + 4]) << 8) | static_cast<uint16_t>(d[14 + 5]);
+                    uint16_t flags_ip = (static_cast<uint16_t>(d[14 + 6]) << 8) | static_cast<uint16_t>(d[14 + 7]);
+                    printf(", ttl %u, id %u", ttl, id_val);
+                    if (flags_ip & 0x4000) printf(", DF");
+                    if (flags_ip & 0x2000) printf(", MF");
+                }
+                printf("\n");
+            } else if (payload_len > 0) {
+                return;
+            } else {
+                printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
+            }
+        }
+        // UDP (proto 17) / ICMP (proto 1) / others: generic fallback
+        else {
+            printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
+        }
+    } else if (ethertype == 0x86DD) {
+        if (len < 14 + 40) {
+            return;
+        }
         uint8_t ver = d[14] >> 4;
         if (ver != 6) {
             printf("EtherType 0x%04x, length %zu\n", ethertype, len);
@@ -254,7 +370,7 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
             if (flags & 0x02) flag_buf[pos++] = 'S';
             if (flags & 0x04) flag_buf[pos++] = 'R';
             if (flags & 0x08) flag_buf[pos++] = 'P';
-            if (flags & 0x10) flag_buf[pos++] = 'A';
+            if (flags & 0x10) flag_buf[pos++] = '.';
             if (flags & 0x20) flag_buf[pos++] = 'U';
             flag_buf[pos] = '\0';
             printf("%s.%u > %s.%u: Flags [%s], seq %u, win %u, length %zu", src_str, sport, dst_str, dport, flag_buf, seq, window, tcp_payload);

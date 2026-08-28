@@ -108,6 +108,40 @@ pcap_global "$TMPDIR/ipv4.pcap"
 pcap_record "$TMPDIR/ipv4.pcap" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff08004500140000000000402f0000c0a80102c0a801010000000000000000000000000000000000000000
 assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: IP, proto 47, length 20' tcpdump -tt -r "$TMPDIR/ipv4.pcap"
 
+echo "  ── IPv4/TCP SYN decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_tcp_syn.pcap"
+pcap_record "$TMPDIR/ipv4_tcp_syn.pcap" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff08004500002810e1400040060000c0a80102c0a80101c82201bb0001e240000000005002faf000000000
+assert_cmd '1737102919.123456 192.168.1.2.51234 > 192.168.1.1.443: Flags [S], seq 123456, win 64240, length 0' tcpdump -tt -r "$TMPDIR/ipv4_tcp_syn.pcap"
+
+echo "  ── IPv4/TCP PSH+ACK decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_tcp_psh.pcap"
+pcap_record "$TMPDIR/ipv4_tcp_psh.pcap" 47168a67 40e20100 3a000000 ffffffffffffaabbccddeeff08004500002c10e1400040060000c0a80102c0a80101c82201bb0001e2400001e2415018faf00000000061626364
+assert_cmd '1737102919.123456 192.168.1.2.51234 > 192.168.1.1.443: Flags [P.], seq 123456, ack 123457, win 64240, length 4' tcpdump -tt -r "$TMPDIR/ipv4_tcp_psh.pcap"
+
+echo "  ── IPv4/TCP FIN decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_tcp_fin.pcap"
+pcap_record "$TMPDIR/ipv4_tcp_fin.pcap" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff08004500002810e1400040060000c0a80102c0a80101c82201bb0001e2400001e2415011faf000000000
+assert_cmd '1737102919.123456 192.168.1.2.51234 > 192.168.1.1.443: Flags [F.], seq 123456, ack 123457, win 64240, length 0' tcpdump -tt -r "$TMPDIR/ipv4_tcp_fin.pcap"
+
+echo "  ── IPv4/TCP bare ACK decode (-tt) ──"
+pcap_global "$TMPDIR/ipv4_tcp_ack.pcap"
+pcap_record "$TMPDIR/ipv4_tcp_ack.pcap" 47168a67 40e20100 36000000 ffffffffffffaabbccddeeff08004500002810e1400040060000c0a80102c0a80101c82201bb0001e2400001e2415010faf000000000
+assert_cmd '1737102919.123456 192.168.1.2.51234 > 192.168.1.1.443: Flags [.], seq 123456, ack 123457, win 64240, length 0' tcpdump -tt -r "$TMPDIR/ipv4_tcp_ack.pcap"
+
+echo "  ── IPv4/TCP -v shows ack, ttl, id, DF ──"
+assert_cmd_pat '1737102919.123456 192.168.1.2.51234 > 192.168.1.1.443: Flags \[S\], seq 123456, ack 0, win 64240, length 0, ttl 64, id 4321, DF' tcpdump -v -tt -r "$TMPDIR/ipv4_tcp_syn.pcap"
+
+echo "  ── IPv4/TCP -v decodes options ──"
+pcap_global "$TMPDIR/ipv4_tcp_opts.pcap"
+pcap_record "$TMPDIR/ipv4_tcp_opts.pcap" 47168a67 40e20100 4a000000 ffffffffffffaabbccddeeff08004500003c10e1400040060000c0a80102c0a80101c82201bb0001e24000000000a002faf000000000020405b40402080a000000640000003201030307
+assert_cmd '1737102919.123456 192.168.1.2.51234 > 192.168.1.1.443: Flags [S], seq 123456, ack 0, win 64240, length 0, options [mss 1460, sackOK, TS val 100 ecr 50, nop, wscale 7], ttl 64, id 4321, DF' tcpdump -v -tt -r "$TMPDIR/ipv4_tcp_opts.pcap"
+
+echo "  ── short TCP record skipped silently ──"
+pcap_global "$TMPDIR/ipv4_tcp_short.pcap"
+pcap_record "$TMPDIR/ipv4_tcp_short.pcap" 47168a67 40e20100 28000000 ffffffffffffaabbccddeeff08004500002810e1400040060000c0a80102c0a80101c82201bb0001
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ipv4_tcp_short.pcap" 2>/dev/null); rc=$?
+if [[ $rc -eq 0 && -z "$out" ]]; then pass "short TCP → no output"; else fail "short TCP → rc=$rc out=[$out]"; fi
+
 echo "  ── unknown EtherType ──"
 pcap_global "$TMPDIR/unknown.pcap"
 pcap_record "$TMPDIR/unknown.pcap" 47168a67 40e20100 0e000000 ffffffffffffaabbccddeeff9999
@@ -149,6 +183,6 @@ assert_cmd '1737102919.123456 2001:db8::2 > 2001:db8::1: IP6, next 43, length 0'
 
 echo "  ── truncated IPv6 record skipped silently ──"
 pcap_global "$TMPDIR/ipv6_short.pcap"
-pcap_record "$TMPDIR/ipv6_short.pcap" 47168a67 40e20100 30000000 fffffffffffaabbccddeeff86dd600000000014064020010db800000000000000000000000220010db80000000000000
+pcap_record "$TMPDIR/ipv6_short.pcap" 47168a67 40e20100 30000000 eb001122334400ab3c2d1e0086dd600000000014064020010db800000000000000000000000220010db8000000000000
 out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ipv6_short.pcap" 2>/dev/null); rc=$?
 if [[ $rc -eq 0 && -z "$out" ]]; then pass "truncated IPv6 → no output"; else fail "truncated IPv6 → rc=$rc out=[$out]"; fi
