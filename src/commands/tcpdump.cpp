@@ -646,7 +646,28 @@ static bool record_is_undecodable(const uint8_t* d, size_t len) {
     return false;
 }
 
-static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_t ts_usec, const TcpdumpOptions* opts) {
+static void print_hex_dump(const uint8_t* d, size_t len) {
+    for (size_t off = 0; off < len; off += 16) {
+        size_t rowlen = (len - off < 16) ? (len - off) : 16;
+        printf("%04zx  ", off);
+        for (size_t i = 0; i < rowlen; ++i) {
+            if (i > 0) printf(" ");
+            printf("%02x", d[off + i]);
+        }
+        printf("\n");
+    }
+    for (size_t off = 0; off < len; off += 16) {
+        size_t rowlen = (len - off < 16) ? (len - off) : 16;
+        printf("     |");
+        for (size_t i = 0; i < rowlen; ++i) {
+            uint8_t c = d[off + i];
+            printf("%c", (c >= 0x20 && c < 0x7f) ? static_cast<char>(c) : '.');
+        }
+        printf("|\n");
+    }
+}
+
+static void decode_packet_line(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_t ts_usec, const TcpdumpOptions* opts) {
     if (record_is_undecodable(d, len)) {
         return;
     }
@@ -683,7 +704,9 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
         char tpa_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &spa_addr, spa_str, sizeof(spa_str));
         inet_ntop(AF_INET, &tpa_addr, tpa_str, sizeof(tpa_str));
-        if (op == 1) {
+        if (opts->brief) {
+            printf("ARP, length %zu\n", len);
+        } else if (op == 1) {
             printf("ARP, Request, who has %s tell %s, length %zu\n", tpa_str, spa_str, len);
         } else if (op == 2) {
             char sha_mac[18];
@@ -732,6 +755,10 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
                 if (tcp_hdr_len < 20) tcp_hdr_len = 20;
                 size_t tcp_payload = (payload_len > tcp_hdr_len) ? payload_len - tcp_hdr_len : 0;
 
+                if (opts->brief) {
+                    printf("%s > %s: TCP, length %zu\n", src_ip, dst_ip, tcp_payload);
+                    return;
+                }
                 char flag_buf[16] = "";
                 int pos = 0;
                 if (flags & 0x01) flag_buf[pos++] = 'F';
@@ -795,7 +822,11 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
             } else if (payload_len > 0) {
                 return;
             } else {
-                printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
+                if (opts->brief) {
+                    printf("%s > %s: IP, length %zu\n", src_ip, dst_ip, payload_len);
+                } else {
+                    printf("%s > %s: IP, proto %u, length %zu\n", src_ip, dst_ip, proto, payload_len);
+                }
             }
         }
         // UDP (proto 17)
@@ -810,7 +841,11 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
                     udp_payload = static_cast<size_t>(udp_len) - 8;
                     if (udp_payload > payload_len - 8) udp_payload = payload_len - 8;
                 }
-                printf("%s.%u > %s.%u: UDP, length %zu\n", src_ip, sport, dst_ip, dport, udp_payload);
+                if (opts->brief) {
+                    printf("%s > %s: UDP, length %zu\n", src_ip, dst_ip, udp_payload);
+                } else {
+                    printf("%s.%u > %s.%u: UDP, length %zu\n", src_ip, sport, dst_ip, dport, udp_payload);
+                }
             }
             // payload_len in (0, 8) is skipped (see record_is_undecodable)
         }
@@ -820,7 +855,9 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
                 uint8_t icmp_type = d[14 + ihl];
                 uint8_t icmp_code = d[14 + ihl + 1];
                 size_t icmp_len = payload_len;
-                if (icmp_type == 0) {
+                if (opts->brief) {
+                    printf("%s > %s: ICMP, length %zu\n", src_ip, dst_ip, icmp_len);
+                } else if (icmp_type == 0) {
                     if (payload_len >= 8) {
                         uint16_t id = (static_cast<uint16_t>(d[14 + ihl + 4]) << 8) | static_cast<uint16_t>(d[14 + ihl + 5]);
                         uint16_t seq = (static_cast<uint16_t>(d[14 + ihl + 6]) << 8) | static_cast<uint16_t>(d[14 + ihl + 7]);
@@ -874,8 +911,12 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
         if (next == 6) { // TCP
             size_t tcp_off = 14 + 40;
             if (len < tcp_off + 20) {
-                printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
-                if (opts->verbose) printf(", hop limit %u", hop);
+                if (opts->brief) {
+                    printf("%s > %s: IP6, length %zu\n", src_str, dst_str, rest_len);
+                } else {
+                    printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                    if (opts->verbose) printf(", hop limit %u", hop);
+                }
                 printf("\n");
                 return;
             }
@@ -890,6 +931,10 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
             if (tcp_hdr_len < 20) tcp_hdr_len = 20;
             size_t tcp_payload = 0;
             if (len > tcp_off + tcp_hdr_len) tcp_payload = len - tcp_off - tcp_hdr_len;
+            if (opts->brief) {
+                printf("%s > %s: TCP, length %zu\n", src_str, dst_str, tcp_payload);
+                return;
+            }
             char flag_buf[16] = "";
             int pos = 0;
             if (flags & 0x01) flag_buf[pos++] = 'F';
@@ -905,8 +950,12 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
         } else if (next == 17) { // UDP
             size_t udp_off = 14 + 40;
             if (len < udp_off + 8) {
-                printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
-                if (opts->verbose) printf(", hop limit %u", hop);
+                if (opts->brief) {
+                    printf("%s > %s: IP6, length %zu\n", src_str, dst_str, rest_len);
+                } else {
+                    printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                    if (opts->verbose) printf(", hop limit %u", hop);
+                }
                 printf("\n");
                 return;
             }
@@ -919,20 +968,32 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
                 size_t available = (len > udp_off + 8) ? len - udp_off - 8 : 0;
                 if (udp_payload > available) udp_payload = available;
             }
-            printf("%s.%u > %s.%u: UDP, length %zu", src_str, sport, dst_str, dport, udp_payload);
+            if (opts->brief) {
+                printf("%s > %s: UDP, length %zu", src_str, dst_str, udp_payload);
+            } else {
+                printf("%s.%u > %s.%u: UDP, length %zu", src_str, sport, dst_str, dport, udp_payload);
+            }
             if (opts->verbose) printf(", hop limit %u", hop);
             printf("\n");
         } else if (next == 58) { // ICMPv6
             size_t icmp_off = 14 + 40;
             if (len < icmp_off + 4) {
-                printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
-                if (opts->verbose) printf(", hop limit %u", hop);
+                if (opts->brief) {
+                    printf("%s > %s: IP6, length %zu\n", src_str, dst_str, rest_len);
+                } else {
+                    printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
+                    if (opts->verbose) printf(", hop limit %u", hop);
+                }
                 printf("\n");
                 return;
             }
             uint8_t type = d[icmp_off];
             uint8_t code = d[icmp_off + 1];
             size_t icmp_len = rest_len;
+            if (opts->brief) {
+                printf("%s > %s: ICMP6, length %zu\n", src_str, dst_str, icmp_len);
+                return;
+            }
             if (type == 128) {
                 if (len < icmp_off + 8) {
                     printf("%s > %s: IP6, next %u, length %zu\n", src_str, dst_str, next, rest_len);
@@ -963,12 +1024,26 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
             if (opts->verbose) printf(", hop limit %u", hop);
             printf("\n");
         } else {
-            printf("%s > %s: IP6, next %u, length %zu", src_str, dst_str, next, rest_len);
-            if (opts->verbose) printf(", hop limit %u", hop);
+            if (opts->brief) {
+                printf("%s > %s: IP6, length %zu", src_str, dst_str, rest_len);
+            } else {
+                printf("%s > %s: IP6, next %u, length %zu", src_str, dst_str, next, rest_len);
+                if (opts->verbose) printf(", hop limit %u", hop);
+            }
             printf("\n");
         }
     } else {
         printf("EtherType 0x%04x, length %zu\n", ethertype, len);
+    }
+}
+
+static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_t ts_usec, const TcpdumpOptions* opts) {
+    if (record_is_undecodable(d, len)) {
+        return;
+    }
+    decode_packet_line(d, len, ts_sec, ts_usec, opts);
+    if (opts->hex_dump) {
+        print_hex_dump(d, len);
     }
 }
 
@@ -1012,8 +1087,11 @@ int tcpdump_command(int argc, char** argv) {
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "-tt") == 0) {
-            static char buf[] = "--tt\0";
-            argv[i] = buf;
+            static char tt_buf[] = "--tt\0";
+            argv[i] = tt_buf;
+        } else if (std::strcmp(argv[i], "-nn") == 0) {
+            static char nn_buf[] = "--nn\0";
+            argv[i] = nn_buf;
         }
     }
 
@@ -1093,10 +1171,13 @@ int tcpdump_command(int argc, char** argv) {
         PacketCtx pctx;
         int kept = 0;
         while (read_record(reader, ts_sec, ts_usec, bytes)) {
-            if (record_is_undecodable(bytes.data(), bytes.size())) continue;
-            pctx = build_context(bytes.data(), bytes.size());
+            size_t dlen = bytes.size();
+            if (opts.snaplen > 0 && dlen > static_cast<size_t>(opts.snaplen))
+                dlen = static_cast<size_t>(opts.snaplen);
+            if (record_is_undecodable(bytes.data(), dlen)) continue;
+            pctx = build_context(bytes.data(), dlen);
             if (!filter.empty() && !evaluate_filter(filter, pctx)) continue;
-            decode_packet(bytes.data(), bytes.size(), ts_sec, ts_usec, &opts);
+            decode_packet(bytes.data(), dlen, ts_sec, ts_usec, &opts);
             ++kept;
             if (opts.count > 0 && kept >= opts.count) break;
         }

@@ -322,6 +322,42 @@ out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'not arp' 2>/dev/null)
 lines=$(printf '%s\n' "$out" | grep -c .)
 if [[ $lines -eq 4 ]]; then pass "garbage never printed under filter → 4 lines"; else fail "→ $lines lines"; fi
 
+# ── display options: -q -e -x -s -tt -n/-nn ───────────────────────────────
+echo "  ── -q brief output ──"
+assert_cmd_pat '192\.168\.1\.2 > 192\.168\.1\.1: TCP, length 0' tcpdump -q -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '192\.168\.1\.3 > 192\.168\.1\.1: UDP, length 42' tcpdump -q -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '192\.168\.1\.4 > 192\.168\.1\.1: ICMP, length 12' tcpdump -q -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat 'ARP, length 42' tcpdump -q -tt -r "$TMPDIR/corpus.pcap"
+assert_cmd_pat '2001:db8::2 > 2001:db8::1: UDP, length 12' tcpdump -q -tt -r "$TMPDIR/corpus.pcap"
+
+echo "  ── -e MAC prefix on IPv6 line ──"
+assert_cmd_pat 'aa:bb:cc:dd:ee:ff > ff:ff:ff:ff:ff:ff, 2001:db8::2\.33434 > 2001:db8::1\.53: UDP, length 12' tcpdump -e -tt -r "$TMPDIR/corpus.pcap"
+
+echo "  ── -x hex dump format ──"
+out=$("$MODBOX" tcpdump -tt -x -r "$TMPDIR/ipv4_tcp_syn.pcap" 2>/dev/null)
+if printf '%s\n' "$out" | grep -qE '^0000  ff ff ff ff ff ff aa bb cc dd ee ff 08 00 45 00$'; then
+    pass "-x first line format"
+else
+    fail "-x first line format: $(printf '%s' "$out" | head -2)"
+fi
+hexlines=$(printf '%s\n' "$out" | grep -cE '^00[0-9a-f]{2}  ')
+if [[ $hexlines -eq 4 ]]; then pass "-x → 4 hex lines for 54 bytes"; else fail "-x → $hexlines hex lines"; fi
+nb=$(printf '%s\n' "$out" | grep -E '^00[0-9a-f]{2}  ' | sed 's/^[0-9a-f]\{4\}  //' | grep -oE '[0-9a-f]{2}' | wc -l)
+if [[ $nb -eq 54 ]]; then pass "-x dumps 54 bytes"; else fail "-x dumps $nb bytes"; fi
+
+echo "  ── -s 34 truncates transport header → generic IPv4 line ──"
+assert_cmd '1737102919.123456 192.168.1.2 > 192.168.1.1: IP, proto 6, length 0' tcpdump -tt -s 34 -r "$TMPDIR/ipv4_tcp_syn.pcap"
+
+echo "  ── -s 5 → no output, exit 0 ──"
+out=$("$MODBOX" tcpdump -tt -s 5 -r "$TMPDIR/ipv4_tcp_syn.pcap" 2>/dev/null); rc=$?
+if [[ $rc -eq 0 && -z "$out" ]]; then pass "-s 5 → no output"; else fail "-s 5 → rc=$rc out=[$out]"; fi
+
+echo "  ── -n and -nn output identical to default ──"
+a=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null)
+b=$("$MODBOX" tcpdump -n -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null)
+c=$("$MODBOX" tcpdump -nn -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null)
+if [[ "$a" == "$b" && "$a" == "$c" ]]; then pass "-n/-nn → identical output"; else fail "-n/-nn → output differs"; fi
+
 echo "  ── unknown EtherType ──"
 pcap_global "$TMPDIR/unknown.pcap"
 pcap_record "$TMPDIR/unknown.pcap" 47168a67 40e20100 0e000000 ffffffffffffaabbccddeeff9999
