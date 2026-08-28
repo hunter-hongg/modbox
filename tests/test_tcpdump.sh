@@ -149,6 +149,6 @@ assert_cmd '1737102919.123456 2001:db8::2 > 2001:db8::1: IP6, next 43, length 0'
 
 echo "  ── truncated IPv6 record skipped silently ──"
 pcap_global "$TMPDIR/ipv6_short.pcap"
-pcap_record "$TMPDIR/ipv6_short.pcap" 47168a67 40e20100 30000000 fffffffffffaabbccddeeff86dd000000000000000000000000000000000000000000000000000000000000000000000
+pcap_record "$TMPDIR/ipv6_short.pcap" 47168a67 40e20100 30000000 fffffffffffaabbccddeeff86dd600000000014064020010db800000000000000000000000220010db80000000000000
 out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ipv6_short.pcap" 2>/dev/null); rc=$?
 if [[ $rc -eq 0 && -z "$out" ]]; then pass "truncated IPv6 → no output"; else fail "truncated IPv6 → rc=$rc out=[$out]"; fi
