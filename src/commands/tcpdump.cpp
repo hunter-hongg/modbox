@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <linux/if_packet.h>
@@ -23,6 +24,25 @@
 #include "commands/version_util.hpp"
 
 namespace {
+
+volatile sig_atomic_t g_stop = 0;
+
+void on_stop(int) { g_stop = 1; }
+
+void install_signal_handlers() {
+    struct sigaction sa {};
+    sa.sa_handler = on_stop;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+}
+
+// Summary goes to stderr so stdout stays packet-lines-only (matches real tcpdump).
+void print_summary(int captured, int received, int dropped) {
+    fprintf(stderr, "%d packets captured, %d packets received, %d dropped\n",
+            captured, received, dropped);
+}
 
 constexpr size_t kGlobalHeaderSize = 24;
 constexpr size_t kRecordHeaderSize = 16;
@@ -1157,6 +1177,21 @@ static void decode_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_
     }
 }
 
+// Shared -r / live pipeline: decode → filter → print → write.
+// Returns true when the packet is kept (undecodable and filter-rejected packets are dropped).
+static bool process_packet(const uint8_t* d, size_t len, uint32_t ts_sec, uint32_t ts_usec,
+                           const TcpdumpOptions* opts, const Filter& filter, PcapWriter& writer) {
+    (void)&writer;  // suppress unused-param warning when writer is ignored
+    if (record_is_undecodable(d, len)) return false;
+    if (!filter.empty()) {
+        PacketCtx ctx = build_context(d, len);
+        if (!evaluate_filter(filter, ctx)) return false;
+    }
+    decode_packet(d, len, ts_sec, ts_usec, opts);
+    if (writer.f) write_record(writer, d, len, ts_sec, ts_usec);
+    return true;
+}
+
 void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [EXPR]\n", prog);
     printf("Capture and display network packets.\n");
@@ -1295,7 +1330,6 @@ int tcpdump_command(int argc, char** argv) {
 
         uint32_t ts_sec = 0, ts_usec = 0;
         std::vector<uint8_t> bytes;
-        PacketCtx pctx;
         int kept = 0;
         int received = 0;
         while (read_record(reader, ts_sec, ts_usec, bytes)) {
@@ -1303,13 +1337,9 @@ int tcpdump_command(int argc, char** argv) {
             size_t dlen = bytes.size();
             if (opts.snaplen > 0 && dlen > static_cast<size_t>(opts.snaplen))
                 dlen = static_cast<size_t>(opts.snaplen);
-            if (record_is_undecodable(bytes.data(), dlen)) continue;
-            pctx = build_context(bytes.data(), dlen);
-            if (!filter.empty() && !evaluate_filter(filter, pctx)) continue;
-            decode_packet(bytes.data(), dlen, ts_sec, ts_usec, &opts);
-            if (!writer.f || write_record(writer, bytes.data(), dlen, ts_sec, ts_usec)) {
-                ++kept;
-            }
+            if (!process_packet(bytes.data(), dlen, ts_sec, ts_usec, &opts, filter, writer))
+                continue;
+            ++kept;
             if (opts.count > 0 && kept >= opts.count) break;
         }
         if (reader.truncated) {
@@ -1329,10 +1359,11 @@ int tcpdump_command(int argc, char** argv) {
             }
             close_pcap_writer(writer);
         }
+        print_summary(kept, received, 0);
         return 0;
     }
 
-    // Live capture path (recv loop lands in T14).
+    // Live capture path.
     std::string lerr;
     int fd = open_capture_socket(&opts, &lerr);
     if (fd < 0) {
@@ -1340,8 +1371,32 @@ int tcpdump_command(int argc, char** argv) {
         fprintf(stderr, "%s\n", lerr.c_str());
         return 1;
     }
+    install_signal_handlers();
+    size_t bufsz = static_cast<size_t>(opts.snaplen) > 64 ? static_cast<size_t>(opts.snaplen) : 64;
+    std::vector<uint8_t> buf(bufsz);
+    int kept = 0;
+    int received = 0;
+    while (!g_stop) {
+        ssize_t n = recvfrom(fd, buf.data(), buf.size(), 0, nullptr, nullptr);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            if (writer.f) close_pcap_writer(writer);
+            std::string err = "tcpdump: recvfrom: " + std::string(std::strerror(errno));
+            close(fd);
+            fprintf(stderr, "%s\n", err.c_str());
+            return 1;
+        }
+        ++received;
+        uint32_t ts_sec = 0, ts_usec = 0;  // live: not available from recvfrom
+        if (!process_packet(buf.data(), static_cast<size_t>(n), ts_sec, ts_usec,
+                            &opts, filter, writer))
+            continue;
+        ++kept;
+        if (opts.count > 0 && kept >= opts.count) break;
+    }
     close(fd);
     if (writer.f) close_pcap_writer(writer);
+    print_summary(kept, received, 0);
     return 0;
 }
 

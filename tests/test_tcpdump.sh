@@ -483,3 +483,57 @@ if [[ $MY_UID -ne 0 ]]; then
 else
     pass "skipped (running as root)"
 fi
+
+# ── summary line (T14) ─────────────────────────────────────────────────────
+echo "  ── summary: no filter → 5 captured, 6 received ──"
+err=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" 2>&1 >/dev/null)
+if printf '%s\n' "$err" | grep -cE '^5 packets captured, 6 packets received, 0 dropped$' | grep -q '^1$'; then
+    pass "summary → 5/6/0"
+else
+    fail "summary → [$err]"
+fi
+
+echo "  ── summary: -c 2 → 2/2/0 ──"
+err=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -c 2 2>&1 >/dev/null)
+if printf '%s\n' "$err" | grep -cE '^2 packets captured, 2 packets received, 0 dropped$' | grep -q '^1$'; then
+    pass "summary -c 2 → 2/2/0"
+else
+    fail "summary -c 2 → [$err]"
+fi
+
+echo "  ── summary: -f 'udp' → 2/6/0 ──"
+err=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -f 'udp' 2>&1 >/dev/null)
+if printf '%s\n' "$err" | grep -cE '^2 packets captured, 6 packets received, 0 dropped$' | grep -q '^1$'; then
+    pass "summary -f udp → 2/6/0"
+else
+    fail "summary -f udp → [$err]"
+fi
+
+echo "  ── summary: -c 2 -f 'udp' → stops at record 5 → 2/5/0 ──"
+err=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" -c 2 -f 'udp' 2>&1 >/dev/null)
+if printf '%s\n' "$err" | grep -cE '^2 packets captured, 5 packets received, 0 dropped$' | grep -q '^1$'; then
+    pass "summary -c 2 -f udp → 2/5/0"
+else
+    fail "summary -c 2 -f udp → [$err]"
+fi
+
+echo "  ── summary goes to stderr, not stdout ──"
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/corpus.pcap" 2>/dev/null)
+if printf '%s\n' "$out" | grep -q 'packets captured'; then
+    fail "summary leaked to stdout"
+else
+    pass "summary not on stdout"
+fi
+
+echo "  ── truncated record error path → no summary ──"
+pcap_global "$TMPDIR/trunc_summary.pcap"
+xxd -r -p >> "$TMPDIR/trunc_summary.pcap" <<'EOF'
+47168a67 40e20100 64000000 00000000
+ffffffffffffaabbccddeeff0800
+EOF
+err=$("$MODBOX" tcpdump -r "$TMPDIR/trunc_summary.pcap" 2>&1 >/dev/null); rc=$?
+if [[ $rc -eq 1 ]] && ! printf '%s\n' "$err" | grep -q 'packets captured'; then
+    pass "truncated → error, no summary"
+else
+    fail "truncated → rc=$rc err=[$err]"
+fi
