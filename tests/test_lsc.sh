@@ -31,7 +31,7 @@ echo "  ── lsc -A : almost all — no . .. ──"
 assert_cmd_pat '\.hidden' lsc -A "$TMPDIR"/lsc_dir 2>/dev/null
 assert_cmd_not_pat '(^| )\.\.?  *' lsc -A "$TMPDIR"/lsc_dir 2>/dev/null
 
-echo "  ── lsc -F : classify with indicators ──"
+echo "  ── lsc -F : classify with indicators (basename) ──"
 assert_cmd_pat 'subdir/' lsc -F "$TMPDIR"/lsc_dir 2>/dev/null
 assert_cmd_pat 'exec\.sh\*' lsc -F "$TMPDIR"/lsc_dir 2>/dev/null
 

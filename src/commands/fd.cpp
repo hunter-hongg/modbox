@@ -376,7 +376,7 @@ int fd_command(int argc, char **argv) {
     }
 
     if (nerrors > 0) {
-        return at.print_errors(end, argv[0]);
+        return 2;
     }
 
     opts.hidden = (hidden_opt->count > 0);

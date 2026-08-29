@@ -108,7 +108,10 @@ int mount_command(int argc, char** argv) {
         }
         if (strcmp(a, "-a") == 0 || strcmp(a, "--all") == 0) {
             list_all = true;
-        } else if (strcmp(a, "--fake") == 0) {
+    } else if (strncmp(a, "-O", 2) == 0) {
+      if (a[2]) { /* -Oxxx as data is non-standard; treat as no-op */ }
+      else if (i + 1 < argc) { i++; /* -O <opt>: ignore in fake mode */ }
+    } else if (strcmp(a, "--fake") == 0) {
             fake = true;
         } else if (strcmp(a, "-t") == 0) {
             i++;

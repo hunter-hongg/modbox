@@ -89,7 +89,7 @@ static void format_size(FILE* out, int64_t val_kb, bool si) {
         return;
     }
     double v = (double)val_kb;
-    const char* suffixes = si ? "kBMBGTBP" : "KMGTPEZY";
+    const char* suffixes = si ? "kMGTPEB" : "KMGTPEZY";
     int idx = 0;
     while (v >= (double)unit && idx < 7) {
         v /= (double)unit;
@@ -97,7 +97,7 @@ static void format_size(FILE* out, int64_t val_kb, bool si) {
     }
     if (si) {
         char buf[32];
-        snprintf(buf, sizeof(buf), "%.1f%c", v, suffixes[idx]);
+        snprintf(buf, sizeof(buf), "%.1f%cB", v, suffixes[idx]);
         fprintf(out, "%s", buf);
     } else {
         fprintf(out, "%.1f%c", v, suffixes[idx]);

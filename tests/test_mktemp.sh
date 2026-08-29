@@ -13,4 +13,4 @@ result=$("$MODBOX" mktemp -t modboxtest 2>/dev/null || true)
 test -f "$result" && echo "$result" | grep -qE "^/tmp/modboxtest" && pass "mktemp -t created prefixed file [$result]" || fail "mktemp -t — expected /tmp/modboxtest*"
 
 echo " ── --help ──"
-assert_cmd_pat 'Usage:' "$MODBOX" mktemp --help
+assert_cmd_pat 'Usage:' mktemp --help

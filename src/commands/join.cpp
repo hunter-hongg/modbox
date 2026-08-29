@@ -207,7 +207,7 @@ static void do_join(const char* p1, const char* p2, const JoinOptions* opts, boo
 }
 
 int join_command(int argc, char** argv) {
-  struct JoinOptions opts = {1, ' ', 1, 1};
+  struct JoinOptions opts = {1, '\t', 1, 1};
   bool ignore_case = false;
   int auto_file = 0;
   const char* empty_str = "";
@@ -222,7 +222,16 @@ int join_command(int argc, char** argv) {
     if (strcmp(a, "-i") == 0 || strcmp(a, "--ignore-case") == 0) { ignore_case = true; continue; }
     if (strcmp(a, "-1") == 0 && i + 1 < argc) { opts.file1_field = std::atoi(argv[++i]); continue; }
     if (strcmp(a, "-2") == 0 && i + 1 < argc) { opts.file2_field = std::atoi(argv[++i]); continue; }
-    if (strcmp(a, "-t") == 0 && i + 1 < argc) { opts.delim = argv[++i][0]; continue; }
+    if (strncmp(a, "-t", 2) == 0) {
+      if (a[2]) opts.delim = a[2];
+      else if (i + 1 < argc) { i++; opts.delim = argv[i][0]; }
+      continue;
+    }
+    if (strncmp(a, "--separator", 11) == 0) {
+      const char* v = a + 11;
+      if (*v == '=' && v[1]) opts.delim = v[1];
+      continue;
+    }
     if (strcmp(a, "-e") == 0 && i + 1 < argc) { empty_str = argv[++i]; continue; }
     if (strcmp(a, "-a") == 0 && i + 1 < argc) { auto_file = std::atoi(argv[++i]); continue; }
     if (strncmp(a, "-a", 2) == 0 && a[2]) { auto_file = std::atoi(a + 2); continue; }

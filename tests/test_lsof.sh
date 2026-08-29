@@ -4,8 +4,11 @@ source "$SCRIPT_DIR/framework.sh"
 echo ""
 echo "── lsof ──────────────────────────────────────"
 
-# Find a stable PID to test with (PID 1 or a known running process)
+# Find a stable PID to test with (a process actually running on this host)
 TEST_PID=$(pgrep -x "node" | head -1)
+if [ -z "$TEST_PID" ]; then
+    TEST_PID=$(pgrep -x "systemd" | head -1)
+fi
 if [ -z "$TEST_PID" ]; then
     TEST_PID=1
 fi
@@ -24,7 +27,7 @@ assert_cmd_pat 'COMMAND.*PID.*USER.*FD.*TYPE' lsof -H
 
 echo "  ── -p <pid>: shows entries for specific process ──"
 if [ -n "$TEST_PID" ]; then
-    assert_cmd_pat "$TEST_PID" "lsof -p $TEST_PID"
+    assert_cmd_pat "$TEST_PID" lsof -p "$TEST_PID"
 fi
 
 echo "  ── -t regular: filters to regular files ──"

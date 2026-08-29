@@ -40,9 +40,13 @@ int runcon_command(int argc, char** argv) {
     if (nerrors > 0) {
         return at.print_errors(end, argv[0]);
     }
-
     int nonopt = argc - 1;
     while (nonopt > 0 && argv[nonopt][0] != '-') nonopt--;
+
+    if (nonopt == 0 || (argc - 1 == 0)) {
+        fprintf(stderr, "runcon: no command specified\n");
+        return 1;
+    }
 
     if (compute_opt->count > 1) {
         fprintf(stderr, "runcon: too many --compute options\n");

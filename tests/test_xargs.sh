@@ -33,4 +33,4 @@ assert_cmd_pat_stderr 'missing command' xargs 2>/dev/null
 echo " ── --help shows usage ──"
 assert_cmd_pat 'Usage:' xargs --help
 echo " ── --version ──"
-assert_cmd_pat 'xargs (modbox)' xargs --version
+assert_cmd_pat 'xargs \(modbox\)' xargs --version

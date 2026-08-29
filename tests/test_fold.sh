@@ -34,4 +34,4 @@ fi
 echo " ── --help shows usage ──"
 assert_cmd_pat 'Usage:' fold --help
 echo " ── --version ──"
-assert_cmd_pat 'fold (modbox)' fold --version
+assert_cmd_pat 'fold \(modbox\)' fold --version

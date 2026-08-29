@@ -91,6 +91,7 @@ int fold_command(int argc, char** argv) {
     files.push_back(argv[i]);
   }
 
+  if (files.empty()) files.push_back("-");
   for (size_t k = 0; k < files.size(); k++) {
     FILE* fp = (strcmp(files[k], "-") == 0) ? stdin : fopen(files[k], "r");
     if (!fp) {

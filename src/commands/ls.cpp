@@ -344,7 +344,7 @@ static void print_file_info(const char* display_name, const struct stat* st, con
     } else {
       printf("%s", display_name);
     }
-    printf("%s", classify_suffix);
+    printf("%s", suffix);
     if (use_color) {
       printf("\033[0m");
     }

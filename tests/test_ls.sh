@@ -105,11 +105,10 @@ echo "  ── -U : unsorted (directory order) ──"
 assert_cmd_pat 'regular' ls -U 2>/dev/null
 
 echo "  ── -r reverses alphabetical order ──"
-# Create dedicated dir with known sort order
 mkdir -p "$TMPDIR"/ls_rev
 touch "$TMPDIR"/ls_rev/a.txt "$TMPDIR"/ls_rev/b.txt "$TMPDIR"/ls_rev/c.txt
-normal_first=$("$MODBOX" ls "$TMPDIR"/ls_rev 2>/dev/null | awk '{print $1}')
-reversed_first=$("$MODBOX" ls -r "$TMPDIR"/ls_rev 2>/dev/null | awk '{print $1}')
+normal_first=$("$MODBOX" ls -1 "$TMPDIR"/ls_rev 2>/dev/null | sed 's#.*/##' | head -1)
+reversed_first=$("$MODBOX" ls -1 -r "$TMPDIR"/ls_rev 2>/dev/null | sed 's#.*/##' | head -1)
 if [ "$normal_first" = "a.txt" ]; then
     pass "ls normal order a.txt first"
 else

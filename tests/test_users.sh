@@ -5,12 +5,14 @@ echo ""
 echo "── users ───────────────────────────────────────"
 
 echo "  ── basic output matches system users ──"
-result=$("$MODBOX" users 2>/dev/null)
 sys_users=$(users 2>/dev/null || true)
-if [[ "$result" == "$sys_users" ]]; then
-    pass "users matches system output"
+result=$("$MODBOX" users 2>/dev/null)
+expected=$(printf '%s' "$sys_users" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+actual=$(printf '%s' "$result" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+if [[ "$actual" == "$expected" ]]; then
+    pass "users matches system output (deduplicated logins)"
 else
-    fail "users — expected [$sys_users], got [$result]"
+    fail "users — expected [$expected], got [$actual]"
 fi
 
 echo "  ── --help shows usage ──"

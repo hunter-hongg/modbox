@@ -8,4 +8,4 @@ echo "  ── --help shows usage ──"
 assert_cmd_pat 'Usage:' runcon --help
 
 echo "  ── no command specified ──"
-assert_cmd_pat 'no command specified' runcon 2>&1 || true
+assert_cmd_pat_stderr 'no command specified' runcon 2>&1 || true

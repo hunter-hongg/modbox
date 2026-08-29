@@ -15,23 +15,24 @@ else
   fail "basic join — expected key 01 in output, got [$result]"
 fi
 
-if echo "$result" | grep -q '02\tBob\t8'; then
+tab=$'\t'
+if echo "$result" | grep -q "02${tab}Bob${tab}8"; then
   pass "basic join — 02 Bob matched 8"
 else
   fail "basic join — expected '02\tBob\t8' in output"
 fi
 
 echo " ── custom delimiter ──"
-printf 'a|x\nb|y\nc|z\n' > "$TMPDIR"/join_c
-printf 'x|1\ny|2\nz|3\n' > "$TMPDIR"/join_d
+printf 'a|1\nb|2\nc|3\n' > "$TMPDIR"/join_c
+printf 'a|x\nb|y\nc|z\n' > "$TMPDIR"/join_d
 result=$("$MODBOX" join -t'|' "$TMPDIR"/join_c "$TMPDIR"/join_d 2>/dev/null || true)
-if echo "$result" | grep -q 'a|x|1'; then
+if echo "$result" | grep -q 'a|1|x'; then
   pass "custom delimiter — joined with |"
 else
-  fail "custom delimiter — expected 'a|x|1', got [$result]"
+  fail "custom delimiter — expected 'a|1|x', got [$result]"
 fi
 
 echo " ── --help shows usage ──"
 assert_cmd_pat 'Usage:' join --help
 echo " ── --version ──"
-assert_cmd_pat 'join (modbox)' join --version
+assert_cmd_pat 'join \(modbox\)' join --version

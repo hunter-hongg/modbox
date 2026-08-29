@@ -27,7 +27,8 @@ for test_file in "$SCRIPT_DIR"/test_*.sh; do
   TEST_OUT=$(
     source "$SCRIPT_DIR/framework.sh"
     source "$test_file"
-    printf "__PASS__=%s __FAIL__=%s\n" "$PASS_COUNT" "$FAIL_COUNT"
+    printf "__PASS__=%s\n" "$PASS_COUNT"
+    printf "__FAIL__=%s\n" "$FAIL_COUNT"
   )
   ALL_OUTPUT="${ALL_OUTPUT}${TEST_OUT}
 "

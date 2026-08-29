@@ -6,7 +6,7 @@ echo "── fmt ─────────────────────
 
 echo " ── basic format ──"
 printf "hello world\n" > "$TMPDIR"/fmt_in
-assert_cmd_pat "hello world" "$MODBOX" fmt --width=79 "$TMPDIR"/fmt_in
+assert_cmd_pat "hello world" fmt --width=79 "$TMPDIR"/fmt_in
 
 echo " ── long line wrap ──"
 printf '%.0sx' {1..70} > "$TMPDIR"/fmt_long
