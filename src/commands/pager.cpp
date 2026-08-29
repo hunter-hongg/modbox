@@ -165,7 +165,7 @@ void pager_run(const std::vector<std::string>& lines) {
 
     const int term_h = get_term_height();
     int display_rows = term_h - 1;
-    if (display_rows < 1) { display_rows = 1; }
+    display_rows = std::max(display_rows, 1);
 
     int top = 0;
     int cursor = 0;
@@ -174,7 +174,7 @@ void pager_run(const std::vector<std::string>& lines) {
         printf("\033[H\033[J");
 
         int end = top + display_rows;
-        if (end > total) { end = total; }
+        end = std::min(end, total);
 
         for (int i = top; i < end; i++) {
             if (i == cursor) {
@@ -380,10 +380,10 @@ struct PagerState {
         }
 
         int avail = term_w - 1 - gutter();
-        if (avail < 1) { avail = 1; }
+        avail = std::max(avail, 1);
 
         int end = top + display_rows;
-        if (end > total) { end = total; }
+        end = std::min(end, total);
 
         for (int i = top; i < end; i++) {
             if (rows[i].separator) {
@@ -407,7 +407,7 @@ struct PagerState {
                 printf("%7d ", rows[i].local_line + 1);
             }
             std::string t = *rows[i].text;
-            if (cfg->chop_long_lines && static_cast<int>(t.size()) > avail) {
+            if (cfg->chop_long_lines && t.size() > static_cast<size_t>(avail)) {
                 t = t.substr(0, static_cast<size_t>(avail));
             }
             printf("%s\n", t.c_str());

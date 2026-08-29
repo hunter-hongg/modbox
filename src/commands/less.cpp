@@ -102,7 +102,6 @@ int less_command(int argc, char** argv) {
         pattern_opt, help_opt, version_opt, file_arg, end});
 
     const int nerrors = static_cast<int>(at.parse(fargc, fargv));
-
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", prog);
         printf("View FILE(s) or standard input one screen at a time.\n");
