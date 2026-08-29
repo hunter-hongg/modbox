@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-08-26
+
+- 修复未知命令错误提示中 Usage 行显示问题：调用 `modbox <未知命令>` 时，Usage 行错误显示为 `Usage: <未知命令> [options]`（缺少 `<command>` 参数提示）；改为始终输出 `Usage: modbox <command> [options]`，使用户获得正确的帮助信息。
+
+## 2026-08-25
+
+- 完成 `ausearch` 审计日志搜索命令（依据 handoff 文档续接实现）：修复编译错误与 7 个深层 bug——argtable3 不支持多字符短选项改为长选项、`event_matches` 无条件返回 true 导致过滤失效、时间戳 serial 解析错位、syscall 表数据错误（从内核头文件 `asm/unistd_{64,32}.h` 重新生成 385+461 条）、输出 stamp 格式损坏、AVC 自由文本破坏字段解析、`-l` 短选项冲突；代码审查后按仓库约定改为 `const AusearchOptions*` 指针传递并补充 `-m ALL`、uid/gid 名称解析、`--uid-all`/`--gid-all` 值匹配；新增 55 条合成数据测试与 man page，全测试 2631 通过，已提交 6ca91fc。
+- 按用户要求将 `.omo/` 工作文档目录（plans/specs/run-continuation，22 文件）纳入 git 跟踪并记住此约定，已提交 3e3f72c。
+
 ## 2026-08-24
 
 - 实现 `free` 命令：读取 `/proc/meminfo` 输出 total/used/free/available/shared/buff/cache/swap 统计，支持 `-h` 人类可读、`--si` SI 单位、`-t` 总计行、`-o` 旧格式、`--json` JSON 输出、`--help`/`--version`，含 14 条集成测试；修复代码审查发现的违标（int64_t 类型、FreeOptions struct、合并 format_human/format_si 为 format_size、修正 used 计算、修复 help 文本重复 -h）。

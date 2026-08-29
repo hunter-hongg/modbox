@@ -11,7 +11,7 @@ static int execute_command(const std::string& command, int argc, char** argv) {
     }
     std::string runname = std::filesystem::path(argv[0]).filename().string();
     (void)fprintf(stderr, "Unknown command: %s\n", command.c_str());
-    output_help(argv[0], runname.c_str());
+    output_help("modbox", "modbox");
     return 1;
 }
 
