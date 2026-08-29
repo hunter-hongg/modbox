@@ -15,7 +15,8 @@ struct PagerView {
 // no search, no startup positioning).
 struct PagerOptions {
     bool line_numbers = false;        // -N
-    bool ignore_case = false;         // -i / -I (search)
+    bool smartcase = false;             // -i (GNU smartcase: icase unless pat has upper)
+    bool force_case_insensitive = false; // -I (force icase even with uppercase)
     bool long_prompt = false;         // -M
     bool quit_at_eof = false;         // -E
     bool quit_if_one_screen = false;  // -F

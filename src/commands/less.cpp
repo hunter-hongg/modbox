@@ -136,7 +136,8 @@ int less_command(int argc, char** argv) {
     }
 
     cfg.line_numbers = (line_numbers_opt->count > 0);
-    cfg.ignore_case = (ignore_case_opt->count > 0) || (ignore_case_force_opt->count > 0);
+    cfg.smartcase = (ignore_case_opt->count > 0);
+    cfg.force_case_insensitive = (ignore_case_force_opt->count > 0);
     cfg.long_prompt = (long_prompt_opt->count > 0);
     cfg.quit_at_eof = (quit_at_eof_opt->count > 0);
     cfg.quit_if_one_screen = (quit_one_opt->count > 0);

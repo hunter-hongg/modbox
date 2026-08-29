@@ -278,8 +278,10 @@ struct PagerState {
         }
         std::regex re;
         try {
+            bool apply_icase = cfg->force_case_insensitive ||
+                               (cfg->smartcase && last_pattern.find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") == std::string::npos);
             re.assign(last_pattern,
-                      cfg->ignore_case ? std::regex::icase : std::regex::ECMAScript);
+                      apply_icase ? std::regex::icase : std::regex::ECMAScript);
         } catch (...) {
             status = "Invalid pattern";
             status_ttl = 2;
