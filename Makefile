@@ -164,6 +164,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-whoami.1.md \
 	$(MAN_SRC_DIR)/modbox-perf.1.md \
 	$(MAN_SRC_DIR)/modbox-dig.1.md \
+	$(MAN_SRC_DIR)/modbox-less.1.md \
 	$(MAN_SRC_DIR)/modbox-tcpdump.1.md \
 	$(MAN_SRC_DIR)/modbox-csplit.1.md \
 	$(MAN_SRC_DIR)/modbox-diff3.1.md \

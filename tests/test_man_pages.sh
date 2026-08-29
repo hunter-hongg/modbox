@@ -648,6 +648,12 @@ if [[ -f "docs/man/modbox-zoxide.1.md" ]]; then
 else
     fail "docs/man/modbox-zoxide.1.md missing"
 fi
+if [[ -f "docs/man/modbox-less.1.md" ]]; then
+	pass "man page source exists: modbox-less.1.md"
+else
+	fail "man page source missing: docs/man/modbox-less.1.md"
+fi
+
 
 # Test that new high-priority man page sources exist
 for cmd in df du env kill id timeout truncate hostname umask whoami; do
@@ -737,6 +743,13 @@ if grep -q "modbox-df.1.md" Makefile && grep -q "modbox-du.1.md" Makefile && gre
 else
     fail "Makefile missing high-priority man page sources"
 fi
+# Test that Makefile lists the less man page source
+if grep -q "modbox-less.1.md" Makefile; then
+	pass "Makefile includes less man page source"
+else
+	fail "Makefile missing less man page source"
+fi
+
 
 if grep -q "gzip -9" Makefile; then
 
