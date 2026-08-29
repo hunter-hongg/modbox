@@ -32,4 +32,21 @@ private:
     std::vector<void*> table_;
 };
 
+// Print argtable3 parse errors in the modbox convention used across commands
+// (e.g. getenforce, audit2allow): "prog: unrecognized option '...'" /
+// "prog: unexpected argument '...'" plus a --help hint. Returns 1 so callers
+// can `return print_arg_errors(end, argv[0]);`.
+inline int print_arg_errors(struct arg_end* end, const char* prog) {
+    for (int i = 0; i < end->count; i++) {
+        const char* argval = end->argval[i] != nullptr ? end->argval[i] : "";
+        if (end->error[i] == ARG_ELONGOPT) {
+            fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argval);
+        } else {
+            fprintf(stderr, "%s: unexpected argument '%s'\n", prog, argval);
+        }
+    }
+    fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+    return 1;
+}
+
 #endif

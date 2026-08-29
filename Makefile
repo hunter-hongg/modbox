@@ -238,7 +238,13 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-wget.1.md \
 	$(MAN_SRC_DIR)/modbox-who.1.md \
 	$(MAN_SRC_DIR)/modbox-yes.1.md \
-	$(MAN_SRC_DIR)/modbox-zoxide.1.md
+$(MAN_SRC_DIR)/modbox-zoxide.1.md \
+$(MAN_SRC_DIR)/modbox-free.1.md \
+$(MAN_SRC_DIR)/modbox-iostat.1.md \
+$(MAN_SRC_DIR)/modbox-vmstat.1.md \
+$(MAN_SRC_DIR)/modbox-restorecon.1.md \
+$(MAN_SRC_DIR)/modbox-getsebool.1.md \
+$(MAN_SRC_DIR)/modbox-setsebool.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
