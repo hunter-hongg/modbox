@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 
+#include <utility>
+
 #include <argtable3.h>
 
 #include "commands/less.hpp"
@@ -65,7 +67,7 @@ int less_command(int argc, char** argv) {
                 cfg.pattern = body + 1;
             } else {
                 char* endp = nullptr;
-                long ln = strtol(body, &endp, 10);
+                const long ln = strtol(body, &endp, 10);
                 if (endp != body && *endp == '\0' && ln >= 1) {
                     cfg.start_line = ln;
                 } else {
@@ -78,27 +80,28 @@ int less_command(int argc, char** argv) {
         filtered.push_back(argv[i]);
     }
     char** fargv = filtered.data();
-    int fargc = (int)filtered.size();
-
-    struct arg_lit* line_numbers_opt = arg_lit0("N", "LINE-NUMBERS", "display line numbers");
-    struct arg_lit* ignore_case_opt = arg_lit0("i", NULL, "ignore case in searches");
-    struct arg_lit* ignore_case_force_opt = arg_lit0("I", NULL, "force case-insensitive search");
-    struct arg_lit* long_prompt_opt = arg_lit0("M", NULL, "verbose prompt");
-    struct arg_lit* quit_at_eof_opt = arg_lit0("E", "QUIT-AT-EOF", "quit at end of file");
-    struct arg_lit* quit_one_opt = arg_lit0("F", "quit-if-one-screen", "quit if one screen");
-    struct arg_lit* no_init_opt = arg_lit0("X", NULL, "no screen init");
-    struct arg_lit* chop_opt = arg_lit0("S", "chop-long-lines", "chop long lines");
-    struct arg_str* pattern_opt = arg_str0("p", "pattern", "PATTERN", "start at PATTERN");
-    struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
-    struct arg_lit* version_opt = arg_lit0(NULL, "version", "output version information and exit");
-    struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 1000, "file to read");
+    const int fargc = static_cast<int>(filtered.size());
     struct arg_end* end = arg_end(20);
+
+    constexpr int kMaxFiles = 1000;
+    struct arg_lit* const line_numbers_opt = arg_lit0("N", "LINE-NUMBERS", "display line numbers");
+    struct arg_lit* const ignore_case_opt = arg_lit0("i", NULL, "ignore case in searches");
+    struct arg_lit* const ignore_case_force_opt = arg_lit0("I", NULL, "force case-insensitive search");
+    struct arg_lit* const long_prompt_opt = arg_lit0("M", NULL, "verbose prompt");
+    struct arg_lit* const quit_at_eof_opt = arg_lit0("E", "QUIT-AT-EOF", "quit at end of file");
+    struct arg_lit* const quit_one_opt = arg_lit0("F", "quit-if-one-screen", "quit if one screen");
+    struct arg_lit* const no_init_opt = arg_lit0("X", NULL, "no screen init");
+    struct arg_lit* const chop_opt = arg_lit0("S", "chop-long-lines", "chop long lines");
+    struct arg_str* const pattern_opt = arg_str0("p", "pattern", "PATTERN", "start at PATTERN");
+    struct arg_lit* const help_opt = arg_lit0("h", "help", "display this help and exit");
+    struct arg_lit* const version_opt = arg_lit0(NULL, "version", "output version information and exit");
+    struct arg_file* const file_arg = arg_filen(NULL, NULL, "FILE", 0, kMaxFiles, "file to read");
 
     ArgTable at({line_numbers_opt, ignore_case_opt, ignore_case_force_opt,
         long_prompt_opt, quit_at_eof_opt, quit_one_opt, no_init_opt, chop_opt,
         pattern_opt, help_opt, version_opt, file_arg, end});
 
-    int nerrors = at.parse(fargc, fargv);
+    const int nerrors = static_cast<int>(at.parse(fargc, fargv));
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", prog);
