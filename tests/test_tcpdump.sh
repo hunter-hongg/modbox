@@ -588,3 +588,17 @@ if [[ $MY_UID -ne 0 ]]; then
 else
     pass "skipped (running as root)"
 fi
+
+echo "  ── -w - (stdout) → exit 2 usage error ──"
+"$MODBOX" tcpdump -r "$TMPDIR/corpus.pcap" -w - >/dev/null 2>"$TMPDIR/werr"; rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'does not support stdout' "$TMPDIR/werr"; then
+    pass "-w - → exit 2"
+else
+    fail "-w - → rc=$rc stderr=[$(cat "$TMPDIR/werr")]"
+fi
+
+echo "  ── IPv4 with IHL=0 → no crash, no line ──"
+pcap_global "$TMPDIR/ihl0.pcap"
+pcap_record "$TMPDIR/ihl0.pcap" 47168a67 40e20100 28000000 ffffffffffffaabbccddeeff08004500001410e1004040060000c0a80102c0a80101000000000000
+out=$("$MODBOX" tcpdump -tt -r "$TMPDIR/ihl0.pcap" 2>/dev/null); rc=$?
+if [[ $rc -eq 0 && -z "$out" ]]; then pass "IHL=0 → skipped, rc 0"; else fail "IHL=0 → rc=$rc out=[$out]"; fi

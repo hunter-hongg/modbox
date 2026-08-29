@@ -168,15 +168,16 @@ struct PcapWriter {
     std::string path;
 };
 
-static bool open_pcap_writer(const std::string& path, PcapWriter& out, std::string* err) {
+// Returns 0 on success, 2 for a usage error, 1 for a runtime error.
+static int open_pcap_writer(const std::string& path, PcapWriter& out, std::string* err) {
     if (path == "-") {
         if (err) *err = "tcpdump: -w does not support stdout";
-        return false;
+        return 2;
     }
     FILE* f = fopen(path.c_str(), "wb");
     if (!f) {
         if (err) *err = "tcpdump: cannot create " + path + ": " + std::strerror(errno);
-        return false;
+        return 1;
     }
     // global header: v2.4, host byte order (LE on x86), snaplen=65535, linktype=1 (EN10MB)
     unsigned char hdr[kGlobalHeaderSize] = {
@@ -191,11 +192,11 @@ static bool open_pcap_writer(const std::string& path, PcapWriter& out, std::stri
     if (n < sizeof(hdr) || ferror(f)) {
         if (err) *err = "tcpdump: write error on " + path;
         fclose(f);
-        return false;
+        return 1;
     }
     out.f = f;
     out.path = path;
-    return true;
+    return 0;
 }
 
 static bool write_record(PcapWriter& w, const uint8_t* d, size_t dlen,
@@ -591,6 +592,7 @@ static PacketCtx build_context(const uint8_t* d, size_t len) {
     if (ctx.ethertype == 0x0800 && len >= 34) {
         ctx.ipv4 = true;
         uint8_t ihl = (d[14] & 0x0F) * 4;
+        if (ihl < 20) ihl = 20;  // guard against a malformed 0 IHL
         if (len >= 14 + ihl) {
             struct in_addr src, dst;
             memcpy(&src.s_addr, d + 14 + 12, 4);
@@ -852,6 +854,7 @@ static void decode_packet_line(const uint8_t* d, size_t len, uint32_t ts_sec, ui
         }
         uint8_t ver_ihl = d[14];
         uint8_t ihl = (ver_ihl & 0x0F) * 4;
+        if (ihl < 20) ihl = 20;  // guard against a malformed 0 IHL
         if (len < 14 + ihl) {
             return;
         }
@@ -1313,9 +1316,10 @@ int tcpdump_command(int argc, char** argv) {
     PcapWriter writer;
     if (!opts.output_file.empty()) {
         std::string err;
-        if (!open_pcap_writer(opts.output_file, writer, &err)) {
+        int wrc = open_pcap_writer(opts.output_file, writer, &err);
+        if (wrc != 0) {
             fprintf(stderr, "%s\n", err.c_str());
-            return 1;
+            return wrc;
         }
     }
 
@@ -1351,7 +1355,7 @@ int tcpdump_command(int argc, char** argv) {
         }
         close_pcap(reader);
         if (!opts.output_file.empty()) {
-            if (ferror(writer.f)) {
+            if (writer.f && ferror(writer.f)) {
                 std::string werr = "tcpdump: write error on " + opts.output_file;
                 close_pcap_writer(writer);
                 fprintf(stderr, "%s\n", werr.c_str());
