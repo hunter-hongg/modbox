@@ -275,6 +275,7 @@ compile_commands.json: $(SRC) Makefile
 	@printf '[' > $@
 	@n=0; for f in $(SRC); do \
 	  obj="$(BUILD_DIR)/$${f#$(SRC_DIR)/}"; obj="$${obj%.cpp}.o"; \
+	  if [ $$n -gt 0 ]; then printf ',' >> $@; fi; \
 	  printf '  {\n    "directory": "%s",\n    "command": "%s",\n    "file": "%s"\n  }' \
 	    "$(CURDIR)" \
 	    "$(CXX) -std=$(CXXSTD) $(CPPFLAGS) $(CXXFLAGS) -c $$f -o $$obj" \
