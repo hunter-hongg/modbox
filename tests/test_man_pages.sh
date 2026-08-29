@@ -462,6 +462,11 @@ if [[ -f "docs/man/modbox-ps.1.md" ]]; then
 else
     fail "docs/man/modbox-ps.1.md missing"
 fi
+if [[ -f "docs/man/modbox-pstree.1.md" ]]; then
+    pass "docs/man/modbox-pstree.1.md exists"
+else
+    fail "docs/man/modbox-pstree.1.md missing"
+fi
 
 if [[ -f "docs/man/modbox-ptx.1.md" ]]; then
     pass "docs/man/modbox-ptx.1.md exists"
@@ -748,6 +753,12 @@ if grep -q "modbox-less.1.md" Makefile; then
 	pass "Makefile includes less man page source"
 else
 	fail "Makefile missing less man page source"
+fi
+# Test that Makefile lists the pstree man page source
+if grep -q "modbox-pstree.1.md" Makefile; then
+	pass "Makefile includes pstree man page source"
+else
+	fail "Makefile missing pstree man page source"
 fi
 
 
