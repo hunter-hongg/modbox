@@ -75,9 +75,9 @@ int getsebool_command(int argc, char** argv) {
     }
 
     for (int i = 0; i < len; i++) {
-        freecon(names[i]);
+        free(names[i]);
     }
-    free(static_cast<void*>(names));
+    free(names);
     return rc;
 }
 

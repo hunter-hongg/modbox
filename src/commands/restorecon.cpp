@@ -137,8 +137,8 @@ int restorecon_command(int argc, char** argv) {
             if (frc != 0) {
                 if (ignore_opt->count == 0) {
                     fprintf(stderr, "restorecon: %s: failed to relabel\n", path);
-                    rc = 1;
                 }
+                rc = 1;
             }
         }
     }
