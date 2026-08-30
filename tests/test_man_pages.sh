@@ -367,6 +367,18 @@ else
     fail "docs/man/modbox-lscpu.1.md missing"
 fi
 
+if [[ -f "docs/man/modbox-lspci.1.md" ]]; then
+    pass "docs/man/modbox-lspci.1.md exists"
+else
+    fail "docs/man/modbox-lspci.1.md missing"
+fi
+
+if [[ -f "docs/man/modbox-lsusb.1.md" ]]; then
+    pass "docs/man/modbox-lsusb.1.md exists"
+else
+    fail "docs/man/modbox-lsusb.1.md missing"
+fi
+
 if [[ -f "docs/man/modbox-mkfifo.1.md" ]]; then
     pass "docs/man/modbox-mkfifo.1.md exists"
 else
