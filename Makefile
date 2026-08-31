@@ -10,6 +10,7 @@
 # Targets:
 #   make            / make compile   build target/modbox
 #   make run                           build then run ./target/modbox
+#   make test                          run the test suite (parallel Python orchestrator)
 #   make lint                         run clang-tidy over all sources
 #   make clean                        remove build/, target/, compile_commands.json
 #   make refresh                      clean + full rebuild
@@ -140,6 +141,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-arping.1.md \
 	$(MAN_SRC_DIR)/modbox-lsof.1.md \
 	$(MAN_SRC_DIR)/modbox-mount.1.md \
+	$(MAN_SRC_DIR)/modbox-mpstat.1.md \
 	$(MAN_SRC_DIR)/modbox-nl.1.md \
 	$(MAN_SRC_DIR)/modbox-umount.1.md \
 	$(MAN_SRC_DIR)/modbox-xz.1.md \
@@ -246,7 +248,8 @@ $(MAN_SRC_DIR)/modbox-restorecon.1.md \
 $(MAN_SRC_DIR)/modbox-getsebool.1.md \
 $(MAN_SRC_DIR)/modbox-setsebool.1.md \
 $(MAN_SRC_DIR)/modbox-lspci.1.md \
-$(MAN_SRC_DIR)/modbox-lsusb.1.md
+$(MAN_SRC_DIR)/modbox-lsusb.1.md \
+$(MAN_SRC_DIR)/modbox-tc.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
@@ -309,6 +312,14 @@ endif
 .PHONY: run
 run: compile
 	./target/modbox
+
+# --------------------------------------------------------------------------
+# Test suite (Python orchestrator; runs tests/test_*.sh in parallel)
+#   TESTS_ARGS="ls"  run only matched files   SERIAL=1  force serial
+# --------------------------------------------------------------------------
+.PHONY: test
+test:
+	bash tests/run_tests.sh $(TESTS_ARGS)
 # --------------------------------------------------------------------------
 # Man pages
 # --------------------------------------------------------------------------
