@@ -1,9 +1,6 @@
----
-title: modbox-free
-section: 1
-date: 2026-08-29
-author: modbox project
----
+% MODBOX-FREE(1) modbox | User Commands
+% modbox project
+% 2026-08-29
 
 # NAME
 

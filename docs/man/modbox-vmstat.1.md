@@ -1,9 +1,6 @@
----
-title: modbox-vmstat
-section: 1
-date: 2026-08-29
-author: modbox project
----
+% MODBOX-VMSTAT(1) modbox | User Commands
+% modbox project
+% 2026-08-29
 
 # NAME
 
@@ -11,7 +8,7 @@ modbox-vmstat - display system performance statistics
 
 # SYNOPSIS
 
-**modbox vmstat** [*OPTIONS*] [delay [count]]
+**modbox vmstat** [*OPTION*] [delay [count]]
 
 # DESCRIPTION
 
@@ -31,10 +28,10 @@ Display system performance statistics, including memory, swap, I/O and CPU.
 **-V**, **--version**
 :   Output version information and exit.
 
-delay
+**delay**
 :   Delay between updates in seconds.
 
-count
+**count**
 :   Number of updates to perform.
 
 # EXIT STATUS

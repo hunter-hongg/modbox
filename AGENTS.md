@@ -60,7 +60,11 @@
 
 ### Running Tests
 
-- `bash tests/run_tests.sh` — self-contained Bash test script
+- `make test` / `bash tests/run_tests.sh` — test suite frontend
+- `tests/run_tests.sh` delegates by default to `tests/run_tests.py` (a Python
+  orchestrator that runs the `tests/test_*.sh` files in parallel across all
+  CPU cores). Pass `SERIAL=1` for serial execution, or `USE_BASH=1` to use the
+  original pure-bash runner. Requires `python3`.
 - Exit code 0 = all pass, exit code 1 = some fail
 - Test helpers: `assert_cmd`, `assert_cmd_pat`, `assert_cmd_not_pat`, `assert_cmd_pat_stderr`
 

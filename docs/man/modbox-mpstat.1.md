@@ -1,9 +1,6 @@
----
-title: modbox-mpstat
-section: 1
-date: 2026-08-29
-author: modbox project
----
+% MODBOX-MPSTAT(1) modbox | User Commands
+% modbox project
+% 2026-08-29
 
 # NAME
 
@@ -11,7 +8,7 @@ modbox-mpstat - report CPU statistics
 
 # SYNOPSIS
 
-**modbox mpstat** [*OPTIONS*] [delay [count]]
+**modbox mpstat** [*OPTION*] [delay [count]]
 
 # DESCRIPTION
 
@@ -31,10 +28,10 @@ Report CPU statistics, optionally per-CPU.
 **-V**, **--version**
 :   Output version information and exit.
 
-delay
+**delay**
 :   Delay between updates in seconds.
 
-count
+**count**
 :   Number of updates to perform.
 
 # EXIT STATUS

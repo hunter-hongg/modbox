@@ -4,7 +4,7 @@
 #
 # Drop-in replacement for tests/run_tests.sh. It runs the existing
 # tests/test_*.sh files unchanged; the only behavioural change is that the
-# 153 files are scheduled across multiple cores instead of serialized in a
+# 154 files are scheduled across multiple cores instead of serialized in a
 # bash `for` loop, so a full run drops from ~77s to ~28s on an 8-core box.
 #
 # Each test file is still executed exactly as run_tests.sh did:

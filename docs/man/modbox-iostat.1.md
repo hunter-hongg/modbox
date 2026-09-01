@@ -1,9 +1,6 @@
----
-title: modbox-iostat
-section: 1
-date: 2026-08-29
-author: modbox project
----
+% MODBOX-IOSTAT(1) modbox | User Commands
+% modbox project
+% 2026-08-29
 
 # NAME
 
@@ -29,14 +26,7 @@ Display CPU and I/O statistics.
 :   Output in JSON format.
 
 **-S**, **--unit**
-:   Byte scaling (`K`, `M`, `G`; default auto).
-
-# EXAMPLES
-
-```bash
-modbox iostat
-modbox iostat --json
-```
+:   Byte scaling (`K`, `M`, `G`; default auto-sector).
 
 # EXIT STATUS
 
