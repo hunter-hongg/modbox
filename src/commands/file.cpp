@@ -1,4 +1,3 @@
-#include <argtable3.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -26,12 +25,9 @@ enum class FileType {
     ASCII_TEXT,
     UTF8_TEXT,
     SHELL_SCRIPT,
-    ELF32,
-    ELF64,
+    ELF,
     GZIP,
     ZIP,
-    SYMBOLIC_LINK,
-    DIRECTORY,
     UNKNOWN_DATA,
 };
 
@@ -51,11 +47,8 @@ static const uint8_t kShebang[] = {'#', '!'};
 
 static const std::vector<MagicEntry>& magic_table() {
     static const std::vector<MagicEntry> table = {
-        { kElfMagic,   4, 0, FileType::ELF32,     nullptr },
         { kGzipMagic,  2, 0, FileType::GZIP,      "gzip compressed data" },
         { kZipMagic,   4, 0, FileType::ZIP,       "ZIP archive data" },
-        { kUtf8Bom,    3, 0, FileType::UTF8_TEXT, nullptr },
-        { kShebang,    2, 0, FileType::SHELL_SCRIPT, nullptr },
     };
     return table;
 }
@@ -66,6 +59,11 @@ static bool matches_pattern(const uint8_t* buf, size_t buf_len,
         return false;
     }
     return std::memcmp(buf + entry.offset, entry.pattern, entry.len) == 0;
+}
+
+static bool has_shebang(const uint8_t* data, size_t len, size_t offset) {
+    if (offset + 2 > len) return false;
+    return data[offset] == '#' && data[offset + 1] == '!';
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +77,7 @@ static std::string detect_line_endings(const uint8_t* data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         if (data[i] == '\r' && i + 1 < len && data[i + 1] == '\n') {
             has_crlf = true;
-            i++; // skip \n
+            i++;
         } else if (data[i] == '\n') {
             has_lf = true;
         }
@@ -91,80 +89,62 @@ static std::string detect_line_endings(const uint8_t* data, size_t len) {
 }
 
 static bool is_ascii_text(const uint8_t* data, size_t len) {
-    if (len == 0) {
-        return true;
-    }
     for (size_t i = 0; i < len; i++) {
         unsigned char c = data[i];
         if (c == 0x00) return false;
         if (c == 0x09 || c == 0x0a || c == 0x0d || (c >= 0x20 && c <= 0x7e)) {
             continue;
         }
-        // High bytes (> 0x7e) disqualify plain ASCII text.
         if (c < 0x80) return false;
     }
     return true;
 }
 
-static bool is_utf8_text(const uint8_t* data, size_t len) {
-    // Accept any file that is not pure ASCII and contains no null bytes,
-    // treating it as UTF-8 Unicode text (matches GNU file behaviour for
-    // typical inputs).
-    if (len == 0) return true;
-    for (size_t i = 0; i < len; i++) {
-        if (data[i] == 0x00) return false;
+static std::string text_base_description(const uint8_t* data, size_t len) {
+    if (is_ascii_text(data, len)) {
+        return "ASCII text";
     }
-    return true;
+    return "UTF-8 Unicode text";
 }
 
-static std::string classify_text(const uint8_t* data, size_t len,
-                                  bool has_shebang) {
-    bool is_ascii = is_ascii_text(data, len);
-
-    std::string desc;
-    if (is_ascii) {
-        desc = "ASCII text";
-    } else if (has_shebang) {
-        desc = "UTF-8 Unicode text";
-    } else {
-        desc = "UTF-8 Unicode text";
+static std::string shebang_description(const uint8_t* data, size_t len) {
+    if (len <= 2) return "";
+    size_t end = len;
+    for (size_t j = 2; j < len; j++) {
+        if (data[j] == '\n' || data[j] == '\r') {
+            end = j;
+            break;
+        }
     }
+    std::string line(reinterpret_cast<const char*>(data + 2), end - 2);
+    while (!line.empty() && (line.back() == ' ' || line.back() == '\t')) {
+        line.pop_back();
+    }
+    if (line.empty()) {
+        return ", script";
+    }
+    if (line.rfind("env", 0) == 0) {
+        size_t start = line.find_first_not_of(' ');
+        if (start != std::string::npos) {
+            size_t sp = line.find_first_of(' ', start);
+            std::string prog = (sp == std::string::npos)
+                                  ? line.substr(start)
+                                  : line.substr(start, sp - start);
+            return ", script executable " + prog;
+        }
+        return ", script executable env";
+    }
+    return ", script executable " + line;
+}
 
+static std::string classify_text(const uint8_t* data, size_t len) {
+    std::string desc = text_base_description(data, len);
     std::string le = detect_line_endings(data, len);
     if (!le.empty()) {
         desc += le;
     }
-
-    if (has_shebang && len > 2) {
-        // Extract interpreter from shebang line — stop at first newline
-        size_t end = len;
-        for (size_t j = 2; j < len; j++) {
-            if (data[j] == '\n' || data[j] == '\r') {
-                end = j;
-                break;
-            }
-        }
-        std::string line(reinterpret_cast<const char*>(data + 2), end - 2);
-        // Trim trailing whitespace
-        while (!line.empty() && (line.back() == ' ' || line.back() == '\t')) {
-            line.pop_back();
-        }
-        // If it starts with "env ", show "env <prog>"
-        if (line.rfind("env", 0) == 0) {
-            // Skip "env " and take the next token
-            size_t start = line.find_first_not_of(' ');
-            if (start != std::string::npos) {
-                size_t sp = line.find_first_of(' ', start);
-                std::string prog = (sp == std::string::npos)
-                                      ? line.substr(start)
-                                      : line.substr(start, sp - start);
-                desc += ", with " + prog;
-            } else {
-                desc += ", with env";
-            }
-        } else if (!line.empty()) {
-            desc += ", with " + line;
-        }
+    if (has_shebang(data, len, 0)) {
+        desc += shebang_description(data, len);
     }
     return desc;
 }
@@ -176,7 +156,7 @@ static std::string classify_text(const uint8_t* data, size_t len,
 static std::string classify_elf(const uint8_t* data, size_t len, int class_byte) {
     std::string desc = (class_byte == 1) ? "ELF 32-bit" : "ELF 64-bit";
 
-    if (len >= 18) {
+    if (len >= 20) {
         uint16_t machine = static_cast<uint16_t>(data[18]) |
                            (static_cast<uint16_t>(data[19]) << 8);
         uint16_t type = static_cast<uint16_t>(data[16]) |
@@ -184,10 +164,10 @@ static std::string classify_elf(const uint8_t* data, size_t len, int class_byte)
         const char* endianness =
             (data[5] == 1) ? "little-endian" : "big-endian";
         desc += " LSB " + std::string(endianness) + " executable";
-        if (type == 2) {
-            desc += " (shared object)";
-        } else if (type == 3) {
+        if (type == 3) {
             desc += " (dynamically linked)";
+        } else if (type == 2) {
+            desc += " (shared object)";
         }
 
         const char* arch = "unknown";
@@ -204,7 +184,7 @@ static std::string classify_elf(const uint8_t* data, size_t len, int class_byte)
 }
 
 // ---------------------------------------------------------------------------
-// Core classifier: read up to 4096 bytes and classify
+// Core classifier
 // ---------------------------------------------------------------------------
 
 static const size_t FILE_READ_BUF = 4096;
@@ -215,67 +195,39 @@ struct ClassifyResult {
 };
 
 ClassifyResult classify_bytes(const uint8_t* data, size_t len) {
-    // Empty file
     if (len == 0) {
         return { FileType::EMPTY, "empty" };
     }
 
-    // Check magic entries
+    // ELF
+    if (len >= 5 && data[0] == 0x7f && data[1] == 'E' && data[2] == 'L' &&
+        data[3] == 'F') {
+        return { FileType::ELF, classify_elf(data, len, data[4]) };
+    }
+
+    // Binary magic entries
     for (const auto& entry : magic_table()) {
-        if (entry.type == FileType::ELF32) {
-            // ELF needs the class byte
-            if (matches_pattern(data, len, entry) && len >= 5) {
-                std::string desc = classify_elf(data, len, data[4]);
-                return { FileType::ELF32, desc };
-            }
-        }
-        if (entry.type == FileType::UTF8_TEXT ||
-            entry.type == FileType::SHELL_SCRIPT) {
-            continue; // handle these after binary magic
-        }
         if (matches_pattern(data, len, entry)) {
             return { entry.type, entry.description };
         }
     }
 
-    // UTF-8 BOM text
+    // UTF-8 BOM
     if (matches_pattern(data, len, { kUtf8Bom, 3, 0, FileType::UTF8_TEXT, nullptr })) {
-        bool has_shebang = (len > 5) && matches_pattern(data, len,
-                                  { kShebang, 2, 3, FileType::SHELL_SCRIPT, nullptr });
-        return { FileType::UTF8_TEXT, classify_text(data, len, has_shebang) };
+        return { FileType::UTF8_TEXT, classify_text(data, len) };
     }
 
-    // Shebang detection
-    bool has_shebang = matches_pattern(data, len, { kShebang, 2, 0, FileType::SHELL_SCRIPT, nullptr });
-
-    if (has_shebang) {
-        return { FileType::SHELL_SCRIPT, classify_text(data, len, true) };
-    }
-
-    // Text: ASCII or UTF-8
-    if (is_ascii_text(data, len)) {
-        return { FileType::ASCII_TEXT, "ASCII text" };
-    }
-    if (is_utf8_text(data, len)) {
-        return { FileType::UTF8_TEXT, "UTF-8 Unicode text" };
-    }
-
-    return { FileType::UNKNOWN_DATA, "data" };
+    // Shebang or generic text
+    return { FileType::ASCII_TEXT, classify_text(data, len) };
 }
 
 // ---------------------------------------------------------------------------
 // File-level classification
 // ---------------------------------------------------------------------------
 
-static std::string classify_file(const std::string& path, bool deref) {
-    // First stat (with or without following symlinks)
+static std::string classify_file(const std::string& path, const FileOptions* opts) {
     struct stat st;
-    int rc;
-    if (deref) {
-        rc = stat(path.c_str(), &st);
-    } else {
-        rc = lstat(path.c_str(), &st);
-    }
+    int rc = opts->dereference ? stat(path.c_str(), &st) : lstat(path.c_str(), &st);
     if (rc != 0) {
         return "";
     }
@@ -301,9 +253,7 @@ static std::string classify_file(const std::string& path, bool deref) {
         if (n < 0) {
             return "";
         }
-        size_t len = static_cast<size_t>(n);
-        ClassifyResult result = classify_bytes(buf, len);
-        return result.description;
+        return classify_bytes(buf, static_cast<size_t>(n)).description;
     }
 
     return "unknown";
@@ -312,19 +262,15 @@ static std::string classify_file(const std::string& path, bool deref) {
 static std::string classify_stdin() {
     uint8_t buf[FILE_READ_BUF];
     std::vector<uint8_t> all;
-    while (true) {
-        size_t left = FILE_READ_BUF - (all.size() < FILE_READ_BUF ? all.size() : FILE_READ_BUF);
-        if (left == 0) break;
+    while (all.size() < FILE_READ_BUF) {
+        size_t left = FILE_READ_BUF - all.size();
         ssize_t n = read(0, buf, left);
         if (n <= 0) break;
         for (ssize_t i = 0; i < n; i++) {
             all.push_back(buf[i]);
-            if (all.size() >= FILE_READ_BUF) break;
         }
-        if (n < (ssize_t)left) break;
     }
-    ClassifyResult result = classify_bytes(all.data(), all.size());
-    return result.description;
+    return classify_bytes(all.data(), all.size()).description;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,51 +289,46 @@ static void print_help(const char* prog) {
 int file_command(int argc, char** argv) {
     FileOptions opts;
 
-    // Parse options manually (keeps it lean; argtable3 is also fine)
-    std::vector<std::string> operands;
-    for (int i = 1; i < argc; i++) {
-        const char* arg = argv[i];
-        if (strcmp(arg, "-b") == 0 || strcmp(arg, "--brief") == 0) {
-            opts.brief = true;
-        } else if (strcmp(arg, "--help") == 0) {
-            print_help(argv[0]);
-            return 0;
-        } else if (strcmp(arg, "-h") == 0 || strcmp(arg, "--no-symlinks") == 0) {
-            opts.no_symlinks = true;
-            opts.dereference = false;
-        } else if (strcmp(arg, "--no-symlinks") == 0) {
-            opts.no_symlinks = true;
-            opts.dereference = false;
-        } else if (strcmp(arg, "-") == 0) {
-            // '-' is stdin, valid operand
-            operands.push_back(arg);
-        } else if (arg[0] == '-') {
-            fprintf(stderr, "file: invalid option '%s'\n", arg);
-            return 1;
-        } else {
-            operands.push_back(arg);
-        }
-    }
+    struct arg_lit* brief_opt = arg_lit0("b", "brief",
+        "don't prefix filenames in output");
+    struct arg_lit* nosymlinks_opt = arg_lit0("h", "no-symlinks",
+        "do not follow symbolic links");
+    struct arg_lit* help_opt = arg_lit0(NULL, "help",
+        "display this help and exit");
+    struct arg_file* file_arg = arg_filen(NULL, NULL, "FILE", 0, 100,
+        "file to examine (- for stdin)");
+    struct arg_end* end = arg_end(20);
 
-    int exit_status = 0;
+    ArgTable at({brief_opt, nosymlinks_opt, help_opt, file_arg, end});
 
-    if (operands.empty()) {
-        // Read from stdin
-        std::string desc = classify_stdin();
-        printf("%s\n", desc.c_str());
+    int nerrors = at.parse(argc, argv);
+
+    if (help_opt->count > 0) {
+        print_help(argv[0]);
         return 0;
     }
 
-    for (const auto& path : operands) {
+    if (nerrors > 0) {
+        return at.print_errors(end, argv[0]);
+    }
+
+    opts.brief = (brief_opt->count > 0);
+    opts.dereference = (nosymlinks_opt->count == 0);
+
+    int exit_status = 0;
+    int nfiles = file_arg->count;
+
+    for (int i = 0; i < nfiles; i++) {
+        const char* path = file_arg->filename[i];
         std::string desc;
-        if (path == "-") {
+        if (strcmp(path, "-") == 0) {
             desc = classify_stdin();
         } else {
-            desc = classify_file(path, opts.dereference);
+            desc = classify_file(path, &opts);
         }
 
         if (desc.empty()) {
-            fprintf(stderr, "file: '%s': %s\n", path.c_str(), strerror(errno));
+            fprintf(stderr, "file: '%s': %s\n", path, strerror(errno));
             exit_status = 1;
             continue;
         }
@@ -395,8 +336,12 @@ int file_command(int argc, char** argv) {
         if (opts.brief) {
             printf("%s\n", desc.c_str());
         } else {
-            printf("%s: %s\n", path.c_str(), desc.c_str());
+            printf("%s: %s\n", path, desc.c_str());
         }
+    }
+
+    if (nfiles == 0) {
+        printf("%s\n", classify_stdin().c_str());
     }
 
     return exit_status;

@@ -1,7 +1,6 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/framework.sh"
 
-# GNU file is available on this system; use it as the reference for parity.
 HAVE_GNU_FILE=0
 if command -v file >/dev/null 2>&1 && file "$SCRIPT_DIR/framework.sh" >/dev/null 2>&1; then
   HAVE_GNU_FILE=1
@@ -10,7 +9,6 @@ fi
 echo ""
 echo "── file ─────────────────────────────────────"
 
-# ── Fixtures ────────────────────────────────────────────────────────────────
 REG="$TMPDIR/reg.txt"
 EMPTY="$TMPDIR/empty.txt"
 DIR="$TMPDIR/subdir"
@@ -26,9 +24,7 @@ mkdir -p "$DIR"
 ln -sf "$REG" "$LINK"
 printf '#!/bin/bash\necho hi\n' > "$SCRIPT"
 printf '#!/usr/bin/env python3\nprint("hi")\n' > "$SCRIPT_ENV"
-# Minimal gzip stream: gzip "abc"
 printf 'abc' | gzip > "$GZ"
-# Ensure ELF target exists
 if [ ! -x "$ELF" ]; then
   ELF=/bin/echo
 fi
@@ -49,10 +45,10 @@ echo "  ── symlink --no-symlinks ──"
 assert_cmd_pat 'symbolic link' file --no-symlinks "$LINK"
 
 echo "  ── shell script with bash shebang ──"
-assert_cmd_pat 'with /bin/bash' file "$SCRIPT"
+assert_cmd_pat 'script executable /bin/bash' file "$SCRIPT"
 
 echo "  ── shell script with env shebang ──"
-assert_cmd_pat 'with /usr/bin/env python3' file "$SCRIPT_ENV"
+assert_cmd_pat 'script executable /usr/bin/env python3' file "$SCRIPT_ENV"
 
 echo "  ── gzip compressed data ──"
 assert_cmd_pat 'gzip compressed' file "$GZ"
@@ -89,20 +85,17 @@ assert_cmd_pat '\-\-no-symlinks' file --help
 
 if [ "$HAVE_GNU_FILE" -eq 1 ]; then
   echo "  ── parity with GNU file ──"
-  # We use per-file keyword checks rather than a generic phrase matcher,
-  # because GNU file's vocabulary differs significantly from ours for some
-  # categories (e.g. it says "Bourne-Again shell script" whereas we say
-  # "ASCII text, with /bin/bash").
-  declare -A PARITY_KEYWORDS=(
-    ["$REG"]="ASCII text"
-    ["$EMPTY"]="empty"
-    ["$DIR"]="directory"
-    ["$SCRIPT"]="/bin/bash"
-    ["$GZ"]="gzip compressed data"
-    ["$ELF"]="ELF 64-bit LSB"
-  )
-  for f in "${!PARITY_KEYWORDS[@]}"; do
-    kw="${PARITY_KEYWORDS[$f]}"
+  # Keyword-level parity rather than byte-exact: GNU file includes host-specific
+  # details (OS, arch, PIE vs executable) we intentionally omit.
+  for pair in \
+    "$REG:ASCII text" \
+    "$EMPTY:empty" \
+    "$DIR:directory" \
+    "$SCRIPT:/bin/bash" \
+    "$GZ:gzip compressed data" \
+    "$ELF:ELF 64-bit LSB"; do
+    f="${pair%%:*}"
+    kw="${pair##*:}"
     assert_cmd_pat "$kw" file "$f"
   done
 fi
