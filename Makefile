@@ -140,6 +140,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-ping.1.md \
 	$(MAN_SRC_DIR)/modbox-arping.1.md \
 	$(MAN_SRC_DIR)/modbox-lsof.1.md \
+	$(MAN_SRC_DIR)/modbox-fuser.1.md \
 	$(MAN_SRC_DIR)/modbox-mount.1.md \
 	$(MAN_SRC_DIR)/modbox-mpstat.1.md \
 	$(MAN_SRC_DIR)/modbox-nl.1.md \
