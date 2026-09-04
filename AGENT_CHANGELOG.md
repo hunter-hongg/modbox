@@ -1,8 +1,31 @@
 # Agent Changelog
 
+## 2026-9-2
+
+- 基于 handoff 文档续接实现 zip/unzip 命令收尾交付：修复 `tests/test_zip.sh` 将裸 `zip`/`unzip` 替换为 `$MODBOX` 前缀（此前误调系统 zip）、修 `cmp -s` 在 `[[ ]]` 内非法语法的两处语法错误、修 `-k` 无效 flag、修 entry filter 命令参数顺序、为目录创建加显式 `mkdir -p`。修 `src/commands/unzip.cpp` 默认覆写策略从"静默覆写"改为"跳过已存在"（仅 `-o` 覆写），对齐 spec。修 `src/commands/zip.cpp` 的 `compute_entry_name()`：绝对路径通过 `std::filesystem::relative` 相对 CWD 化、越界 `../` 时退化为 basename；新增 `compute_entry_name_relative()` 为 `-r` 递归场景保留目录内部路径层级，`process_dir()` 传顶层 root 避免层级丢失。新增 `tests/test_unzip.sh`（20 条覆盖 list/extract/-d/-t/-p/entry filter/-n/-o/-q/-v/错误/round-trip/interop）、`docs/man/modbox-zip.1.md` 与 `docs/man/modbox-unzip.1.md`、Makefile MAN_SOURCES 注册两条。全测试 2916/0 通过。
+
+## 2026-9-1
+
+- 实现 `file` 命令（从 spec 到落盘到测试到 code review 到修复），完成 6 个 ticket 全量交付。spec 与 ticket 因 `.gitignore` 存在落盘在 `specs/file_spec.md` 与 `.scratch/file-command/issues/`，未入版；GitHub 环境缺失未发 issue。commit `2cf2edd`：新增 `include/commands/file.hpp`（`FileOptions`）、`src/commands/file.cpp`（magic byte 分类器：ASCII/UTF-8 文本 + CRLF 检测、ELF 32/64-bit 含架构/字节序、gzip/ZIP、shebang "script executable"、symlink 默认跟随 + `--no-symlinks`、stdin via `-`、`-b`/`--brief`、多参数、`--help`）、`tests/test_file.sh`（26 条 + GNU parity 关键词对照）。commit `50a1151`：按代码审查修 10 项——argtable3 替换手写解析、删 `stdin_mode` 死字段、`const FileOptions*` 传参、内联 ELF 检查统一遍历、提取 `has_shebang()` 消除重复检测、删 dead `--no-symlinks` 分支、删 dead shebang else-if、shebang 描述对齐 spec "script executable"、parity 循环改用 portable for-pair（弃 bash associative array）、修 help 测试 grep stray-backslash 警告。全测试 2893/0 零回归。
+
+- 记住约定：无 `gh` 环境时不再尝试 GitHub CLI，spec/ticket 落本地文件即可。
+
+## 2026-08-31
+
+- 实现 `tc` 只读流量控制检视命令：经 RTNETLINK 转储（RTM_GETQDISC/TCLASS/TFILTER）列举 qdisc/class/filter，支持 `show` 与 `dev <if>`/`parent <handle>` 范围、`-s/--stats`、`-d/--details`、`-json`、`-pretty`，输出兼容上游 `tc show`（`qdisc <kind> <handle>:` 前缀、root/ingress、refcnt），JSON 复用共享 json_stringifier；全程无需新依赖与特权的只读转储。新增 include/commands/tc.hpp、src/commands/tc.cpp、docs/man/modbox-tc.1.md、tests/test_tc.sh，注册进 CommandRegistry 并在 Makefile MAN_SOURCES、README 命令清单、registered_cmds.txt 加 tc 条目（ADR-014 覆盖测试对 166 命令仍绿）。代码审查发现并修复 5 处：TcOptions 改用 `const TcOptions*` 传参（AGENTS.md 约定）、未知设备报错（`no such device`、exit 1）、`-stats`/`-details` 长式别名、`--nope` 输出 `unrecognized option`、句柄格式 `8001:0`→`8001:`、filter 省略无意义 refcnt。另发现并绕过共享 json_stringifier 的 json_emit_uint64 逗号缺陷（tc 首个非末位使用者），改用手工分隔符。全测试 exit 0、tc 23 条测试全过。已提交 c206a74。
+
+- 修复 mktemp 测试在并行测试套件（tests/run_tests.py，8 workers）下的偶发失败：根因为该 runner 为每个测试子进程导出 `TMPDIR`（如 `/tmp/modbox_test.XXXX`），而 `modbox mktemp` 会遵循 `$TMPDIR` 作为输出目录；但 tests/test_mktemp.sh 的 `-t` 断言把路径前缀硬编码为 `/tmp/`（`^/tmp/modboxtest`），文件实际落在 `$TMPDIR` 下时断言失败。改为断言生成文件 basename 以 `modboxtest` 开头（匹配 `mktemp -t` 的 "prefix" 语义），与文件实际落点无关。全测试由 2840 通过 / 1 失败 修复为 2841 通过 / 0 失败，仅改动测试、未动二进制。
+
+## 2026-08-30
+
+- 实现 `lspci` 与 `lsusb` 两个硬件枚举命令：读取 `/sys/bus/pci/devices/` 与 `/sys/bus/usb/devices/`（无需特权），从 `pci.ids`/`usb.ids` 解析厂商/设备名，PCI 类别码经内嵌表（源自 pci.ids "C" 段）映射为可读类别名。lspci 输出与系统 lspci 逐字节一致（26 设备，含 `(rev NN)` 后缀与地址排序），lsusb 为标准 `Bus X Device Y: ID vid:pid Vendor` 格式。两命令均支持 `--json`（字符串转义）、`-n`/`--no-name`、`--parse=<list>`、`-h`/`--help`、`--version`，lspci 另支持 `-e`/`--extended`。新增共享 `include/commands/ids_database.hpp` 解析器（按缩进深度区分厂商/设备行，跳过子系统/接口行与 C/AT/HID/BIAS 段头）、`lspci.hpp`/`lsusb.hpp`、两个 .cpp 与 man page，更新 Makefile MAN_SOURCES、registered_cmds.txt、tests/test_man_pages.sh。测试接缝 `MODBOX_SYSFS`/`MODBOX_IDS_DIR` 支持基于 fixture 的确定性测试（与主机拓扑/hwdata 无关），tests/test_lspci.sh + tests/test_lsusb.sh 共 25 条全通过。代码审查（对照真实 hwdata 实测）发现并修复 3 个 P1 正确性缺陷：ids 解析器原跳过全部前导 tab 致 2-tab 子系统行污染设备名（60 个真实名 + 1422 个伪键，验证 AMD 1002:1681 现正确解析为 Rembrandt [Radeon 680M]）、PCI 类别表自 0x0A 起整体错位一档（118 个已知码中 77 个错，0x0D 为占位 "Intel"，重建后验证 Bluetooth/SD-Host/Fibre Channel/Satellite 正确）、`--json` 未转义名称（真实库含 52 个带引号条目致 JSON 非法，改用 json_escape_string）。另修复：lspci 改为 collect-then-emit 使 JSON 逗号按实际输出计数、`return !vendor_id.empty()` 跳过 sysfs 目录下的杂散文件、`--extended=` strncmp 长度 10→11、补 `-h`、删除死代码、合并三处重复 hex 解析辅助函数；测试补 fixture 的引号转义/--extended/未知 --parse 字段覆盖并修正 lsusb 空设备分支。新头文件仅被 lspci/lsusb 包含，无跨命令回归（lscpu/lsblk 测试通过）。全测试唯一失败为 pre-existing 的 mpstat 缺 MAN_SOURCES 入口（源自未提交的上次 WIP，非本次范围）。已提交 e715f53。
+
 ## 2026-08-29
 
 - 实现 `less` 命令：GNU 对齐的终端分页器，复用现有 `pager` 模块（单接缝），支持 j/k/space/b/g/G/q 导航、/ ? n N 正则搜索、-N 行号、-M 长提示符、+G/+N/+/pat 和 -p 启动定位、-i（smartcase）/-I（强制忽略大小写）-S/-E/-F/-X 开关、多文件分隔横幅、non-TTY 透传（退化为 cat）、退出码 0/1/2；新增 docs/man/modbox-less.1.md、tests/test_less.sh，扩展 tests/test_man_pages.sh 与 Makefile MAN_SOURCES。全测试 2387/0。修复 pager_run 启动搜索跳过第 1 行的 bug（`-p` 当 pattern 命中首行时未找到）。代码审查后按仓库约定将 PagerConfig 重命名为 PagerOptions 并按 `const XxxOptions*` 传参。clang-tidy 对 pager.cpp / less.cpp 清零。已提交 4 个 commits：f1854d8 / b77f9f8 / ff5bd45 / cf47a39。
+- 实现 `pstree` 命令：读取 `/proc` 重建父→子层级，输出缩进 ASCII 进程树。支持 `-p`（括号内 PID）、`-a`（命令行参数，去重命令名）、`-u`（uid 切换内联）、`-s <pid>`（聚焦祖先链+子树）、`--help`、`-V/--version`；未知选项与 `-s` 无 PID 均报错退 1。复用 `ps.cpp` 的 `/proc` 读取约定，经 `REGISTER_COMMAND` 注册；新增 docs/man/modbox-pstree.1.md、tests/test_pstree.sh，扩展 Makefile MAN_SOURCES 与 tests/test_man_pages.sh。代码审查后修复三处真实 bug：`-a` 重复命令名、`-u` 根节点标注、`-s` 无 PID 静默 no-op。全测试 2407/0，已提交 db76303。
+- 实现 SELinux 簇三个命令 restorecon / getsebool / setsebool，补全 modbox 的 SELinux 工具链（此前已有 getenforce/chcon/runcon/audit2allow/ausearch）。复用已链接的 libselinux 与既有 arg_util/version_util/command_macros 模式，零新依赖。restorecon 支持 -R/-v/-n/-F/-i，getsebool 列表/查询布尔值（对齐系统 getsebool 的 `name --> on|off` 格式），setsebool 运行时切换、-P 持久、批量 name=val；并把 getenforce/audit2allow 的错误打印机提取为 arg_util.hpp::print_arg_errors，统一 `unrecognized option`/`unexpected argument` 措辞。每命令含 man page（ADR-014）与 SELinux-不可用 SKIP 约定测试。代码审查后修复两处真实缺陷：getsebool 布尔名用 free() 而非 freecon()（错误释放 API）、restorecon -i 退出码递归/非递归路径不一致（统一为 -i 仅压 stderr、错误仍返非零）；另修 setsebool 旧形式 `-P` 静默丢持久化的 P1 bug。全测试 2813 通过 / 1 失败（pre-existing 的 mpstat 缺 MAN_SOURCES 入口，非本次范围）。已提交 01e124c / 77f4054。
+- 修复测试门失效与 14 个失败用例：run_tests.sh 将 `__PASS__`/`__FAIL__` 打在同一行，汇总正则无法匹配 `__FAIL__`，`FAIL_COUNT` 恒为 0，套件谎报绿（实有 26 个 FAIL 行）。拆分计数到独立行后门生效。暴露的 14 个真实失败：7 个产品 bug（fold 无参读 stdin、join 默认 TAB 分隔符并支持 `-tX`/`--separator`、ls 彩色/图标路径误打 `classify_suffix` 函数指针而非本地 `suffix`、mount `--fake` 接受 `-O`、fd 无 PATTERN 退 2、runcon 无命令先报 `no command specified`、free `--si` 单位补 B）+ 7 个测试桩 bug（assert_cmd_pat 重复 `$MODBOX`、版本模式未转义括号、users 去重对齐系统、lsof `-p` 参数未拆分、lf 缺失 fixture、runcon 错误断言在 stdout、ls 排序取 basename）。全测试 2795/0，已提交 4e2d3b1。
 
 ## 2026-08-26
 
