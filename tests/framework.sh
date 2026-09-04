@@ -18,8 +18,15 @@ if [[ -z "${FAIL_COUNT+x}" ]]; then
     FAIL_COUNT=0
 fi
 set -o nounset  # Re-enable nounset
-TMPDIR=$(mktemp -d /tmp/modbox_test.XXXXXX)
-trap 'rm -rf "$TMPDIR"' EXIT
+# Only initialize TMPDIR + cleanup trap if not already set. framework.sh is
+# sourced twice per test process (once by the runner, once by the test file
+# itself); without this guard each run leaks one /tmp/modbox_test.* directory.
+set +o nounset  # Temporarily disable nounset for variable existence check
+if [[ -z "${TMPDIR+x}" ]]; then
+    TMPDIR=$(mktemp -d /tmp/modbox_test.XXXXXX)
+    trap 'rm -rf "$TMPDIR"' EXIT
+fi
+set -o nounset  # Re-enable nounset
 MY_UID=$(id -u)
 MY_GID=$(id -g)
 

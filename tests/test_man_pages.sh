@@ -773,6 +773,36 @@ else
 	fail "Makefile missing pstree man page source"
 fi
 
+# === Man Page Coverage (registry-driven) ===
+# Derive the canonical command set from registered_cmds.txt (single source of
+# truth, regenerated from REGISTER_COMMAND in src) and assert every registered
+# command has BOTH a man page source AND a Makefile MAN_SOURCES entry.
+# This catches silent gaps (a command shipped without documentation or a
+# forgotten Makefile entry) that the hand-listed checks above cannot.
+echo ""
+echo "=== Man Page Coverage (registry-driven) ==="
+if [[ ! -f "registered_cmds.txt" ]]; then
+    fail "registered_cmds.txt missing — cannot verify man page coverage"
+else
+    coverage_ok=1
+    while IFS= read -r cmd; do
+        [[ -z "$cmd" ]] && continue
+        [[ "$cmd" == \#* ]] && continue
+        manfile="docs/man/modbox-${cmd}.1.md"
+        if [[ ! -f "$manfile" ]]; then
+            fail "man page missing for registered command: ${cmd}"
+            coverage_ok=0
+        fi
+        if ! grep -q "modbox-${cmd}.1.md" Makefile; then
+            fail "Makefile MAN_SOURCES missing entry for command: ${cmd}"
+            coverage_ok=0
+        fi
+    done < registered_cmds.txt
+    if [[ "$coverage_ok" -eq 1 ]]; then
+        pass "all $(grep -vc '^#' registered_cmds.txt) registered commands have a man page and a Makefile entry"
+    fi
+fi
+
 
 if grep -q "gzip -9" Makefile; then
 

@@ -10,7 +10,8 @@ test -f "$result" && pass "mktemp created temp file [$result]" || fail "mktemp �
 
 echo " ── -t prefix mode ──"
 result=$("$MODBOX" mktemp -t modboxtest 2>/dev/null || true)
-test -f "$result" && echo "$result" | grep -qE "^/tmp/modboxtest" && pass "mktemp -t created prefixed file [$result]" || fail "mktemp -t — expected /tmp/modboxtest*"
+bn=$(basename "$result")
+test -f "$result" && printf '%s' "$bn" | grep -qE "^modboxtest" && pass "mktemp -t created prefixed file [$result]" || fail "mktemp -t — expected <tmpdir>/modboxtest*"
 
 echo " ── --help ──"
 assert_cmd_pat 'Usage:' mktemp --help

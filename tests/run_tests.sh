@@ -1,60 +1,62 @@
 #!/usr/bin/env bash
 #
-# run_tests.sh — Automated test suite for modbox
+# run_tests.sh — Front-end for the modbox test suite.
 #
-# Sources the shared framework, then runs each test_*.sh file.
+# Default behaviour delegates to tests/run_tests.py, a Python orchestrator
+# that runs the existing tests/test_*.sh files unchanged but in parallel
+# across all CPU cores (~77s -> ~28s on an 8-core box).
 #
+# Fallbacks (kept for zero-dependency / debugging use):
+#   SERIAL=1   bash tests/run_tests.sh   -> Python orchestrator, serial
+#   USE_BASH=1 bash tests/run_tests.sh   -> original pure-bash runner below
+#
+# Any extra args (e.g. "ls", "--workers 4") are forwarded to run_tests.py.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Redirect stdin from /dev/null so commands that read stdin (e.g. `awk -`,
-# `cat` with no file) don't block waiting on the terminal.
-exec 0</dev/null
+PY="${PYTHON:-python3}"
 
-# Source framework (defines MODBOX, TMPDIR, helpers, counters)
-source "$SCRIPT_DIR/framework.sh"
-
-echo "============================================"
-echo "  modbox Test Suite"
-echo "  Binary: $MODBOX"
-echo "============================================"
-echo ""
-
-# Run each test file in subprocess to fully isolate shared mutable state.
-# Capture output so pass/fail counts bubble back to parent.
-ALL_OUTPUT=""
-for test_file in "$SCRIPT_DIR"/test_*.sh; do
-  TEST_OUT=$(
-    source "$SCRIPT_DIR/framework.sh"
-    source "$test_file"
-    printf "__PASS__=%s\n" "$PASS_COUNT"
-    printf "__FAIL__=%s\n" "$FAIL_COUNT"
-  )
-  ALL_OUTPUT="${ALL_OUTPUT}${TEST_OUT}
+if [[ "${USE_BASH:-0}" == "1" ]]; then
+  # ── Pure-bash fallback: original serial runner (zero-dep use) ──
+  exec 0</dev/null
+  source "$SCRIPT_DIR/framework.sh"
+  echo "============================================"
+  echo "  modbox Test Suite (pure bash, serial)"
+  echo "  Binary: $MODBOX"
+  echo "============================================"
+  echo ""
+  ALL_OUTPUT=""
+  for test_file in "$SCRIPT_DIR"/test_*.sh; do
+    TEST_OUT=$(
+      source "$SCRIPT_DIR/framework.sh"
+      source "$test_file"
+      printf "__PASS__=%s\n" "$PASS_COUNT"
+      printf "__FAIL__=%s\n" "$FAIL_COUNT"
+    )
+    ALL_OUTPUT="${ALL_OUTPUT}${TEST_OUT}
 "
-done
-
-# Replay captured output for user-facing display
-echo "$ALL_OUTPUT" | grep -v "^__PASS__\|^__FAIL__"
-
-PASS_COUNT=0
-FAIL_COUNT=0
-while IFS= read -r line; do
-  if [[ "$line" =~ ^__PASS__=([0-9]+) ]]; then
-    PASS_COUNT=$((PASS_COUNT + BASH_REMATCH[1]))
-  elif [[ "$line" =~ ^__FAIL__=([0-9]+) ]]; then
-    FAIL_COUNT=$((FAIL_COUNT + BASH_REMATCH[1]))
-  fi
-done <<< "$ALL_OUTPUT"
-
-# ── Summary ─────────────────────────────────────────────────────────────────
-
-echo ""
-echo "════════════════════════════════════════════"
-echo "  Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-echo "════════════════════════════════════════════"
-
-if [[ $FAIL_COUNT -gt 0 ]]; then
-    exit 1
+  done
+  echo "$ALL_OUTPUT" | grep -v "^__PASS__\|^__FAIL__"
+  PASS_COUNT=0
+  FAIL_COUNT=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^__PASS__=([0-9]+) ]]; then
+      PASS_COUNT=$((PASS_COUNT + BASH_REMATCH[1]))
+    elif [[ "$line" =~ ^__FAIL__=([0-9]+) ]]; then
+      FAIL_COUNT=$((FAIL_COUNT + BASH_REMATCH[1]))
+    fi
+  done <<< "$ALL_OUTPUT"
+  echo ""
+  echo "════════════════════════════════════════════"
+  echo "  Results: $PASS_COUNT passed, $FAIL_COUNT failed"
+  echo "════════════════════════════════════════════"
+  [[ $FAIL_COUNT -gt 0 ]] && exit 1
+  exit 0
 fi
-exit 0
+
+# ── Default: delegate to the Python orchestrator ──
+if [[ "${SERIAL:-0}" == "1" ]]; then
+  exec "$PY" "$SCRIPT_DIR/run_tests.py" --serial "$@"
+else
+  exec "$PY" "$SCRIPT_DIR/run_tests.py" "$@"
+fi

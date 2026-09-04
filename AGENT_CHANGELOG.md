@@ -65,3 +65,5 @@
 
 - 实现 GitHub issue #62：为已实现的 chattr/chcon/chgrp/chroot 命令新增四个 pandoc man page，逐项对照 src/commands/*.cpp 的 argtable 校验选项（无虚构 flag，chattr 实际用 `-v` 而非 issue 中误写的 `-V`），注册进 Makefile 的 MAN_SOURCES，新增 tests/test_man_issue62.sh 覆盖存在性/MAN_SOURCES/渲染/必要章节（28/28 通过），全测试 2377 通过，已提交 69afb7a。
 - 实现 GitHub issue #64：新增 `ip` 和 `ss` 两个网络诊断命令。`ip` 支持 `addr`/`link`/`route` 子命令及 `-4`/`-6`/`-s` 过滤，数据源为 `getifaddrs`、`/sys/class/net/`、`/proc/net/route`；`ss` 支持 TCP/UDP 查看、`-t`/`-u`/`-l`/`-a`/`-n`/`-4`/`-6` 标志及状态过滤，数据源为 `/proc/net/tcp{,6}` 和 `/proc/net/udp{,6}`。新增 tests/test_ip.sh（12 条）和 tests/test_ss.sh（10 条），全测试 2400 通过，已提交 c29d26e。
+
+- 修复 man page 文档覆盖缺口与测试盲区：注册命令 free/iostat/mpstat/vmstat 缺失 docs/man/* 及 Makefile MAN_SOURCES 条目；新增 4 个 man page，更新 Makefile，将 tests/test_man_pages.sh 改为基于 registered_cmds.txt 的注册表驱动全覆盖断言（缺失 man page / MAN_SOURCES 缺项直接 FAIL），防止未来新增命令时遗漏文档。配合文档同步重生成 registered_cmds.txt 与 README inline 清单后，全测试 2408/0 通过（无回归）。
