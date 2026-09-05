@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+- Spec: `tar` command (ustar + GNU longname + pax, streaming -z/-j/-J compression, `-f -` pipes). See docs/specs/tar-command.md.
+- tar: fix mtime preservation (fflush before futimens), recursive directory walk, path traversal rejection, --xz/--zstd long option mapping, pax reader newline handling, pax writer length calculation, uid/gid field thresholds, parse_args nits, and housekeeping (man pages, registered_cmds, Makefile, tests).
+
 ## v0.1.0 (2026-08-04)
 -----------------------
 - Added `fd` command: recursive file search with regex/glob, filters, color, and exec support. (Implemented in src/commands/fd.cpp)
