@@ -67,3 +67,9 @@
 - 实现 GitHub issue #64：新增 `ip` 和 `ss` 两个网络诊断命令。`ip` 支持 `addr`/`link`/`route` 子命令及 `-4`/`-6`/`-s` 过滤，数据源为 `getifaddrs`、`/sys/class/net/`、`/proc/net/route`；`ss` 支持 TCP/UDP 查看、`-t`/`-u`/`-l`/`-a`/`-n`/`-4`/`-6` 标志及状态过滤，数据源为 `/proc/net/tcp{,6}` 和 `/proc/net/udp{,6}`。新增 tests/test_ip.sh（12 条）和 tests/test_ss.sh（10 条），全测试 2400 通过，已提交 c29d26e。
 
 - 修复 man page 文档覆盖缺口与测试盲区：注册命令 free/iostat/mpstat/vmstat 缺失 docs/man/* 及 Makefile MAN_SOURCES 条目；新增 4 个 man page，更新 Makefile，将 tests/test_man_pages.sh 改为基于 registered_cmds.txt 的注册表驱动全覆盖断言（缺失 man page / MAN_SOURCES 缺项直接 FAIL），防止未来新增命令时遗漏文档。配合文档同步重生成 registered_cmds.txt 与 README inline 清单后，全测试 2408/0 通过（无回归）。
+
+## 2026-9-5
+
+- 实现 tar 命令并修复 handoff 中列出的全部 10 项关键缺陷：mtime 刷新前 fflush、递归 walk_dir、路径穿越校验、--xz/--zstd 长选项映射、pax reader 去除尾随换行、pax writer 长度自稳定计算、field_put uid/gid 阈值、parse_args 重复赋值/缺参错误、移除未使用 argtable3/bzlib。新增 docs/man/modbox-tar.1.md、docs/man/modbox-file.1.md、Makefile MAN_SOURCES 更新、tests/test_tar.sh 覆盖创建/列表/提取/递归/mtime/mode/压缩/pax/管道/GNU 互操作/错误。刷新 registered_cmds.txt 至 174 条、README 命令数 163→174、CHANGELOG 补充。经双轴 code-review 后补修未知长选项静默、pax mtime 高精度格式、zstd 压缩与 pax 测试。全测试通过，已提交 a2cb803 与 a2562a8。
+
+- 补齐 pinky 与 stdbuf 两个缺失命令：pinky 基于 utmp_util 读取 /var/run/utmp，新增 idle 时间计算（分钟/小时/天）、-l/-b/-f/-i/-p/-s/-q 选项及 help/version；stdbuf 改为在 fork 前设置 _STDBUF_I/_STDBUF_O/_STDBUF_E 环境变量，支持 -i/-o/-e 及 --input/--output/--error，支持 -oL/-i0 等粘连写法，错误路径统一返回 1。顺带修复 tar.cpp do_create 的指针/引用不一致编译错误。全测试 2962/0 通过。

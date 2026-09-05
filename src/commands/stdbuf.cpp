@@ -43,18 +43,21 @@ static bool parse_mode(const char* s, StreamConfig& cfg) {
     return false;
 }
 
-static void apply_buffering(FILE* stream, const StreamConfig& cfg) {
-    if (cfg.mode == BufferingMode::UNCHANGED) return;
+static std::string mode_to_string(const StreamConfig& cfg) {
+    switch (cfg.mode) {
+        case BufferingMode::UNCHANGED: return "";
+        case BufferingMode::LINE_BUFFERED: return "L";
+        case BufferingMode::UNBUFFERED: return "0";
+        case BufferingMode::BLOCK_BUFFERED: return std::to_string(cfg.block_size);
+    }
+    return "";
+}
 
-    if (cfg.mode == BufferingMode::LINE_BUFFERED) {
-        setvbuf(stream, nullptr, _IOLBF, BUFSIZ);
-    } else if (cfg.mode == BufferingMode::UNBUFFERED) {
-        setvbuf(stream, nullptr, _IONBF, 0);
-    } else if (cfg.mode == BufferingMode::BLOCK_BUFFERED) {
-        char* buf = (char*)malloc(cfg.block_size);
-        if (buf) {
-            setvbuf(stream, buf, _IOFBF, cfg.block_size);
-        }
+static void set_env_if_set(const char* name, const StreamConfig& cfg) {
+    if (cfg.mode == BufferingMode::UNCHANGED) return;
+    std::string val = mode_to_string(cfg);
+    if (!val.empty()) {
+        setenv(name, val.c_str(), 1);
     }
 }
 
@@ -95,48 +98,63 @@ int stdbuf_command(int argc, char** argv) {
         if (strncmp(a, "--input=", 8) == 0) {
             if (!parse_mode(a + 8, stdin_cfg)) {
                 fprintf(stderr, "stdbuf: invalid input mode '%s'\n", a + 8);
-                return 0;
+                return 1;
             }
         } else if (strncmp(a, "--output=", 9) == 0) {
             if (!parse_mode(a + 9, stdout_cfg)) {
                 fprintf(stderr, "stdbuf: invalid output mode '%s'\n", a + 9);
-                return 0;
+                return 1;
             }
         } else if (strncmp(a, "--error=", 8) == 0) {
             if (!parse_mode(a + 8, stderr_cfg)) {
                 fprintf(stderr, "stdbuf: invalid error mode '%s'\n", a + 8);
-                return 0;
+                return 1;
             }
         } else if (strcmp(a, "-i") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "stdbuf: option '-i' requires an argument\n");
-                return 0;
+                return 1;
             }
             if (!parse_mode(argv[++i], stdin_cfg)) {
                 fprintf(stderr, "stdbuf: invalid input mode '%s'\n", argv[i]);
-                return 0;
+                return 1;
+            }
+        } else if (strncmp(a, "-i", 2) == 0 && a[2] != '\0') {
+            if (!parse_mode(a + 2, stdin_cfg)) {
+                fprintf(stderr, "stdbuf: invalid input mode '%s'\n", a + 2);
+                return 1;
             }
         } else if (strcmp(a, "-o") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "stdbuf: option '-o' requires an argument\n");
-                return 0;
+                return 1;
             }
             if (!parse_mode(argv[++i], stdout_cfg)) {
                 fprintf(stderr, "stdbuf: invalid output mode '%s'\n", argv[i]);
-                return 0;
+                return 1;
+            }
+        } else if (strncmp(a, "-o", 2) == 0 && a[2] != '\0') {
+            if (!parse_mode(a + 2, stdout_cfg)) {
+                fprintf(stderr, "stdbuf: invalid output mode '%s'\n", a + 2);
+                return 1;
             }
         } else if (strcmp(a, "-e") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "stdbuf: option '-e' requires an argument\n");
-                return 0;
+                return 1;
             }
             if (!parse_mode(argv[++i], stderr_cfg)) {
                 fprintf(stderr, "stdbuf: invalid error mode '%s'\n", argv[i]);
-                return 0;
+                return 1;
+            }
+        } else if (strncmp(a, "-e", 2) == 0 && a[2] != '\0') {
+            if (!parse_mode(a + 2, stderr_cfg)) {
+                fprintf(stderr, "stdbuf: invalid error mode '%s'\n", a + 2);
+                return 1;
             }
         } else if (a[0] == '-') {
             fprintf(stderr, "stdbuf: invalid option -- '%s'\n", a + 1);
-            return 0;
+            return 1;
         } else {
             cmd_start = i;
             break;
@@ -151,14 +169,14 @@ int stdbuf_command(int argc, char** argv) {
         } else {
             fprintf(stderr, "stdbuf: missing command\n");
         }
-        return 0;
+        return 1;
     }
 
     pid_t pid = fork();
     if (pid == 0) {
-        apply_buffering(stdin, stdin_cfg);
-        apply_buffering(stdout, stdout_cfg);
-        apply_buffering(stderr, stderr_cfg);
+        set_env_if_set("_STDBUF_I", stdin_cfg);
+        set_env_if_set("_STDBUF_O", stdout_cfg);
+        set_env_if_set("_STDBUF_E", stderr_cfg);
 
         execvp(argv[cmd_start], &argv[cmd_start]);
         fprintf(stderr, "stdbuf: failed to execute '%s': %s\n", argv[cmd_start], strerror(errno));

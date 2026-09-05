@@ -914,8 +914,8 @@ int write_member(TarWriter& w, const std::string& path, const std::string& arcna
 
 int do_create(const TarOptions* opt) {
     std::vector<WalkItem> all;
-    std::string cur = opt.chdirs.empty() ? "." : opt.chdirs.back();
-    for (const auto& s : opt.sources) {
+    std::string cur = opt->chdirs.empty() ? "." : opt->chdirs.back();
+    for (const auto& s : opt->sources) {
         // strip leading '/' like GNU tar
         std::string arcname = s;
         while (!arcname.empty() && arcname.front() == '/') arcname.erase(0, 1);
@@ -938,21 +938,21 @@ int do_create(const TarOptions* opt) {
     auto comp_of = [](bool gz, bool xz, bool zst) -> int {
         if (gz) return 1; if (xz) return 2; if (zst) return 3; return 0;
     };
-    int cm = comp_of(opt.compress_gz, opt.compress_xz, opt.compress_zst);
+    int cm = comp_of(opt->compress_gz, opt->compress_xz, opt->compress_zst);
 
     TarWriter w;
-    if (!w.open(opt.file, (Comp)cm, opt.file)) return 1;
+    if (!w.open(opt->file, (Comp)cm, opt->file)) return 1;
 
     int rc = 0;
     for (const auto& it : all) {
-        if (write_member(w, it.path, it.arcname, opt, &inode_map) != 0) { rc = 1; break; }
+        if (write_member(w, it.path, it.arcname, *opt, &inode_map) != 0) { rc = 1; break; }
     }
     unsigned char zero[BLOCK_SIZE] = {0};
     if (rc == 0) {
         if (!w.write_all(zero, BLOCK_SIZE)) rc = 1;
         if (rc == 0 && !w.write_all(zero, BLOCK_SIZE)) rc = 1;
     }
-    if (rc == 0 && !w.finish()) rc = tar_perr(opt.file.c_str());
+    if (rc == 0 && !w.finish()) rc = tar_perr(opt->file.c_str());
     return rc;
 }
 
@@ -1344,7 +1344,7 @@ int tar_command(int argc, char** argv) {
     int rc = parse_args(argc, argv, opt);
     if (rc != 0) return rc;
     switch (opt.op) {
-    case Op::Create: return do_create(opt);
+    case Op::Create: return do_create(&opt);
     case Op::Extract: return do_extract(opt);
     case Op::List: return do_list(opt);
     default: return 1;
