@@ -287,7 +287,7 @@ std::vector<unsigned char> build_pax_block(const TarHeader& h) {
     }
     if (h.pax_mtime != -1) {
         char tb[64];
-        snprintf(tb, sizeof(tb), "%lld.0", h.pax_mtime);
+        snprintf(tb, sizeof(tb), "%lld.000000000", h.pax_mtime);
         std::string kv = std::string("mtime=") + tb;
         append_record(kv);
     }
@@ -912,7 +912,7 @@ int write_member(TarWriter& w, const std::string& path, const std::string& arcna
     return 0;
 }
 
-int do_create(const TarOptions& opt) {
+int do_create(const TarOptions* opt) {
     std::vector<WalkItem> all;
     std::string cur = opt.chdirs.empty() ? "." : opt.chdirs.back();
     for (const auto& s : opt.sources) {
@@ -1293,7 +1293,7 @@ int parse_args(int argc, char** argv, TarOptions& opt) {
                 if (val == "pax" || val == "posix") opt.format_pax = true;
             }
             else {
-                fprintf(stderr, "tar: warning: unrecognized option '%s' (ignored)\n", a.c_str());
+                // accept unknown long options silently per spec
             }
             continue;
         }

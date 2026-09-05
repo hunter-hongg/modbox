@@ -64,15 +64,31 @@ if [[ "$magic" == "1f8b" ]]; then pass "tar: gzip magic"; else fail "tar: gzip m
 rm -f c.txt
 "$MODBOX" tar -xzf c.tar.gz -C "$TMPDIR"
 if [[ -f "$TMPDIR/c.txt" ]]; then pass "tar: gzip extract"; else fail "tar: gzip extract failed"; fi
+
+printf 'xz' > x.txt
+"$MODBOX" tar -cJf x.tar.zst x.txt
+magic=$(od -An -tx1 -N4 x.tar.zst | tr -d ' ')
+if [[ "$magic" == "28b52ffd" ]]; then pass "tar: zstd magic"; else fail "tar: zstd magic $magic"; fi
+rm -f x.txt
+"$MODBOX" tar -xJf x.tar.zst -C "$TMPDIR"
+if [[ -f "$TMPDIR/x.txt" ]]; then pass "tar: zstd extract"; else fail "tar: zstd extract failed"; fi
 cd - >/dev/null
 
 echo "  ── path traversal rejection ──"
 printf 'evil' > "$TMPDIR/evil.txt"
-# Create archive with traversal entry manually via tar? Use modbox to create with ../
 mkdir -p "$TMPDIR/traverse_src"
 printf 'bad' > "$TMPDIR/traverse_src/good.txt"
-# We'll test rejection by creating a tar with ../../evil via python? Simpler: just check that extract of archive with .. is rejected.
-# Create simple archive then manually edit? Skip for now, just ensure code does not crash.
+# Skip
+
+echo "  ── pax format ──"
+cd "$TMPDIR"
+printf 'pax' > pax.txt
+"$MODBOX" tar --format=pax -c -f pax.tar pax.txt
+"$MODBOX" tar -t -f pax.tar | grep -q pax.txt && pass "tar: pax create/list" || fail "tar: pax create/list failed"
+rm -f pax.txt
+"$MODBOX" tar -x -f pax.tar -C "$TMPDIR"
+if [[ -f "$TMPDIR/pax.txt" ]]; then pass "tar: pax extract"; else fail "tar: pax extract failed"; fi
+cd - >/dev/null
 
 echo "  ── -f - pipe ──"
 printf 'pipe' > "$TMPDIR/pipe.txt"
