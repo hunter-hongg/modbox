@@ -1,8 +1,16 @@
 # Agent Changelog
 
+## 2026-9-7
+
+- 实现 `column` 命令（autopilot 全流程：spec → tickets → 实现 → code review → 提交），完成 coreutils column 数据列化格式化工具。两种模式：fill 模式（默认，将输入行按 `cols = max(1,(width+1)/(max_width+1))`、`rows = ceil(num/cols)` 分布到尽可能多的列，逐列向下填充）与 table 模式（`-t`，字段对齐成列、单空格分隔、末列无尾部空白、不规则行补空且不留尾随空格）。选项覆盖：`-s` 自定义分隔符（默认空白串、支持 `\t`/`\n`/`\0`/`\\` 转义）、`-c` 宽度、`-o` 输出到文件、`-N` 列名（`-` 保留原值）、`-r`/`-R` 全部右对齐、`-C` 仅最右列右对齐、`-d` 分隔线、`-L` 缩进、`-e`/`-l` 多行单元格、`-H` 头部重复（每 25 数据行）、`-a`、`--help`/`--version`、多文件独立格式化后拼接、缺失文件报 stderr 并继续。新增 `include/commands/column.hpp`、`src/commands/column.cpp`（argtable3 + ArgTable + print_arg_errors；引入 `SepMode` 枚举并提取公共 `split_on` 消除三处重复分割循环）、`tests/test_column.sh`（30 条）、`docs/man/modbox-column.1.md`，Makefile MAN_SOURCES 注册。spec 落 `specs/column_spec.md`、tickets 落 `.scratch/column/issues/`（两者均被 .gitignore，未入版）。经双轴 code review 修复 1 项违标（`const ColumnOptions&` 按 AGENTS.md 约定改为 `const ColumnOptions*` 传参），并删除死字段 `full`、将魔数 25 命名为 `kHeaderRepeatEvery`、`right2_opt` 更名为 `table_right_opt`、`right_opt` 更名为 `right_justified_opt`，以及理顺 spec/man 不一致（fill 公式文本、多文件行为、`-H` 常量、`-c` 仅 fill 模式生效、`-s` 转义与 `-L` fill 模式补文档）。全测试 3006/0。已提交 0d5ffe4。
+
 ## 2026-9-6
 
 - 实现 `pgrep` 命令（autopilot 全流程：spec → tickets → 实现 → code review → 提交），完成 procps pgrep 子集：枚举 /proc/[0-9]* 读 comm/cmdline（NUL→空格）/Uid，匹配支持 comm 子串（默认）、`-f` 全命令行（内核线程空 cmdline 回退 comm）、`-x` 精确、`-i` 忽略大小写、`-v` 反选、`-u` 用户名或数字 uid；输出格式 `-l`（PID comm）、`-a`（PID cmdline）、`-c`（计数）；退出码对齐 GNU pgrep（0 命中/1 无命中/2 用法错误）。经双轴 code review 修复 4 项：argtable3 + ArgTable + print_arg_errors 替换手写解析（AGENTS.md 约定）、内核线程 `-f` 回退死代码 bug（`if (!*target_cstr) continue` 先于回退赋值，导致空 cmdline 进程被排除）、合并重复的双匹配循环为单一 `matches` lambda + hits 向量单次遍历、`-h` 短选项补齐。最初与 pgrep 一同实现的 pkill 按用户决策放弃（`-f` 匹配会命中包含 pattern 的 shell 自身 cmdline，风险过高），相关文件全部删除，信号发送职责保留给既有 kill。新增 `docs/man/modbox-pgrep.1.md`、`tests/test_pgrep.sh`（15 条）、Makefile MAN_SOURCES/README/registered_cmds.txt 注册（命令数 174→175）。全测试 2973/0（test_perf.sh 3 条 pre-existing 失败，经 git stash 验证与本次无关）。已提交 1070027。
+
+- 实现 `man` 命令（autopilot 全流程：spec → tickets → 实现 → code review → 提交），遵循 GNU man 规范读取 `docs/man/modbox-*.1.md`。支持页面显示、`-k/--apropos` 关键词搜索、`-f/--whatis` 一行描述、`-a/--all` 多匹配、`--help`/`--version`。新增 `include/commands/man.hpp`、`src/commands/man.cpp`，spec 落 `specs/man_command_spec.md`，tickets 落 `.scratch/man-command/issues/`。经 code review 移除注释、修复格式字符串安全问题。已提交 feat(man): implement man command following GNU conventions。
+
+- 实现 grep GNU 兼容性扩展（autopilot 全流程：spec → tickets → 实现 → code review → 提交）：新增 `-A/-B/-C` 上下文、`-m` 最大匹配、`-q/-s` 静默/错误抑制、`-b/-Z` 字节偏移/空分隔、`--label`、 `--include/--exclude`、 `-d` 目录处理、`-P` 明确不支持提示，更新帮助文本与 man 文档，修复退出码 0/1/2 语义并修复 man 命令编译错误。新增 `docs/specs/grep-compat.md`、`include/commands/grep.hpp` 选项扩展、`src/commands/grep.cpp` 解析与逻辑、修复 `src/commands/man.cpp`。已提交 feat(grep): add GNU compatibility options and improve exit semantics。
 
 ## 2026-9-2
 
