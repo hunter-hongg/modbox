@@ -21,6 +21,23 @@ struct GrepOptions {
     GrepMode mode = GrepMode::BASIC;
     GrepColor color_mode = GrepColor::NEVER;
     std::string pattern;
+
+    int before_context = 0;
+    int after_context = 0;
+    int context = 0;
+
+    int max_count = 0;
+    int quiet = 0;
+    int no_messages = 0;
+    int byte_offset = 0;
+    int null_output = 0;
+    int null_data = 0;
+    std::string label;
+    std::vector<std::string> include_globs;
+    std::vector<std::string> exclude_globs;
+    int directories_action = 0;
+    std::string group_separator = "--";
+    int no_group_separator = 0;
 };
 
 int grep_command(int argc, char** argv);

@@ -88,7 +88,7 @@ std::filesystem::path resolve_page(const std::string& name, const std::filesyste
         std::string stem = to_lower(e.stem().string());
         if (stem == "modbox-" + lower || stem == "modbox-" + lower + ".1" || stem.find(lower) != std::string::npos) {
             if (stem.find(lower) != std::string::npos) {
-                return e.path();
+                return e;
             }
         }
     }
@@ -115,7 +115,7 @@ int man_command(int argc, char** argv) {
     struct arg_lit* all_opt = arg_lit0("a", "all", "show all matching pages");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_lit* version_opt = arg_lit0("V", "version", "output version information and exit");
-    struct arg_str* page_arg = arg_str0(nullptr, nullptr, "PAGE", 0, 1, "manual page name");
+    struct arg_str* page_arg = arg_strn(nullptr, nullptr, "PAGE", 0, 1, "manual page name");
     struct arg_end* end = arg_end(20);
 
     ArgTable at({apropos_opt, whatis_opt, all_opt, help_opt, version_opt, page_arg, end});
@@ -208,5 +208,7 @@ int man_command(int argc, char** argv) {
     fwrite(content.c_str(), 1, content.size(), stdout);
     return 0;
 }
+
+} // namespace
 
 REGISTER_COMMAND("man", man_command, "Display manual pages");
