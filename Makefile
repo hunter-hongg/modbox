@@ -255,7 +255,8 @@ $(MAN_SRC_DIR)/modbox-tc.1.md \
 $(MAN_SRC_DIR)/modbox-zip.1.md \
 $(MAN_SRC_DIR)/modbox-unzip.1.md \
 $(MAN_SRC_DIR)/modbox-tar.1.md \
-$(MAN_SRC_DIR)/modbox-file.1.md
+$(MAN_SRC_DIR)/modbox-file.1.md \
+$(MAN_SRC_DIR)/modbox-column.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
