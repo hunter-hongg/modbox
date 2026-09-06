@@ -1,5 +1,9 @@
 # Agent Changelog
 
+## 2026-9-6
+
+- 实现 `pgrep` 命令（autopilot 全流程：spec → tickets → 实现 → code review → 提交），完成 procps pgrep 子集：枚举 /proc/[0-9]* 读 comm/cmdline（NUL→空格）/Uid，匹配支持 comm 子串（默认）、`-f` 全命令行（内核线程空 cmdline 回退 comm）、`-x` 精确、`-i` 忽略大小写、`-v` 反选、`-u` 用户名或数字 uid；输出格式 `-l`（PID comm）、`-a`（PID cmdline）、`-c`（计数）；退出码对齐 GNU pgrep（0 命中/1 无命中/2 用法错误）。经双轴 code review 修复 4 项：argtable3 + ArgTable + print_arg_errors 替换手写解析（AGENTS.md 约定）、内核线程 `-f` 回退死代码 bug（`if (!*target_cstr) continue` 先于回退赋值，导致空 cmdline 进程被排除）、合并重复的双匹配循环为单一 `matches` lambda + hits 向量单次遍历、`-h` 短选项补齐。最初与 pgrep 一同实现的 pkill 按用户决策放弃（`-f` 匹配会命中包含 pattern 的 shell 自身 cmdline，风险过高），相关文件全部删除，信号发送职责保留给既有 kill。新增 `docs/man/modbox-pgrep.1.md`、`tests/test_pgrep.sh`（15 条）、Makefile MAN_SOURCES/README/registered_cmds.txt 注册（命令数 174→175）。全测试 2973/0（test_perf.sh 3 条 pre-existing 失败，经 git stash 验证与本次无关）。已提交 1070027。
+
 ## 2026-9-2
 
 - 基于 handoff 文档续接实现 zip/unzip 命令收尾交付：修复 `tests/test_zip.sh` 将裸 `zip`/`unzip` 替换为 `$MODBOX` 前缀（此前误调系统 zip）、修 `cmp -s` 在 `[[ ]]` 内非法语法的两处语法错误、修 `-k` 无效 flag、修 entry filter 命令参数顺序、为目录创建加显式 `mkdir -p`。修 `src/commands/unzip.cpp` 默认覆写策略从"静默覆写"改为"跳过已存在"（仅 `-o` 覆写），对齐 spec。修 `src/commands/zip.cpp` 的 `compute_entry_name()`：绝对路径通过 `std::filesystem::relative` 相对 CWD 化、越界 `../` 时退化为 basename；新增 `compute_entry_name_relative()` 为 `-r` 递归场景保留目录内部路径层级，`process_dir()` 传顶层 root 避免层级丢失。新增 `tests/test_unzip.sh`（20 条覆盖 list/extract/-d/-t/-p/entry filter/-n/-o/-q/-v/错误/round-trip/interop）、`docs/man/modbox-zip.1.md` 与 `docs/man/modbox-unzip.1.md`、Makefile MAN_SOURCES 注册两条。全测试 2916/0 通过。
