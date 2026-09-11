@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <cerrno>
 #include <vector>
-#include <string>
 #include <argtable3.h>
 
 #include "commands/tee.hpp"
@@ -19,7 +18,7 @@ struct OutputFile {
 };
 
 static FILE* open_file(const char* filename, int append) {
-    const char* mode = append ? "a" : "w";
+    const char* mode = (append != 0) ? "a" : "w";
     FILE* fp = fopen(filename, mode);
     if (fp == NULL) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -36,8 +35,8 @@ static int write_to_outputs(const std::vector<OutputFile>& outputs,
     int any_error = 0;
     
     for (const auto& out : outputs) {
-        if (out.is_stdout) {
-            size_t written = fwrite(buf, 1, size, stdout);
+        if (out.is_stdout != 0) {
+            size_t const written = fwrite(buf, 1, size, stdout);
             if (written != size) {
                 if (opts->error_action == 0) { // warn
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -46,7 +45,7 @@ static int write_to_outputs(const std::vector<OutputFile>& outputs,
                 any_error = 1;
             }
         } else {
-            size_t written = fwrite(buf, 1, size, out.fp);
+            size_t const written = fwrite(buf, 1, size, out.fp);
             if (written != size) {
                 if (opts->error_action == 0) { // warn
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -69,7 +68,7 @@ static int write_to_outputs(const std::vector<OutputFile>& outputs,
 /* ── Main command ─────────────────────────────────────────────────────────── */
 
 int tee_command(int argc, char** argv) {
-    TeeOptions opts = {0};
+    TeeOptions opts = {.append=0};
     
     struct arg_lit* append_opt = arg_lit0("a", "append", "append to the given FILEs");
     struct arg_lit* ignore_int_opt = arg_lit0("i", "ignore-interrupts", "ignore interrupt signals");
@@ -82,7 +81,7 @@ int tee_command(int argc, char** argv) {
         append_opt, ignore_int_opt, error_action_opt, help_opt, file_arg, end
     });
     
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
     
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -103,8 +102,8 @@ int tee_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
     
-    opts.append = (append_opt->count > 0);
-    opts.ignore_interrupts = (ignore_int_opt->count > 0);
+    opts.append = static_cast<int>(append_opt->count > 0);
+    opts.ignore_interrupts = static_cast<int>(ignore_int_opt->count > 0);
     
     if (error_action_opt->count > 0) {
         const char* mode = error_action_opt->sval[0];
@@ -125,7 +124,7 @@ int tee_command(int argc, char** argv) {
     std::vector<OutputFile> outputs;
     
     // Always include stdout
-    outputs.push_back({stdout, "stdout", 1});
+    outputs.push_back({.fp=stdout, .filename="stdout", .is_stdout=1});
     
     // Open specified files
     for (int i = 0; i < file_arg->count; i++) {
@@ -137,19 +136,19 @@ int tee_command(int argc, char** argv) {
         
         FILE* fp = open_file(filename, opts.append);
         if (fp != NULL) {
-            outputs.push_back({fp, filename, 0});
+            outputs.push_back({.fp=fp, .filename=filename, .is_stdout=0});
         }
     }
     
     // Read from stdin and write to all outputs
     char buf[4096];
     while (fgets(buf, sizeof(buf), stdin) != NULL) {
-        size_t len = strlen(buf);
+        size_t const len = strlen(buf);
         write_to_outputs(outputs, buf, len, &opts);
     }
     
     // Handle potential binary data or last line without newline
-    if (!feof(stdin)) {
+    if (feof(stdin) == 0) {
         // Clear any error and try to read remaining
         clearerr(stdin);
         size_t bytes_read;
@@ -160,7 +159,7 @@ int tee_command(int argc, char** argv) {
     
     // Close all file outputs (not stdout)
     for (auto& out : outputs) {
-        if (!out.is_stdout && out.fp != NULL) {
+        if ((out.is_stdout == 0) && out.fp != NULL) {
             // NOLINTNEXTLINE(bugprone-unused-return-value)
             (void)fclose(out.fp);
         }

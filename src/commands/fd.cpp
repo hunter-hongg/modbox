@@ -1,15 +1,18 @@
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
+#include <cctype>
 #include <dirent.h>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <linux/limits.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #include <fnmatch.h>
-#include <climits>
-#include <algorithm>
 #include <string>
 #include <vector>
 #include <regex>
@@ -20,8 +23,8 @@
 #define FD_MAX_ARGS 200
 
 static int is_pattern_lowercase(const char *pattern) {
-    for (const char *p = pattern; *p; p++) {
-        if (isupper((unsigned char)*p)) {
+    for (const char *p = pattern; (*p) != 0; p++) {
+        if (isupper(static_cast<unsigned char>(*p)) != 0) {
             return 0;
         }
     }
@@ -29,7 +32,7 @@ static int is_pattern_lowercase(const char *pattern) {
 }
 
 static int is_hidden(const char *name) {
-    return name[0] == '.';
+    return static_cast<int>(name[0] == '.');
 }
 
 static int match_type(mode_t mode, char type_filter) {
@@ -37,7 +40,7 @@ static int match_type(mode_t mode, char type_filter) {
     case 'f': return S_ISREG(mode);
     case 'd': return S_ISDIR(mode);
     case 'l': return S_ISLNK(mode);
-    case 'x': return (mode & 0111) != 0;
+    case 'x': return static_cast<int>((mode & 0111) != 0);
     case 's': return S_ISSOCK(mode);
     default:  return 1;
     }
@@ -45,11 +48,12 @@ static int match_type(mode_t mode, char type_filter) {
 
 static int is_empty_file(const char *path, mode_t mode, const struct stat *st_in) {
     if (S_ISREG(mode)) {
-        return st_in ? (st_in->st_size == 0) : 0;
+        return (st_in != nullptr) ? static_cast<int>(st_in->st_size == 0) : 0;
     }
     if (S_ISDIR(mode)) {
         DIR *dir = opendir(path);
-        if (dir == NULL) return 0;
+        if (dir == NULL) { return 0;
+}
         int empty = 1;
         struct dirent *entry;
         while ((entry = readdir(dir)) != NULL) {
@@ -65,9 +69,11 @@ static int is_empty_file(const char *path, mode_t mode, const struct stat *st_in
 }
 
 static int match_extension(const char *name, const std::vector<std::string> &exts) {
-    if (exts.empty()) return 1;
+    if (exts.empty()) { return 1;
+}
     const char *dot = strrchr(name, '.');
-    if (dot == NULL) return 0;
+    if (dot == NULL) { return 0;
+}
     const char *ext = dot + 1;
     for (size_t i = 0; i < exts.size(); i++) {
         if (strcmp(ext, exts[i].c_str()) == 0) {
@@ -79,7 +85,8 @@ static int match_extension(const char *name, const std::vector<std::string> &ext
 
 static int match_exclude(const char *path, const char *name,
                           const std::vector<std::string> &specs) {
-    if (specs.empty()) return 0;
+    if (specs.empty()) { return 0;
+}
     for (size_t i = 0; i < specs.size(); i++) {
         const char *pat = specs[i].c_str();
         if (fnmatch(pat, path, FNM_PATHNAME) == 0 ||
@@ -91,9 +98,12 @@ static int match_exclude(const char *path, const char *name,
 }
 
 static int fd_should_ci(const FdOptions *opts) {
-    if (opts->case_sensitive) return 0;
-    if (opts->ignore_case) return 1;
-    if (opts->smart_case) return is_pattern_lowercase(opts->pattern.c_str());
+    if (opts->case_sensitive != 0) { return 0;
+}
+    if (opts->ignore_case != 0) { return 1;
+}
+    if (opts->smart_case != 0) { return is_pattern_lowercase(opts->pattern.c_str());
+}
     return 0;
 }
 
@@ -103,7 +113,8 @@ static void fd_exec_finalize(FdOptions *opts);
 // NOLINTNEXTLINE(misc-no-recursion)
 static int fd_walk(const char *dirpath, FdOptions *opts, std::regex *re,
                     int is_ci, int is_glob, int depth) {
-    if (opts->max_depth >= 0 && depth > opts->max_depth) return 0;
+    if (opts->max_depth >= 0 && depth > opts->max_depth) { return 0;
+}
 
     DIR *dir = opendir(dirpath);
     if (dir == NULL) {
@@ -112,15 +123,18 @@ static int fd_walk(const char *dirpath, FdOptions *opts, std::regex *re,
     }
 
     int match_count = 0;
-    int use_color = (opts->color_mode == FdColorMode::ALWAYS ||
-                     (opts->color_mode == FdColorMode::AUTO && isatty(STDOUT_FILENO)));
+    int const use_color = static_cast<int>(opts->color_mode == FdColorMode::ALWAYS ||
+                     (opts->color_mode == FdColorMode::AUTO && (isatty(STDOUT_FILENO) != 0)));
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (opts->max_results > 0 && match_count >= opts->max_results) break;
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        if (opts->max_results > 0 && match_count >= opts->max_results) { break;
+}
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) { continue;
+}
 
-        if (!opts->hidden && is_hidden(entry->d_name)) continue;
+        if ((opts->hidden == 0) && (is_hidden(entry->d_name) != 0)) { continue;
+}
 
         char full_path[PATH_MAX];
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -129,21 +143,23 @@ static int fd_walk(const char *dirpath, FdOptions *opts, std::regex *re,
         /* Always lstat first for type detection (needed for symlink filter
            even with -L, where stat() follows the link). Then optionally
            follow with stat() for recursion decisions. */
-        struct stat lst, st;
-        int rc_lst = lstat(full_path, &lst);
+        struct stat lst;
+        struct stat st;
+        int const rc_lst = lstat(full_path, &lst);
         if (rc_lst != 0) {
             continue;
         }
-        if (opts->follow) {
-            if (stat(full_path, &st) != 0) st = lst;
+        if (opts->follow != 0) {
+            if (stat(full_path, &st) != 0) { st = lst;
+}
         } else {
             st = lst;
         }
 
         /* Use lstat result for type filter — catches symlinks even with -L */
-        mode_t check_mode = opts->follow ? lst.st_mode : st.st_mode;
+        mode_t const check_mode = (opts->follow != 0) ? lst.st_mode : st.st_mode;
 
-        if (match_exclude(full_path, entry->d_name, opts->exclude_patterns)) {
+        if (match_exclude(full_path, entry->d_name, opts->exclude_patterns) != 0) {
             continue;
         }
 
@@ -161,43 +177,43 @@ static int fd_walk(const char *dirpath, FdOptions *opts, std::regex *re,
         }
 
         int pattern_match = 0;
-        if (matches_type && matches_ext) {
-            const char *target = opts->full_path ? full_path : entry->d_name;
-            if (is_glob) {
-                if (is_ci) {
+        if ((matches_type != 0) && (matches_ext != 0)) {
+            const char *target = (opts->full_path != 0) ? full_path : entry->d_name;
+            if (is_glob != 0) {
+                if (is_ci != 0) {
                     /* Case-insensitive: lowercase both target and pattern */
                     std::string lower_target;
                     lower_target.resize(strlen(target));
-                    for (size_t i = 0; target[i]; i++) {
-                        lower_target[i] = (char)tolower((unsigned char)target[i]);
+                    for (size_t i = 0; target[i] != 0; i++) {
+                        lower_target[i] = static_cast<char>(tolower(static_cast<unsigned char>(target[i])));
                     }
                     std::string lower_pat;
                     lower_pat.resize(strlen(opts->pattern.c_str()));
-                    for (size_t i = 0; opts->pattern[i]; i++) {
-                        lower_pat[i] = (char)tolower((unsigned char)opts->pattern[i]);
+                    for (size_t i = 0; opts->pattern[i] != 0; i++) {
+                        lower_pat[i] = static_cast<char>(tolower(static_cast<unsigned char>(opts->pattern[i])));
                     }
-                    pattern_match = (fnmatch(lower_pat.c_str(), lower_target.c_str(), FNM_PATHNAME) == 0);
+                    pattern_match = static_cast<int>(fnmatch(lower_pat.c_str(), lower_target.c_str(), FNM_PATHNAME) == 0);
                 } else {
-                    pattern_match = (fnmatch(opts->pattern.c_str(), target, FNM_PATHNAME) == 0);
+                    pattern_match = static_cast<int>(fnmatch(opts->pattern.c_str(), target, FNM_PATHNAME) == 0);
                 }
             } else {
-                pattern_match = (int)std::regex_search(target, *re);
+                pattern_match = static_cast<int>(std::regex_search(target, *re));
             }
         }
 
-        if (pattern_match) {
+        if (pattern_match != 0) {
             match_count++;
-            if (opts->has_exec) {
+            if (opts->has_exec != 0) {
                 fd_exec_file(full_path, opts);
             } else {
-                if (opts->print0) {
+                if (opts->print0 != 0) {
                     printf("%s%c", full_path, '\0');
-                } else if (use_color) {
+                } else if (use_color != 0) {
                     if (S_ISDIR(st.st_mode)) {
                         printf("\033[01;34m%s\033[0m\n", full_path);
                     } else if (S_ISLNK(lst.st_mode)) {
                         printf("\033[01;36m%s\033[0m\n", full_path);
-                    } else if (st.st_mode & 0111) {
+                    } else if ((st.st_mode & 0111) != 0u) {
                         printf("\033[01;32m%s\033[0m\n", full_path);
                     } else {
                         printf("%s\n", full_path);
@@ -209,7 +225,7 @@ static int fd_walk(const char *dirpath, FdOptions *opts, std::regex *re,
         }
 
         if (S_ISDIR(st.st_mode)) {
-            int sub = fd_walk(full_path, opts, re, is_ci, is_glob, depth + 1);
+            int const sub = fd_walk(full_path, opts, re, is_ci, is_glob, depth + 1);
             match_count += sub;
             /* Clamp after recursive add to avoid max-results overshoot */
             if (opts->max_results > 0 && match_count > opts->max_results) {
@@ -223,26 +239,26 @@ static int fd_walk(const char *dirpath, FdOptions *opts, std::regex *re,
 }
 
 static void fd_exec_file(const char *fullpath, FdOptions *opts) {
-    if (opts->exec_batch) {
+    if (opts->exec_batch != 0) {
         opts->exec_paths.push_back(fullpath);
         return;
     }
 
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid == 0) {
         std::vector<char*> args;
         int has_subst = 0;
         for (size_t i = 0; i < opts->exec_args.size(); i++) {
             const char *a = opts->exec_args[i].c_str();
             if (strcmp(a, "{}") == 0) {
-                args.push_back((char*)fullpath);
+                args.push_back(const_cast<char*>(fullpath));
                 has_subst = 1;
             } else {
-                args.push_back((char*)a);
+                args.push_back(const_cast<char*>(a));
             }
         }
-        if (!has_subst) {
-            args.push_back((char*)fullpath);
+        if (has_subst == 0) {
+            args.push_back(const_cast<char*>(fullpath));
         }
         args.push_back(NULL);
         (void)execvp(args[0], args.data());
@@ -258,9 +274,10 @@ static void fd_exec_file(const char *fullpath, FdOptions *opts) {
 }
 
 static void fd_exec_finalize(FdOptions *opts) {
-    if (!opts->has_exec || !opts->exec_batch || opts->exec_paths.empty()) return;
+    if ((opts->has_exec == 0) || (opts->exec_batch == 0) || opts->exec_paths.empty()) { return;
+}
 
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid == 0) {
         std::vector<char*> args;
         int has_subst = 0;
@@ -268,16 +285,16 @@ static void fd_exec_finalize(FdOptions *opts) {
             const char *a = opts->exec_args[i].c_str();
             if (strcmp(a, "{}") == 0) {
                 for (size_t j = 0; j < opts->exec_paths.size(); j++) {
-                    args.push_back((char*)opts->exec_paths[j].c_str());
+                    args.push_back(const_cast<char*>(opts->exec_paths[j].c_str()));
                 }
                 has_subst = 1;
             } else {
-                args.push_back((char*)a);
+                args.push_back(const_cast<char*>(a));
             }
         }
-        if (!has_subst) {
+        if (has_subst == 0) {
             for (size_t j = 0; j < opts->exec_paths.size(); j++) {
-                args.push_back((char*)opts->exec_paths[j].c_str());
+                args.push_back(const_cast<char*>(opts->exec_paths[j].c_str()));
             }
         }
         args.push_back(NULL);
@@ -329,7 +346,7 @@ int fd_command(int argc, char **argv) {
                  exec_opt, exec_batch_opt,
                  color_opt, help_opt, pattern_arg, path_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTIONS] PATTERN [PATH...]\n", argv[0]);
@@ -379,16 +396,16 @@ int fd_command(int argc, char **argv) {
         return 2;
     }
 
-    opts.hidden = (hidden_opt->count > 0);
-    opts.no_ignore = (no_ignore_opt->count > 0);
-    opts.case_sensitive = (case_sensitive_opt->count > 0);
-    opts.ignore_case = (ignore_case_opt->count > 0);
-    opts.glob_mode = (glob_opt->count > 0);
-    opts.full_path = (full_path_opt->count > 0);
-    opts.follow = (follow_opt->count > 0);
-    opts.print0 = (print0_opt->count > 0);
+    opts.hidden = static_cast<int>(hidden_opt->count > 0);
+    opts.no_ignore = static_cast<int>(no_ignore_opt->count > 0);
+    opts.case_sensitive = static_cast<int>(case_sensitive_opt->count > 0);
+    opts.ignore_case = static_cast<int>(ignore_case_opt->count > 0);
+    opts.glob_mode = static_cast<int>(glob_opt->count > 0);
+    opts.full_path = static_cast<int>(full_path_opt->count > 0);
+    opts.follow = static_cast<int>(follow_opt->count > 0);
+    opts.print0 = static_cast<int>(print0_opt->count > 0);
 
-    if (opts.case_sensitive || opts.ignore_case) {
+    if ((opts.case_sensitive != 0) || (opts.ignore_case != 0)) {
         opts.smart_case = 0;
     }
 
@@ -401,8 +418,8 @@ int fd_command(int argc, char **argv) {
 
     if (type_opt->count > 0) {
         const char *tv = type_opt->sval[0];
-        if (tv[0] && tv[1] == '\0' &&
-            strchr("fdlxes", tv[0])) {
+        if ((tv[0] != 0) && tv[1] == '\0' &&
+            (strchr("fdlxes", tv[0]) != nullptr)) {
             opts.type_filter = tv[0];
         } else {
             (void)fprintf(stderr, "fd: invalid type '%s' (valid: f,d,l,x,e,s)\n", tv);
@@ -456,13 +473,13 @@ int fd_command(int argc, char **argv) {
 
     opts.pattern = pattern_arg->filename[0];
 
-    int is_ci = fd_should_ci(&opts);
-    int is_glob = opts.glob_mode;
+    int const is_ci = fd_should_ci(&opts);
+    int const is_glob = opts.glob_mode;
 
     std::regex *re = NULL;
-    if (!is_glob) {
+    if (is_glob == 0) {
         std::regex::flag_type flags = std::regex::optimize;
-        if (is_ci) {
+        if (is_ci != 0) {
             flags |= std::regex::icase;
         }
         try {
@@ -476,9 +493,9 @@ int fd_command(int argc, char **argv) {
     }
 
     int total_matches = 0;
-    int has_paths = (path_arg->count > 0);
+    int const has_paths = static_cast<int>(path_arg->count > 0);
 
-    if (!has_paths) {
+    if (has_paths == 0) {
         total_matches = fd_walk(".", &opts, re, is_ci, is_glob, 0);
     } else {
         for (int i = 0; i < path_arg->count; i++) {

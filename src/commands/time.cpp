@@ -1,10 +1,12 @@
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
-#include <sys/resource.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -57,39 +59,39 @@ double tv_to_sec(const struct timeval* tv) {
 // Append the GNU-style elapsed time (%E): "h:mm:ss" when >= 1 hour, else
 // "m:ss.cc" with hundredths of a second.
 void append_elapsed(std::string* out, double secs) {
-    if (secs < 0) secs = 0;
-    long total = static_cast<long>(secs);
-    int hours = static_cast<int>(total / 3600);
-    int minutes = static_cast<int>((total % 3600) / 60);
+    secs = std::max<double>(secs, 0);
+    long const total = static_cast<long>(secs);
+    int const hours = static_cast<int>(total / 3600);
+    int const minutes = static_cast<int>((total % 3600) / 60);
     char buf[64];
     if (hours > 0) {
-        int isecs = static_cast<int>(total % 60);
-        snprintf(buf, sizeof(buf), "%d:%02d:%02d", hours, minutes, isecs);
+        int const isecs = static_cast<int>(total % 60);
+        (void)snprintf(buf, sizeof(buf), "%d:%02d:%02d", hours, minutes, isecs);
     } else {
-        double fsecs = secs - static_cast<double>(hours * 3600 + minutes * 60);
-        snprintf(buf, sizeof(buf), "%d:%05.2f", minutes, fsecs);
+        double const fsecs = secs - static_cast<double>(hours * 3600 + minutes * 60);
+        (void)snprintf(buf, sizeof(buf), "%d:%05.2f", minutes, fsecs);
     }
     out->append(buf);
 }
 
 void append_double(std::string* out, double v, int prec) {
     char buf[64];
-    snprintf(buf, sizeof(buf), "%.*f", prec, v);
+    (void)snprintf(buf, sizeof(buf), "%.*f", prec, v);
     out->append(buf);
 }
 
 void append_long(std::string* out, long v) {
     char buf[64];
-    snprintf(buf, sizeof(buf), "%ld", v);
+    (void)snprintf(buf, sizeof(buf), "%ld", v);
     out->append(buf);
 }
 
 // Expand a GNU time format string into a summary line.
 std::string expand_format(const char* fmt, const TimeInfo& info) {
-    double user = tv_to_sec(&info.ru.ru_utime);
-    double sys = tv_to_sec(&info.ru.ru_stime);
-    double cpu = user + sys;
-    int pct = (info.elapsed > 0.0) ? static_cast<int>((cpu / info.elapsed) * 100.0 + 0.5) : 0;
+    double const user = tv_to_sec(&info.ru.ru_utime);
+    double const sys = tv_to_sec(&info.ru.ru_stime);
+    double const cpu = user + sys;
+    int const pct = (info.elapsed > 0.0) ? static_cast<int>((cpu / info.elapsed) * 100.0 + 0.5) : 0;
 
     std::string out;
     for (const char* p = fmt; *p != '\0'; ++p) {
@@ -140,30 +142,30 @@ std::string expand_format(const char* fmt, const TimeInfo& info) {
 }
 
 void print_verbose(FILE* fp, const TimeInfo& info) {
-    double user = tv_to_sec(&info.ru.ru_utime);
-    double sys = tv_to_sec(&info.ru.ru_stime);
-    double cpu = user + sys;
-    int pct = (info.elapsed > 0.0) ? static_cast<int>((cpu / info.elapsed) * 100.0 + 0.5) : 0;
+    double const user = tv_to_sec(&info.ru.ru_utime);
+    double const sys = tv_to_sec(&info.ru.ru_stime);
+    double const cpu = user + sys;
+    int const pct = (info.elapsed > 0.0) ? static_cast<int>((cpu / info.elapsed) * 100.0 + 0.5) : 0;
 
-    fprintf(fp, "\tCommand being timed: \"%s\"\n", info.command.c_str());
-    fprintf(fp, "\tUser time (seconds): %.2f\n", user);
-    fprintf(fp, "\tSystem time (seconds): %.2f\n", sys);
-    fprintf(fp, "\tPercent of CPU this job got: %d%%\n", pct);
+    (void)fprintf(fp, "\tCommand being timed: \"%s\"\n", info.command.c_str());
+    (void)fprintf(fp, "\tUser time (seconds): %.2f\n", user);
+    (void)fprintf(fp, "\tSystem time (seconds): %.2f\n", sys);
+    (void)fprintf(fp, "\tPercent of CPU this job got: %d%%\n", pct);
     std::string elapsed;
     append_elapsed(&elapsed, info.elapsed);
-    fprintf(fp, "\tElapsed (wall clock) time (h:mm:ss or m:ss): %s\n", elapsed.c_str());
-    fprintf(fp, "\tMaximum resident set size (kbytes): %ld\n", info.ru.ru_maxrss);
-    fprintf(fp, "\tMajor (requiring I/O) page faults: %ld\n", info.ru.ru_majflt);
-    fprintf(fp, "\tMinor (reclaiming a frame) page faults: %ld\n", info.ru.ru_minflt);
-    fprintf(fp, "\tVoluntary context switches: %ld\n", info.ru.ru_nvcsw);
-    fprintf(fp, "\tInvoluntary context switches: %ld\n", info.ru.ru_nivcsw);
-    fprintf(fp, "\tSwaps: %ld\n", info.ru.ru_nswap);
-    fprintf(fp, "\tFile system inputs: %ld\n", info.ru.ru_inblock);
-    fprintf(fp, "\tFile system outputs: %ld\n", info.ru.ru_oublock);
-    fprintf(fp, "\tSocket messages sent: %ld\n", info.ru.ru_msgsnd);
-    fprintf(fp, "\tSocket messages received: %ld\n", info.ru.ru_msgrcv);
-    fprintf(fp, "\tSignals delivered: %ld\n", info.ru.ru_nsignals);
-    fprintf(fp, "\tExit status: %d\n", info.exit_status);
+    (void)fprintf(fp, "\tElapsed (wall clock) time (h:mm:ss or m:ss): %s\n", elapsed.c_str());
+    (void)fprintf(fp, "\tMaximum resident set size (kbytes): %ld\n", info.ru.ru_maxrss);
+    (void)fprintf(fp, "\tMajor (requiring I/O) page faults: %ld\n", info.ru.ru_majflt);
+    (void)fprintf(fp, "\tMinor (reclaiming a frame) page faults: %ld\n", info.ru.ru_minflt);
+    (void)fprintf(fp, "\tVoluntary context switches: %ld\n", info.ru.ru_nvcsw);
+    (void)fprintf(fp, "\tInvoluntary context switches: %ld\n", info.ru.ru_nivcsw);
+    (void)fprintf(fp, "\tSwaps: %ld\n", info.ru.ru_nswap);
+    (void)fprintf(fp, "\tFile system inputs: %ld\n", info.ru.ru_inblock);
+    (void)fprintf(fp, "\tFile system outputs: %ld\n", info.ru.ru_oublock);
+    (void)fprintf(fp, "\tSocket messages sent: %ld\n", info.ru.ru_msgsnd);
+    (void)fprintf(fp, "\tSocket messages received: %ld\n", info.ru.ru_msgrcv);
+    (void)fprintf(fp, "\tSignals delivered: %ld\n", info.ru.ru_nsignals);
+    (void)fprintf(fp, "\tExit status: %d\n", info.exit_status);
 }
 
 }  // namespace
@@ -210,7 +212,7 @@ int time_command(int argc, char** argv) {
         }
         if (strcmp(s, "-f") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s: option requires an argument -- 'f'\n", prog);
+                (void)fprintf(stderr, "%s: option requires an argument -- 'f'\n", prog);
                 exit(EXIT_CANCELED);
             }
             format = argv[i + 1];
@@ -224,7 +226,7 @@ int time_command(int argc, char** argv) {
         }
         if (strcmp(s, "--format") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s: option '--format' requires an argument\n", prog);
+                (void)fprintf(stderr, "%s: option '--format' requires an argument\n", prog);
                 exit(EXIT_CANCELED);
             }
             format = argv[i + 1];
@@ -233,7 +235,7 @@ int time_command(int argc, char** argv) {
         }
         if (strcmp(s, "-o") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s: option requires an argument -- 'o'\n", prog);
+                (void)fprintf(stderr, "%s: option requires an argument -- 'o'\n", prog);
                 exit(EXIT_CANCELED);
             }
             output_file = argv[i + 1];
@@ -247,7 +249,7 @@ int time_command(int argc, char** argv) {
         }
         if (strcmp(s, "--output") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s: option '--output' requires an argument\n", prog);
+                (void)fprintf(stderr, "%s: option '--output' requires an argument\n", prog);
                 exit(EXIT_CANCELED);
             }
             output_file = argv[i + 1];
@@ -255,8 +257,8 @@ int time_command(int argc, char** argv) {
             continue;
         }
         if (s[0] == '-' && s[1] != '\0') {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", prog, s);
-            fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+            (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, s);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
             exit(EXIT_CANCELED);
         }
 
@@ -265,15 +267,16 @@ int time_command(int argc, char** argv) {
     }
 
     if (i >= argc) {
-        fprintf(stderr, "%s: missing program to run\n", prog);
-        fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+        (void)fprintf(stderr, "%s: missing program to run\n", prog);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         exit(EXIT_CANCELED);
     }
 
     // Build the command string for %C / verbose output.
     std::string command;
     for (int j = i; j < argc; ++j) {
-        if (j > i) command.push_back(' ');
+        if (j > i) { command.push_back(' ');
+}
         command.append(argv[j]);
     }
 
@@ -281,16 +284,16 @@ int time_command(int argc, char** argv) {
     struct timeval finish;
     gettimeofday(&start, nullptr);
 
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid < 0) {
-        fprintf(stderr, "%s: cannot fork: %s\n", prog, strerror(errno));
+        (void)fprintf(stderr, "%s: cannot fork: %s\n", prog, strerror(errno));
         exit(EXIT_CANCELED);
     }
 
     if (pid == 0) {
         execvp(argv[i], &argv[i]);
-        int code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
-        fprintf(stderr, "%s: cannot run %s: %s\n", prog, argv[i], strerror(errno));
+        int const code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
+        (void)fprintf(stderr, "%s: cannot run %s: %s\n", prog, argv[i], strerror(errno));
         _exit(code);
     }
 
@@ -299,7 +302,7 @@ int time_command(int argc, char** argv) {
     memset(&ru, 0, sizeof(ru));
     while (wait4(pid, &status, 0, &ru) < 0) {
         if (errno != EINTR) {
-            fprintf(stderr, "%s: wait failed: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: wait failed: %s\n", prog, strerror(errno));
             exit(EXIT_CANCELED);
         }
     }
@@ -309,7 +312,7 @@ int time_command(int argc, char** argv) {
     TimeInfo info;
     info.ru = ru;
     info.elapsed = tv_to_sec(&finish) - tv_to_sec(&start);
-    if (info.elapsed < 0) info.elapsed = 0;
+    info.elapsed = std::max<double>(info.elapsed, 0);
     info.command = command;
     info.signalled = 0;
     if (WIFEXITED(status)) {
@@ -326,7 +329,7 @@ int time_command(int argc, char** argv) {
     if (output_file != nullptr) {
         fp = fopen(output_file, append ? "a" : "w");
         if (fp == nullptr) {
-            fprintf(stderr, "%s: cannot open %s: %s\n", prog, output_file, strerror(errno));
+            (void)fprintf(stderr, "%s: cannot open %s: %s\n", prog, output_file, strerror(errno));
             exit(EXIT_CANCELED);
         }
     }
@@ -334,24 +337,24 @@ int time_command(int argc, char** argv) {
     if (verbose) {
         print_verbose(fp, info);
     } else if (format != nullptr) {
-        std::string line = expand_format(format, info);
-        fputs(line.c_str(), fp);
-        fputc('\n', fp);
+        std::string const line = expand_format(format, info);
+        (void)fputs(line.c_str(), fp);
+        (void)fputc('\n', fp);
     } else if (portable) {
-        double user = tv_to_sec(&info.ru.ru_utime);
-        double sys = tv_to_sec(&info.ru.ru_stime);
-        fprintf(fp, "real %.2f\nuser %.2f\nsys %.2f\n", info.elapsed, user, sys);
+        double const user = tv_to_sec(&info.ru.ru_utime);
+        double const sys = tv_to_sec(&info.ru.ru_stime);
+        (void)fprintf(fp, "real %.2f\nuser %.2f\nsys %.2f\n", info.elapsed, user, sys);
     } else {
         const char* def =
             "%Uuser %Ssystem %Eelapsed %PCPU (%Xavgtext+%Davgdata %Mmaxresident)k\n"
             "%Iinputs+%Ooutputs (%Fmajor+%Rminor)pagefaults %Wswaps";
-        std::string line = expand_format(def, info);
-        fputs(line.c_str(), fp);
-        fputc('\n', fp);
+        std::string const line = expand_format(def, info);
+        (void)fputs(line.c_str(), fp);
+        (void)fputc('\n', fp);
     }
 
     if (output_file != nullptr) {
-        fclose(fp);
+        (void)fclose(fp);
     }
 
     exit(info.exit_status);

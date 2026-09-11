@@ -16,14 +16,15 @@ using u64 = uint64_t;
 using u128 = __uint128_t;
 
 static u64 mulmod(u64 a, u64 b, u64 m) {
-    return (u64)((u128)a * b % m);
+    return static_cast<u64>(static_cast<u128>(a) * b % m);
 }
 
 static u64 powmod(u64 a, u64 e, u64 m) {
     u64 r = 1 % m;
     a %= m;
     while (e > 0) {
-        if ((e & 1U) != 0U) r = mulmod(r, a, m);
+        if ((e & 1U) != 0U) { r = mulmod(r, a, m);
+}
         a = mulmod(a, a, m);
         e >>= 1;
     }
@@ -32,7 +33,7 @@ static u64 powmod(u64 a, u64 e, u64 m) {
 
 static u64 gcd_u64(u64 a, u64 b) {
     while (b != 0) {
-        u64 t = a % b;
+        u64 const t = a % b;
         a = b;
         b = t;
     }
@@ -40,11 +41,14 @@ static u64 gcd_u64(u64 a, u64 b) {
 }
 
 static bool is_prime(u64 n) {
-    if (n < 2) return false;
+    if (n < 2) { return false;
+}
     static const u64 witnesses[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37};
     for (u64 p : witnesses) {
-        if (n == p) return true;
-        if (n % p == 0) return false;
+        if (n == p) { return true;
+}
+        if (n % p == 0) { return false;
+}
     }
     u64 d = n - 1;
     int s = 0;
@@ -54,7 +58,8 @@ static bool is_prime(u64 n) {
     }
     for (u64 a : witnesses) {
         u64 x = powmod(a, d, n);
-        if (x == 1 || x == n - 1) continue;
+        if (x == 1 || x == n - 1) { continue;
+}
         bool composite = true;
         for (int r = 0; r < s - 1; r++) {
             x = mulmod(x, x, n);
@@ -63,67 +68,79 @@ static bool is_prime(u64 n) {
                 break;
             }
         }
-        if (composite) return false;
+        if (composite) { return false;
+}
     }
     return true;
 }
 
 static u64 pollard_rho(u64 n) {
-    if ((n & 1U) == 0U) return 2;
+    if ((n & 1U) == 0U) { return 2;
+}
     for (u64 c = 1;; c++) {
-        u64 x = 2, y = 2, d = 1;
+        u64 x = 2;
+        u64 y = 2;
+        u64 d = 1;
         while (d == 1) {
             x = (mulmod(x, x, n) + c) % n;
             y = (mulmod(y, y, n) + c) % n;
             y = (mulmod(y, y, n) + c) % n;
-            u64 diff = x > y ? x - y : y - x;
+            u64 const diff = x > y ? x - y : y - x;
             d = gcd_u64(diff, n);
         }
-        if (d != n) return d;
+        if (d != n) { return d;
+}
     }
 }
 
 static void factorize(u64 n, std::vector<u64>& out) {
-    if (n < 2) return;
+    if (n < 2) { return;
+}
     for (u64 p = 2; p < 1000 && p * p <= n; p++) {
         while (n % p == 0) {
             out.push_back(p);
             n /= p;
         }
     }
-    if (n < 2) return;
+    if (n < 2) { return;
+}
     if (is_prime(n)) {
         out.push_back(n);
         return;
     }
-    u64 d = pollard_rho(n);
+    u64 const d = pollard_rho(n);
     factorize(d, out);
     factorize(n / d, out);
 }
 
 static bool parse_u64(const char* s, u64* out) {
-    if (s == nullptr || *s == '\0') return false;
+    if (s == nullptr || *s == '\0') { return false;
+}
     const char* p = s;
-    if (*p == '+') p++;
-    if (*p == '\0') return false;
+    if (*p == '+') { p++;
+}
+    if (*p == '\0') { return false;
+}
     for (const char* q = p; *q != '\0'; q++) {
-        if (isdigit((unsigned char)*q) == 0) return false;
+        if (isdigit(static_cast<unsigned char>(*q)) == 0) { return false;
+}
     }
     errno = 0;
     char* endp = nullptr;
-    unsigned long long v = strtoull(p, &endp, 10);
-    if (errno == ERANGE || endp == p || *endp != '\0') return false;
-    *out = (u64)v;
+    unsigned long long const v = strtoull(p, &endp, 10);
+    if (errno == ERANGE || endp == p || *endp != '\0') { return false;
+}
+    *out = static_cast<u64>(v);
     return true;
 }
 
 static void print_factors(const char* s, bool exponents) {
     u64 n = 0;
     if (!parse_u64(s, &n)) {
-        fprintf(stderr, "factor: '%s' is not a valid positive integer\n", s);
+        (void)fprintf(stderr, "factor: '%s' is not a valid positive integer\n", s);
         return;
     }
-    printf("%llu:", (unsigned long long)n);
+    printf("%llu:", static_cast<unsigned long long>(n));
     if (n < 2) {
         printf("\n");
         return;
@@ -135,18 +152,19 @@ static void print_factors(const char* s, bool exponents) {
         size_t i = 0;
         while (i < f.size()) {
             size_t j = i;
-            while (j < f.size() && f[j] == f[i]) j++;
-            size_t e = j - i;
+            while (j < f.size() && f[j] == f[i]) { j++;
+}
+            size_t const e = j - i;
             if (e == 1) {
-                printf(" %llu", (unsigned long long)f[i]);
+                printf(" %llu", static_cast<unsigned long long>(f[i]));
             } else {
-                printf(" %llu^%zu", (unsigned long long)f[i], e);
+                printf(" %llu^%zu", static_cast<unsigned long long>(f[i]), e);
             }
             i = j;
         }
     } else {
         for (u64 p : f) {
-            printf(" %llu", (unsigned long long)p);
+            printf(" %llu", static_cast<unsigned long long>(p));
         }
     }
     printf("\n");
@@ -175,7 +193,7 @@ int factor_command(int argc, char** argv) {
             no_more_opts = true;
             continue;
         }
-        if (!no_more_opts && a[0] == '-' && a[1] != '\0' && isdigit((unsigned char)a[1]) == 0) {
+        if (!no_more_opts && a[0] == '-' && a[1] != '\0' && isdigit(static_cast<unsigned char>(a[1])) == 0) {
             if (strcmp(a, "--help") == 0) {
                 print_help(prog);
                 return 0;
@@ -188,8 +206,8 @@ int factor_command(int argc, char** argv) {
                 exponents = true;
                 continue;
             }
-            fprintf(stderr, "factor: invalid option: '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+            (void)fprintf(stderr, "factor: invalid option: '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
             return 0;
         }
         operands.push_back(a);
@@ -211,7 +229,7 @@ int factor_command(int argc, char** argv) {
                 tok.clear();
             }
         } else {
-            tok.push_back((char)c);
+            tok.push_back(static_cast<char>(c));
         }
     }
     if (!tok.empty()) {

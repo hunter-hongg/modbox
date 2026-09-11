@@ -1,4 +1,7 @@
+#include <sys/stat.h>
+#include <linux/limits.h>
 #define _GNU_SOURCE
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -7,7 +10,6 @@
 #include <ftw.h>
 #include <fnmatch.h>
 #include <cstdint>
-#include <climits>
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -25,7 +27,7 @@ typedef struct {
     uint64_t agg_size;     /* total including children */
     int depth;
     int is_dir;
-} DustEntry;
+}DustEntry;
 
 /* ── Globals for nftw callback ──────────────────────────────────────────── */
 
@@ -50,7 +52,7 @@ static int walk_cb(const char *fpath, const struct stat *sb,
     /* Check exclude patterns */
     if (!exclude_patterns.empty()) {
         const char *base = strrchr(fpath, '/');
-        base = base ? base + 1 : fpath;
+        base = (base != nullptr) ? base + 1 : fpath;
         for (size_t i = 0; i < exclude_patterns.size(); i++) {
             const char *pat = exclude_patterns[i].c_str();
             if (fnmatch(pat, fpath, FNM_PATHNAME) == 0 ||
@@ -63,13 +65,15 @@ static int walk_cb(const char *fpath, const struct stat *sb,
     DustEntry *e = new DustEntry{};
     e->path = strdup(fpath);
     e->depth = ftwb->level;
-    e->is_dir = (typeflag == FTW_D || typeflag == FTW_DP);
-    e->agg_size = (uint64_t)sb->st_blocks * 512ULL;
+    e->is_dir = static_cast<int>(typeflag == FTW_D || typeflag == FTW_DP);
+    e->agg_size = static_cast<uint64_t>(sb->st_blocks) * 512ULL;
     entries.push_back(e);
 
     /* Progress animation */
     scan_count++;
-    if (progress_tty && (scan_count & 0x1FF) == 0) {  /* every 512 files */
+    if ((progress_tty != 0) && (scan_count & 0x1FF) == 0)
+    {
+        /* every 512 files */;
         static const char spin[] = {'|', '/', '-', '\\'};
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "\r  %c scanning... %d files",
@@ -82,8 +86,11 @@ static int walk_cb(const char *fpath, const struct stat *sb,
 
 /* ── Sort / aggregate ──────────────────────────────────────────────────── */
 
-static void aggregate(void) {
-    if (entries.empty()) return;
+static void aggregate() {
+    if (entries.empty())
+    {
+        return;
+    }
 
     /* Hash: path → DustEntry* for O(1) parent lookup */
     std::unordered_map<std::string, DustEntry*> map;
@@ -93,16 +100,22 @@ static void aggregate(void) {
     }
 
     /* Reusable buffer — avoids per-entry strndup */
-    char *buf = (char*)malloc(PATH_MAX);
+    char *buf = static_cast<char*>(malloc(PATH_MAX));
 
     for (size_t i = 0; i < entries.size(); i++) {
         DustEntry *e = entries[i];
-        size_t len = strlen(e->path);
-        if (len >= PATH_MAX) continue;
+        size_t const len = strlen(e->path);
+        if (len >= PATH_MAX)
+        {
+            continue;
+        }
 
         memcpy(buf, e->path, len + 1);      /* copy + NUL */
         char *slash = strrchr(buf, '/');
-        if (slash == NULL) continue;        /* no parent in tree */
+        if (slash == NULL)
+        {
+            continue;        /* no parent in tree */;
+        }
 
         *slash = '\0';
         auto it = map.find(buf);
@@ -116,7 +129,10 @@ static void aggregate(void) {
 
     /* Sort by size descending — one sort total */
     std::sort(entries.begin(), entries.end(), [](const DustEntry* a, const DustEntry* b) {
-        if (a->agg_size != b->agg_size) return a->agg_size > b->agg_size;
+        if (a->agg_size != b->agg_size)
+        {
+            return a->agg_size > b->agg_size;
+        }
         return strcmp(a->path, b->path) < 0;
     });
 }
@@ -131,22 +147,22 @@ static const char *suffix_1000[] = {"", "kB", "MB", "GB", "TB", "PB"};
 /* Format size into static buf. Returns buf. */
 static const char *fmt_size(uint64_t bytes, int si, int bytes_mode) {
     static char buf[16];
-    if (bytes_mode) {
+    if (bytes_mode != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, sizeof(buf), "%llu", (unsigned long long)bytes);
+        (void)snprintf(buf, sizeof(buf), "%llu", static_cast<unsigned long long>(bytes));
         return buf;
     }
-    const char **suf = si ? suffix_1000 : suffix_1024;
-    uint64_t unit = si ? 1000ULL : 1024ULL;
+    const char **suf = (si != 0) ? suffix_1000 : suffix_1024;
+    uint64_t const unit = (si != 0) ? 1000ULL : 1024ULL;
     int idx = 0;
-    double val = (double)bytes;
+    double val = static_cast<double>(bytes);
     while (val >= unit && idx < 5) {
-        val /= (double)unit;
+        val /= static_cast<double>(unit);
         idx++;
     }
     if (idx == 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, sizeof(buf), "%llu%s", (unsigned long long)val, suf[idx]);
+        (void)snprintf(buf, sizeof(buf), "%llu%s", static_cast<unsigned long long>(val), suf[idx]);
     } else if (val < 10.0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(buf, sizeof(buf), "%.1f%s", val, suf[idx]);
@@ -164,7 +180,7 @@ static const char *fmt_size(uint64_t bytes, int si, int bytes_mode) {
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int dust_command(int argc, char **argv) {
-    DustOptions opts = {0};
+    DustOptions opts = {.max_depth=0};
     entries.clear();
     exclude_patterns.clear();
     one_fs_flag = 0;
@@ -188,7 +204,7 @@ int dust_command(int argc, char **argv) {
                  help_opt,
                  file_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -215,11 +231,11 @@ int dust_command(int argc, char **argv) {
 
     opts.max_depth = (depth_opt->count > 0) ? depth_opt->ival[0] : -1;
     opts.max_lines = (lines_opt->count > 0) ? lines_opt->ival[0] : 40;
-    opts.show_all = (all_opt->count > 0);
-    opts.one_file_system = (one_fs_opt->count > 0);
-    opts.si = (si_opt->count > 0);
-    opts.bytes = (bytes_opt->count > 0);
-    opts.no_color = (no_color_opt->count > 0);
+    opts.show_all = static_cast<int>(all_opt->count > 0);
+    opts.one_file_system = static_cast<int>(one_fs_opt->count > 0);
+    opts.si = static_cast<int>(si_opt->count > 0);
+    opts.bytes = static_cast<int>(bytes_opt->count > 0);
+    opts.no_color = static_cast<int>(no_color_opt->count > 0);
 
     if (exclude_opt->count > 0) {
         for (int i = 0; i < exclude_opt->count; i++) {
@@ -227,7 +243,7 @@ int dust_command(int argc, char **argv) {
         }
     }
 
-    if (opts.one_file_system) {
+    if (opts.one_file_system != 0) {
         one_fs_flag = FTW_MOUNT;
     }
 
@@ -241,7 +257,7 @@ int dust_command(int argc, char **argv) {
     }
 
     /* Check if stdout is a TTY for color */
-    int use_color = !opts.no_color && isatty(STDOUT_FILENO);
+    int const use_color = static_cast<int>((opts.no_color == 0) && (isatty(STDOUT_FILENO)) != 0);
 
     /* Check if stderr is a TTY for progress animation */
     progress_tty = isatty(STDERR_FILENO);
@@ -258,7 +274,7 @@ int dust_command(int argc, char **argv) {
         }
 
         /* Clear progress line */
-        if (progress_tty) {
+        if (progress_tty != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "\r  scanned %d files\n", scan_count);
         }
@@ -269,23 +285,35 @@ int dust_command(int argc, char **argv) {
         std::vector<DustEntry*> display;
         for (size_t i = 0; i < entries.size(); i++) {
             DustEntry *e = entries[i];
-            if (!opts.show_all && !e->is_dir) continue;
-            if (opts.max_depth >= 0 && e->depth > opts.max_depth) continue;
-            if (p > 0 && e->depth == 0) continue;
+            if ((opts.show_all == 0) && (e->is_dir == 0))
+            {
+                continue;
+            }
+            if (opts.max_depth >= 0 && e->depth > opts.max_depth)
+            {
+                continue;
+            }
+            if (p > 0 && e->depth == 0)
+            {
+                continue;
+            }
             display.push_back(e);
-            if (display.size() >= (size_t)opts.max_lines) break;
+            if (display.size() >= static_cast<size_t>(opts.max_lines))
+            {
+                break;
+            }
         }
 
         /* Find max size among displayed entries for bar scaling */
         uint64_t max_size = 0;
         for (size_t i = 0; i < display.size(); i++) {
-            DustEntry *e = display[i];
-            if (e->agg_size > max_size) max_size = e->agg_size;
+            const DustEntry *e = display[i];
+            max_size = std::max(e->agg_size, max_size);
         }
 
         /* Print in reverse (ascending) so smallest first, biggest at bottom */
-        for (int i = (int)display.size() - 1; i >= 0; i--) {
-            DustEntry *e = display[i];
+        for (int i = static_cast<int>(display.size()) - 1; i >= 0; i--) {
+            const DustEntry *e = display[i];
 
             /* Size field (right-aligned 5 chars) */
             const char *s = fmt_size(e->agg_size, opts.si, opts.bytes);
@@ -295,19 +323,25 @@ int dust_command(int argc, char **argv) {
             /* Bar */
             int bar_len = 0;
             if (max_size > 0) {
-                bar_len = (int)(e->agg_size * BAR_WIDTH / max_size);
-                if (bar_len == 0 && e->agg_size > 0) bar_len = 1;
-                if (bar_len > BAR_WIDTH) bar_len = BAR_WIDTH;
+                bar_len = static_cast<int>(e->agg_size * BAR_WIDTH / max_size);
+                if (bar_len == 0 && e->agg_size > 0)
+                {
+                    bar_len = 1;
+                }
+                if (bar_len > BAR_WIDTH)
+                {
+                    bar_len = BAR_WIDTH;
+                }
             }
 
-            if (use_color) {
+            if (use_color != 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stdout, "\033[34m");
             }
             for (int b = 0; b < bar_len; b++) {
                 (void)fputs("\xE2\x96\x88", stdout);
             }
-            if (use_color) {
+            if (use_color != 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stdout, "\033[0m");
             }
@@ -319,7 +353,7 @@ int dust_command(int argc, char **argv) {
 
             /* Percentage */
             if (max_size > 0) {
-                int pct = (int)(e->agg_size * 100 / max_size);
+                int const pct = static_cast<int>(e->agg_size * 100 / max_size);
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stdout, " %3d%% ", pct);
             } else {
@@ -342,7 +376,7 @@ int dust_command(int argc, char **argv) {
     }
 
 
-    if (du_had_error) {
+    if (du_had_error != 0) {
         exit(1);
     }
     return 0;

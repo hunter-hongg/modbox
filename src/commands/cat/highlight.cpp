@@ -80,22 +80,22 @@ static const char* sh_keywords[] = {
 };
 
 static int is_c_comment_start(const char* s) {
-    if (!s || !s[0] || !s[1]) { return 0; }
-    return s[0] == '/' && s[1] == '*';
+    if ((s == nullptr) || (s[0] == 0) || (s[1] == 0)) { return 0; }
+    return static_cast<int>(s[0] == '/' && s[1] == '*');
 }
 
 static int is_c_comment_end(const char* s) {
-    if (!s || !s[0] || !s[1]) { return 0; }
-    return s[0] == '*' && s[1] == '/';
+    if ((s == nullptr) || (s[0] == 0) || (s[1] == 0)) { return 0; }
+    return static_cast<int>(s[0] == '*' && s[1] == '/');
 }
 
 static int is_cpp_comment(const char* s) {
-    if (!s || !s[0] || !s[1]) { return 0; }
-    return s[0] == '/' && s[1] == '/';
+    if ((s == nullptr) || (s[0] == 0) || (s[1] == 0)) { return 0; }
+    return static_cast<int>(s[0] == '/' && s[1] == '/');
 }
 
 static int is_shell_comment(const char* s) {
-    return s[0] == '#';
+    return static_cast<int>(s[0] == '#');
 }
 
 typedef struct {
@@ -110,7 +110,7 @@ typedef struct {
 } LangDef;
 
 static int str_in_list(const char* word, const char** list) {
-    for (int i = 0; list[i]; i++) {
+    for (int i = 0; list[i] != nullptr; i++) {
         if (strcmp(word, list[i]) == 0) { return 1; }
     }
     return 0;
@@ -118,23 +118,23 @@ static int str_in_list(const char* word, const char** list) {
 
 static const LangDef* detect_language(const char* ext) {
     static const LangDef langs[] = {
-        {"c",     c_keywords, c_types,     1, 1, 1, 0, 0},
-        {"h",     c_keywords, c_types,     1, 1, 1, 0, 0},
-        {"py",    py_keywords, NULL,         0, 0, 0, 0, 1},
-        {"rs",    rs_keywords, rs_types,    1, 0, 0, 0, 0},
-        {"go",    go_keywords, go_types,    1, 1, 0, 0, 0},
-        {"js",    js_keywords, NULL,         1, 1, 0, 0, 0},
-        {"ts",    js_keywords, NULL,         1, 1, 0, 0, 0},
-        {"json",  NULL,       NULL,          0, 0, 0, 0, 0},
-        {"yaml",  NULL,       NULL,          0, 0, 0, 0, 1},
-        {"yml",   NULL,       NULL,          0, 0, 0, 0, 1},
-        {"toml",  NULL,       NULL,          0, 0, 0, 0, 1},
-        {"md",    NULL,       NULL,          0, 0, 0, 0, 0},
-        {"sh",    sh_keywords, NULL,         0, 0, 0, 1, 0},
-        {"bash",  sh_keywords, NULL,         0, 0, 0, 1, 0},
-        {NULL,    NULL,       NULL,          0, 0, 0, 0, 0},
+        {.ext="c",     .keywords=c_keywords, .types=c_types,     .line_comment=1, .block_comment=1, .has_preprocessor=1, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="h",     .keywords=c_keywords, .types=c_types,     .line_comment=1, .block_comment=1, .has_preprocessor=1, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="py",    .keywords=py_keywords, .types=NULL,         .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=1},
+        {.ext="rs",    .keywords=rs_keywords, .types=rs_types,    .line_comment=1, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="go",    .keywords=go_keywords, .types=go_types,    .line_comment=1, .block_comment=1, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="js",    .keywords=js_keywords, .types=NULL,         .line_comment=1, .block_comment=1, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="ts",    .keywords=js_keywords, .types=NULL,         .line_comment=1, .block_comment=1, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="json",  .keywords=NULL,       .types=NULL,          .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="yaml",  .keywords=NULL,       .types=NULL,          .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=1},
+        {.ext="yml",   .keywords=NULL,       .types=NULL,          .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=1},
+        {.ext="toml",  .keywords=NULL,       .types=NULL,          .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=1},
+        {.ext="md",    .keywords=NULL,       .types=NULL,          .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
+        {.ext="sh",    .keywords=sh_keywords, .types=NULL,         .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=1, .has_hash_comment=0},
+        {.ext="bash",  .keywords=sh_keywords, .types=NULL,         .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=1, .has_hash_comment=0},
+        {.ext=NULL,    .keywords=NULL,       .types=NULL,          .line_comment=0, .block_comment=0, .has_preprocessor=0, .shell_style_comment=0, .has_hash_comment=0},
     };
-    for (int i = 0; langs[i].ext; i++) {
+    for (int i = 0; langs[i].ext != nullptr; i++) {
         if (strcmp(ext, langs[i].ext) == 0) { return &langs[i]; }
     }
     return NULL;
@@ -142,40 +142,40 @@ static const LangDef* detect_language(const char* ext) {
 
 const char* get_file_extension(const char* path) {
     const char* dot = strrchr(path, '.');
-    if (!dot || dot == path) { return ""; }
+    if ((dot == nullptr) || dot == path) { return ""; }
     return dot + 1;
 }
 
 static void print_token(FILE* out, const char* token, int len, const char* color) {
-    if (color) {
-        fprintf(out, "%s", color);
+    if (color != nullptr) {
+        (void)fprintf(out, "%s", color);
     }
-    fwrite(token, 1, (size_t)len, out);
-    if (color) {
-        fprintf(out, "%s", ANSI_RESET);
+    (void)fwrite(token, 1, static_cast<size_t>(len), out);
+    if (color != nullptr) {
+        (void)fprintf(out, "%s", ANSI_RESET);
     }
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void print_highlighted(const char* line, const char* ext, FILE* out) {
     const LangDef* lang = detect_language(ext);
-    if (!lang) {
-        fputs(line, out);
+    if (lang == nullptr) {
+        (void)fputs(line, out);
         return;
     }
 
-    size_t len = strlen(line);
-    int has_newline = (len > 0 && line[len - 1] == '\n');
-    size_t content_len = has_newline ? len - 1 : len;
+    size_t const len = strlen(line);
+    int const has_newline = static_cast<int>(len > 0 && line[len - 1] == '\n');
+    size_t const content_len = (has_newline != 0) ? len - 1 : len;
 
     int in_block_comment = 0;
     int in_string = 0;
     char string_delim = 0;
     int i = 0;
 
-    while (i < (int)content_len) {
-        if (in_block_comment) {
-            if (i + 1 < (int)content_len && is_c_comment_end(&line[i])) {
+    while (i < static_cast<int>(content_len)) {
+        if (in_block_comment != 0) {
+            if (i + 1 < static_cast<int>(content_len) && (is_c_comment_end(&line[i]) != 0)) {
                 print_token(out, "*/", 2, ANSI_GRAY);
                 i += 2;
                 in_block_comment = 0;
@@ -186,8 +186,8 @@ void print_highlighted(const char* line, const char* ext, FILE* out) {
             continue;
         }
 
-        if (in_string) {
-            if (line[i] == '\\' && i + 1 < (int)content_len) {
+        if (in_string != 0) {
+            if (line[i] == '\\' && i + 1 < static_cast<int>(content_len)) {
                 print_token(out, &line[i], 2, ANSI_GREEN);
                 i += 2;
             } else if (line[i] == string_delim) {
@@ -201,29 +201,29 @@ void print_highlighted(const char* line, const char* ext, FILE* out) {
             continue;
         }
 
-        if (!in_string && !in_block_comment) {
-            if (lang->block_comment && i + 1 < (int)content_len && is_c_comment_start(&line[i])) {
+        if ((in_string == 0) && (in_block_comment == 0)) {
+            if ((lang->block_comment != 0) && i + 1 < static_cast<int>(content_len) && (is_c_comment_start(&line[i]) != 0)) {
                 print_token(out, "/*", 2, ANSI_GRAY);
                 i += 2;
                 in_block_comment = 1;
                 continue;
             }
 
-            if (lang->line_comment && i + 1 < (int)content_len && is_cpp_comment(&line[i])) {
-                print_token(out, &line[i], (int)content_len - i, ANSI_GRAY);
-                i = (int)content_len;
+            if ((lang->line_comment != 0) && i + 1 < static_cast<int>(content_len) && (is_cpp_comment(&line[i]) != 0)) {
+                print_token(out, &line[i], static_cast<int>(content_len) - i, ANSI_GRAY);
+                i = static_cast<int>(content_len);
                 continue;
             }
 
-            if (lang->shell_style_comment && line[i] == '#') {
-                print_token(out, &line[i], (int)content_len - i, ANSI_GRAY);
-                i = (int)content_len;
+            if ((lang->shell_style_comment != 0) && line[i] == '#') {
+                print_token(out, &line[i], static_cast<int>(content_len) - i, ANSI_GRAY);
+                i = static_cast<int>(content_len);
                 continue;
             }
 
-            if (lang->has_hash_comment && i == 0 && line[i] == '#') {
-                print_token(out, &line[i], (int)content_len - i, ANSI_GRAY);
-                i = (int)content_len;
+            if ((lang->has_hash_comment != 0) && i == 0 && line[i] == '#') {
+                print_token(out, &line[i], static_cast<int>(content_len) - i, ANSI_GRAY);
+                i = static_cast<int>(content_len);
                 continue;
             }
 
@@ -235,51 +235,51 @@ void print_highlighted(const char* line, const char* ext, FILE* out) {
                 continue;
             }
 
-            if (lang->has_preprocessor && line[i] == '#' && i == 0) {
+            if ((lang->has_preprocessor != 0) && line[i] == '#' && i == 0) {
                 int j = i;
-                while (j < (int)content_len && line[j] != '\n' && line[j] != '\r') { j++; }
+                while (j < static_cast<int>(content_len) && line[j] != '\n' && line[j] != '\r') { j++; }
                 print_token(out, &line[i], j - i, ANSI_MAGENTA);
                 i = j;
                 continue;
             }
 
-            if (isdigit((unsigned char)line[i]) || (line[i] == '-' && i + 1 < (int)content_len && isdigit((unsigned char)line[i + 1]))) {
+            if ((isdigit(static_cast<unsigned char>(line[i])) != 0) || (line[i] == '-' && i + 1 < static_cast<int>(content_len) && (isdigit(static_cast<unsigned char>(line[i + 1])) != 0))) {
                 int j = i;
                 if (line[j] == '-') { j++; }
-                while (j < (int)content_len && (isdigit((unsigned char)line[j]) || line[j] == '.' || line[j] == 'x' || line[j] == 'X' || line[j] == 'a' || line[j] == 'b' || line[j] == 'c' || line[j] == 'd' || line[j] == 'e' || line[j] == 'f' || line[j] == 'A' || line[j] == 'B' || line[j] == 'C' || line[j] == 'D' || line[j] == 'E' || line[j] == 'F')) { j++; }
+                while (j < static_cast<int>(content_len) && ((isdigit(static_cast<unsigned char>(line[j])) != 0) || line[j] == '.' || line[j] == 'x' || line[j] == 'X' || line[j] == 'a' || line[j] == 'b' || line[j] == 'c' || line[j] == 'd' || line[j] == 'e' || line[j] == 'f' || line[j] == 'A' || line[j] == 'B' || line[j] == 'C' || line[j] == 'D' || line[j] == 'E' || line[j] == 'F')) { j++; }
                 print_token(out, &line[i], j - i, ANSI_YELLOW);
                 i = j;
                 continue;
             }
 
-            if (isalpha((unsigned char)line[i]) || line[i] == '_') {
+            if ((isalpha(static_cast<unsigned char>(line[i])) != 0) || line[i] == '_') {
                 int j = i;
-                while (j < (int)content_len && (isalnum((unsigned char)line[j]) || line[j] == '_')) { j++; }
+                while (j < static_cast<int>(content_len) && ((isalnum(static_cast<unsigned char>(line[j])) != 0) || line[j] == '_')) { j++; }
 
                 char word[WORD_BUF_LEN];
-                int word_len = j - i;
+                int const word_len = j - i;
                 if (word_len < WORD_BUF_LEN) {
-                    strncpy(word, &line[i], (size_t)word_len);
+                    strncpy(word, &line[i], static_cast<size_t>(word_len));
                     word[word_len] = '\0';
 
-                    if (lang->keywords && str_in_list(word, lang->keywords)) {
+                    if ((lang->keywords != nullptr) && (str_in_list(word, lang->keywords) != 0)) {
                         print_token(out, &line[i], word_len, ANSI_BLUE);
-                    } else if (lang->types && str_in_list(word, lang->types)) {
+                    } else if ((lang->types != nullptr) && (str_in_list(word, lang->types) != 0)) {
                         print_token(out, &line[i], word_len, ANSI_CYAN);
                     } else {
-                        fwrite(&line[i], 1, (size_t)word_len, out);
+                        (void)fwrite(&line[i], 1, static_cast<size_t>(word_len), out);
                     }
                 } else {
-                    fwrite(&line[i], 1, (size_t)word_len, out);
+                    (void)fwrite(&line[i], 1, static_cast<size_t>(word_len), out);
                 }
                 i = j;
                 continue;
             }
         }
 
-        fputc(line[i], out);
+        (void)fputc(line[i], out);
         i++;
     }
 
-    if (has_newline) { fputc('\n', out); }
+    if (has_newline != 0) { (void)fputc('\n', out); }
 }

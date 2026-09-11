@@ -2,9 +2,7 @@
 #include <cstring>
 #include <cerrno>
 #include <cstdlib>
-#include <cctype>
 #include <vector>
-#include <argtable3.h>
 
 #include "commands/fold.hpp"
 #include "commands/command_macros.hpp"
@@ -26,7 +24,7 @@ static void print_help(const char* prog) {
 static void process_file(FILE* fp, int width, bool break_spaces) {
   char line_buf[MAX_LINE];
   int has_nl;
-  while (fgets(line_buf, sizeof(line_buf), fp)) {
+  while (fgets(line_buf, sizeof(line_buf), fp) != nullptr) {
     size_t len = strlen(line_buf);
     if (len > 0 && line_buf[len - 1] == '\n') {
       line_buf[--len] = '\0';
@@ -41,25 +39,30 @@ static void process_file(FILE* fp, int width, bool break_spaces) {
     if (break_spaces) {
       size_t pos = 0;
       while (pos < len) {
-        size_t remaining = len - pos;
-        size_t chunk = (remaining < (size_t)width) ? remaining : (size_t)width;
+        size_t const remaining = len - pos;
+        size_t chunk = (remaining < static_cast<size_t>(width)) ? remaining : static_cast<size_t>(width);
         if (pos + chunk < len && line_buf[pos + chunk] != ' ') {
           size_t adj = chunk;
-          while (adj > 0 && line_buf[pos + adj] != ' ') adj--;
-          if (adj == 0) adj = chunk;
+          while (adj > 0 && line_buf[pos + adj] != ' ') { adj--;
+}
+          if (adj == 0) { adj = chunk;
+}
           chunk = adj;
         }
-        for (size_t i = pos; i < pos + chunk; i++) fputc(line_buf[i], stdout);
+        for (size_t i = pos; i < pos + chunk; i++) { (void)fputc(line_buf[i], stdout);
+}
         pos += chunk;
         if (pos < len) {
           printf("\n");
-          while (pos < len && line_buf[pos] == ' ') pos++;
+          while (pos < len && line_buf[pos] == ' ') { pos++;
+}
         }
       }
     } else {
-      for (size_t pos = 0; pos < len; pos += (size_t)width) {
-        size_t chunk = (len - pos < (size_t)width) ? len - pos : (size_t)width;
-        for (size_t i = pos; i < pos + chunk; i++) fputc(line_buf[i], stdout);
+      for (size_t pos = 0; pos < len; pos += static_cast<size_t>(width)) {
+        size_t const chunk = (len - pos < static_cast<size_t>(width)) ? len - pos : static_cast<size_t>(width);
+        for (size_t i = pos; i < pos + chunk; i++) { (void)fputc(line_buf[i], stdout);
+}
         printf("\n");
       }
     }
@@ -77,8 +80,8 @@ int fold_command(int argc, char** argv) {
     if (strcmp(a, "--help") == 0) { print_help(argv[0]); return 0; }
     if (strcmp(a, "--version") == 0) { print_version("fold"); return 0; }
     if (strncmp(a, "-w", 2) == 0) {
-      if (a[2]) width = std::atoi(a + 2);
-      else { i++; width = std::atoi(argv[i]); }
+      if (a[2] != 0) { { width = std::atoi(a + 2);
+      } } else { i++; width = std::atoi(argv[i]); }
       continue;
     }
     if (strcmp(a, "-b") == 0 && i + 1 < argc) { i++; width = std::atoi(argv[i]); continue; }
@@ -91,15 +94,17 @@ int fold_command(int argc, char** argv) {
     files.push_back(argv[i]);
   }
 
-  if (files.empty()) files.push_back("-");
+  if (files.empty()) { files.push_back("-");
+}
   for (size_t k = 0; k < files.size(); k++) {
     FILE* fp = (strcmp(files[k], "-") == 0) ? stdin : fopen(files[k], "r");
-    if (!fp) {
-      fprintf(stderr, "fold: %s: %s\n", files[k], strerror(errno));
+    if (fp == nullptr) {
+      (void)fprintf(stderr, "fold: %s: %s\n", files[k], strerror(errno));
       continue;
     }
     process_file(fp, width, break_spaces);
-    if (fp != stdin) fclose(fp);
+    if (fp != stdin) { (void)fclose(fp);
+}
   }
   return 0;
 }

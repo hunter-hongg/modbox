@@ -1,13 +1,15 @@
 #include <argtable3.h>
 #include <cctype>
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <functional>
 #include <map>
+#include <sstream>
 #include <string>
+#include <system_error>
 #include <unistd.h>
 #include <vector>
 
@@ -74,30 +76,34 @@ static const std::map<std::string, Attr> ATTR_NAMES = {
 
 static std::string color_escape(int code) {
     char buf[32];
-    snprintf(buf, sizeof(buf), "\033[%dm", code);
+    (void)snprintf(buf, sizeof(buf), "\033[%dm", code);
     return buf;
 }
 
 static std::string color_escape_256(bool fg, int val) {
     char buf[32];
-    snprintf(buf, sizeof(buf), "\033[%d;5;%dm", fg ? 38 : 48, val);
+    (void)snprintf(buf, sizeof(buf), "\033[%d;5;%dm", fg ? 38 : 48, val);
     return buf;
 }
 
 static std::string color_escape_true(bool fg, int r, int g, int b) {
     char buf[32];
-    snprintf(buf, sizeof(buf), "\033[%d;2;%d;%d;%dm", fg ? 38 : 48, r, g, b);
+    (void)snprintf(buf, sizeof(buf), "\033[%d;2;%d;%d;%dm", fg ? 38 : 48, r, g, b);
     return buf;
 }
 
 // Parse a hex color like #ff8800
 static bool parse_hex(const std::string& s, int& r, int& g, int& b) {
-    if (s.size() != 7 || s[0] != '#') return false;
-    for (int i = 1; i < 7; i++)
-        if (!isxdigit(static_cast<unsigned char>(s[i]))) return false;
+    if (s.size() != 7 || s[0] != '#') { return false;
+}
+    for (int i = 1; i < 7; i++) {
+        if (isxdigit(static_cast<unsigned char>(s[i])) == 0) { return false;
+}
+}
     auto hex = [&](int i) -> int {
-        char c = s[i];
-        if (c >= '0' && c <= '9') return c - '0';
+        char const c = s[i];
+        if (c >= '0' && c <= '9') { return c - '0';
+}
         return (c >= 'a' && c <= 'f') ? c - 'a' + 10 : c - 'A' + 10;
     };
     r = (hex(1) << 4) | hex(2);
@@ -109,11 +115,12 @@ static bool parse_hex(const std::string& s, int& r, int& g, int& b) {
 // Parse a single color token.
 // Returns true on success, fills in the relevant fields of `st`.
 static bool parse_color_token(const std::string& token, Style& st, bool fg) {
-    if (token == "default") return true; // keep as -1 (default terminal)
+    if (token == "default") { return true; // keep as -1 (default terminal)
+}
 
     // bright-<color>
-    if (token.size() > 7 && token.substr(0, 7) == "bright-") {
-        std::string base = token.substr(7);
+    if (token.size() > 7 && token.starts_with("bright-")) {
+        std::string const base = token.substr(7);
         auto it = NAMED_COLORS.find(base);
         if (it != NAMED_COLORS.end()) {
             if (fg) { st.fg = it->second; st.fg_bright = true; }
@@ -124,9 +131,9 @@ static bool parse_color_token(const std::string& token, Style& st, bool fg) {
     }
 
     // color-<N> (256-color)
-    if (token.size() > 6 && token.substr(0, 6) == "color-") {
+    if (token.size() > 6 && token.starts_with("color-")) {
         char* end = nullptr;
-        long val = strtol(token.c_str() + 6, &end, 10);
+        long const val = strtol(token.c_str() + 6, &end, 10);
         if (*end == '\0' && val >= 0 && val <= 255) {
             if (fg) { st.fg_256 = true; st.fg_256_val = static_cast<int>(val); }
             else    { st.bg_256 = true; st.bg_256_val = static_cast<int>(val); }
@@ -136,11 +143,11 @@ static bool parse_color_token(const std::string& token, Style& st, bool fg) {
     }
 
     // gray-<N> maps to 232 + N (0-23)
-    if (token.size() > 5 && token.substr(0, 5) == "gray-") {
+    if (token.size() > 5 && token.starts_with("gray-")) {
         char* end = nullptr;
-        long val = strtol(token.c_str() + 5, &end, 10);
+        long const val = strtol(token.c_str() + 5, &end, 10);
         if (*end == '\0' && val >= 0 && val <= 23) {
-            int code = 232 + static_cast<int>(val);
+            int const code = 232 + static_cast<int>(val);
             if (fg) { st.fg_256 = true; st.fg_256_val = code; }
             else    { st.bg_256 = true; st.bg_256_val = code; }
             return true;
@@ -150,7 +157,9 @@ static bool parse_color_token(const std::string& token, Style& st, bool fg) {
 
     // #hex truecolor
     if (token.size() == 7 && token[0] == '#') {
-        int r, g, b;
+        int r;
+        int g;
+        int b;
         if (parse_hex(token, r, g, b)) {
             if (fg) { st.fg_true = true; st.fg_r = r; st.fg_g = g; st.fg_b = b; }
             else    { st.bg_true = true; st.bg_r = r; st.bg_g = g; st.bg_b = b; }
@@ -174,11 +183,13 @@ static bool parse_color_token(const std::string& token, Style& st, bool fg) {
 // Returns the parsed Style object. On parse failure, returns default Style (no styling).
 static Style parse_style(const std::string& spec) {
     Style st;
-    if (spec.empty()) return st;
+    if (spec.empty()) { return st;
+}
 
     // Split by ':'
     std::vector<std::string> parts;
-    size_t start = 0, pos;
+    size_t start = 0;
+    size_t pos;
     while ((pos = spec.find(':', start)) != std::string::npos) {
         parts.push_back(spec.substr(start, pos - start));
         start = pos + 1;
@@ -186,10 +197,12 @@ static Style parse_style(const std::string& spec) {
     parts.push_back(spec.substr(start));
 
     auto trim = [](std::string& s) {
-        while (!s.empty() && (s.front() == ' ' || s.front() == '\t'))
+        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) {
             s.erase(s.begin());
-        while (!s.empty() && (s.back() == ' ' || s.back() == '\t'))
+}
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) {
             s.pop_back();
+}
     };
 
     if (parts.size() >= 1 && !parts[0].empty()) {
@@ -202,21 +215,24 @@ static Style parse_style(const std::string& spec) {
     }
     if (parts.size() >= 3 && !parts[2].empty()) {
         // attrs are comma-separated
-        size_t apos = 0, aend;
-        std::string attrs_str = parts[2];
+        size_t apos = 0;
+        size_t aend;
+        std::string const attrs_str = parts[2];
         while ((aend = attrs_str.find(',', apos)) != std::string::npos) {
             std::string tok = attrs_str.substr(apos, aend - apos);
             trim(tok);
             auto it = ATTR_NAMES.find(tok);
-            if (it != ATTR_NAMES.end())
+            if (it != ATTR_NAMES.end()) {
                 st.attrs |= attr_bit(it->second);
+}
             apos = aend + 1;
         }
         std::string tok = attrs_str.substr(apos);
         trim(tok);
         auto it = ATTR_NAMES.find(tok);
-        if (it != ATTR_NAMES.end())
+        if (it != ATTR_NAMES.end()) {
             st.attrs |= attr_bit(it->second);
+}
     }
 
     return st;
@@ -227,12 +243,18 @@ static std::string style_to_ansi(const Style& st) {
     std::string out;
 
     // Attributes
-    if (st.attrs & attr_bit(Attr::Bold))       out += color_escape(1);
-    if (st.attrs & attr_bit(Attr::Dim))        out += color_escape(2);
-    if (st.attrs & attr_bit(Attr::Italic))     out += color_escape(3);
-    if (st.attrs & attr_bit(Attr::Underline))  out += color_escape(4);
-    if (st.attrs & attr_bit(Attr::Blink))      out += color_escape(5);
-    if (st.attrs & attr_bit(Attr::Reverse))    out += color_escape(7);
+    if ((st.attrs & attr_bit(Attr::Bold)) != 0) {       out += color_escape(1);
+}
+    if ((st.attrs & attr_bit(Attr::Dim)) != 0) {        out += color_escape(2);
+}
+    if ((st.attrs & attr_bit(Attr::Italic)) != 0) {     out += color_escape(3);
+}
+    if ((st.attrs & attr_bit(Attr::Underline)) != 0) {  out += color_escape(4);
+}
+    if ((st.attrs & attr_bit(Attr::Blink)) != 0) {      out += color_escape(5);
+}
+    if ((st.attrs & attr_bit(Attr::Reverse)) != 0) {    out += color_escape(7);
+}
 
     // Foreground
     if (st.fg_true) {
@@ -240,7 +262,7 @@ static std::string style_to_ansi(const Style& st) {
     } else if (st.fg_256) {
         out += color_escape_256(true, st.fg_256_val);
     } else if (st.fg >= 0) {
-        int code = st.fg_bright ? (90 + st.fg) : (30 + st.fg);
+        int const code = st.fg_bright ? (90 + st.fg) : (30 + st.fg);
         out += color_escape(code);
     }
 
@@ -250,7 +272,7 @@ static std::string style_to_ansi(const Style& st) {
     } else if (st.bg_256) {
         out += color_escape_256(false, st.bg_256_val);
     } else if (st.bg >= 0) {
-        int code = st.bg_bright ? (100 + st.bg) : (40 + st.bg);
+        int const code = st.bg_bright ? (100 + st.bg) : (40 + st.bg);
         out += color_escape(code);
     }
 
@@ -261,24 +283,26 @@ static const char* RESET = "\033[0m";
 
 // Apply a style string to text, returning the ANSI-wrapped string.
 static std::string apply_style(const std::string& text, const std::string& style_spec) {
-    if (text.empty() || style_spec.empty()) return text;
-    Style st = parse_style(style_spec);
-    std::string ansi = style_to_ansi(st);
-    if (ansi.empty()) return text;
+    if (text.empty() || style_spec.empty()) { return text;
+}
+    Style const st = parse_style(style_spec);
+    std::string const ansi = style_to_ansi(st);
+    if (ansi.empty()) { return text;
+}
     return ansi + text + RESET;
 }
 
 // Get a style from env var or return default.
 static std::string get_style(const char* env_name, const char* default_style) {
     const char* val = std::getenv(env_name);
-    return (val && val[0] != '\0') ? std::string(val) : std::string(default_style);
+    return ((val != nullptr) && val[0] != '\0') ? std::string(val) : std::string(default_style);
 }
 
 // Get a Nerd Font icon from env var or return default.
 // Users can set PROMPTS_ICON_<MODULE> to customize or empty to hide.
 static std::string get_icon(const char* env_name, const char* default_icon) {
     const char* val = std::getenv(env_name);
-    if (val && val[0] != '\0') {
+    if ((val != nullptr) && val[0] != '\0') {
         return std::string(val);
     }
     return std::string(default_icon);
@@ -299,12 +323,13 @@ struct PromptsCtx {
 static std::string module_username(const PromptsCtx& ctx) {
     (void)ctx;
     const char* user = std::getenv("USER");
-    if (!user || user[0] == '\0') {
+    if ((user == nullptr) || user[0] == '\0') {
         user = std::getenv("LOGNAME");
-        if (!user || user[0] == '\0') return "";
+        if ((user == nullptr) || user[0] == '\0') { return "";
+}
     }
 
-    std::string icon = get_icon("PROMPTS_ICON_USERNAME", "\uf007");
+    std::string const icon = get_icon("PROMPTS_ICON_USERNAME", "\uf007");
     std::string style = get_style("PROMPTS_STYLE_USERNAME", "green");
     // Root gets a different style
     if (geteuid() == 0) {
@@ -319,14 +344,16 @@ static std::string module_username(const PromptsCtx& ctx) {
 static std::string module_hostname(const PromptsCtx& ctx) {
     (void)ctx;
     char host[256] = {};
-    if (gethostname(host, sizeof(host)) != 0) return "";
+    if (gethostname(host, sizeof(host)) != 0) { return "";
+}
 
     // Only show short hostname (before first dot)
     char* dot = strchr(host, '.');
-    if (dot) *dot = '\0';
+    if (dot != nullptr) { *dot = '\0';
+}
 
-    std::string icon = get_icon("PROMPTS_ICON_HOSTNAME", "\uf109");
-    std::string style = get_style("PROMPTS_STYLE_HOSTNAME", "bright-cyan");
+    std::string const icon = get_icon("PROMPTS_ICON_HOSTNAME", "\uf109");
+    std::string const style = get_style("PROMPTS_STYLE_HOSTNAME", "bright-cyan");
     return apply_style(icon, style) + " " + apply_style(host, style);
 }
 
@@ -334,12 +361,12 @@ static std::string module_hostname(const PromptsCtx& ctx) {
 
 static std::string module_directory(const PromptsCtx& ctx) {
     std::string path = ctx.cwd;
-    std::string icon = get_icon("PROMPTS_ICON_DIRECTORY", "\uf07c");
-    std::string style = get_style("PROMPTS_STYLE_DIRECTORY", "bright-blue");
+    std::string const icon = get_icon("PROMPTS_ICON_DIRECTORY", "\uf07c");
+    std::string const style = get_style("PROMPTS_STYLE_DIRECTORY", "bright-blue");
 
     // Replace HOME with ~
-    std::string home = ctx.home;
-    if (!home.empty() && path.size() >= home.size() && path.substr(0, home.size()) == home) {
+    std::string const home = ctx.home;
+    if (!home.empty() && path.size() >= home.size() && path.starts_with(home)) {
         if (path.size() == home.size()) {
             return apply_style("~", style);
         }
@@ -349,7 +376,7 @@ static std::string module_directory(const PromptsCtx& ctx) {
     }
 
     // Smart truncation: keep last N components
-    int max_components = ctx.dir_trunc;
+    int const max_components = ctx.dir_trunc;
     std::string result;
 
     // Count components
@@ -362,13 +389,15 @@ static std::string module_directory(const PromptsCtx& ctx) {
     } else if (!path.empty() && path[0] == '~') {
         parts.push_back("~");
         s = 1;
-        if (path.size() > 1 && path[1] == '/') s = 2;
+        if (path.size() > 1 && path[1] == '/') { s = 2;
+}
     }
 
     for (size_t i = s; i < path.size();) {
         if (path[i] == '/') { i++; continue; }
         size_t e = path.find('/', i);
-        if (e == std::string::npos) e = path.size();
+        if (e == std::string::npos) { e = path.size();
+}
         parts.push_back(path.substr(i, e - i));
         i = e;
     }
@@ -377,11 +406,12 @@ static std::string module_directory(const PromptsCtx& ctx) {
         result = path;
     } else {
         // Truncate: keep the last max_components parts
-        bool is_absolute = (!path.empty() && path[0] == '/');
-        std::string trunc_indicator = "...";
+        bool const is_absolute = (!path.empty() && path[0] == '/');
+        std::string const trunc_indicator = "...";
         result = trunc_indicator;
         for (size_t i = parts.size() - max_components; i < parts.size(); i++) {
-            if (parts[i] == "/" || parts[i] == "~") continue;
+            if (parts[i] == "/" || parts[i] == "~") { continue;
+}
             result += "/" + parts[i];
         }
         // If the original was absolute and we truncated heavily, prefix with /
@@ -402,7 +432,7 @@ static std::string find_git_dir(const std::string& start_dir) {
     fs::path cur = fs::absolute(start_dir);
     // Limit walk to 10 levels to avoid runaway
     for (int i = 0; i < 10; i++) {
-        fs::path git_path = cur / ".git";
+        fs::path const git_path = cur / ".git";
         std::error_code ec;
         if (fs::is_directory(git_path, ec)) {
             return git_path.string();
@@ -410,16 +440,17 @@ static std::string find_git_dir(const std::string& start_dir) {
         if (fs::is_regular_file(git_path, ec)) {
             // It's a worktree / submodule pointer
             FILE* f = fopen(git_path.c_str(), "r");
-            if (!f) return "";
+            if (f == nullptr) { return "";
+}
             char buf[4096] = {};
-            if (fgets(buf, sizeof(buf), f)) {
-                fclose(f);
+            if (fgets(buf, sizeof(buf), f) != nullptr) {
+                (void)fclose(f);
                 std::string line(buf);
                 // Strip trailing whitespace
                 while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' ')) {
                     line.pop_back();
                 }
-                if (line.substr(0, 8) == "gitdir: ") {
+                if (line.starts_with("gitdir: ")) {
                     fs::path actual = fs::path(line.substr(8));
                     if (actual.is_relative()) {
                         actual = cur / actual;
@@ -428,13 +459,14 @@ static std::string find_git_dir(const std::string& start_dir) {
                     return fs::canonical(actual, ec2).string();
                 }
             } else {
-                fclose(f);
+                (void)fclose(f);
             }
             return "";
         }
         // Check parent
-        fs::path parent = cur.parent_path();
-        if (parent == cur) break;
+        fs::path const parent = cur.parent_path();
+        if (parent == cur) { break;
+}
         cur = parent;
     }
     return "";
@@ -442,12 +474,13 @@ static std::string find_git_dir(const std::string& start_dir) {
 
 // Read git HEAD and return branch name (empty if detached or error).
 static std::string read_git_branch(const std::string& git_dir) {
-    fs::path head_path = fs::path(git_dir) / "HEAD";
+    fs::path const head_path = fs::path(git_dir) / "HEAD";
     FILE* f = fopen(head_path.c_str(), "r");
-    if (!f) return "";
+    if (f == nullptr) { return "";
+}
     char buf[4096] = {};
     std::string branch;
-    if (fgets(buf, sizeof(buf), f)) {
+    if (fgets(buf, sizeof(buf), f) != nullptr) {
         std::string line(buf);
         while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
             line.pop_back();
@@ -460,28 +493,34 @@ static std::string read_git_branch(const std::string& git_dir) {
             branch = line.substr(0, 7); // short hash
         }
     }
-    fclose(f);
+    (void)fclose(f);
     return branch;
 }
 
 // Run `git status --porcelain -b` to get status info.
 // Returns a string of status indicators: * for modified, + for staged, ? for untracked, etc.
 static std::string get_git_status(const std::string& cwd) {
-    std::string cmd = "cd " + cwd + " 2>/dev/null && git status --porcelain -b 2>/dev/null";
+    std::string const cmd = "cd " + cwd + " 2>/dev/null && git status --porcelain -b 2>/dev/null";
     FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) return "";
+    if (pipe == nullptr) { return "";
+}
 
     char buf[4096];
     std::string output;
-    while (fgets(buf, sizeof(buf), pipe)) {
+    while (fgets(buf, sizeof(buf), pipe) != nullptr) {
         output += buf;
     }
-    int status = pclose(pipe);
-    if (status != 0) return "";
+    int const status = pclose(pipe);
+    if (status != 0) { return "";
+}
 
     // Parse the output
-    bool modified = false, staged = false, untracked = false, conflicted = false;
-    int ahead = 0, behind = 0;
+    bool modified = false;
+    bool staged = false;
+    bool untracked = false;
+    bool conflicted = false;
+    int ahead = 0;
+    int behind = 0;
 
     std::istringstream stream(output);
     std::string line;
@@ -502,37 +541,41 @@ static std::string get_git_status(const std::string& cwd) {
             continue;
         }
 
-        if (line.size() < 3) continue;
-        char x = line[0];
-        char y = line[1];
+        if (line.size() < 3) { continue;
+}
+        char const x = line[0];
+        char const y = line[1];
 
         if (x == '?' && y == '?') {
             untracked = true;
         } else if (x != ' ' && x != '!' && x != '?') {
             staged = true;
-            if (x == 'U' || y == 'U') conflicted = true;
+            if (x == 'U' || y == 'U') { conflicted = true;
+}
         }
         if (y != ' ') {
             modified = true;
-            if (x == 'U' || y == 'U') conflicted = true;
+            if (x == 'U' || y == 'U') { conflicted = true;
+}
         }
     }
 
     // Build status string
     std::string indicators;
-    if (conflicted)       indicators += "\342\234\227"; // ✗
-    else if (staged)      indicators += "+";
-    else if (modified)    indicators += "*";
-    else if (untracked)   indicators += "?";
+    if (conflicted) {       indicators += "\342\234\227"; // ✗
+    } else if (staged) {      indicators += "+";
+    } else if (modified) {    indicators += "*";
+    } else if (untracked) {   indicators += "?";
+}
     // ahead/behind arrows
     if (ahead > 0) {
         char tmp[16];
-        snprintf(tmp, sizeof(tmp), "\342\206\221%d", ahead); // ↑N
+        (void)snprintf(tmp, sizeof(tmp), "\342\206\221%d", ahead);// ↑N
         indicators += tmp;
     }
     if (behind > 0) {
         char tmp[16];
-        snprintf(tmp, sizeof(tmp), "\342\206\223%d", behind); // ↓N
+        (void)snprintf(tmp, sizeof(tmp), "\342\206\223%d", behind);// ↓N
         indicators += tmp;
     }
 
@@ -540,83 +583,91 @@ static std::string get_git_status(const std::string& cwd) {
 }
 
 static std::string module_git_status(const PromptsCtx& ctx) {
-    std::string git_dir = find_git_dir(ctx.cwd);
-    if (git_dir.empty()) return "";
+    std::string const git_dir = find_git_dir(ctx.cwd);
+    if (git_dir.empty()) { return "";
+}
 
-    std::string branch = read_git_branch(git_dir);
-    if (branch.empty()) return "";
+    std::string const branch = read_git_branch(git_dir);
+    if (branch.empty()) { return "";
+}
 
-    std::string indicators = get_git_status(ctx.cwd);
+    std::string const indicators = get_git_status(ctx.cwd);
 
-    std::string icon = get_icon("PROMPTS_ICON_GIT", "\ue0a0");
+    std::string const icon = get_icon("PROMPTS_ICON_GIT", "\ue0a0");
     std::string text = branch;
     if (!indicators.empty()) {
         text += " " + indicators;
     }
 
-    std::string style = get_style("PROMPTS_STYLE_GIT", "yellow");
+    std::string const style = get_style("PROMPTS_STYLE_GIT", "yellow");
     return apply_style(icon, style) + " " + apply_style(text, style);
 }
 
 // ── Module: cmd_duration ────────────────────────────────────────────────
 
 static std::string format_duration(double secs) {
-    if (secs < 0.001) return "";
+    if (secs < 0.001) { return "";
+}
 
     char buf[32];
     if (secs >= 3600) {
-        int h = static_cast<int>(secs / 3600);
-        int m = static_cast<int>((secs - h * 3600) / 60);
-        int s = static_cast<int>(secs) % 60;
-        snprintf(buf, sizeof(buf), "%dh%dm%ds", h, m, s);
+        int const h = static_cast<int>(secs / 3600);
+        int const m = static_cast<int>((secs - h * 3600) / 60);
+        int const s = static_cast<int>(secs) % 60;
+        (void)snprintf(buf, sizeof(buf), "%dh%dm%ds", h, m, s);
     } else if (secs >= 60) {
-        int m = static_cast<int>(secs / 60);
-        int s = static_cast<int>(secs) % 60;
-        snprintf(buf, sizeof(buf), "%dm%ds", m, s);
+        int const m = static_cast<int>(secs / 60);
+        int const s = static_cast<int>(secs) % 60;
+        (void)snprintf(buf, sizeof(buf), "%dm%ds", m, s);
     } else if (secs >= 1.0) {
-        snprintf(buf, sizeof(buf), "%.1fs", secs);
+        (void)snprintf(buf, sizeof(buf), "%.1fs", secs);
     } else if (secs >= 0.01) {
-        snprintf(buf, sizeof(buf), "%dms", static_cast<int>(secs * 1000));
+        (void)snprintf(buf, sizeof(buf), "%dms", static_cast<int>(secs * 1000));
     } else {
-        snprintf(buf, sizeof(buf), "<1ms");
+        (void)snprintf(buf, sizeof(buf), "<1ms");
     }
 
     return buf;
 }
 
 static std::string module_cmd_duration(const PromptsCtx& ctx) {
-    if (ctx.cmd_duration <= 0) return "";
+    if (ctx.cmd_duration <= 0) { return "";
+}
 
     // Only show if >= 2 seconds by default (configurable via threshold env var)
     const char* threshold_env = std::getenv("PROMPTS_DURATION_THRESHOLD");
     double threshold = 2.0;
-    if (threshold_env) {
+    if (threshold_env != nullptr) {
         char* end = nullptr;
-        double val = strtod(threshold_env, &end);
-        if (end != threshold_env && val >= 0) threshold = val;
+        double const val = strtod(threshold_env, &end);
+        if (end != threshold_env && val >= 0) { threshold = val;
+}
     }
 
-    if (ctx.cmd_duration < threshold) return "";
+    if (ctx.cmd_duration < threshold) { return "";
+}
 
-    std::string text = format_duration(ctx.cmd_duration);
-    if (text.empty()) return "";
+    std::string const text = format_duration(ctx.cmd_duration);
+    if (text.empty()) { return "";
+}
 
-    std::string icon = get_icon("PROMPTS_ICON_CMD_DURATION", "\uf017");
-    std::string style = get_style("PROMPTS_STYLE_CMD_DURATION", "bright-yellow");
+    std::string const icon = get_icon("PROMPTS_ICON_CMD_DURATION", "\uf017");
+    std::string const style = get_style("PROMPTS_STYLE_CMD_DURATION", "bright-yellow");
     return apply_style(icon, style) + " " + apply_style(text, style);
 }
 
 // ── Module: exit_code ───────────────────────────────────────────────────
 
 static std::string module_exit_code(const PromptsCtx& ctx) {
-    if (ctx.last_exit_code == 0) return "";
+    if (ctx.last_exit_code == 0) { return "";
+}
 
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d", ctx.last_exit_code);
-    std::string text = buf;
+    (void)snprintf(buf, sizeof(buf), "%d", ctx.last_exit_code);
+    std::string const text = buf;
 
-    std::string icon = get_icon("PROMPTS_ICON_EXIT_CODE", "\uf071");
-    std::string style = get_style("PROMPTS_STYLE_EXIT_CODE", "red");
+    std::string const icon = get_icon("PROMPTS_ICON_EXIT_CODE", "\uf071");
+    std::string const style = get_style("PROMPTS_STYLE_EXIT_CODE", "red");
     return apply_style(icon, style) + " " + apply_style(text, style);
 }
 
@@ -632,7 +683,7 @@ static std::string module_line_break(const PromptsCtx& ctx) {
 static std::string module_shell_char(const PromptsCtx& ctx) {
     const char* ch = (geteuid() == 0) ? "#" : "$";
 
-    std::string icon = get_icon("PROMPTS_ICON_SHELL_CHAR", "\uf054");
+    std::string const icon = get_icon("PROMPTS_ICON_SHELL_CHAR", "\uf054");
     std::string style;
     if (ctx.last_exit_code == 0) {
         style = get_style("PROMPTS_STYLE_SHELL_CHAR", "green");
@@ -655,14 +706,14 @@ struct ModuleInfo {
 };
 
 static const ModuleInfo MODULES[] = {
-    {"username",     "Current username",              "green",       "PROMPTS_STYLE_USERNAME",                    "\uf007", "PROMPTS_ICON_USERNAME"},
-    {"hostname",     "Machine hostname",              "bright-cyan", "PROMPTS_STYLE_HOSTNAME",                    "\uf109", "PROMPTS_ICON_HOSTNAME"},
-    {"directory",    "Current directory (truncated)", "bright-blue", "PROMPTS_STYLE_DIRECTORY, PROMPTS_DIR_TRUNC", "\uf07c", "PROMPTS_ICON_DIRECTORY"},
-    {"git_status",   "Git branch and status",         "yellow",      "PROMPTS_STYLE_GIT",                         "\ue0a0", "PROMPTS_ICON_GIT"},
-    {"cmd_duration", "Last command duration",         "bright-yellow", "PROMPTS_STYLE_CMD_DURATION, PROMPTS_DURATION_THRESHOLD", "\uf017", "PROMPTS_ICON_CMD_DURATION"},
-    {"exit_code",    "Last exit code (if non-zero)",  "red",         "PROMPTS_STYLE_EXIT_CODE",                   "\uf071", "PROMPTS_ICON_EXIT_CODE"},
-    {"line_break",   "Newline between sections",      "",            "",                                          "",      ""},
-    {"shell_char",   "Prompt character ($ or #)",     "green/red",   "PROMPTS_STYLE_SHELL_CHAR, PROMPTS_STYLE_SHELL_CHAR_ERROR", "\uf054", "PROMPTS_ICON_SHELL_CHAR"},
+    {.name="username",     .description="Current username",              .default_style="green",       .env_vars="PROMPTS_STYLE_USERNAME",                    .default_icon="\uf007", .icon_env="PROMPTS_ICON_USERNAME"},
+    {.name="hostname",     .description="Machine hostname",              .default_style="bright-cyan", .env_vars="PROMPTS_STYLE_HOSTNAME",                    .default_icon="\uf109", .icon_env="PROMPTS_ICON_HOSTNAME"},
+    {.name="directory",    .description="Current directory (truncated)", .default_style="bright-blue", .env_vars="PROMPTS_STYLE_DIRECTORY, PROMPTS_DIR_TRUNC", .default_icon="\uf07c", .icon_env="PROMPTS_ICON_DIRECTORY"},
+    {.name="git_status",   .description="Git branch and status",         .default_style="yellow",      .env_vars="PROMPTS_STYLE_GIT",                         .default_icon="\ue0a0", .icon_env="PROMPTS_ICON_GIT"},
+    {.name="cmd_duration", .description="Last command duration",         .default_style="bright-yellow", .env_vars="PROMPTS_STYLE_CMD_DURATION, PROMPTS_DURATION_THRESHOLD", .default_icon="\uf017", .icon_env="PROMPTS_ICON_CMD_DURATION"},
+    {.name="exit_code",    .description="Last exit code (if non-zero)",  .default_style="red",         .env_vars="PROMPTS_STYLE_EXIT_CODE",                   .default_icon="\uf071", .icon_env="PROMPTS_ICON_EXIT_CODE"},
+    {.name="line_break",   .description="Newline between sections",      .default_style="",            .env_vars="",                                          .default_icon="",      .icon_env=""},
+    {.name="shell_char",   .description="Prompt character ($ or #)",     .default_style="green/red",   .env_vars="PROMPTS_STYLE_SHELL_CHAR, PROMPTS_STYLE_SHELL_CHAR_ERROR", .default_icon="\uf054", .icon_env="PROMPTS_ICON_SHELL_CHAR"},
 };
 
 // ── Render ──────────────────────────────────────────────────────────────
@@ -676,27 +727,32 @@ static const char* DEFAULT_MODULES[] = {
 
 static std::vector<std::string> get_enabled_modules() {
     const char* env = std::getenv("PROMPTS_ENABLED");
-    if (!env || env[0] == '\0') {
+    if ((env == nullptr) || env[0] == '\0') {
         // Return default order
         std::vector<std::string> result;
-        for (int i = 0; DEFAULT_MODULES[i] != nullptr; i++)
+        for (int i = 0; DEFAULT_MODULES[i] != nullptr; i++) {
             result.emplace_back(DEFAULT_MODULES[i]);
+}
         return result;
     }
 
     std::vector<std::string> result;
-    std::string s(env);
+    std::string const s(env);
     size_t pos = 0;
     while (pos < s.size()) {
         size_t comma = s.find(',', pos);
-        if (comma == std::string::npos) comma = s.size();
+        if (comma == std::string::npos) { comma = s.size();
+}
         std::string tok = s.substr(pos, comma - pos);
         // Trim
-        while (!tok.empty() && (tok.front() == ' ' || tok.front() == '\t'))
+        while (!tok.empty() && (tok.front() == ' ' || tok.front() == '\t')) {
             tok.erase(tok.begin());
-        while (!tok.empty() && (tok.back() == ' ' || tok.back() == '\t'))
+}
+        while (!tok.empty() && (tok.back() == ' ' || tok.back() == '\t')) {
             tok.pop_back();
-        if (!tok.empty()) result.push_back(tok);
+}
+        if (!tok.empty()) { result.push_back(tok);
+}
         pos = comma + 1;
     }
     return result;
@@ -716,7 +772,8 @@ static ModuleFn find_module(const std::string& name) {
         {"shell_char", module_shell_char},
     };
     auto it = MODULE_MAP.find(name);
-    if (it != MODULE_MAP.end()) return it->second;
+    if (it != MODULE_MAP.end()) { return it->second;
+}
     return nullptr;
 }
 
@@ -727,18 +784,20 @@ static std::string render_prompt(const PromptsCtx& ctx) {
 
     for (const auto& name : modules) {
         ModuleFn fn = find_module(name);
-        if (!fn) continue;
+        if (fn == nullptr) { continue;
+}
 
-        std::string segment = fn(ctx);
+        std::string const segment = fn(ctx);
 
-        if (segment.empty()) continue;
+        if (segment.empty()) { continue;
+}
 
         // Add separator between segments (but not before line_break)
         if (!result.empty() && name != "line_break") {
             // Check if the last char of result is a newline (i.e., we just did a line break)
             if (!result.empty() && result.back() != '\n') {
                 // Add a dim separator
-                std::string sep_style = get_style("PROMPTS_STYLE_SEPARATOR", "bright-black");
+                std::string const sep_style = get_style("PROMPTS_STYLE_SEPARATOR", "bright-black");
                 result += apply_style(" ", sep_style);
             }
         }
@@ -756,7 +815,7 @@ static void cmd_render(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
     ArgTable at({help_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s render [OPTIONS]\n", argv[0]);
@@ -777,7 +836,7 @@ static void cmd_render(int argc, char** argv) {
 
     // CWD
     char cwd_buf[4096];
-    if (getcwd(cwd_buf, sizeof(cwd_buf))) {
+    if (getcwd(cwd_buf, sizeof(cwd_buf)) != nullptr) {
         ctx.cwd = cwd_buf;
     } else {
         ctx.cwd = "?";
@@ -785,43 +844,45 @@ static void cmd_render(int argc, char** argv) {
 
     // HOME
     const char* home = std::getenv("HOME");
-    ctx.home = home ? home : "";
+    ctx.home = (home != nullptr) ? home : "";
 
     // Dir truncation
     const char* trunc_env = std::getenv("PROMPTS_DIR_TRUNC");
-    if (trunc_env) {
+    if (trunc_env != nullptr) {
         char* end = nullptr;
-        long val = strtol(trunc_env, &end, 10);
-        if (end != trunc_env && val > 0) ctx.dir_trunc = static_cast<int>(val);
+        long const val = strtol(trunc_env, &end, 10);
+        if (end != trunc_env && val > 0) { ctx.dir_trunc = static_cast<int>(val);
+}
     }
 
     // Exit code from environment (set by shell integration)
     const char* ec_env = std::getenv("PROMPTS_EXIT_CODE");
-    if (ec_env) {
+    if (ec_env != nullptr) {
         ctx.last_exit_code = atoi(ec_env);
     }
 
     // Command duration from environment (set by shell integration)
     const char* dur_env = std::getenv("PROMPTS_CMD_DURATION");
-    if (dur_env) {
+    if (dur_env != nullptr) {
         char* end = nullptr;
-        double val = strtod(dur_env, &end);
-        if (end != dur_env && val >= 0) ctx.cmd_duration = val;
+        double const val = strtod(dur_env, &end);
+        if (end != dur_env && val >= 0) { ctx.cmd_duration = val;
+}
     }
 
-    std::string prompt = render_prompt(ctx);
+    std::string const prompt = render_prompt(ctx);
     printf("%s", prompt.c_str());
 }
 
 // ── Subcommand: init ────────────────────────────────────────────────────
 
 static void cmd_init(const char* shell) {
-    if (!shell || shell[0] == '\0') {
-        fprintf(stderr, "prompts: please specify a shell: bash, zsh, fish\n");
+    if ((shell == nullptr) || shell[0] == '\0') {
+        (void)fprintf(stderr, "prompts: please specify a shell: bash, zsh, fish\n");
         return;
     }
 
-    std::string s(shell);
+    std::string const s(shell);
 
     if (s == "bash") {
         printf(R"SH(__prompts_preexec() {
@@ -887,7 +948,7 @@ function fish_prompt
 end
 )SH");
     } else {
-        fprintf(stderr, "prompts: unsupported shell '%s'. Supported: bash, zsh, fish\n", shell);
+        (void)fprintf(stderr, "prompts: unsupported shell '%s'. Supported: bash, zsh, fish\n", shell);
     }
 }
 
@@ -922,7 +983,7 @@ static void cmd_list() {
 // ── Subcommand: modules ─────────────────────────────────────────────────
 
 static void cmd_modules(const char* name) {
-    if (name && name[0] != '\0') {
+    if ((name != nullptr) && name[0] != '\0') {
         for (const auto& m : MODULES) {
             if (strcmp(m.name, name) == 0) {
                 printf("Module: %s\n", m.name);
@@ -937,8 +998,8 @@ static void cmd_modules(const char* name) {
                 return;
             }
         }
-        fprintf(stderr, "prompts: unknown module '%s'\n", name);
-        fprintf(stderr, "Run 'prompts list' to see available modules.\n");
+        (void)fprintf(stderr, "prompts: unknown module '%s'\n", name);
+        (void)fprintf(stderr, "Run 'prompts list' to see available modules.\n");
     } else {
         printf("Available modules:\n");
         for (const auto& m : MODULES) {
@@ -956,7 +1017,7 @@ int prompts_command(int argc, char** argv) {
         return 0;
     }
 
-    std::string subcmd = argv[1];
+    std::string const subcmd = argv[1];
 
     if (subcmd == "--help" || subcmd == "-h") {
         printf("Usage: %s [SUBCOMMAND] [OPTIONS]\n", argv[0]);
@@ -986,8 +1047,8 @@ int prompts_command(int argc, char** argv) {
         const char* name = (argc >= 3) ? argv[2] : nullptr;
         cmd_modules(name);
     } else {
-        fprintf(stderr, "prompts: unknown subcommand '%s'\n", subcmd.c_str());
-        fprintf(stderr, "Run 'prompts --help' for usage.\n");
+        (void)fprintf(stderr, "prompts: unknown subcommand '%s'\n", subcmd.c_str());
+        (void)fprintf(stderr, "Run 'prompts --help' for usage.\n");
     }
     return 0;
 }

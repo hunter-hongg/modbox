@@ -51,10 +51,10 @@ int yes_command(int argc, char** argv) {
     size_t written = 0;
     while (true) {
         if (written + buf.size() > sizeof(out)) {
-            size_t n = fwrite(out, 1, written, stdout);
+            size_t const n = fwrite(out, 1, written, stdout);
             written -= n;
             memmove(out, out + n, written);
-            if (ferror(stdout)) {
+            if (ferror(stdout) != 0) {
                 break;
             }
         }

@@ -28,7 +28,7 @@ int hostid_command(int argc, char** argv) {
         }
     }
 
-    long id = gethostid();
+    long const id = gethostid();
     printf("%08lx\n", id);
     return 0;
 }

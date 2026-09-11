@@ -1,6 +1,8 @@
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <vector>
@@ -10,7 +12,7 @@
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 
-extern char** environ;
+
 
 static void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... [-] [NAME=VALUE]... [COMMAND [ARG]...]\n", prog);
@@ -25,24 +27,27 @@ static void print_help(const char* prog) {
 }
 
 static int run_command(std::vector<char*>& argv) {
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid < 0) {
         perror("env: fork");
         return 127;
     }
     if (pid == 0) {
         execvp(argv[0], argv.data());
-        fprintf(stderr, "env: '%s': %s\n", argv[0], strerror(errno));
+        (void)fprintf(stderr, "env: '%s': %s\n", argv[0], strerror(errno));
         _exit(127);
     }
     int status = 0;
     while (waitpid(pid, &status, 0) < 0) {
-        if (errno == EINTR) continue;
+        if (errno == EINTR) { continue;
+}
         perror("env: waitpid");
         return 127;
     }
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    if (WIFEXITED(status)) { return WEXITSTATUS(status);
+}
+    if (WIFSIGNALED(status)) { return 128 + WTERMSIG(status);
+}
     return 127;
 }
 
@@ -70,15 +75,15 @@ int env_command(int argc, char** argv) {
         } else if (strncmp(a, "--unset=", 8) == 0) {
             unsets.push_back(a + 8);
         } else if (strcmp(a, "-u") == 0) {
-            if (i + 1 < argc) unsets.push_back(argv[++i]);
-            else { fprintf(stderr, "env: option '-u' requires an argument\n"); return 0; }
+            if (i + 1 < argc) { { unsets.push_back(argv[++i]);
+            } } else { (void)fprintf(stderr, "env: option '-u' requires an argument\n"); return 0; }
         } else if (strncmp(a, "-u", 2) == 0) {
             unsets.push_back(a + 2);
         } else if (strncmp(a, "--chdir=", 8) == 0) {
             chdir_dir = a + 8;
         } else if (strcmp(a, "-C") == 0) {
-            if (i + 1 < argc) chdir_dir = argv[++i];
-            else { fprintf(stderr, "env: option '-C' requires an argument\n"); return 0; }
+            if (i + 1 < argc) { { chdir_dir = argv[++i];
+            } } else { (void)fprintf(stderr, "env: option '-C' requires an argument\n"); return 0; }
         } else if (strncmp(a, "-C", 2) == 0) {
             chdir_dir = a + 2;
         } else if (strcmp(a, "--help") == 0) {
@@ -97,7 +102,7 @@ int env_command(int argc, char** argv) {
             ignore_env = true;
             split_dash = true;
         } else if (a[0] == '-' && a[1] != '\0') {
-            fprintf(stderr, "env: invalid option -- '%s'\n", a);
+            (void)fprintf(stderr, "env: invalid option -- '%s'\n", a);
             return 0;
         } else if (strchr(a, '=') != nullptr) {
             assignments.push_back(a);
@@ -119,14 +124,14 @@ int env_command(int argc, char** argv) {
     }
 
     for (const auto& a : assignments) {
-        std::string s = a;
-        size_t eq = s.find('=');
+        std::string const s = a;
+        size_t const eq = s.find('=');
         setenv(s.substr(0, eq).c_str(), s.c_str() + eq + 1, 1);
     }
 
     if (chdir_dir != nullptr) {
         if (chdir(chdir_dir) != 0) {
-            fprintf(stderr, "env: cannot change directory to '%s': %s\n",
+            (void)fprintf(stderr, "env: cannot change directory to '%s': %s\n",
                     chdir_dir, strerror(errno));
             return 0;
         }
@@ -134,18 +139,20 @@ int env_command(int argc, char** argv) {
 
     if (command.empty()) {
         for (char** e = environ; *e != nullptr; e++) {
-            fputs(*e, stdout);
-            fputc(null_out ? '\0' : '\n', stdout);
+            (void)fputs(*e, stdout);
+            (void)fputc(null_out ? '\0' : '\n', stdout);
         }
         return 0;
     }
 
     std::vector<char*> argv_exec;
-    for (const auto& c : command) argv_exec.push_back(const_cast<char*>(c.c_str()));
+    for (const auto& c : command) { argv_exec.push_back(const_cast<char*>(c.c_str()));
+}
     argv_exec.push_back(nullptr);
 
-    int rc = run_command(argv_exec);
-    if (rc != 0) exit(rc);
+    int const rc = run_command(argv_exec);
+    if (rc != 0) { exit(rc);
+}
     return 0;
 }
 

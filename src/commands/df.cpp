@@ -1,13 +1,13 @@
+#include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <sys/types.h>
 #include <vector>
 #include <string>
 #include <sys/statvfs.h>
 #include <sys/stat.h>
-#include <pwd.h>
-#include <grp.h>
-#include <unistd.h>
 
 #include "commands/df.hpp"
 #include "commands/command_macros.hpp"
@@ -53,18 +53,19 @@ static void print_df_version(const char* prog) {
 }
 
 static double scale_value(uint64_t val, int human_si) {
-    uint64_t unit = human_si ? 1000ULL : 1024ULL;
-    if (val < unit) return (double)val;
-    double v = (double)val;
-    const char* suffixes = human_si ? "kMGTPEZY" : "KMGTPEZY";
+    uint64_t const unit = (human_si != 0) ? 1000ULL : 1024ULL;
+    if (val < unit) { return static_cast<double>(val);
+}
+    double v = static_cast<double>(val);
+    const char* suffixes = (human_si != 0) ? "kMGTPEZY" : "KMGTPEZY";
     int idx = 0;
     while (v >= unit && idx < 7) {
-        v /= (double)unit;
+        v /= static_cast<double>(unit);
         idx++;
     }
-    if (human_si) {
+    if (human_si != 0) {
         char buf[64];
-        snprintf(buf, sizeof(buf), "%.1f%c", v, suffixes[idx]);
+        (void)snprintf(buf, sizeof(buf), "%.1f%c", v, suffixes[idx]);
         printf("%8s", buf);
     } else {
         printf("%7.1f%c", v, suffixes[idx]);
@@ -73,10 +74,12 @@ static double scale_value(uint64_t val, int human_si) {
 }
 
 static uint64_t parse_block_size(const char* s) {
-    if (!s || !*s) return 0;
+    if ((s == nullptr) || ((*s) == 0)) { return 0;
+}
     char* endp = nullptr;
-    uint64_t val = strtoull(s, &endp, 10);
-    if (!endp || !*endp) return val;
+    uint64_t const val = strtoull(s, &endp, 10);
+    if ((endp == nullptr) || ((*endp) == 0)) { return val;
+}
     switch (*endp) {
         case 'K': case 'k': return val * 1024ULL;
         case 'M': case 'm': return val * 1024ULL * 1024ULL;
@@ -88,15 +91,19 @@ static uint64_t parse_block_size(const char* s) {
 
 static std::string get_mount_point(const char* path) {
     struct stat st;
-    if (stat(path, &st) != 0) return path;
-    dev_t dev = st.st_dev;
+    if (stat(path, &st) != 0) { return path;
+}
+    dev_t const dev = st.st_dev;
     std::string cur = path;
     struct stat pst;
     while (true) {
-        if (stat(cur.c_str(), &pst) != 0) break;
-        if (pst.st_dev != dev) break;
-        size_t pos = cur.find_last_of('/');
-        if (pos == 0 || pos == std::string::npos) break;
+        if (stat(cur.c_str(), &pst) != 0) { break;
+}
+        if (pst.st_dev != dev) { break;
+}
+        size_t const pos = cur.find_last_of('/');
+        if (pos == 0 || pos == std::string::npos) { break;
+}
         cur = cur.substr(0, pos);
     }
     return cur;
@@ -105,13 +112,14 @@ static std::string get_mount_point(const char* path) {
 static bool collect_fs(const char* path, bool human, int human_si, uint64_t block_size_override,
                        bool show_inodes, bool show_type, std::vector<FsEntry>& entries) {
     struct statvfs sv;
-    if (statvfs(path, &sv) != 0) return false;
+    if (statvfs(path, &sv) != 0) { return false;
+}
 
     FsEntry e;
     e.mount_point = get_mount_point(path);
     e.fs_type = "unknown";
 
-    uint64_t bsize = block_size_override ? block_size_override : sv.f_bsize;
+    uint64_t const bsize = (block_size_override != 0u) ? block_size_override : sv.f_bsize;
     e.block_size = bsize;
     e.total_blocks = sv.f_blocks;
     e.free_blocks = sv.f_bfree;
@@ -169,13 +177,15 @@ int df_command(int argc, char** argv) {
                 block_size_override = parse_block_size(a + 2);
             } else {
                 i++;
-                if (i < argc) block_size_override = parse_block_size(argv[i]);
+                if (i < argc) { block_size_override = parse_block_size(argv[i]);
+}
             }
             continue;
         }
         if (strcmp(a, "--block-size") == 0) {
             i++;
-            if (i < argc) block_size_override = parse_block_size(argv[i]);
+            if (i < argc) { block_size_override = parse_block_size(argv[i]);
+}
             continue;
         }
         if (strcmp(a, "-k") == 0) {
@@ -191,8 +201,8 @@ int df_command(int argc, char** argv) {
             continue;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "df: invalid option '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "df: invalid option '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
         paths.push_back(a);
@@ -204,9 +214,10 @@ int df_command(int argc, char** argv) {
 
     if (!json_mode) {
         printf("%-20s ", "Filesystem");
-        if (show_type) printf("%-12s ", "Type");
+        if (show_type) { printf("%-12s ", "Type");
+}
         if (!show_inodes) {
-            if (human || si || block_size_override) {
+            if (human || si || (block_size_override != 0u)) {
                 printf("  Size    Used  Avail Use%%");
             } else {
                 printf("  1K-blocks    Used  Available Use%%");
@@ -220,8 +231,8 @@ int df_command(int argc, char** argv) {
     std::vector<FsEntry> json_entries;
     for (size_t p = 0; p < paths.size(); p++) {
         std::vector<FsEntry> entries;
-        if (!collect_fs(paths[p], human, si, block_size_override, show_inodes, show_type, entries)) {
-            fprintf(stderr, "df: %s: %s\n", paths[p], strerror(errno));
+        if (!collect_fs(paths[p], human, static_cast<int>(si), block_size_override, show_inodes, show_type, entries)) {
+            (void)fprintf(stderr, "df: %s: %s\n", paths[p], strerror(errno));
             continue;
         }
 
@@ -231,42 +242,43 @@ int df_command(int argc, char** argv) {
                 continue;
             }
             printf("%-20s ", e.mount_point.c_str());
-            if (show_type) printf("%-12s ", e.fs_type.c_str());
+            if (show_type) { printf("%-12s ", e.fs_type.c_str());
+}
 
             if (!show_inodes) {
-                uint64_t size = e.total_blocks * (e.block_size / 512);
-                uint64_t used = (e.total_blocks - e.free_blocks) * (e.block_size / 512);
-                uint64_t avail = e.avail_blocks * (e.block_size / 512);
+                uint64_t const size = e.total_blocks * (e.block_size / 512);
+                uint64_t const used = (e.total_blocks - e.free_blocks) * (e.block_size / 512);
+                uint64_t const avail = e.avail_blocks * (e.block_size / 512);
                 if (human || si) {
                     printf("  ");
-                    scale_value(size, si);
+                    scale_value(size, static_cast<int>(si));
                     printf("  ");
-                    scale_value(used, si);
+                    scale_value(used, static_cast<int>(si));
                     printf("  ");
-                    scale_value(avail, si);
+                    scale_value(avail, static_cast<int>(si));
                     printf(" ");
                 } else {
                     printf(" %10llu %7llu %10llu ",
-                           (unsigned long long)size / 2,
-                           (unsigned long long)used / 2,
-                           (unsigned long long)avail / 2);
+                           static_cast<unsigned long long>(size) / 2,
+                           static_cast<unsigned long long>(used) / 2,
+                           static_cast<unsigned long long>(avail) / 2);
                 }
                 if (size > 0) {
-                    int use_pct = (int)((used * 100) / size);
+                    int const use_pct = static_cast<int>((used * 100) / size);
                     printf("%3d%%", use_pct);
                 } else {
                     printf("  -%%");
                 }
             } else {
-                uint64_t total = e.total_inodes;
-                uint64_t used = e.total_inodes - e.free_inodes;
-                uint64_t avail = e.avail_inodes;
+                uint64_t const total = e.total_inodes;
+                uint64_t const used = e.total_inodes - e.free_inodes;
+                uint64_t const avail = e.avail_inodes;
                 printf(" %10llu %7llu %7llu ",
-                       (unsigned long long)total,
-                       (unsigned long long)used,
-                       (unsigned long long)avail);
+                       static_cast<unsigned long long>(total),
+                       static_cast<unsigned long long>(used),
+                       static_cast<unsigned long long>(avail));
                 if (total > 0) {
-                    int use_pct = (int)((used * 100) / total);
+                    int const use_pct = static_cast<int>((used * 100) / total);
                     printf("%3d%%", use_pct);
                 } else {
                     printf("  -%%");
@@ -278,26 +290,26 @@ int df_command(int argc, char** argv) {
     }
 
     if (json_mode) {
-        fprintf(stdout, "[\n");
+        (void)fprintf(stdout, "[\n");
         for (size_t i = 0; i < json_entries.size(); i++) {
             const FsEntry& e = json_entries[i];
-            fprintf(stdout, "  {\n");
-            fprintf(stdout, "    \"mount_point\": ");
+            (void)fprintf(stdout, "  {\n");
+            (void)fprintf(stdout, "    \"mount_point\": ");
             json_escape_string(stdout, e.mount_point.c_str());
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"fs_type\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"fs_type\": ");
             json_escape_string(stdout, e.fs_type.c_str());
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"block_size\": %llu,\n", (unsigned long long)e.block_size);
-            fprintf(stdout, "    \"total_blocks\": %llu,\n", (unsigned long long)e.total_blocks);
-            fprintf(stdout, "    \"free_blocks\": %llu,\n", (unsigned long long)e.free_blocks);
-            fprintf(stdout, "    \"avail_blocks\": %llu,\n", (unsigned long long)e.avail_blocks);
-            fprintf(stdout, "    \"total_inodes\": %llu,\n", (unsigned long long)e.total_inodes);
-            fprintf(stdout, "    \"free_inodes\": %llu,\n", (unsigned long long)e.free_inodes);
-            fprintf(stdout, "    \"avail_inodes\": %llu\n", (unsigned long long)e.avail_inodes);
-            fprintf(stdout, "  }%s\n", (i + 1 < json_entries.size()) ? "," : "");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"block_size\": %llu,\n", static_cast<unsigned long long>(e.block_size));
+            (void)fprintf(stdout, "    \"total_blocks\": %llu,\n", static_cast<unsigned long long>(e.total_blocks));
+            (void)fprintf(stdout, "    \"free_blocks\": %llu,\n", static_cast<unsigned long long>(e.free_blocks));
+            (void)fprintf(stdout, "    \"avail_blocks\": %llu,\n", static_cast<unsigned long long>(e.avail_blocks));
+            (void)fprintf(stdout, "    \"total_inodes\": %llu,\n", static_cast<unsigned long long>(e.total_inodes));
+            (void)fprintf(stdout, "    \"free_inodes\": %llu,\n", static_cast<unsigned long long>(e.free_inodes));
+            (void)fprintf(stdout, "    \"avail_inodes\": %llu\n", static_cast<unsigned long long>(e.avail_inodes));
+            (void)fprintf(stdout, "  }%s\n", (i + 1 < json_entries.size()) ? "," : "");
         }
-        fprintf(stdout, "]\n");
+        (void)fprintf(stdout, "]\n");
     }
     return 0;
 }

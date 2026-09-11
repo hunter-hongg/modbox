@@ -34,15 +34,18 @@ static void print_help(const char* prog) {
 static void split_line(const char* line, std::vector<std::string>& out, bool null_delim) {
   if (null_delim) {
     const char* p = line;
-    size_t len = strlen(line);
+    size_t const len = strlen(line);
     const char* start = p;
-    while (1) {
+    while (true) {
       if (*p == '\0' || *p == '\n') {
         out.push_back(std::string(start, p - start));
-        while (*p == '\0') p++;
-        if (*p == '\n') p++;
+        while (*p == '\0') { p++;
+}
+        if (*p == '\n') { p++;
+}
         start = p;
-        if (*start == '\0') break;
+        if (*start == '\0') { break;
+}
       } else {
         p++;
       }
@@ -65,24 +68,26 @@ static size_t args_length(const std::vector<std::string>& args) {
 }
 
 static int run_cmd(const char** cmd, const XargsOptions* opts) {
-  pid_t pid = fork();
+  pid_t const pid = fork();
   if (pid < 0) {
-    fprintf(stderr, "xargs: fork failed: %s\n", strerror(errno));
+    (void)fprintf(stderr, "xargs: fork failed: %s\n", strerror(errno));
     return 0;
   }
   if (pid == 0) {
     execvp(cmd[0], (char* const*)cmd);
-    fprintf(stderr, "xargs: %s: %s\n", cmd[0], strerror(errno));
+    (void)fprintf(stderr, "xargs: %s: %s\n", cmd[0], strerror(errno));
     _exit(127);
   }
   int status = 0;
-  pid_t r = waitpid(pid, &status, 0);
+  pid_t const r = waitpid(pid, &status, 0);
   if (r < 0) {
-    fprintf(stderr, "xargs: waitpid failed: %s\n", strerror(errno));
+    (void)fprintf(stderr, "xargs: waitpid failed: %s\n", strerror(errno));
     return 0;
   }
-  if (WIFEXITED(status)) return WEXITSTATUS(status);
-  if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+  if (WIFEXITED(status)) { return WEXITSTATUS(status);
+}
+  if (WIFSIGNALED(status)) { return 128 + WTERMSIG(status);
+}
   return 0;
 }
 
@@ -103,7 +108,7 @@ int xargs_command(int argc, char** argv) {
     if (strcmp(a, "-0") == 0 || strcmp(a, "--null") == 0) { opts.null = true; continue; }
     if (strcmp(a, "--show-limits") == 0) { opts.show_limits = true; continue; }
     if (strcmp(a, "-I") == 0 && i + 1 < argc) { replace_str = argv[++i]; replace_str_set = true; continue; }
-    if (strncmp(a, "-I", 2) == 0 && a[2]) { replace_str = a + 2; replace_str_set = true; continue; }
+    if (strncmp(a, "-I", 2) == 0 && (a[2] != 0)) { replace_str = a + 2; replace_str_set = true; continue; }
     if (strcmp(a, "-n") == 0 && i + 1 < argc) { opts.max_args = std::atoi(argv[++i]); continue; }
     if (strcmp(a, "-s") == 0 && i + 1 < argc) { opts.max_chars = std::atoi(argv[++i]); continue; }
     if (strcmp(a, "-P") == 0 && i + 1 < argc) { opts.max_procs = std::atoi(argv[++i]); continue; }
@@ -113,8 +118,8 @@ int xargs_command(int argc, char** argv) {
       continue;
     }
     if (a[0] == '-' && a[1] != '-' && a[1] != '\0') {
-      fprintf(stderr, "xargs: unrecognized option '%s'\n", a);
-      fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+      (void)fprintf(stderr, "xargs: unrecognized option '%s'\n", a);
+      (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
       return 0;
     }
     break;
@@ -123,23 +128,25 @@ int xargs_command(int argc, char** argv) {
     initial_args.push_back(argv[i]);
   }
   if (initial_args.empty() && !replace_str_set) {
-    fprintf(stderr, "xargs: missing command\n");
-    fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+    (void)fprintf(stderr, "xargs: missing command\n");
+    (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
     return 0;
   }
 
   FILE* fp = stdin;
   char line_buf[XARGS_MAX_LINE];
-  if (fgets(line_buf, sizeof(line_buf), fp)) {
+  if (fgets(line_buf, sizeof(line_buf), fp) != nullptr) {
     size_t len = strlen(line_buf);
-    if (len > 0 && line_buf[len - 1] == '\n') line_buf[--len] = '\0';
+    if (len > 0 && line_buf[len - 1] == '\n') { line_buf[--len] = '\0';
+}
     std::vector<std::string> items;
     split_line(line_buf, items, opts.null);
     stdin_items.insert(stdin_items.end(), items.begin(), items.end());
   }
-  while (fgets(line_buf, sizeof(line_buf), fp)) {
+  while (fgets(line_buf, sizeof(line_buf), fp) != nullptr) {
     size_t len = strlen(line_buf);
-    if (len > 0 && line_buf[len - 1] == '\n') line_buf[--len] = '\0';
+    if (len > 0 && line_buf[len - 1] == '\n') { line_buf[--len] = '\0';
+}
     std::vector<std::string> items;
     split_line(line_buf, items, opts.null);
     stdin_items.insert(stdin_items.end(), items.begin(), items.end());
@@ -155,9 +162,11 @@ int xargs_command(int argc, char** argv) {
   }
 
   if (stdin_items.empty() && !replace_str_set) {
-    if (initial_args.empty()) return 0;
+    if (initial_args.empty()) { return 0;
+}
     const char** cmd = new const char*[initial_args.size() + 1];
-    for (size_t k = 0; k < initial_args.size(); k++) cmd[k] = initial_args[k];
+    for (size_t k = 0; k < initial_args.size(); k++) { cmd[k] = initial_args[k];
+}
     cmd[initial_args.size()] = nullptr;
     run_cmd(cmd, &opts);
     delete[] cmd;
@@ -169,33 +178,37 @@ int xargs_command(int argc, char** argv) {
     for (size_t idx = 0; idx < stdin_items.size(); idx++) {
       std::string cmd_str;
       for (size_t k = 0; k < initial_args.size(); k++) {
-        if (k > 0) cmd_str += " ";
+        if (k > 0) { cmd_str += " ";
+}
         const char* a = initial_args[k];
         bool replaced = false;
         if (strcmp(a, replace_str.c_str()) == 0) {
           cmd_str += stdin_items[idx];
           replaced = true;
         }
-        if (!replaced) cmd_str += a;
+        if (!replaced) { cmd_str += a;
+}
       }
-      int r = system(cmd_str.c_str());
-      if (r != 0) ret = r;
+      int const r = system(cmd_str.c_str());
+      if (r != 0) { ret = r;
+}
     }
     return 0;
   }
 
   if (replace_str_set && initial_args.empty()) {
     for (size_t idx = 0; idx < stdin_items.size(); idx++) {
-      int r = system(stdin_items[idx].c_str());
+      int const r = system(stdin_items[idx].c_str());
       if (r != 0) {
-        if (opts.max_procs == 1) return 0;
+        if (opts.max_procs == 1) { return 0;
+}
       }
     }
     return 0;
   }
 
-  int nargs = opts.max_args > 0 ? opts.max_args : XARGS_MAX_ITEMS;
-  int max_c = opts.max_chars > 0 ? opts.max_chars : XARGS_MAX_CHARS;
+  int const nargs = opts.max_args > 0 ? opts.max_args : XARGS_MAX_ITEMS;
+  int const max_c = opts.max_chars > 0 ? opts.max_chars : XARGS_MAX_CHARS;
 
   size_t pos = 0;
   int last_ret = 0;
@@ -206,7 +219,8 @@ int xargs_command(int argc, char** argv) {
       used_chars += strlen(initial_args[k]) + 1;
     }
     for (int n = 0; pos < stdin_items.size() && (opts.max_args <= 0 || n < nargs); n++, pos++) {
-      if ((int)batch.size() > 0) used_chars++;
+      if ((int)batch.size() > 0) { used_chars++;
+}
       used_chars += stdin_items[pos].size() + 1;
       if (used_chars > (size_t)max_c) {
         pos--;
@@ -214,12 +228,15 @@ int xargs_command(int argc, char** argv) {
       }
       batch.push_back(stdin_items[pos]);
     }
-    if (opts.no_run_if_empty && batch.empty()) return 0;
+    if (opts.no_run_if_empty && batch.empty()) { return 0;
+}
 
-    int total = (int)(initial_args.size() + batch.size());
+    int const total = (int)(initial_args.size() + batch.size());
     const char** cmd = new const char*[total + 1];
-    for (size_t k = 0; k < initial_args.size(); k++) cmd[k] = initial_args[k];
-    for (size_t k = 0; k < batch.size(); k++) cmd[initial_args.size() + k] = batch[k].c_str();
+    for (size_t k = 0; k < initial_args.size(); k++) { cmd[k] = initial_args[k];
+}
+    for (size_t k = 0; k < batch.size(); k++) { cmd[initial_args.size() + k] = batch[k].c_str();
+}
     cmd[total] = nullptr;
     last_ret = run_cmd(cmd, &opts);
     delete[] cmd;

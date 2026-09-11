@@ -1,7 +1,7 @@
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
-#include <cctype>
 #include <vector>
 #include <string>
 #include <argtable3.h>
@@ -15,23 +15,23 @@ static void emit_paragraph(const std::vector<std::string>& words, int width,
   int col = 0;
   for (size_t i = 0; i < words.size(); i++) {
     const std::string& w = words[i];
-    int len = (int)w.size();
+    int const len = static_cast<int>(w.size());
     if (i > 0) {
       if (col + 1 + len > width) {
-        fputc('\n', out);
-        fputs(w.c_str(), out);
+        (void)fputc('\n', out);
+        (void)fputs(w.c_str(), out);
         col = len;
       } else {
-        fputc(' ', out);
-        fputs(w.c_str(), out);
+        (void)fputc(' ', out);
+        (void)fputs(w.c_str(), out);
         col += 1 + len;
       }
     } else {
-      fputs(w.c_str(), out);
+      (void)fputs(w.c_str(), out);
       col = len;
     }
   }
-  fputc('\n', out);
+  (void)fputc('\n', out);
 }
 
 static void fmt_file(FILE* fp, int width, FILE* out) {
@@ -49,20 +49,23 @@ static void fmt_file(FILE* fp, int width, FILE* out) {
         emit_paragraph(para, width, out);
         para.clear();
       }
-      fputc('\n', out);
+      (void)fputc('\n', out);
       continue;
     }
     size_t start = 0;
-    while (start < (size_t)n) {
-      while (start < (size_t)n && buf[start] == ' ') start++;
+    while (start < static_cast<size_t>(n)) {
+      while (start < static_cast<size_t>(n) && buf[start] == ' ') { start++;
+}
       size_t end = start;
-      while (end < (size_t)n && buf[end] != ' ') end++;
-      std::string w(buf + start, end - start);
+      while (end < static_cast<size_t>(n) && buf[end] != ' ') { end++;
+}
+      std::string const w(buf + start, end - start);
       if (!w.empty()) {
         para.push_back(w);
       }
       start = end;
-      while (start < (size_t)n && buf[start] == ' ') start++;
+      while (start < static_cast<size_t>(n) && buf[start] == ' ') { start++;
+}
     }
   }
 
@@ -81,7 +84,7 @@ int fmt_command(int argc, char** argv) {
   struct arg_end* end = arg_end(20);
 
   ArgTable at({width_opt, uniform_opt, help_opt, files_arg, end});
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -112,11 +115,11 @@ int fmt_command(int argc, char** argv) {
       } else {
         FILE* fp = fopen(fname, "r");
         if (fp == NULL) {
-          fprintf(stderr, "fmt: %s: %s\n", fname, strerror(errno));
+          (void)fprintf(stderr, "fmt: %s: %s\n", fname, strerror(errno));
           continue;
         }
         fmt_file(fp, width, stdout);
-        fclose(fp);
+        (void)fclose(fp);
       }
     }
   }

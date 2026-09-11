@@ -1,10 +1,10 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
-#include <unistd.h>
+#include <sys/types.h>
 
 #include "commands/mkdir.hpp"
 #include "commands/arg_util.hpp"
@@ -20,7 +20,7 @@ static int create_dir(const char *path, mode_t mode, int is_verbose) {
     return -1;
   }
 
-  if (is_verbose) {
+  if (is_verbose != 0) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)printf("mkdir: created directory '%s'\n", path);
   }
@@ -64,7 +64,7 @@ static int create_dir_parents(const char *path, mode_t mode, int is_verbose) {
         free(path_copy);
         return -1;
       }
-      if (is_verbose) {
+      if (is_verbose != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)printf("mkdir: created directory '%s'\n", path_copy);
       }
@@ -89,7 +89,7 @@ static int create_dir_parents(const char *path, mode_t mode, int is_verbose) {
     return -1;
   }
 
-  int ret = create_dir(path, mode, is_verbose);
+  int const ret = create_dir(path, mode, is_verbose);
   free(path_copy);
   return ret;
 }
@@ -111,7 +111,7 @@ int mkdir_command(int argc, char **argv) {
 
   ArgTable at({parents_opt, verbose_opt, mode_opt, help_opt, dirs_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... DIRECTORY...\n", argv[0]);
@@ -129,28 +129,28 @@ int mkdir_command(int argc, char **argv) {
   }
 
   MkdirOptions opts = {};
-  opts.is_parents = (parents_opt->count > 0);
-  opts.is_verbose = (verbose_opt->count > 0);
+  opts.is_parents = static_cast<int>(parents_opt->count > 0);
+  opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
   opts.mode = DIR_MODE_DEFAULT;
 
   if (mode_opt->count > 0) {
     /* Parse octal mode string */
     char *endptr = NULL;
-    long m = strtol(mode_opt->sval[0], &endptr, 8);
+    long const m = strtol(mode_opt->sval[0], &endptr, 8);
     if (*endptr != '\0' || m < 0 || m > 07777) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mkdir: invalid mode '%s'\n", mode_opt->sval[0]);
       return 0;
     }
-    opts.mode = (mode_t)(m & 07777);
+    opts.mode = static_cast<mode_t>(m & 07777);
   }
 
-  int num_dirs = dirs_arg->count;
+  int const num_dirs = dirs_arg->count;
 
   for (int i = 0; i < num_dirs; i++) {
     const char *dirpath = dirs_arg->filename[i];
 
-    if (opts.is_parents) {
+    if (opts.is_parents != 0) {
       if (create_dir_parents(dirpath, opts.mode, opts.is_verbose) != 0) {
         continue;
       }

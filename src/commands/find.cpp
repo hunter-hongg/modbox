@@ -1,21 +1,21 @@
+#include <ctime>
+#include <cstdint>
 #include <dirent.h>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <linux/limits.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fnmatch.h>
-#include <climits>
-#include <algorithm>
 #include <cctype>
 #include <string>
 #include <vector>
 
 #include <pwd.h>
 #include <grp.h>
-#include <climits>
 
 #include "commands/find.hpp"
 #include "commands/command_macros.hpp"
@@ -40,22 +40,21 @@ static int  find_walk(const char *dirpath, FindOptions *opts, int depth,
 static void find_exec_file(const char *fullpath, FindOptions *opts);
 static void find_exec_finalize(FindOptions *opts);
 
-int find_parse_args(int argc, char **argv, FindOptions *opts,
-                    int *help_requested);
-void find_usage(const char *progname);
+
+
 
 /* ── Predicate helpers ───────────────────────────────────────────── */
 
 /** Check if a filename matches a glob pattern using fnmatch. */
 static int glob_match(const char *pattern, const char *name) {
-    return fnmatch(pattern, name, FNM_PATHNAME) == 0;
+    return static_cast<int>(fnmatch(pattern, name, FNM_PATHNAME) == 0);
 }
 
 /** Check if a file/directory is empty. For regular files: size == 0.
  *  For directories: contains no entries (except . and ..). */
 static int is_empty_path(const char *fullpath, const struct stat *st) {
     if (S_ISREG(st->st_mode)) {
-        return st->st_size == 0;
+        return static_cast<int>(st->st_size == 0);
     }
     if (S_ISDIR(st->st_mode)) {
         DIR *dir = opendir(fullpath);
@@ -95,7 +94,7 @@ static int find_evaluate(const char *fullpath, const char *basename,
 
     // -name
     if (!opts->name_pattern.empty()) {
-        if (!glob_match(opts->name_pattern.c_str(), basename)) {
+        if (glob_match(opts->name_pattern.c_str(), basename) == 0) {
             return 0;
         }
     }
@@ -106,12 +105,12 @@ static int find_evaluate(const char *fullpath, const char *basename,
         std::string lower_pat = opts->iname_pattern;
         std::string lower_name = basename;
         for (size_t i = 0; i < lower_pat.size(); i++) {
-            lower_pat[i] = (char)tolower((unsigned char)lower_pat[i]);
+            lower_pat[i] = static_cast<char>(tolower(static_cast<unsigned char>(lower_pat[i])));
         }
         for (size_t i = 0; i < lower_name.size(); i++) {
-            lower_name[i] = (char)tolower((unsigned char)lower_name[i]);
+            lower_name[i] = static_cast<char>(tolower(static_cast<unsigned char>(lower_name[i])));
         }
-        if (!glob_match(lower_pat.c_str(), lower_name.c_str())) {
+        if (glob_match(lower_pat.c_str(), lower_name.c_str()) == 0) {
             return 0;
         }
     }
@@ -135,8 +134,8 @@ static int find_evaluate(const char *fullpath, const char *basename,
     }
 
     // -empty
-    if (opts->empty_only) {
-        if (!is_empty_path(fullpath, st)) {
+    if (opts->empty_only != 0) {
+        if (is_empty_path(fullpath, st) == 0) {
             return 0;
         }
     }
@@ -180,8 +179,8 @@ static int  find_walk(const char *dirpath, FindOptions *opts, int depth,
         }
 
         // Evaluate predicates
-        if (find_evaluate(fullpath, entry->d_name, &st, opts, depth + 1)) {
-            if (on_match) {
+        if (find_evaluate(fullpath, entry->d_name, &st, opts, depth + 1) != 0) {
+            if (on_match != nullptr) {
                 on_match(fullpath, entry->d_name, &st, opts);
             } else {
                 find_exec_file(fullpath, opts);
@@ -205,12 +204,12 @@ static int  find_walk(const char *dirpath, FindOptions *opts, int depth,
 /** Perform actions (print, delete) for a matching file. */
 static void find_exec_file(const char *fullpath, FindOptions *opts) {
     // -print
-    if (opts->do_print) {
+    if (opts->do_print != 0) {
         printf("%s\n", fullpath);
     }
 
     // -delete
-    if (opts->do_delete) {
+    if (opts->do_delete != 0) {
         struct stat st;
         if (lstat(fullpath, &st) == 0 && S_ISDIR(st.st_mode)) {
             if (rmdir(fullpath) != 0) {
@@ -228,23 +227,23 @@ static void find_exec_file(const char *fullpath, FindOptions *opts) {
     }
 
     // -exec
-    if (opts->has_exec) {
-        if (opts->exec_plus) {
+    if (opts->has_exec != 0) {
+        if (opts->exec_plus != 0) {
             // Accumulate for batch execution
             opts->exec_paths.push_back(fullpath);
         } else {
             // Per-file execution
             // NOLINTNEXTLINE(misc-include-cleaner)
-            pid_t pid = fork();
+            pid_t const pid = fork();
             if (pid == 0) {
                 // Child: build args with {} substitution
                 std::vector<char*> args;
                 for (size_t i = 0; i < opts->exec_args.size(); i++) {
                     const char *arg = opts->exec_args[i].c_str();
                     if (strcmp(arg, "{}") == 0) {
-                        args.push_back((char*)fullpath);
+                        args.push_back(const_cast<char*>(fullpath));
                     } else {
-                        args.push_back((char*)arg);
+                        args.push_back(const_cast<char*>(arg));
                     }
                 }
                 args.push_back(NULL);
@@ -270,14 +269,14 @@ static void find_exec_file(const char *fullpath, FindOptions *opts) {
 
 /** Finalize exec+ by running the command once with all accumulated paths. */
 static void find_exec_finalize(FindOptions *opts) {
-    if (!opts->has_exec || !opts->exec_plus) {
+    if ((opts->has_exec == 0) || (opts->exec_plus == 0)) {
         return;
     }
     if (opts->exec_paths.empty()) {
         return;
     }
     // NOLINTNEXTLINE(misc-include-cleaner)
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid == 0) {
         std::vector<char*> args;
         for (size_t i = 0; i < opts->exec_args.size(); i++) {
@@ -285,10 +284,10 @@ static void find_exec_finalize(FindOptions *opts) {
             if (strcmp(arg, "{}") == 0) {
                 // Add all accumulated paths
                 for (size_t j = 0; j < opts->exec_paths.size(); j++) {
-                    args.push_back((char*)opts->exec_paths[j].c_str());
+                    args.push_back(const_cast<char*>(opts->exec_paths[j].c_str()));
                 }
             } else {
-                args.push_back((char*)arg);
+                args.push_back(const_cast<char*>(arg));
             }
         }
         args.push_back(NULL);
@@ -312,18 +311,18 @@ static void find_exec_finalize(FindOptions *opts) {
 /* ── TUI helpers ──────────────────────────────────────────────────── */
 
 static std::string get_owner(uid_t uid) {
-    struct passwd* pw = getpwuid(uid);
-    return pw ? pw->pw_name : std::to_string(uid);
+    const struct passwd* pw = getpwuid(uid);
+    return (pw != nullptr) ? pw->pw_name : std::to_string(uid);
 }
 
 static std::string get_group(gid_t gid) {
-    struct group* gr = getgrgid(gid);
-    return gr ? gr->gr_name : std::to_string(gid);
+    const struct group* gr = getgrgid(gid);
+    return (gr != nullptr) ? gr->gr_name : std::to_string(gid);
 }
 
 static std::string fmt_time(time_t t) {
     char buf[32];
-    strftime(buf, sizeof(buf), "%b %d %H:%M", localtime(&t));
+    (void)strftime(buf, sizeof(buf), "%b %d %H:%M", localtime(&t));
     return buf;
 }
 
@@ -341,18 +340,21 @@ static const char* type_prefix_char_str(int file_type) {
 
 static std::string perm_string(mode_t mode) {
     std::string s(9, '-');
-    s[0] = (mode & S_IRUSR) ? 'r' : '-';
-    s[1] = (mode & S_IWUSR) ? 'w' : '-';
-    s[2] = (mode & S_IXUSR) ? 'x' : '-';
-    s[3] = (mode & S_IRGRP) ? 'r' : '-';
-    s[4] = (mode & S_IWGRP) ? 'w' : '-';
-    s[5] = (mode & S_IXGRP) ? 'x' : '-';
-    s[6] = (mode & S_IROTH) ? 'r' : '-';
-    s[7] = (mode & S_IWOTH) ? 'w' : '-';
-    s[8] = (mode & S_IXOTH) ? 'x' : '-';
-    if (mode & S_ISUID) s[2] = (mode & S_IXUSR) ? 's' : 'S';
-    if (mode & S_ISGID) s[5] = (mode & S_IXGRP) ? 's' : 'S';
-    if (mode & S_ISVTX) s[8] = (mode & S_IXOTH) ? 't' : 'T';
+    s[0] = ((mode & S_IRUSR) != 0u) ? 'r' : '-';
+    s[1] = ((mode & S_IWUSR) != 0u) ? 'w' : '-';
+    s[2] = ((mode & S_IXUSR) != 0u) ? 'x' : '-';
+    s[3] = ((mode & S_IRGRP) != 0u) ? 'r' : '-';
+    s[4] = ((mode & S_IWGRP) != 0u) ? 'w' : '-';
+    s[5] = ((mode & S_IXGRP) != 0u) ? 'x' : '-';
+    s[6] = ((mode & S_IROTH) != 0u) ? 'r' : '-';
+    s[7] = ((mode & S_IWOTH) != 0u) ? 'w' : '-';
+    s[8] = ((mode & S_IXOTH) != 0u) ? 'x' : '-';
+    if ((mode & S_ISUID) != 0u) { s[2] = ((mode & S_IXUSR) != 0u) ? 's' : 'S';
+}
+    if ((mode & S_ISGID) != 0u) { s[5] = ((mode & S_IXGRP) != 0u) ? 's' : 'S';
+}
+    if ((mode & S_ISVTX) != 0u) { s[8] = ((mode & S_IXOTH) != 0u) ? 't' : 'T';
+}
     return s;
 }
 
@@ -361,8 +363,8 @@ static FindMatch find_entry_to_match(const char* fullpath, const char* basename,
     FindMatch m;
     m.path = fullpath;
     m.display_name = basename;
-    m.file_type = (int)classify(*st);
-    m.size = (uint64_t)st->st_size;
+    m.file_type = static_cast<int>(classify(*st));
+    m.size = static_cast<uint64_t>(st->st_size);
     m.mtime = st->st_mtime;
     m.mtime_str = fmt_time(st->st_mtime);
     m.perm_str = std::string(type_prefix_char_str(m.file_type)) + perm_string(st->st_mode);
@@ -371,7 +373,7 @@ static FindMatch find_entry_to_match(const char* fullpath, const char* basename,
 
 static void collect_match(const char* fullpath, const char* basename,
                            const struct stat* st, FindOptions* opts) {
-    if (opts->collect_results) {
+    if (opts->collect_results != nullptr) {
         opts->collect_results->push_back(
             find_entry_to_match(fullpath, basename, st));
     }
@@ -390,14 +392,14 @@ std::vector<FindMatch> find_collect_matches(FindOptions* opts) {
         }
 
         if (S_ISDIR(st.st_mode)) {
-            if (find_evaluate(start, start, &st, opts, 0)) {
+            if (find_evaluate(start, start, &st, opts, 0) != 0) {
                 results.push_back(find_entry_to_match(start, start, &st));
             }
             if (opts->max_depth == FIND_MAX_DEPTH_UNLIMITED || opts->max_depth > 0) {
                 find_walk(start, opts, 0, collect_match);
             }
         } else if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
-            if (find_evaluate(start, start, &st, opts, 0)) {
+            if (find_evaluate(start, start, &st, opts, 0) != 0) {
                 results.push_back(find_entry_to_match(start, start, &st));
             }
         }
@@ -441,7 +443,7 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
             break;
         }
 
-        if (collecting_paths) {
+        if (collecting_paths != 0) {
             if (arg[0] == '-') {
                 collecting_paths = 0;
             } else {
@@ -492,7 +494,7 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
             }
             i++;
             char *end;
-            long val = strtol(argv[i], &end, 10);
+            long const val = strtol(argv[i], &end, 10);
             if (*end != '\0' || val < 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr,
@@ -500,7 +502,7 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
                               argv[i]);
                 return -1;
             }
-            opts->max_depth = (int)val;
+            opts->max_depth = static_cast<int>(val);
         } else if (strcmp(arg, "-mindepth") == 0) {
             if (i + 1 >= argc) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -509,7 +511,7 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
             }
             i++;
             char *end;
-            long val = strtol(argv[i], &end, 10);
+            long const val = strtol(argv[i], &end, 10);
             if (*end != '\0' || val < 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr,
@@ -517,7 +519,7 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
                               argv[i]);
                 return -1;
             }
-            opts->min_depth = (int)val;
+            opts->min_depth = static_cast<int>(val);
         } else if (strcmp(arg, "-empty") == 0) {
             opts->empty_only = 1;
         } else if (strcmp(arg, "-print") == 0) {
@@ -549,7 +551,7 @@ int find_parse_args(int argc, char **argv, FindOptions *opts,
                 opts->exec_args.push_back(argv[i]);
                 i++;
             }
-            if (!found_terminator) {
+            if (found_terminator == 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr,
                               "find: missing terminating `;' or `+' for `-exec'\n");
@@ -617,13 +619,13 @@ int find_command(int argc, char **argv) {
         exit(1);
     }
 
-    if (help_requested) {
+    if (help_requested != 0) {
         find_usage(argv[0]);
         return 0;
     }
 
-    if (opts.tui_mode) {
-        if (!isatty(STDOUT_FILENO)) {
+    if (opts.tui_mode != 0) {
+        if (isatty(STDOUT_FILENO) == 0) {
             (void)fprintf(stderr, "find: --tui requires a terminal; falling back to normal output\n");
         } else {
             find_tui_main(argc, argv);
@@ -632,7 +634,7 @@ int find_command(int argc, char **argv) {
     }
 
     // Default: print if no action specified
-    if (!opts.has_action) {
+    if (opts.has_action == 0) {
         opts.do_print = 1;
     }
 
@@ -641,30 +643,30 @@ int find_command(int argc, char **argv) {
         opts.paths.push_back(".");
     }
 
-    if (opts.json_mode) {
+    if (opts.json_mode != 0) {
         std::vector<FindMatch> matches = find_collect_matches(&opts);
-        fprintf(stdout, "[\n");
+        (void)fprintf(stdout, "[\n");
         for (size_t i = 0; i < matches.size(); i++) {
             const FindMatch& m = matches[i];
-            fprintf(stdout, "  {\n");
-            fprintf(stdout, "    \"path\": ");
+            (void)fprintf(stdout, "  {\n");
+            (void)fprintf(stdout, "    \"path\": ");
             json_escape_string(stdout, m.path.c_str());
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"display_name\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"display_name\": ");
             json_escape_string(stdout, m.display_name.c_str());
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"file_type\": %d,\n", m.file_type);
-            fprintf(stdout, "    \"size\": %llu,\n", (unsigned long long)m.size);
-            fprintf(stdout, "    \"mtime\": %ld,\n", (long)m.mtime);
-            fprintf(stdout, "    \"mtime_str\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"file_type\": %d,\n", m.file_type);
+            (void)fprintf(stdout, "    \"size\": %llu,\n", static_cast<unsigned long long>(m.size));
+            (void)fprintf(stdout, "    \"mtime\": %ld,\n", static_cast<long>(m.mtime));
+            (void)fprintf(stdout, "    \"mtime_str\": ");
             json_escape_string(stdout, m.mtime_str.c_str());
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"perm_str\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"perm_str\": ");
             json_escape_string(stdout, m.perm_str.c_str());
-            fprintf(stdout, "\n");
-            fprintf(stdout, "  }%s\n", (i + 1 < matches.size()) ? "," : "");
+            (void)fprintf(stdout, "\n");
+            (void)fprintf(stdout, "  }%s\n", (i + 1 < matches.size()) ? "," : "");
         }
-        fprintf(stdout, "]\n");
+        (void)fprintf(stdout, "]\n");
         return 0;
     }
 
@@ -682,7 +684,7 @@ int find_command(int argc, char **argv) {
         if (S_ISDIR(st.st_mode)) {
             // Start directory: evaluate at depth 0 (the dir itself, not its contents)
             // and then recurse with depth 0 for contents
-            if (find_evaluate(start, start, &st, &opts, 0)) {
+            if (find_evaluate(start, start, &st, &opts, 0) != 0) {
                 find_exec_file(start, &opts);
             }
             // Recurse into children with depth 1
@@ -690,7 +692,7 @@ int find_command(int argc, char **argv) {
                 find_walk(start, &opts, 0);
             }
         } else if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
-            if (find_evaluate(start, start, &st, &opts, 0)) {
+            if (find_evaluate(start, start, &st, &opts, 0) != 0) {
                 find_exec_file(start, &opts);
             }
         } else {

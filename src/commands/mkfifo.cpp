@@ -1,10 +1,10 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
-#include <unistd.h>
+#include <sys/types.h>
 
 #include "commands/mkfifo.hpp"
 #include "commands/arg_util.hpp"
@@ -24,7 +24,7 @@ int mkfifo_command(int argc, char **argv) {
 
   ArgTable at({mode_opt, help_opt, names_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... NAME...\n", argv[0]);
@@ -44,15 +44,15 @@ int mkfifo_command(int argc, char **argv) {
 
   if (mode_opt->count > 0) {
     char *endptr = NULL;
-    long m = strtol(mode_opt->sval[0], &endptr, 8);
+    long const m = strtol(mode_opt->sval[0], &endptr, 8);
     if (*endptr != '\0' || m < 0 || m > 07777) {
       (void)fprintf(stderr, "mkfifo: invalid mode '%s'\n", mode_opt->sval[0]);
       return 0;
     }
-    opts.mode = (mode_t)(m & 07777);
+    opts.mode = static_cast<mode_t>(m & 07777);
   }
 
-  int num_names = names_arg->count;
+  int const num_names = names_arg->count;
 
   for (int i = 0; i < num_names; i++) {
     const char *path = names_arg->filename[i];

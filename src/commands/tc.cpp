@@ -3,11 +3,12 @@
 #include <cstring>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 #include <algorithm>
 
 #include <unistd.h>
-#include <errno.h>
+#include <cerrno>
 #include <sys/socket.h>
 #include <net/if.h>
 #include <linux/netlink.h>
@@ -98,7 +99,7 @@ static void parse_rtattr(TcEntry* e, struct rtattr* rta) {
             break;
         case TCA_OPTIONS: {
             const uint8_t* p = reinterpret_cast<const uint8_t*>(RTA_DATA(rta));
-            size_t n = RTA_PAYLOAD(rta);
+            size_t const n = RTA_PAYLOAD(rta);
             e->options_raw.assign(p, p + n);
             break;
         }
@@ -115,15 +116,15 @@ static void parse_rtattr(TcEntry* e, struct rtattr* rta) {
 // ---------------------------------------------------------------------------
 
 static int nl_dump(int type, std::vector<TcEntry>& out) {
-    int fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    int const fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
     if (fd < 0) {
-        fprintf(stderr, "tc: cannot open netlink socket: %s\n", strerror(errno));
+        (void)fprintf(stderr, "tc: cannot open netlink socket: %s\n", strerror(errno));
         return 1;
     }
     struct sockaddr_nl addr{};
     addr.nl_family = AF_NETLINK;
     if (bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
-        fprintf(stderr, "tc: cannot bind netlink socket: %s\n", strerror(errno));
+        (void)fprintf(stderr, "tc: cannot bind netlink socket: %s\n", strerror(errno));
         close(fd);
         return 1;
     }
@@ -139,7 +140,7 @@ static int nl_dump(int type, std::vector<TcEntry>& out) {
     tc->tcm_family = AF_UNSPEC;
 
     if (send(fd, buf, nh->nlmsg_len, 0) < 0) {
-        fprintf(stderr, "tc: netlink send failed: %s\n", strerror(errno));
+        (void)fprintf(stderr, "tc: netlink send failed: %s\n", strerror(errno));
         close(fd);
         return 1;
     }
@@ -148,7 +149,7 @@ static int nl_dump(int type, std::vector<TcEntry>& out) {
     while (!done) {
         ssize_t len = recv(fd, buf, sizeof(buf), 0);
         if (len < 0) {
-            fprintf(stderr, "tc: netlink recv failed: %s\n", strerror(errno));
+            (void)fprintf(stderr, "tc: netlink recv failed: %s\n", strerror(errno));
             close(fd);
             return 1;
         }
@@ -188,18 +189,21 @@ static void format_handle(char* out, size_t n, uint32_t h) {
     // major:minor hex; a zero handle is "0:", and a zero minor is omitted
     // (e.g. 0x00010000 -> "1:"), matching upstream tc formatting.
     if (h == 0) {
-        snprintf(out, n, "0:");
+        (void)snprintf(out, n, "0:");
         return;
     }
-    unsigned major = (h >> 16) & 0xFFFF;
-    unsigned minor = h & 0xFFFF;
-    if (minor == 0) snprintf(out, n, "%x:", major);
-    else snprintf(out, n, "%x:%x", major, minor);
+    unsigned const major = (h >> 16) & 0xFFFF;
+    unsigned const minor = h & 0xFFFF;
+    if (minor == 0) { (void)snprintf(out, n, "%x:", major);
+    } else { (void)snprintf(out, n, "%x:%x", major, minor);
+}
 }
 
 static const char* parent_word(uint32_t parent) {
-    if (parent == 0xFFFFFFFFU) return "root";
-    if (parent == 0xFFFFFFF1U) return "ingress";
+    if (parent == 0xFFFFFFFFU) { return "root";
+}
+    if (parent == 0xFFFFFFF1U) { return "ingress";
+}
     return nullptr; // has a real parent handle
 }
 
@@ -208,20 +212,22 @@ static const char* parent_word(uint32_t parent) {
 // ---------------------------------------------------------------------------
 
 static std::string decode_details(const TcEntry& e, const TcOptions* opts) {
-    if (!opts->show_details) return "";
+    if (!opts->show_details) { return "";
+}
     if (e.kind == "pfifo" || e.kind == "bfifo") {
         if (e.options_raw.size() >= sizeof(struct tc_fifo_qopt)) {
             const auto* q = reinterpret_cast<const struct tc_fifo_qopt*>(e.options_raw.data());
             char s[64];
-            snprintf(s, sizeof(s), "limit %up", q->limit);
+            (void)snprintf(s, sizeof(s), "limit %up", q->limit);
             return s;
         }
     }
     if (e.kind == "prio" && e.options_raw.size() >= sizeof(struct tc_prio_qopt)) {
         const auto* q = reinterpret_cast<const struct tc_prio_qopt*>(e.options_raw.data());
         char s[64];
-        snprintf(s, sizeof(s), "bands %u priomap 0x", q->bands);
-        for (int i = 0; i < TC_PRIO_MAX; i++) snprintf(s + strlen(s), 64 - strlen(s), "%x", q->priomap[i]);
+        (void)snprintf(s, sizeof(s), "bands %u priomap 0x", q->bands);
+        for (int i = 0; i < TC_PRIO_MAX; i++) { (void)snprintf(s + strlen(s), 64 - strlen(s), "%x", q->priomap[i]);
+}
         return s;
     }
     // Unknown kind: show the raw options as hex so -d still reveals the payload.
@@ -229,7 +235,7 @@ static std::string decode_details(const TcEntry& e, const TcOptions* opts) {
         char hx[3];
         std::string s = "options ";
         for (size_t i = 0; i < e.options_raw.size(); i++) {
-            snprintf(hx, sizeof(hx), "%02x", e.options_raw[i]);
+            (void)snprintf(hx, sizeof(hx), "%02x", e.options_raw[i]);
             s += hx;
         }
         return s;
@@ -242,7 +248,8 @@ static std::string decode_details(const TcEntry& e, const TcOptions* opts) {
 // ---------------------------------------------------------------------------
 
 static void print_text(const std::vector<TcEntry>& entries, const TcOptions* opts) {
-    char hbuf[16], pbuf[16];
+    char hbuf[16];
+    char pbuf[16];
     for (const auto& e : entries) {
         format_handle(hbuf, sizeof(hbuf), e.handle);
         const char* pw = parent_word(e.parent_handle);
@@ -251,14 +258,15 @@ static void print_text(const std::vector<TcEntry>& entries, const TcOptions* opt
 
         printf("%s %s %s dev %s ",
                opts->object.c_str(), e.kind.c_str(), hbuf, dev);
-        if (pw) printf("%s ", pw);
-        else {
+        if (pw != nullptr) { { printf("%s ", pw);
+        } } else {
             format_handle(pbuf, sizeof(pbuf), e.parent_handle);
             printf("parent %s ", pbuf);
         }
         // refcnt is meaningful for qdiscs/classes; for filters tcm_info packs
         // protocol+priority, so upstream omits refcnt there.
-        if (opts->object != "filter") printf("refcnt %u", e.refcnt);
+        if (opts->object != "filter") { printf("refcnt %u", e.refcnt);
+}
 
         if (opts->object == "filter") {
             printf(" protocol %04x", e.filter_protocol);
@@ -267,16 +275,17 @@ static void print_text(const std::vector<TcEntry>& entries, const TcOptions* opt
         printf("\n");
 
         if (opts->show_details) {
-            std::string d = decode_details(e, opts);
-            if (!d.empty()) printf("\t%s\n", d.c_str());
+            std::string const d = decode_details(e, opts);
+            if (!d.empty()) { printf("\t%s\n", d.c_str());
+}
         }
 
         if (opts->show_stats && e.has_stats2) {
             printf(" Sent %llu bytes %llu pkt (dropped %u, overlimits %u requeues %u) \n",
-                   (unsigned long long)e.bytes, (unsigned long long)e.packets,
+                   static_cast<unsigned long long>(e.bytes), static_cast<unsigned long long>(e.packets),
                    e.drops, e.overlimits, e.requeues);
             printf(" backlog %llub %up requeues %u\n",
-                   (unsigned long long)e.backlog, e.qlen, e.requeues);
+                   static_cast<unsigned long long>(e.backlog), e.qlen, e.requeues);
         }
     }
 }
@@ -298,12 +307,13 @@ static void print_json(const std::vector<TcEntry>& entries, const TcOptions* opt
 
         printf("%s{%s", ind, nl);
         bool first = true;
-        auto sep = [&]() { if (!first) printf(", "); first = false; };
+        auto sep = [&]() { if (!first) { printf(", "); 
+}first = false; };
         sep(); json_emit_str(stdout, "kind", e.kind.c_str(), true);
         sep(); json_emit_str(stdout, "handle", hbuf, true);
         sep(); json_emit_str(stdout, "dev", dev, true);
         const char* pw = parent_word(e.parent_handle);
-        if (pw) { sep(); json_emit_str(stdout, "parent", pw, true); }
+        if (pw != nullptr) { sep(); json_emit_str(stdout, "parent", pw, true); }
         else {
             char pbuf[16];
             format_handle(pbuf, sizeof(pbuf), e.parent_handle);
@@ -373,52 +383,55 @@ int tc_command(int argc, char** argv) {
         if (a == "-json") { opts.json_mode = true; continue; }
         if (a == "-pretty") { opts.pretty = true; continue; }
         if (!a.empty() && a[0] == '-') {
-            fprintf(stderr, "tc: unrecognized option '%s'\n", a.c_str());
+            (void)fprintf(stderr, "tc: unrecognized option '%s'\n", a.c_str());
             return 1;
         }
         pos.push_back(a);
     }
 
     if (pos.empty()) {
-        fprintf(stderr, "tc: need an object: qdisc, class, or filter\n");
-        fprintf(stderr, "Try 'tc --help' for more information.\n");
+        (void)fprintf(stderr, "tc: need an object: qdisc, class, or filter\n");
+        (void)fprintf(stderr, "Try 'tc --help' for more information.\n");
         return 1;
     }
 
     opts.object = pos[0];
     if (opts.object != "qdisc" && opts.object != "class" && opts.object != "filter") {
-        fprintf(stderr, "tc: unknown object \"%s\". Use: qdisc, class, filter\n", opts.object.c_str());
+        (void)fprintf(stderr, "tc: unknown object \"%s\". Use: qdisc, class, filter\n", opts.object.c_str());
         return 1;
     }
 
     for (size_t i = 1; i < pos.size(); i++) {
         const std::string& a = pos[i];
-        if (a == "show" || a == "list") continue;
+        if (a == "show" || a == "list") { continue;
+}
         if (a == "help") { print_help(argv[0]); return 0; }
         if (a == "dev" && i + 1 < pos.size()) { opts.ifname = pos[++i]; continue; }
         if (a == "parent" && i + 1 < pos.size()) { opts.parent = pos[++i]; continue; }
-        fprintf(stderr, "tc: unexpected argument '%s'\n", a.c_str());
+        (void)fprintf(stderr, "tc: unexpected argument '%s'\n", a.c_str());
         return 1;
     }
 
     // Resolve the device name up front so an unknown device is a clear error
     // (spec §19) rather than silently empty output.
     if (!opts.ifname.empty() && if_nametoindex(opts.ifname.c_str()) == 0) {
-        fprintf(stderr, "tc: %s: no such device\n", opts.ifname.c_str());
+        (void)fprintf(stderr, "tc: %s: no such device\n", opts.ifname.c_str());
         return 1;
     }
 
-    int nl_type = (opts.object == "qdisc") ? RTM_GETQDISC
+    int const nl_type = (opts.object == "qdisc") ? RTM_GETQDISC
                : (opts.object == "class") ? RTM_GETTCLASS
                : RTM_GETTFILTER;
 
     std::vector<TcEntry> entries;
-    if (nl_dump(nl_type, entries) != 0) return 1;
+    if (nl_dump(nl_type, entries) != 0) { return 1;
+}
 
     // Deterministic order: by ifindex, then handle.
     std::sort(entries.begin(), entries.end(),
               [](const TcEntry& a, const TcEntry& b) {
-                  if (a.ifindex != b.ifindex) return a.ifindex < b.ifindex;
+                  if (a.ifindex != b.ifindex) { return a.ifindex < b.ifindex;
+}
                   return a.handle < b.handle;
               });
 
@@ -426,14 +439,17 @@ int tc_command(int argc, char** argv) {
     for (auto& e : entries) {
         char dev[IF_NAMESIZE] = "?";
         if_indextoname(e.ifindex, dev);
-        if (!opts.ifname.empty() && opts.ifname != dev) continue;
+        if (!opts.ifname.empty() && opts.ifname != dev) { continue;
+}
         if (!opts.parent.empty()) {
             if (opts.parent == "root") {
-                if (!e.root) continue;
+                if (!e.root) { continue;
+}
             } else {
                 char pbuf[16];
                 format_handle(pbuf, sizeof(pbuf), e.parent_handle);
-                if (pbuf != opts.parent) continue;
+                if (pbuf != opts.parent) { continue;
+}
             }
         }
         filtered.push_back(std::move(e));

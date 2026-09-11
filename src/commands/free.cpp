@@ -33,7 +33,8 @@ struct FreeOptions {
 
 static std::string read_file(const std::string& path) {
     std::ifstream f(path);
-    if (!f.is_open()) return {};
+    if (!f.is_open()) { return {};
+}
     std::ostringstream buf;
     buf << f.rdbuf();
     return buf.str();
@@ -50,17 +51,20 @@ static MemInfoData read_proc_meminfo() {
         std::string key;
         int64_t val_kb = 0;
         lss >> key >> val_kb;
-        if (key.empty()) continue;
-        if (!key.empty() && key.back() == ':') key.pop_back();
+        if (key.empty()) { continue;
+}
+        if (!key.empty() && key.back() == ':') { key.pop_back();
+}
 
-        if (key == "MemTotal") d.mem_total = val_kb;
-        else if (key == "MemFree") d.mem_free = val_kb;
-        else if (key == "MemAvailable") d.mem_available = val_kb;
-        else if (key == "SwapTotal") d.swap_total = val_kb;
-        else if (key == "SwapFree") d.swap_free = val_kb;
-        else if (key == "Buffers") d.buffers = val_kb;
-        else if (key == "Cached") d.cached = val_kb;
-        else if (key == "Shmem") d.shmem = val_kb;
+        if (key == "MemTotal") { d.mem_total = val_kb;
+        } else if (key == "MemFree") { d.mem_free = val_kb;
+        } else if (key == "MemAvailable") { d.mem_available = val_kb;
+        } else if (key == "SwapTotal") { d.swap_total = val_kb;
+        } else if (key == "SwapFree") { d.swap_free = val_kb;
+        } else if (key == "Buffers") { d.buffers = val_kb;
+        } else if (key == "Cached") { d.cached = val_kb;
+        } else if (key == "Shmem") { d.shmem = val_kb;
+}
     }
 
     return d;
@@ -83,24 +87,24 @@ static void print_version() {
 }
 
 static void format_size(FILE* out, int64_t val_kb, bool si) {
-    int64_t unit = si ? 1000 : 1024;
+    int64_t const unit = si ? 1000 : 1024;
     if (val_kb < unit) {
-        fprintf(out, "%lldB", val_kb);
+        (void)fprintf(out, "%lldB", val_kb);
         return;
     }
-    double v = (double)val_kb;
+    double v = static_cast<double>(val_kb);
     const char* suffixes = si ? "kMGTPEB" : "KMGTPEZY";
     int idx = 0;
-    while (v >= (double)unit && idx < 7) {
-        v /= (double)unit;
+    while (v >= static_cast<double>(unit) && idx < 7) {
+        v /= static_cast<double>(unit);
         idx++;
     }
     if (si) {
         char buf[32];
-        snprintf(buf, sizeof(buf), "%.1f%cB", v, suffixes[idx]);
-        fprintf(out, "%s", buf);
+        (void)snprintf(buf, sizeof(buf), "%.1f%cB", v, suffixes[idx]);
+        (void)fprintf(out, "%s", buf);
     } else {
-        fprintf(out, "%.1f%c", v, suffixes[idx]);
+        (void)fprintf(out, "%.1f%c", v, suffixes[idx]);
     }
 }
 
@@ -108,7 +112,7 @@ static void print_value(FILE* out, int64_t val_kb, const FreeOptions* opts) {
     if (opts->human || opts->si) {
         format_size(out, val_kb, opts->si);
     } else {
-        fprintf(out, "%lld", val_kb);
+        (void)fprintf(out, "%lld", val_kb);
     }
 }
 
@@ -157,7 +161,7 @@ int free_command(int argc, char** argv) {
 
     ArgTable at({human_opt, si_opt, total_opt, old_opt, json_opt, help_opt, version_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         print_help(argv[0]);
@@ -188,29 +192,29 @@ int free_command(int argc, char** argv) {
         }
     }
 
-    MemInfoData mem = read_proc_meminfo();
+    MemInfoData const mem = read_proc_meminfo();
 
-    int64_t buff_cache = mem.buffers + mem.cached;
-    int64_t shared = mem.shmem;
-    int64_t mem_used = mem.mem_total - mem.mem_free - buff_cache - shared;
-    int64_t swap_used = mem.swap_total - mem.swap_free;
+    int64_t const buff_cache = mem.buffers + mem.cached;
+    int64_t const shared = mem.shmem;
+    int64_t const mem_used = mem.mem_total - mem.mem_free - buff_cache - shared;
+    int64_t const swap_used = mem.swap_total - mem.swap_free;
 
     if (opts.json_mode) {
-        fprintf(stdout, "{\n");
-        fprintf(stdout, "  \"mem\": {\n");
-        fprintf(stdout, "    \"available\": %lld,\n", mem.mem_available);
-        fprintf(stdout, "    \"buff_cache\": %lld,\n", buff_cache);
-        fprintf(stdout, "    \"free\": %lld,\n", mem.mem_free);
-        fprintf(stdout, "    \"shared\": %lld,\n", shared);
-        fprintf(stdout, "    \"total\": %lld,\n", mem.mem_total);
-        fprintf(stdout, "    \"used\": %lld\n", mem_used);
-        fprintf(stdout, "  },\n");
-        fprintf(stdout, "  \"swap\": {\n");
-        fprintf(stdout, "    \"free\": %lld,\n", mem.swap_free);
-        fprintf(stdout, "    \"total\": %lld,\n", mem.swap_total);
-        fprintf(stdout, "    \"used\": %lld\n", swap_used);
-        fprintf(stdout, "  }\n");
-        fprintf(stdout, "}\n");
+        (void)fprintf(stdout, "{\n");
+        (void)fprintf(stdout, "  \"mem\": {\n");
+        (void)fprintf(stdout, "    \"available\": %lld,\n", mem.mem_available);
+        (void)fprintf(stdout, "    \"buff_cache\": %lld,\n", buff_cache);
+        (void)fprintf(stdout, "    \"free\": %lld,\n", mem.mem_free);
+        (void)fprintf(stdout, "    \"shared\": %lld,\n", shared);
+        (void)fprintf(stdout, "    \"total\": %lld,\n", mem.mem_total);
+        (void)fprintf(stdout, "    \"used\": %lld\n", mem_used);
+        (void)fprintf(stdout, "  },\n");
+        (void)fprintf(stdout, "  \"swap\": {\n");
+        (void)fprintf(stdout, "    \"free\": %lld,\n", mem.swap_free);
+        (void)fprintf(stdout, "    \"total\": %lld,\n", mem.swap_total);
+        (void)fprintf(stdout, "    \"used\": %lld\n", swap_used);
+        (void)fprintf(stdout, "  }\n");
+        (void)fprintf(stdout, "}\n");
         return 0;
     }
 
@@ -222,9 +226,9 @@ int free_command(int argc, char** argv) {
     print_row("Swap:", mem.swap_total, swap_used, mem.swap_free, 0, 0, 0, &opts);
 
     if (opts.show_total) {
-        int64_t grand_total = mem.mem_total + mem.swap_total;
-        int64_t grand_used = mem_used + swap_used;
-        int64_t grand_free = mem.mem_free + mem.swap_free;
+        int64_t const grand_total = mem.mem_total + mem.swap_total;
+        int64_t const grand_used = mem_used + swap_used;
+        int64_t const grand_free = mem.mem_free + mem.swap_free;
         print_row("total:", grand_total, grand_used, grand_free, 0, 0, 0, &opts);
     }
 

@@ -6,8 +6,8 @@
 #include "commands/command_macros.hpp"
 
 int dir_command(int argc, char** argv) {
-    int new_argc = argc + 1;
-    char** new_argv = (char**)malloc((size_t)(new_argc + 1) * sizeof(char*));
+    int const new_argc = argc + 1;
+    char** new_argv = static_cast<char**>(malloc(static_cast<size_t>(new_argc + 1) * sizeof(char*)));
 
     new_argv[0] = argv[0];
     new_argv[1] = const_cast<char*>("-C");

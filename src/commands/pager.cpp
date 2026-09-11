@@ -1,6 +1,9 @@
+#include <asm-generic/ioctls.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <sys/poll.h>
+#include <signal.h>
 #include <unistd.h>
 #include <termios.h>
 #include <csignal>
@@ -355,17 +358,17 @@ struct PagerState {
         } else if (!status.empty()) {
             msg = status;
         } else if (cfg->long_prompt) {
-            snprintf(buf, sizeof(buf),
+            (void)snprintf(buf, sizeof(buf),
                      "%s lines %d-%d/%d (%d%%)%s",
                      fname.c_str(), first + 1, lastv + 1, total,
                      total > 1 ? cursor * 100 / (total - 1) : 100,
-                     at_end ? " (END)" : "");
+                     (at_end != 0) ? " (END)" : "");
             msg = buf;
         } else {
-            snprintf(buf, sizeof(buf), "lines %d-%d/%d (%d%%)%s",
+            (void)snprintf(buf, sizeof(buf), "lines %d-%d/%d (%d%%)%s",
                      first + 1, lastv + 1, total,
                      total > 1 ? cursor * 100 / (total - 1) : 100,
-                     at_end ? " (END)" : "");
+                     (at_end != 0) ? " (END)" : "");
             msg = buf;
         }
         printf("\033[7m%s\033[0m", msg.c_str());
@@ -450,7 +453,7 @@ void pager_run(const std::vector<PagerView>& views, const PagerOptions* cfg) {
     }
 
     // Non-TTY: behave like cat (full dump), never enter interactive mode.
-    if (!isatty(STDOUT_FILENO)) {
+    if (isatty(STDOUT_FILENO) == 0) {
         pager_dump(views, cfg);
         return;
     }

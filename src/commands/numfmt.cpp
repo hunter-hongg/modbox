@@ -1,12 +1,11 @@
-#include <algorithm>
 #include <cctype>
 #include <cerrno>
-#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 #include "commands/numfmt.hpp"
@@ -35,28 +34,42 @@ struct NumfmtOptions {
 };
 
 static ScaleUnit parse_scale(const char* s) {
-    if (strcmp(s, "auto") == 0) return ScaleUnit::AUTO;
-    if (strcmp(s, "si") == 0) return ScaleUnit::SI;
-    if (strcmp(s, "iec") == 0) return ScaleUnit::IEC;
-    if (strcmp(s, "iec-i") == 0) return ScaleUnit::IEC_I;
-    if (strcmp(s, "none") == 0) return ScaleUnit::NONE;
+    if (strcmp(s, "auto") == 0) { return ScaleUnit::AUTO;
+}
+    if (strcmp(s, "si") == 0) { return ScaleUnit::SI;
+}
+    if (strcmp(s, "iec") == 0) { return ScaleUnit::IEC;
+}
+    if (strcmp(s, "iec-i") == 0) { return ScaleUnit::IEC_I;
+}
+    if (strcmp(s, "none") == 0) { return ScaleUnit::NONE;
+}
     return ScaleUnit::NONE;
 }
 
 static RoundMethod parse_round(const char* s) {
-    if (strcmp(s, "up") == 0) return RoundMethod::UP;
-    if (strcmp(s, "down") == 0) return RoundMethod::DOWN;
-    if (strcmp(s, "from-zero") == 0) return RoundMethod::FROM_ZERO;
-    if (strcmp(s, "towards-zero") == 0) return RoundMethod::TOWARDS_ZERO;
-    if (strcmp(s, "nearest") == 0) return RoundMethod::NEAREST;
+    if (strcmp(s, "up") == 0) { return RoundMethod::UP;
+}
+    if (strcmp(s, "down") == 0) { return RoundMethod::DOWN;
+}
+    if (strcmp(s, "from-zero") == 0) { return RoundMethod::FROM_ZERO;
+}
+    if (strcmp(s, "towards-zero") == 0) { return RoundMethod::TOWARDS_ZERO;
+}
+    if (strcmp(s, "nearest") == 0) { return RoundMethod::NEAREST;
+}
     return RoundMethod::FROM_ZERO;
 }
 
 static InvalidMode parse_invalid(const char* s) {
-    if (strcmp(s, "abort") == 0) return InvalidMode::ABORT;
-    if (strcmp(s, "fail") == 0) return InvalidMode::FAIL;
-    if (strcmp(s, "warn") == 0) return InvalidMode::WARN;
-    if (strcmp(s, "ignore") == 0) return InvalidMode::IGNORE;
+    if (strcmp(s, "abort") == 0) { return InvalidMode::ABORT;
+}
+    if (strcmp(s, "fail") == 0) { return InvalidMode::FAIL;
+}
+    if (strcmp(s, "warn") == 0) { return InvalidMode::WARN;
+}
+    if (strcmp(s, "ignore") == 0) { return InvalidMode::IGNORE;
+}
     return InvalidMode::ABORT;
 }
 
@@ -78,33 +91,37 @@ struct SuffixEntry {
 };
 
 static const SuffixEntry suffixes[] = {
-    {"K", 1e3, 1024.0},
-    {"M", 1e6, 1024.0 * 1024},
-    {"G", 1e9, 1024.0 * 1024 * 1024},
-    {"T", 1e12, 1024.0 * 1024 * 1024 * 1024},
-    {"P", 1e15, 1024.0 * 1024 * 1024 * 1024 * 1024},
-    {"E", 1e18, 1024.0 * 1024 * 1024 * 1024 * 1024 * 1024},
-    {"Z", 1e21, 1024.0 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
-    {"Y", 1e24, 1024.0 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
+    {.suffix="K", .si_factor=1e3, .iec_factor=1024.0},
+    {.suffix="M", .si_factor=1e6, .iec_factor=1024.0 * 1024},
+    {.suffix="G", .si_factor=1e9, .iec_factor=1024.0 * 1024 * 1024},
+    {.suffix="T", .si_factor=1e12, .iec_factor=1024.0 * 1024 * 1024 * 1024},
+    {.suffix="P", .si_factor=1e15, .iec_factor=1024.0 * 1024 * 1024 * 1024 * 1024},
+    {.suffix="E", .si_factor=1e18, .iec_factor=1024.0 * 1024 * 1024 * 1024 * 1024 * 1024},
+    {.suffix="Z", .si_factor=1e21, .iec_factor=1024.0 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
+    {.suffix="Y", .si_factor=1e24, .iec_factor=1024.0 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
 };
 static const int num_suffixes = 8;
 
 static bool parse_input_number(const char* s, double* out, const NumfmtOptions& opts) {
-    if (s == nullptr || *s == '\0') return false;
+    if (s == nullptr || *s == '\0') { return false;
+}
 
     char* endp = nullptr;
     errno = 0;
-    double val = strtod(s, &endp);
-    if (errno == ERANGE) return false;
-    if (endp == s) return false;
+    double const val = strtod(s, &endp);
+    if (errno == ERANGE) { return false;
+}
+    if (endp == s) { return false;
+}
 
     double multiplier = 1.0;
     if (*endp != '\0') {
-        ScaleUnit from = opts.from;
-        if (from == ScaleUnit::NONE) return false;
+        ScaleUnit const from = opts.from;
+        if (from == ScaleUnit::NONE) { return false;
+}
 
-        char suffix_char = toupper((unsigned char)*endp);
-        bool has_i = (*(endp + 1) == 'i');
+        char const suffix_char = toupper(static_cast<unsigned char>(*endp));
+        bool const has_i = (*(endp + 1) == 'i');
         bool found = false;
 
         for (int i = 0; i < num_suffixes; i++) {
@@ -122,12 +139,15 @@ static bool parse_input_number(const char* s, double* out, const NumfmtOptions& 
                 }
                 found = true;
                 endp++;
-                if (*endp == 'i') endp++;
+                if (*endp == 'i') { endp++;
+}
                 break;
             }
         }
-        if (!found) return false;
-        if (*endp != '\0') return false;
+        if (!found) { return false;
+}
+        if (*endp != '\0') { return false;
+}
     }
 
     *out = val * multiplier * opts.from_unit;
@@ -138,36 +158,36 @@ static std::string format_output(double val, const NumfmtOptions& opts) {
     val = val / opts.to_unit;
 
     std::string result;
-    std::string user_suffix = opts.suffix;
+    std::string const user_suffix = opts.suffix;
 
     if (opts.to == ScaleUnit::NONE) {
-        double rounded = apply_round(val, opts.round);
+        double const rounded = apply_round(val, opts.round);
         if (!opts.format.empty()) {
             char buf[256];
-            snprintf(buf, sizeof(buf), opts.format.c_str(), rounded);
+            (void)snprintf(buf, sizeof(buf), opts.format.c_str(), rounded);
             result = buf;
         } else {
             char buf[64];
-            if (rounded == (long long)rounded && fabs(rounded) < 1e15) {
-                snprintf(buf, sizeof(buf), "%lld", (long long)rounded);
+            if (rounded == static_cast<long long>(rounded) && fabs(rounded) < 1e15) {
+                (void)snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(rounded));
             } else {
-                snprintf(buf, sizeof(buf), "%g", rounded);
+                (void)snprintf(buf, sizeof(buf), "%g", rounded);
             }
             result = buf;
         }
     } else {
-        double base = (opts.to == ScaleUnit::SI) ? 1000.0 : 1024.0;
+        double const base = (opts.to == ScaleUnit::SI) ? 1000.0 : 1024.0;
         const char* chosen_suffix = "";
         double display_val = val;
-        double abs_val = fabs(val);
+        double const abs_val = fabs(val);
 
         if (abs_val < base) {
             display_val = val;
             chosen_suffix = "";
         } else {
             for (int i = 0; i < num_suffixes; i++) {
-                double factor = (opts.to == ScaleUnit::SI) ? suffixes[i].si_factor : suffixes[i].iec_factor;
-                double next_factor = (i + 1 < num_suffixes)
+                double const factor = (opts.to == ScaleUnit::SI) ? suffixes[i].si_factor : suffixes[i].iec_factor;
+                double const next_factor = (i + 1 < num_suffixes)
                     ? ((opts.to == ScaleUnit::SI) ? suffixes[i + 1].si_factor : suffixes[i + 1].iec_factor)
                     : factor * base;
                 if (abs_val < next_factor || i == num_suffixes - 1) {
@@ -180,14 +200,14 @@ static std::string format_output(double val, const NumfmtOptions& opts) {
 
         char buf[64];
         if (chosen_suffix[0] == '\0') {
-            double rounded = apply_round(display_val, opts.round);
-            snprintf(buf, sizeof(buf), "%lld", (long long)rounded);
+            double const rounded = apply_round(display_val, opts.round);
+            (void)snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(rounded));
         } else if (fabs(display_val) < 10.0) {
-            double rounded = apply_round(display_val * 10.0, opts.round) / 10.0;
-            snprintf(buf, sizeof(buf), "%.1f", rounded);
+            double const rounded = apply_round(display_val * 10.0, opts.round) / 10.0;
+            (void)snprintf(buf, sizeof(buf), "%.1f", rounded);
         } else {
-            double rounded = apply_round(display_val, opts.round);
-            snprintf(buf, sizeof(buf), "%.0f", rounded);
+            double const rounded = apply_round(display_val, opts.round);
+            (void)snprintf(buf, sizeof(buf), "%.0f", rounded);
         }
         result = buf;
         result += chosen_suffix;
@@ -199,10 +219,10 @@ static std::string format_output(double val, const NumfmtOptions& opts) {
     result += user_suffix;
 
     if (opts.padding != 0) {
-        int width = abs(opts.padding);
-        int len = (int)result.size();
+        int const width = abs(opts.padding);
+        int const len = static_cast<int>(result.size());
         if (len < width) {
-            int pad = width - len;
+            int const pad = width - len;
             if (opts.padding > 0) {
                 result = std::string(pad, ' ') + result;
             } else {
@@ -224,35 +244,40 @@ static bool process_field(const std::string& token, const NumfmtOptions& opts, s
 }
 
 static void process_line(const std::string& line, const NumfmtOptions& opts, bool* had_error) {
-    std::string delim = opts.delimiter;
-    bool use_whitespace = delim.empty();
+    std::string const delim = opts.delimiter;
+    bool const use_whitespace = delim.empty();
 
     std::vector<std::string> tokens;
     std::vector<std::string> separators;
 
     if (use_whitespace) {
         size_t i = 0;
-        size_t n = line.size();
+        size_t const n = line.size();
         size_t leading = 0;
-        while (leading < n && (line[leading] == ' ' || line[leading] == '\t')) leading++;
-        if (leading > 0) separators.push_back(line.substr(0, leading));
-        else separators.push_back("");
+        while (leading < n && (line[leading] == ' ' || line[leading] == '\t')) { leading++;
+}
+        if (leading > 0) { separators.push_back(line.substr(0, leading));
+        } else { separators.push_back("");
+}
 
         i = leading;
         while (i < n) {
-            size_t start = i;
-            while (i < n && line[i] != ' ' && line[i] != '\t') i++;
+            size_t const start = i;
+            while (i < n && line[i] != ' ' && line[i] != '\t') { i++;
+}
             tokens.push_back(line.substr(start, i - start));
-            size_t sep_start = i;
-            while (i < n && (line[i] == ' ' || line[i] == '\t')) i++;
-            if (i < n || sep_start < n)
+            size_t const sep_start = i;
+            while (i < n && (line[i] == ' ' || line[i] == '\t')) { i++;
+}
+            if (i < n || sep_start < n) {
                 separators.push_back(line.substr(sep_start, i - sep_start));
+}
         }
     } else {
         size_t pos = 0;
         separators.push_back("");
         while (true) {
-            size_t found = line.find(delim, pos);
+            size_t const found = line.find(delim, pos);
             if (found == std::string::npos) {
                 tokens.push_back(line.substr(pos));
                 break;
@@ -263,21 +288,21 @@ static void process_line(const std::string& line, const NumfmtOptions& opts, boo
         }
     }
 
-    int target_field = opts.field - 1;
+    int const target_field = opts.field - 1;
 
     std::string output;
     output += separators[0];
     for (size_t i = 0; i < tokens.size(); i++) {
-        if ((int)i == target_field) {
+        if (static_cast<int>(i) == target_field) {
             std::string converted;
             if (process_field(tokens[i], opts, converted)) {
                 output += converted;
             } else {
                 if (opts.invalid == InvalidMode::ABORT || opts.invalid == InvalidMode::FAIL) {
-                    fprintf(stderr, "numfmt: invalid number: '%s'\n", tokens[i].c_str());
+                    (void)fprintf(stderr, "numfmt: invalid number: '%s'\n", tokens[i].c_str());
                     *had_error = true;
                 } else if (opts.invalid == InvalidMode::WARN) {
-                    fprintf(stderr, "numfmt: invalid number: '%s'\n", tokens[i].c_str());
+                    (void)fprintf(stderr, "numfmt: invalid number: '%s'\n", tokens[i].c_str());
                 }
                 output += tokens[i];
             }
@@ -291,8 +316,8 @@ static void process_line(const std::string& line, const NumfmtOptions& opts, boo
         }
     }
 
-    fputs(output.c_str(), stdout);
-    fputc('\n', stdout);
+    (void)fputs(output.c_str(), stdout);
+    (void)fputc('\n', stdout);
 }
 
 static void print_help() {
@@ -346,7 +371,7 @@ int numfmt_command(int argc, char** argv) {
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
             print_help();
             return 0;
-        } else if (strcmp(a, "--version") == 0) {
+        } if (strcmp(a, "--version") == 0) {
             print_version("numfmt");
             return 0;
         } else if (strncmp(a, "--from=", 7) == 0) {
@@ -379,7 +404,7 @@ int numfmt_command(int argc, char** argv) {
             opts.debug = true;
         } else if (strcmp(a, "-d") == 0 || strcmp(a, "--delimiter") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "numfmt: option requires an argument -- 'd'\n");
+                (void)fprintf(stderr, "numfmt: option requires an argument -- 'd'\n");
                 return 0;
             }
             opts.delimiter = argv[++i];
@@ -393,7 +418,7 @@ int numfmt_command(int argc, char** argv) {
             }
             break;
         } else if (a[0] == '-' && a[1] == '-') {
-            fprintf(stderr, "numfmt: unrecognized option '%s'\n", a);
+            (void)fprintf(stderr, "numfmt: unrecognized option '%s'\n", a);
             return 0;
         } else {
             operands.push_back(a);
@@ -406,19 +431,19 @@ int numfmt_command(int argc, char** argv) {
         for (const char* op : operands) {
             std::string out;
             if (process_field(op, opts, out)) {
-                fputs(out.c_str(), stdout);
-                fputc('\n', stdout);
+                (void)fputs(out.c_str(), stdout);
+                (void)fputc('\n', stdout);
             } else {
                 if (opts.invalid == InvalidMode::ABORT || opts.invalid == InvalidMode::FAIL) {
-                    fprintf(stderr, "numfmt: invalid number: '%s'\n", op);
+                    (void)fprintf(stderr, "numfmt: invalid number: '%s'\n", op);
                     had_error = true;
                 } else if (opts.invalid == InvalidMode::WARN) {
-                    fprintf(stderr, "numfmt: invalid number: '%s'\n", op);
-                    fputs(op, stdout);
-                    fputc('\n', stdout);
+                    (void)fprintf(stderr, "numfmt: invalid number: '%s'\n", op);
+                    (void)fputs(op, stdout);
+                    (void)fputc('\n', stdout);
                 } else {
-                    fputs(op, stdout);
-                    fputc('\n', stdout);
+                    (void)fputs(op, stdout);
+                    (void)fputc('\n', stdout);
                 }
             }
         }
@@ -437,7 +462,7 @@ int numfmt_command(int argc, char** argv) {
                 header_lines--;
                 continue;
             }
-            std::string l(line);
+            std::string const l(line);
             process_line(l, opts, &had_error);
         }
         free(line);

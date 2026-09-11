@@ -1,5 +1,8 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include <linux/stat.h>
+#include <sys/statfs.h>
+#include <vector>
 #endif
 
 #include <argtable3.h>
@@ -172,23 +175,23 @@ std::string perm_string(mode_t mode) {
   } else if (S_ISFIFO(mode)) {
     s[0] = 'p';
   }
-  s[1] = (mode & S_IRUSR) ? 'r' : '-';
-  s[2] = (mode & S_IWUSR) ? 'w' : '-';
-  s[3] = (mode & S_IXUSR) ? 'x' : '-';
-  s[4] = (mode & S_IRGRP) ? 'r' : '-';
-  s[5] = (mode & S_IWGRP) ? 'w' : '-';
-  s[6] = (mode & S_IXGRP) ? 'x' : '-';
-  s[7] = (mode & S_IROTH) ? 'r' : '-';
-  s[8] = (mode & S_IWOTH) ? 'w' : '-';
-  s[9] = (mode & S_IXOTH) ? 'x' : '-';
-  if (mode & S_ISUID) {
-    s[3] = (mode & S_IXUSR) ? 's' : 'S';
+  s[1] = ((mode & S_IRUSR) != 0u) ? 'r' : '-';
+  s[2] = ((mode & S_IWUSR) != 0u) ? 'w' : '-';
+  s[3] = ((mode & S_IXUSR) != 0u) ? 'x' : '-';
+  s[4] = ((mode & S_IRGRP) != 0u) ? 'r' : '-';
+  s[5] = ((mode & S_IWGRP) != 0u) ? 'w' : '-';
+  s[6] = ((mode & S_IXGRP) != 0u) ? 'x' : '-';
+  s[7] = ((mode & S_IROTH) != 0u) ? 'r' : '-';
+  s[8] = ((mode & S_IWOTH) != 0u) ? 'w' : '-';
+  s[9] = ((mode & S_IXOTH) != 0u) ? 'x' : '-';
+  if ((mode & S_ISUID) != 0u) {
+    s[3] = ((mode & S_IXUSR) != 0u) ? 's' : 'S';
   }
-  if (mode & S_ISGID) {
-    s[6] = (mode & S_IXGRP) ? 's' : 'S';
+  if ((mode & S_ISGID) != 0u) {
+    s[6] = ((mode & S_IXGRP) != 0u) ? 's' : 'S';
   }
-  if (mode & S_ISVTX) {
-    s[9] = (mode & S_IXOTH) ? 't' : 'T';
+  if ((mode & S_ISVTX) != 0u) {
+    s[9] = ((mode & S_IXOTH) != 0u) ? 't' : 'T';
   }
   return s;
 }
@@ -226,7 +229,7 @@ std::string dir_name(const std::string& p) {
   if (p.empty()) {
     return ".";
   }
-  size_t pos = p.find_last_of('/');
+  size_t const pos = p.find_last_of('/');
   if (pos == std::string::npos) {
     return ".";
   }
@@ -251,7 +254,7 @@ std::string mount_point(const std::string& path) {
     dev = st.st_dev;
   }
   while (true) {
-    std::string parent = dir_name(cur);
+    std::string const parent = dir_name(cur);
     if (parent == cur) {
       break;
     }
@@ -325,7 +328,7 @@ FileStat do_stat_file(const char* path, bool deref) {
   FileStat st;
 #ifdef __linux__
   struct statx stx;
-  int flags = AT_STATX_SYNC_AS_STAT | (deref ? 0 : AT_SYMLINK_NOFOLLOW);
+  int const flags = AT_STATX_SYNC_AS_STAT | (deref ? 0 : AT_SYMLINK_NOFOLLOW);
   if (statx(AT_FDCWD, path, flags, STATX_ALL, &stx) == 0) {
     st.valid = true;
     st.mode = static_cast<mode_t>(stx.stx_mode);
@@ -353,7 +356,7 @@ FileStat do_stat_file(const char* path, bool deref) {
   }
 #endif
   struct stat s;
-  int r = deref ? stat(path, &s) : lstat(path, &s);
+  int const r = deref ? stat(path, &s) : lstat(path, &s);
   if (r != 0) {
     return st;
   }
@@ -392,8 +395,8 @@ FsStat do_stat_fs(const char* path) {
   struct statfs sfs;
   if (statfs(path, &sfs) == 0) {
     r.f_type = static_cast<unsigned long>(sfs.f_type);
-    uint64_t hi = static_cast<uint64_t>(static_cast<uint32_t>(sfs.f_fsid.__val[0]));
-    uint64_t lo = static_cast<uint64_t>(static_cast<uint32_t>(sfs.f_fsid.__val[1]));
+    uint64_t const hi = static_cast<uint64_t>(static_cast<uint32_t>(sfs.f_fsid.__val[0]));
+    uint64_t const lo = static_cast<uint64_t>(static_cast<uint32_t>(sfs.f_fsid.__val[1]));
     r.fsid = (hi << 32) | lo;
   }
   return r;
@@ -447,14 +450,14 @@ std::string conv_value(char c, bool fs_mode, const StatCtx& ctx,
   case 'u': is_str = false; return std::to_string(static_cast<unsigned long>(s.uid));
   case 'U': {
     is_str = true;
-    struct passwd* p = getpwuid(s.uid);
-    return p ? std::string(p->pw_name) : std::to_string(static_cast<unsigned long>(s.uid));
+    const struct passwd* p = getpwuid(s.uid);
+    return (p != nullptr) ? std::string(p->pw_name) : std::to_string(static_cast<unsigned long>(s.uid));
   }
   case 'g': is_str = false; return std::to_string(static_cast<unsigned long>(s.gid));
   case 'G': {
     is_str = true;
-    struct group* gr = getgrgid(s.gid);
-    return gr ? std::string(gr->gr_name) : std::to_string(static_cast<unsigned long>(s.gid));
+    const struct group* gr = getgrgid(s.gid);
+    return (gr != nullptr) ? std::string(gr->gr_name) : std::to_string(static_cast<unsigned long>(s.gid));
   }
   case 'm': is_str = true;  return mount_point(ctx.name);
   case 'w': is_str = true;  return s.has_btime ? human_time(s.btime) : std::string("-");
@@ -477,7 +480,7 @@ std::string apply_width(const std::string& val, int width, int prec,
       s = s.substr(0, static_cast<size_t>(prec));
     }
     if (width > 0) {
-      int pad = width - static_cast<int>(s.size());
+      int const pad = width - static_cast<int>(s.size());
       if (pad > 0) {
         s = left ? s + std::string(static_cast<size_t>(pad), ' ')
                  : std::string(static_cast<size_t>(pad), ' ') + s;
@@ -488,7 +491,7 @@ std::string apply_width(const std::string& val, int width, int prec,
       s = std::string(static_cast<size_t>(prec - static_cast<int>(s.size())), '0') + s;
     }
     if (width > 0) {
-      int pad = width - static_cast<int>(s.size());
+      int const pad = width - static_cast<int>(s.size());
       if (pad > 0) {
         if (left) {
           s += std::string(static_cast<size_t>(pad), ' ');
@@ -508,7 +511,7 @@ std::string process_escapes(const std::string& s) {
   size_t i = 0;
   while (i < s.size()) {
     if (s[i] == '\\' && i + 1 < s.size()) {
-      char n = s[i + 1];
+      char const n = s[i + 1];
       switch (n) {
       case 'a': out += '\a'; i += 2; break;
       case 'b': out += '\b'; i += 2; break;
@@ -521,7 +524,8 @@ std::string process_escapes(const std::string& s) {
       case '"': out += '"'; i += 2; break;
       case '0': case '1': case '2': case '3':
       case '4': case '5': case '6': case '7': {
-        int oct = 0, k = 0;
+        int oct = 0;
+        int k = 0;
         while (k < 3 && i + 1 + static_cast<size_t>(k) < s.size() &&
                s[i + 1 + static_cast<size_t>(k)] >= '0' && s[i + 1 + static_cast<size_t>(k)] <= '7') {
           oct = (oct * 8) + (s[i + 1 + static_cast<size_t>(k)] - '0');
@@ -533,9 +537,10 @@ std::string process_escapes(const std::string& s) {
       }
       case 'x': {
         if (i + 2 < s.size()) {
-          int hex = 0, k = 0;
+          int hex = 0;
+          int k = 0;
           while (k < 2 && i + 2 + static_cast<size_t>(k) < s.size()) {
-            char h = s[i + 2 + static_cast<size_t>(k)];
+            char const h = s[i + 2 + static_cast<size_t>(k)];
             int d = 0;
             if (h >= '0' && h <= '9') { d = h - '0'; }
             else if (h >= 'a' && h <= 'f') { d = h - 'a' + 10; }
@@ -573,7 +578,7 @@ std::string expand_format(const std::string& fmt, bool fs_mode,
   std::string out;
   size_t i = 0;
   while (i < fmt.size()) {
-    char ch = fmt[i];
+    char const ch = fmt[i];
     if (ch != '%') {
       out += ch;
       i++;
@@ -590,7 +595,8 @@ std::string expand_format(const std::string& fmt, bool fs_mode,
       continue;
     }
     i++;
-    bool left = false, zero = false;
+    bool left = false;
+    bool zero = false;
     while (i < fmt.size() && (fmt[i] == '-' || fmt[i] == '0')) {
       if (fmt[i] == '-') {
         left = true;
@@ -600,7 +606,7 @@ std::string expand_format(const std::string& fmt, bool fs_mode,
       i++;
     }
     int width = 0;
-    while (i < fmt.size() && isdigit(static_cast<unsigned char>(fmt[i]))) {
+    while (i < fmt.size() && (isdigit(static_cast<unsigned char>(fmt[i])) != 0)) {
       width = (width * 10) + (fmt[i] - '0');
       i++;
     }
@@ -608,7 +614,7 @@ std::string expand_format(const std::string& fmt, bool fs_mode,
     if (i < fmt.size() && fmt[i] == '.') {
       i++;
       prec = 0;
-      while (i < fmt.size() && isdigit(static_cast<unsigned char>(fmt[i]))) {
+      while (i < fmt.size() && (isdigit(static_cast<unsigned char>(fmt[i])) != 0)) {
         prec = (prec * 10) + (fmt[i] - '0');
         i++;
       }
@@ -616,10 +622,10 @@ std::string expand_format(const std::string& fmt, bool fs_mode,
     if (i >= fmt.size()) {
       break;
     }
-    char conv = fmt[i];
+    char const conv = fmt[i];
     i++;
     bool is_str = false;
-    std::string val = conv_value(conv, fs_mode, ctx, is_str);
+    std::string const val = conv_value(conv, fs_mode, ctx, is_str);
     out += apply_width(val, width, prec, left, zero, is_str);
   }
   if (interpret_escapes) {
@@ -659,7 +665,7 @@ int stat_command(int argc, char** argv) {
 
   ArgTable at({deref_opt, fs_opt, terse_opt, format_opt, printf_opt, json_opt, version_opt, help_opt, file_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -703,12 +709,12 @@ int stat_command(int argc, char** argv) {
     return at.print_errors(end, argv[0]);
   }
 
-  bool fs_mode = (fs_opt->count > 0);
-  bool deref = (deref_opt->count > 0);
-  bool json_mode = (json_opt->count > 0);
+  bool const fs_mode = (fs_opt->count > 0);
+  bool const deref = (deref_opt->count > 0);
+  bool const json_mode = (json_opt->count > 0);
 
   if (json_mode && (printf_opt->count > 0 || format_opt->count > 0)) {
-    fprintf(stderr, "stat: --json is incompatible with --format/--printf\n");
+    (void)fprintf(stderr, "stat: --json is incompatible with --format/--printf\n");
     exit(1);
   }
 
@@ -755,7 +761,7 @@ int stat_command(int argc, char** argv) {
     if (lstat(path, &ls) == 0 && S_ISLNK(ls.st_mode)) {
       r.ctx.is_link = true;
       char buf[4096];
-      ssize_t n = readlink(path, buf, sizeof(buf) - 1);
+      ssize_t const n = readlink(path, buf, sizeof(buf) - 1);
       if (n > 0) {
         buf[n] = '\0';
         r.ctx.link_target = buf;
@@ -784,62 +790,62 @@ int stat_command(int argc, char** argv) {
   }
 
   if (json_mode) {
-    fprintf(stdout, "[\n");
+    (void)fprintf(stdout, "[\n");
     for (size_t i = 0; i < results.size(); i++) {
       const EntryResult& r = results[i];
       if (!r.valid) {
-        fprintf(stdout, "  {\"error\": ");
+        (void)fprintf(stdout, "  {\"error\": ");
         json_escape_string(stdout, r.error.c_str());
-        fprintf(stdout, ", \"path\": ");
+        (void)fprintf(stdout, ", \"path\": ");
         json_escape_string(stdout, r.ctx.name.c_str());
-        fprintf(stdout, "}\n");
+        (void)fprintf(stdout, "}\n");
       } else {
         const StatCtx& c = r.ctx;
-        fprintf(stdout, "  {\n");
+        (void)fprintf(stdout, "  {\n");
         if (c.fs_mode) {
           const FsStat& f = c.fss;
-          fprintf(stdout, "    \"blocks\": %llu,\n", (unsigned long long)f.blocks);
-          fprintf(stdout, "    \"free_blocks\": %llu,\n", (unsigned long long)f.bfree);
-          fprintf(stdout, "    \"avail_blocks\": %llu,\n", (unsigned long long)f.bavail);
-          fprintf(stdout, "    \"fundamental_block_size\": %lu,\n", (unsigned long)f.frsize);
-          fprintf(stdout, "    \"block_size\": %lu,\n", (unsigned long)f.bsize);
-          fprintf(stdout, "    \"free_inodes\": %llu,\n", (unsigned long long)f.ffree);
-          fprintf(stdout, "    \"name_max\": %lu,\n", (unsigned long)f.namemax);
-          fprintf(stdout, "    \"total_blocks\": %llu,\n", (unsigned long long)f.blocks);
-          fprintf(stdout, "    \"total_inodes\": %llu,\n", (unsigned long long)f.files);
-          fprintf(stdout, "    \"type\": \"%s\"\n", fs_type_name(f.f_type).c_str());
+          (void)fprintf(stdout, "    \"blocks\": %llu,\n", f.blocks);
+          (void)fprintf(stdout, "    \"free_blocks\": %llu,\n", f.bfree);
+          (void)fprintf(stdout, "    \"avail_blocks\": %llu,\n", f.bavail);
+          (void)fprintf(stdout, "    \"fundamental_block_size\": %lu,\n", f.frsize);
+          (void)fprintf(stdout, "    \"block_size\": %lu,\n", f.bsize);
+          (void)fprintf(stdout, "    \"free_inodes\": %llu,\n", f.ffree);
+          (void)fprintf(stdout, "    \"name_max\": %lu,\n", f.namemax);
+          (void)fprintf(stdout, "    \"total_blocks\": %llu,\n", f.blocks);
+          (void)fprintf(stdout, "    \"total_inodes\": %llu,\n", f.files);
+          (void)fprintf(stdout, "    \"type\": \"%s\"\n", fs_type_name(f.f_type).c_str());
         } else {
           const FileStat& s = c.fst;
-          fprintf(stdout, "    \"access_time\": \"%s\",\n", human_time(s.atime).c_str());
-          fprintf(stdout, "    \"access_time_epoch\": %ld,\n", (long)s.atime.tv_sec);
-          fprintf(stdout, "    \"birth_time\": \"%s\",\n", s.has_btime ? human_time(s.btime).c_str() : "");
-          fprintf(stdout, "    \"birth_time_epoch\": %ld,\n", s.has_btime ? (long)s.btime.tv_sec : 0);
-          fprintf(stdout, "    \"blocks\": %lld,\n", (long long)s.blocks);
-          fprintf(stdout, "    \"change_time\": \"%s\",\n", human_time(s.ctime).c_str());
-          fprintf(stdout, "    \"change_time_epoch\": %ld,\n", (long)s.ctime.tv_sec);
-          fprintf(stdout, "    \"device\": %lu,\n", (unsigned long)s.dev);
-          fprintf(stdout, "    \"file_type\": \"%s\",\n", file_type_string(s.mode, s.size).c_str());
-          fprintf(stdout, "    \"group\": \"%s\",\n", getgrgid(s.gid) ? getgrgid(s.gid)->gr_name : "?");
-          fprintf(stdout, "    \"group_id\": %u,\n", (unsigned)s.gid);
-          fprintf(stdout, "    \"inode\": %llu,\n", (unsigned long long)s.ino);
-          fprintf(stdout, "    \"links\": %u,\n", (unsigned)s.nlink);
-          fprintf(stdout, "    \"mode\": \"%s\",\n", perm_string(s.mode).c_str());
-          fprintf(stdout, "    \"mode_octal\": \"%s\",\n", to_octal(s.mode & PERMISSION_MASK).c_str());
-          fprintf(stdout, "    \"mount_point\": \"%s\",\n", mount_point(c.name).c_str());
-          fprintf(stdout, "    \"name\": \"%s\",\n", c.name.c_str());
+          (void)fprintf(stdout, "    \"access_time\": \"%s\",\n", human_time(s.atime).c_str());
+          (void)fprintf(stdout, "    \"access_time_epoch\": %ld,\n", static_cast<long>(s.atime.tv_sec));
+          (void)fprintf(stdout, "    \"birth_time\": \"%s\",\n", s.has_btime ? human_time(s.btime).c_str() : "");
+          (void)fprintf(stdout, "    \"birth_time_epoch\": %ld,\n", s.has_btime ? static_cast<long>(s.btime.tv_sec) : 0);
+          (void)fprintf(stdout, "    \"blocks\": %lld,\n", static_cast<long long>(s.blocks));
+          (void)fprintf(stdout, "    \"change_time\": \"%s\",\n", human_time(s.ctime).c_str());
+          (void)fprintf(stdout, "    \"change_time_epoch\": %ld,\n", static_cast<long>(s.ctime.tv_sec));
+          (void)fprintf(stdout, "    \"device\": %lu,\n", static_cast<unsigned long>(s.dev));
+          (void)fprintf(stdout, "    \"file_type\": \"%s\",\n", file_type_string(s.mode, s.size).c_str());
+          (void)fprintf(stdout, "    \"group\": \"%s\",\n", (getgrgid(s.gid) != nullptr) ? getgrgid(s.gid)->gr_name : "?");
+          (void)fprintf(stdout, "    \"group_id\": %u,\n", static_cast<unsigned>(s.gid));
+          (void)fprintf(stdout, "    \"inode\": %llu,\n", static_cast<unsigned long long>(s.ino));
+          (void)fprintf(stdout, "    \"links\": %u,\n", static_cast<unsigned>(s.nlink));
+          (void)fprintf(stdout, "    \"mode\": \"%s\",\n", perm_string(s.mode).c_str());
+          (void)fprintf(stdout, "    \"mode_octal\": \"%s\",\n", to_octal(s.mode & PERMISSION_MASK).c_str());
+          (void)fprintf(stdout, "    \"mount_point\": \"%s\",\n", mount_point(c.name).c_str());
+          (void)fprintf(stdout, "    \"name\": \"%s\",\n", c.name.c_str());
           if (c.is_link) {
-            fprintf(stdout, "    \"symlink_target\": \"%s\",\n", c.link_target.c_str());
+            (void)fprintf(stdout, "    \"symlink_target\": \"%s\",\n", c.link_target.c_str());
           }
-          fprintf(stdout, "    \"size\": %lld,\n", (long long)s.size);
-          fprintf(stdout, "    \"modify_time\": \"%s\",\n", human_time(s.mtime).c_str());
-          fprintf(stdout, "    \"modify_time_epoch\": %ld,\n", (long)s.mtime.tv_sec);
-          fprintf(stdout, "    \"user\": \"%s\",\n", getpwuid(s.uid) ? getpwuid(s.uid)->pw_name : "?");
-          fprintf(stdout, "    \"user_id\": %u\n", (unsigned)s.uid);
+          (void)fprintf(stdout, "    \"size\": %lld,\n", static_cast<long long>(s.size));
+          (void)fprintf(stdout, "    \"modify_time\": \"%s\",\n", human_time(s.mtime).c_str());
+          (void)fprintf(stdout, "    \"modify_time_epoch\": %ld,\n", static_cast<long>(s.mtime.tv_sec));
+          (void)fprintf(stdout, "    \"user\": \"%s\",\n", (getpwuid(s.uid) != nullptr) ? getpwuid(s.uid)->pw_name : "?");
+          (void)fprintf(stdout, "    \"user_id\": %u\n", static_cast<unsigned>(s.uid));
         }
-        fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
+        (void)fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
       }
     }
-    fprintf(stdout, "]\n");
+    (void)fprintf(stdout, "]\n");
   } else {
     int exit_status = 0;
     for (size_t idx = 0; idx < results.size(); idx++) {

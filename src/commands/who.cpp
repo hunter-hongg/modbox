@@ -1,13 +1,11 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <ctime>
 #include <string>
 #include <vector>
 #include <unistd.h>
-#include <pwd.h>
 #include <utmp.h>
-#include <errno.h>
-#include <sys/types.h>
 #include <argtable3.h>
 #include "commands/who.hpp"
 #include "commands/utmp_util.hpp"
@@ -30,7 +28,7 @@ static void print_heading() {
 
 static std::string format_time(time_t t) {
     char buf[64];
-    strftime(buf, sizeof(buf), "%a %b %e %H:%M", localtime(&t));
+    (void)strftime(buf, sizeof(buf), "%a %b %e %H:%M", localtime(&t));
     return std::string(buf);
 }
 
@@ -55,7 +53,7 @@ int who_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({help_opt, version_opt, utmp_file, a_opt, b_opt, d_opt, H_opt, l_opt, p_opt, q_opt, r_opt, s_opt, t_opt, T_opt, u_opt, m_opt, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: who [OPTION]... [FILE] [am i]\n");
@@ -88,18 +86,18 @@ int who_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    bool show_all = a_opt->count > 0;
-    bool show_boot = b_opt->count > 0 || show_all;
-    bool show_dead = d_opt->count > 0 || show_all;
-    bool show_login = l_opt->count > 0 || show_all;
-    bool show_process = p_opt->count > 0 || show_all;
-    bool show_count = q_opt->count > 0 || show_all;
-    bool show_runlevel = r_opt->count > 0 || show_all;
-    bool show_time = t_opt->count > 0 || show_all;
-    bool show_message = T_opt->count > 0 || show_all;
-    bool show_users = u_opt->count > 0 || show_all;
+    bool const show_all = a_opt->count > 0;
+    bool const show_boot = b_opt->count > 0 || show_all;
+    bool const show_dead = d_opt->count > 0 || show_all;
+    bool const show_login = l_opt->count > 0 || show_all;
+    bool const show_process = p_opt->count > 0 || show_all;
+    bool const show_count = q_opt->count > 0 || show_all;
+    bool const show_runlevel = r_opt->count > 0 || show_all;
+    bool const show_time = t_opt->count > 0 || show_all;
+    bool const show_message = T_opt->count > 0 || show_all;
+    bool const show_users = u_opt->count > 0 || show_all;
     bool show_short = s_opt->count > 0 || (!show_all && !show_count && !show_users);
-    bool heading = H_opt->count > 0;
+    bool const heading = H_opt->count > 0;
 
     if (!show_all && !show_boot && !show_dead && !show_login && !show_process &&
         !show_count && !show_runlevel && !show_time && !show_message && !show_users) {
@@ -109,7 +107,8 @@ int who_command(int argc, char** argv) {
     if (show_count) {
         int count = 0;
         for_each_utmp([&count](const struct utmp& u) {
-            if (u.ut_type == USER_PROCESS && strlen(u.ut_line) > 0) count++;
+            if (u.ut_type == USER_PROCESS && strlen(u.ut_line) > 0) { count++;
+}
         });
         printf("total %d\n", count);
         return 0;
@@ -121,7 +120,8 @@ int who_command(int argc, char** argv) {
         entries.push_back(&u);
     });
 
-    if (heading) print_heading();
+    if (heading) { print_heading();
+}
 
     for (const auto& entry : entries) {
         if (entry->ut_type == DEAD_PROCESS) {
@@ -139,7 +139,8 @@ int who_command(int argc, char** argv) {
         } else if (entry->ut_type == LOGIN_PROCESS) {
             if (show_login) {
                 printf("%-8s %-6s ", entry->ut_user, entry->ut_line);
-                if (strlen(entry->ut_host) > 0) printf("(%s)", entry->ut_host);
+                if (strlen(entry->ut_host) > 0) { printf("(%s)", entry->ut_host);
+}
                 printf("\n");
             }
         } else if (entry->ut_type == INIT_PROCESS) {
@@ -157,7 +158,8 @@ int who_command(int argc, char** argv) {
         } else if (entry->ut_type == USER_PROCESS) {
             if (show_short) {
                 printf("%-8s %-6s ", entry->ut_user, entry->ut_line);
-                if (strlen(entry->ut_host) > 0) printf("(%s)", entry->ut_host);
+                if (strlen(entry->ut_host) > 0) { printf("(%s)", entry->ut_host);
+}
                 printf(" %-14s\n", format_time(entry->ut_time).c_str());
             }
             if (show_users) {

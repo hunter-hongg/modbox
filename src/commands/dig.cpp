@@ -1,16 +1,15 @@
 #include "commands/dns_util.hpp"
+#include <cstdint>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
 #include <ctime>
-#include <unistd.h>
-#include <sys/time.h>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include <resolv.h>
 #include <arpa/nameser.h>
 #include <arpa/nameser_compat.h>
 
@@ -27,7 +26,7 @@ namespace {
 struct DigOpts {
     std::string domain;
     int          qtype   = T_A;
-    std::string  server  = "";
+    std::string  server;
     bool         show_all        = true;
     bool         show_answer     = true;
     bool         show_header     = true;
@@ -40,53 +39,67 @@ struct DigOpts {
     bool         show_trace      = false;
 };
 
-static const char* flags_string(uint16_t flags) {
+const char* flags_string(uint16_t flags) {
     static char buf[32];
     buf[0] = '\0';
     int p = 0;
-    if (flags & kQRBit) buf[p++] = 'q';
+    if ((flags & kQRBit) != 0) { buf[p++] = 'q';
+}
     buf[p++] = ' ';
-    if (flags & kRDBit) buf[p++] = 'r';
+    if ((flags & kRDBit) != 0) { buf[p++] = 'r';
+}
     buf[p++] = ' ';
-    if (flags & kRABit) buf[p++] = 'a';
+    if ((flags & kRABit) != 0) { buf[p++] = 'a';
+}
     buf[p++] = ' ';
     buf[p++] = '\0';
     // Remove trailing space
-    if (p > 1 && buf[p-1] == ' ') buf[p-1] = '\0';
+    if (p > 1 && buf[p-1] == ' ') { buf[p-1] = '\0';
+}
     return buf;
 }
 
-static std::string current_timestamp() {
-    time_t now = time(nullptr);
+std::string current_timestamp() {
+    time_t const now = time(nullptr);
     struct tm tm_buf;
     localtime_r(&now, &tm_buf);
     char buf[64];
-    strftime(buf, sizeof(buf), "%a %b %d %H:%M:%S %Y CST", &tm_buf);
+    (void)strftime(buf, sizeof(buf), "%a %b %d %H:%M:%S %Y CST", &tm_buf);
     return std::string(buf);
 }
 
-static uint16_t parse_qtype(const std::string& s) {
+uint16_t parse_qtype(const std::string& s) {
     std::string upper;
-    for (char c : s) upper += static_cast<char>(toupper(static_cast<unsigned char>(c)));
-    if (upper == "A")      return T_A;
-    if (upper == "AAAA")   return T_AAAA;
-    if (upper == "MX")     return T_MX;
-    if (upper == "NS")     return T_NS;
-    if (upper == "CNAME")  return T_CNAME;
-    if (upper == "SOA")    return T_SOA;
-    if (upper == "PTR")    return T_PTR;
-    if (upper == "TXT")    return T_TXT;
-    if (upper == "SRV")    return T_SRV;
+    for (char c : s) { upper += static_cast<char>(toupper(static_cast<unsigned char>(c)));
+}
+    if (upper == "A") {      return T_A;
+}
+    if (upper == "AAAA") {   return T_AAAA;
+}
+    if (upper == "MX") {     return T_MX;
+}
+    if (upper == "NS") {     return T_NS;
+}
+    if (upper == "CNAME") {  return T_CNAME;
+}
+    if (upper == "SOA") {    return T_SOA;
+}
+    if (upper == "PTR") {    return T_PTR;
+}
+    if (upper == "TXT") {    return T_TXT;
+}
+    if (upper == "SRV") {    return T_SRV;
+}
     return 0;
 }
 
 // Returns true if the argument is a d-opt (+keyword[=value]).
-static bool is_dopt(const char* arg) {
+bool is_dopt(const char* arg) {
     return arg[0] == '+' && arg[1] != '\0';
 }
 
 // Parse a d-opt: returns false if unknown.
-static bool parse_dopt(const std::string& opt, DigOpts& opts) {
+bool parse_dopt(const std::string& opt, DigOpts& opts) {
     if (opt == "+short")       { opts.short_mode = true; return true; }
     if (opt == "+noall")       { opts.show_all = false; return true; }
     if (opt == "+all")         { opts.show_all = true; return true; }
@@ -100,22 +113,24 @@ static bool parse_dopt(const std::string& opt, DigOpts& opts) {
     if (opt == "+noadditional"){ opts.show_additional = false; return true; }
     if (opt == "+trace")       { opts.show_trace = true; return true; }
     if (opt == "+noall +answer") { opts.show_all = false; opts.show_answer = true; return true; }
-    if (opt.rfind("+noall ", 0) == 0 || opt.rfind("+noall\t", 0) == 0) {
+    if (opt.starts_with("+noall ") || opt.starts_with("+noall\t")) {
         opts.show_all = false; return true;
     }
     // Generic +FLAG or +FLAG=value
     std::string flag = opt.substr(1);  // strip '+'
-    size_t eq = flag.find('=');
-    if (eq != std::string::npos) flag = flag.substr(0, eq);
+    size_t const eq = flag.find('=');
+    if (eq != std::string::npos) { flag = flag.substr(0, eq);
+}
     // Unknown d-opts are accepted silently (dig ignores most unknown ones)
     return true;
 }
 
-static void print_dig_header(uint16_t id, uint16_t flags, uint16_t rcode,
+void print_dig_header(uint16_t id, uint16_t flags, uint16_t rcode,
                               uint16_t qdcount, uint16_t ancount,
                               uint16_t nscount, uint16_t arcount,
                               const std::string& cmd_str) {
-    if (!flags_string(flags)[0]) return;  // shouldn't happen
+    if (flags_string(flags)[0] == 0) { return;  // shouldn't happen
+}
 
     printf("; <<>> DiG 9.x.x <<>> %s\n", cmd_str.c_str());
     printf(";; global options: +cmd\n");
@@ -137,79 +152,84 @@ static void print_dig_header(uint16_t id, uint16_t flags, uint16_t rcode,
            flags_string(flags), qdcount, ancount, nscount, arcount);
 }
 
-static void print_question_section(const std::vector<std::string>& qnames, int qtype) {
+void print_question_section(const std::vector<std::string>& qnames, int qtype) {
     printf(";; QUESTION SECTION:\n");
     for (const auto& name : qnames) {
         printf(";%-34sIN\t%s\n", name.c_str(), dns_type_name(qtype));
     }
 }
 
-static void print_answer_section(const std::vector<DnsRecord>& answers) {
-    if (answers.empty()) return;
+void print_answer_section(const std::vector<DnsRecord>& answers) {
+    if (answers.empty()) { return;
+}
     printf(";; ANSWER SECTION:\n");
     for (const auto& rec : answers) {
-        printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), (int)rec.ttl,
+        printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), static_cast<int>(rec.ttl),
                dns_type_name(rec.type), rec.rdata.c_str());
     }
 }
 
-static void print_authority_section(const std::vector<DnsRecord>& authority) {
-    if (authority.empty()) return;
+void print_authority_section(const std::vector<DnsRecord>& authority) {
+    if (authority.empty()) { return;
+}
     printf(";; AUTHORITY SECTION:\n");
     for (const auto& rec : authority) {
-        printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), (int)rec.ttl,
+        printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), static_cast<int>(rec.ttl),
                dns_type_name(rec.type), rec.rdata.c_str());
     }
 }
 
-static void print_footer(const std::string& server, int recv_size) {
+void print_footer(const std::string& server, int recv_size) {
     printf(";; Query time: 0 msec\n");
     printf(";; SERVER: %s#53(%s) (UDP)\n", server.c_str(), server.c_str());
     printf(";; WHEN: %s\n", current_timestamp().c_str());
     printf(";; MSG SIZE  rcvd: %d\n", recv_size);
 }
 
-static void print_short_output(const std::vector<DnsRecord>& answers) {
+void print_short_output(const std::vector<DnsRecord>& answers) {
     for (const auto& rec : answers) {
         printf("%s\n", rec.rdata.c_str());
     }
 }
 
 // Root servers for +trace (RFC 1034)
-static const char* kRootServers[] = {
+const char* kRootServers[] = {
     "a.root-servers.net.", "b.root-servers.net.", "c.root-servers.net.",
     "d.root-servers.net.", "e.root-servers.net.", "f.root-servers.net.",
     "g.root-servers.net.", "h.root-servers.net.", "i.root-servers.net.",
     "j.root-servers.net.", "k.root-servers.net.", "l.root-servers.net.",
     "m.root-servers.net."
 };
-static constexpr int kNumRootServers = sizeof(kRootServers) / sizeof(kRootServers[0]);
+constexpr int kNumRootServers = sizeof(kRootServers) / sizeof(kRootServers[0]);
 
 // Resolve a hostname to IP by querying A record
-static std::string resolve_hostname(const std::string& hostname, const std::string& server) {
+std::string resolve_hostname(const std::string& hostname, const std::string& server) {
     uint8_t ans[kMaxResponse] = {};
-    int n = dns_send_query(server, hostname, T_A, ans, sizeof(ans));
-    if (n <= 0) return "";
+    int const n = dns_send_query(server, hostname, T_A, ans, sizeof(ans));
+    if (n <= 0) { return "";
+}
 
     DnsResponse resp;
-    if (dns_parse_response(ans, n, resp) != 0) return "";
+    if (dns_parse_response(ans, n, resp) != 0) { return "";
+}
 
     for (const auto& rec : resp.answers) {
-        if (rec.type == T_A) return rec.rdata;
+        if (rec.type == T_A) { return rec.rdata;
+}
     }
     return "";
 }
 
 // Perform iterative DNS trace from root servers
-static int run_trace(const DigOpts& opts) {
+int run_trace(const DigOpts& opts) {
     std::string domain = opts.domain;
     int qtype = opts.qtype;
 
     // Handle reverse lookup
     if (opts.reverse_lookup) {
-        std::string ptr_domain = dns_ip_to_ptr_domain(opts.reverse_ip);
+        std::string const ptr_domain = dns_ip_to_ptr_domain(opts.reverse_ip);
         if (ptr_domain.empty()) {
-            fprintf(stderr, "dig: invalid IP address '%s'\n", opts.reverse_ip.c_str());
+            (void)fprintf(stderr, "dig: invalid IP address '%s'\n", opts.reverse_ip.c_str());
             return 1;
         }
         domain = ptr_domain;
@@ -217,7 +237,7 @@ static int run_trace(const DigOpts& opts) {
     }
 
     std::string current_server = dns_resolve_server(opts.server);
-    std::string search_domain = domain;
+    std::string const search_domain = domain;
 
     printf("; <<>> DiG 9.x.x <<>> %s +trace\n", domain.c_str());
     printf(";; global options: +cmd\n");
@@ -225,20 +245,21 @@ static int run_trace(const DigOpts& opts) {
     // Try each root server
     for (int i = 0; i < kNumRootServers; ++i) {
         const char* root = kRootServers[i];
-        std::string root_ip = resolve_hostname(root, current_server);
-        if (root_ip.empty()) continue;
+        std::string const root_ip = resolve_hostname(root, current_server);
+        if (root_ip.empty()) { continue;
+}
         current_server = root_ip;
 
         for (int depth = 0; depth <= 10; ++depth) {
             uint8_t ans[kMaxResponse] = {};
-            int n = dns_send_query(current_server, search_domain, qtype, ans, sizeof(ans));
+            int const n = dns_send_query(current_server, search_domain, qtype, ans, sizeof(ans));
             if (n <= 0) {
                 printf(";; error: could not send query\n");
                 break;
             }
 
             DnsResponse resp;
-            int parse_rc = dns_parse_response(ans, n, resp);
+            int const parse_rc = dns_parse_response(ans, n, resp);
 
             // Print this step
             printf("\n");
@@ -268,7 +289,7 @@ static int run_trace(const DigOpts& opts) {
                     printf(";; ANSWER SECTION:\n");
                     for (const auto& rec : resp.answers) {
                         if (rec.type == qtype) {
-                            printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), (int)rec.ttl,
+                            printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), static_cast<int>(rec.ttl),
                                    dns_type_name(rec.type), rec.rdata.c_str());
                         }
                     }
@@ -288,7 +309,7 @@ static int run_trace(const DigOpts& opts) {
             if (!resp.authority.empty()) {
                 printf(";; AUTHORITY SECTION:\n");
                 for (const auto& rec : resp.authority) {
-                    printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), (int)rec.ttl,
+                    printf("%-38s%d\tIN\t%s\t%s\n", rec.name.c_str(), static_cast<int>(rec.ttl),
                            dns_type_name(rec.type), rec.rdata.c_str());
                 }
             }
@@ -302,14 +323,17 @@ static int run_trace(const DigOpts& opts) {
             // and find matching glue records in additional section
             bool found_delegation = false;
             for (const auto& ns_rec : resp.authority) {
-                if (ns_rec.type != T_NS) continue;
+                if (ns_rec.type != T_NS) { continue;
+}
                 std::string ns_name = ns_rec.rdata;
                 // Strip trailing dot
-                if (!ns_name.empty() && ns_name.back() == '.') ns_name.pop_back();
+                if (!ns_name.empty() && ns_name.back() == '.') { ns_name.pop_back();
+}
 
                 // Skip parent zone NS records (e.g. "com" when searching "google.com")
                 std::string auth_name = ns_rec.name;
-                if (!auth_name.empty() && auth_name.back() == '.') auth_name.pop_back();
+                if (!auth_name.empty() && auth_name.back() == '.') { auth_name.pop_back();
+}
                 if (auth_name != search_domain && search_domain.find(auth_name) == std::string::npos) {
                     continue;
                 }
@@ -324,11 +348,12 @@ static int run_trace(const DigOpts& opts) {
                         break;
                     }
                 }
-                if (found_delegation) break;
+                if (found_delegation) { break;
+}
 
                 // Try to resolve the NS name via the stub resolver
-                std::string stub = dns_resolve_server("");
-                std::string ns_ip = resolve_hostname(ns_name, stub);
+                std::string const stub = dns_resolve_server("");
+                std::string const ns_ip = resolve_hostname(ns_name, stub);
                 if (!ns_ip.empty()) {
                     printf(";; Received %d bytes from %s#53(%s) in %d ms\n\n",
                            n, current_server.c_str(), current_server.c_str(), 0);
@@ -337,58 +362,64 @@ static int run_trace(const DigOpts& opts) {
                     break;
                 }
             }
-            if (!found_delegation) break;
+            if (!found_delegation) { break;
+}
         }
     }
 
     return 0;
 }
 
-static int run_dig(const DigOpts& opts) {
+int run_dig(const DigOpts& opts) {
     std::string domain = opts.domain;
     int qtype = opts.qtype;
 
     // Handle reverse lookup
     if (opts.reverse_lookup) {
-        std::string ptr_domain = dns_ip_to_ptr_domain(opts.reverse_ip);
+        std::string const ptr_domain = dns_ip_to_ptr_domain(opts.reverse_ip);
         if (ptr_domain.empty()) {
-            fprintf(stderr, "dig: invalid IP address '%s'\n", opts.reverse_ip.c_str());
+            (void)fprintf(stderr, "dig: invalid IP address '%s'\n", opts.reverse_ip.c_str());
             return 1;
         }
         domain = ptr_domain;
         qtype = T_PTR;
     }
 
-    std::string server = dns_resolve_server(opts.server);
+    std::string const server = dns_resolve_server(opts.server);
     uint8_t ans[kMaxResponse] = {};
     auto t_start = std::clock();
-    int n = dns_send_query(server, domain, qtype, ans, sizeof(ans));
+    int const n = dns_send_query(server, domain, qtype, ans, sizeof(ans));
     auto t_end = std::clock();
 
     if (n < 0) {
-        fprintf(stderr, "dig: could not send query (%s)\n", strerror(errno));
+        (void)fprintf(stderr, "dig: could not send query (%s)\n", strerror(errno));
         return 1;
     }
 
     DnsResponse resp;
     if (dns_parse_response(ans, n, resp) != 0) {
-        fprintf(stderr, "dig: DNS error code %u\n", resp.rcode);
+        (void)fprintf(stderr, "dig: DNS error code %u\n", resp.rcode);
         return 1;
     }
 
     // Build command string for header
     std::ostringstream cmd_str;
     cmd_str << domain;
-    if (qtype != T_A) cmd_str << " " << dns_type_name(qtype);
+    if (qtype != T_A) { cmd_str << " " << dns_type_name(qtype);
+}
 
     if (!opts.short_mode) {
-        if (opts.show_header) print_dig_header(resp.id, resp.flags, resp.rcode,
+        if (opts.show_header) { print_dig_header(resp.id, resp.flags, resp.rcode,
                                                resp.qdcount, resp.ancount,
                                                resp.nscount, resp.arcount,
                                                cmd_str.str());
-        if (opts.show_question && opts.show_all) print_question_section(resp.question_names, qtype);
-        if (opts.show_answer) print_answer_section(resp.answers);
-        if (opts.show_authority) print_authority_section(resp.authority);
+}
+        if (opts.show_question && opts.show_all) { print_question_section(resp.question_names, qtype);
+}
+        if (opts.show_answer) { print_answer_section(resp.answers);
+}
+        if (opts.show_authority) { print_authority_section(resp.authority);
+}
         print_footer(server, resp.recv_size);
     } else {
         print_short_output(resp.answers);
@@ -461,14 +492,14 @@ int dig_command(int argc, char** argv) {
             server_arg = a.substr(1);
         } else if (domain_arg.empty()) {
             // Check if this looks like a type keyword
-            uint16_t parsed_type = parse_qtype(a);
+            uint16_t const parsed_type = parse_qtype(a);
             if (parsed_type != 0) {
                 type_arg = a;
             } else {
                 domain_arg = a;
             }
         } else if (type_arg.empty()) {
-            uint16_t parsed_type = parse_qtype(a);
+            uint16_t const parsed_type = parse_qtype(a);
             if (parsed_type != 0) {
                 type_arg = a;
             }
@@ -502,12 +533,12 @@ int dig_command(int argc, char** argv) {
 
     // Apply parsed positional values
     if (!type_arg.empty()) {
-        uint16_t t = parse_qtype(type_arg);
+        uint16_t const t = parse_qtype(type_arg);
         if (t == 0) {
-            fprintf(stderr, "dig: unknown record type '%s'\n", type_arg.c_str());
+            (void)fprintf(stderr, "dig: unknown record type '%s'\n", type_arg.c_str());
             return 1;
         }
-        opts.qtype = (int)t;
+        opts.qtype = static_cast<int>(t);
     }
     if (!server_arg.empty()) {
         opts.server = server_arg;
@@ -518,7 +549,7 @@ int dig_command(int argc, char** argv) {
     opts.domain = domain_arg;
 
     if (opts.domain.empty() && !opts.reverse_lookup) {
-        fprintf(stderr, "dig: need a domain name\n");
+        (void)fprintf(stderr, "dig: need a domain name\n");
         return 2;
     }
 

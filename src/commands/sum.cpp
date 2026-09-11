@@ -2,8 +2,6 @@
 #include <cstring>
 #include <cstdint>
 #include <cerrno>
-#include <string>
-#include <vector>
 #include <argtable3.h>
 
 #include "commands/sum.hpp"
@@ -12,18 +10,18 @@
 
 namespace {
 
-static uint32_t sum_checksum16(const uint8_t* data, size_t len) {
+uint32_t sum_checksum16(const uint8_t* data, size_t len) {
     uint32_t sum = 0;
     for (size_t i = 0; i < len; i++) {
         sum += data[i];
-        if (sum & 0x10000) {
+        if ((sum & 0x10000) != 0u) {
             sum = (sum & 0xFFFF) + 1;
         }
     }
     return sum & 0xFFFF;
 }
 
-static uint32_t sum_checksum32(const uint8_t* data, size_t len) {
+uint32_t sum_checksum32(const uint8_t* data, size_t len) {
     uint32_t sum = 0;
     for (size_t i = 0; i < len; i++) {
         sum += data[i];
@@ -31,14 +29,15 @@ static uint32_t sum_checksum32(const uint8_t* data, size_t len) {
     return sum;
 }
 
-static void sum_file(FILE* in, const char* filename, bool bsd_mode) {
+void sum_file(FILE* in, const char* filename, bool bsd_mode) {
     uint8_t buf[4096];
     uint32_t checksum = 0;
     unsigned long total_bytes = 0;
 
     while (true) {
-        size_t n = fread(buf, 1, sizeof(buf), in);
-        if (n == 0) break;
+        size_t const n = fread(buf, 1, sizeof(buf), in);
+        if (n == 0) { break;
+}
         if (bsd_mode) {
             checksum = sum_checksum32(buf, n);
         } else {
@@ -47,13 +46,13 @@ static void sum_file(FILE* in, const char* filename, bool bsd_mode) {
         total_bytes += n;
     }
 
-    if (ferror(in)) {
-        fprintf(stderr, "sum: %s: read error: %s\n",
-                filename ? filename : "-", strerror(errno));
+    if (ferror(in) != 0) {
+        (void)fprintf(stderr, "sum: %s: read error: %s\n",
+                (filename != nullptr) ? filename : "-", strerror(errno));
         return;
     }
 
-    unsigned long blocks = (total_bytes + 511) / 512;
+    unsigned long const blocks = (total_bytes + 511) / 512;
 
     if (bsd_mode) {
         printf("%u %lu", checksum, blocks);
@@ -61,7 +60,7 @@ static void sum_file(FILE* in, const char* filename, bool bsd_mode) {
         printf("%u %lu", checksum, blocks);
     }
 
-    if (filename) {
+    if (filename != nullptr) {
         printf(" %s", filename);
     }
     printf("\n");
@@ -78,7 +77,7 @@ int sum_command(int argc, char** argv) {
 
     ArgTable at({sysv_opt, bsd_opt, help_opt, files_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -99,7 +98,7 @@ int sum_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    bool bsd_mode = (bsd_opt->count > 0);
+    bool const bsd_mode = (bsd_opt->count > 0);
 
     if (files_arg->count == 0) {
         sum_file(stdin, nullptr, bsd_mode);
@@ -110,12 +109,12 @@ int sum_command(int argc, char** argv) {
                 sum_file(stdin, nullptr, bsd_mode);
             } else {
                 FILE* in = fopen(filename, "rb");
-                if (!in) {
-                    fprintf(stderr, "sum: %s: %s\n", filename, strerror(errno));
+                if (in == nullptr) {
+                    (void)fprintf(stderr, "sum: %s: %s\n", filename, strerror(errno));
                     continue;
                 }
                 sum_file(in, filename, bsd_mode);
-                fclose(in);
+                (void)fclose(in);
             }
         }
     }

@@ -8,7 +8,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <algorithm>
@@ -99,7 +98,8 @@ public:
     explicit FileTree(const std::string& root_) : root(root_) { build(); }
 
     void build() {
-        if (!std::filesystem::exists(root)) return;
+        if (!std::filesystem::exists(root)) { return;
+}
         walk(root, "");
         std::sort(entries.begin(), entries.end(),
                   [](const FileEntry& a, const FileEntry& b) { return a.path < b.path; });
@@ -107,18 +107,22 @@ public:
 
     void walk(const std::string& dir, const std::string& rel) {
         DIR* d = opendir(dir.c_str());
-        if (!d) return;
+        if (d == nullptr) { return;
+}
         struct dirent* de;
         while ((de = readdir(d)) != nullptr) {
-            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
                 continue;
-            std::string child_rel = rel.empty() ? de->d_name : rel + "/" + de->d_name;
+}
+            std::string const child_rel = rel.empty() ? de->d_name : rel + "/" + de->d_name;
             std::string full = dir;
-            if (dir.back() != '/') full += '/';
+            if (dir.back() != '/') { full += '/';
+}
             full += de->d_name;
 
             struct stat st{};
-            if (lstat(full.c_str(), &st) != 0) continue;
+            if (lstat(full.c_str(), &st) != 0) { continue;
+}
 
             FileEntry e;
             e.path = child_rel;
@@ -133,7 +137,7 @@ public:
 
             if (e.is_link) {
                 char buf[4096];
-                ssize_t n = readlink(full.c_str(), buf, sizeof(buf) - 1);
+                ssize_t const n = readlink(full.c_str(), buf, sizeof(buf) - 1);
                 if (n > 0) {
                     buf[n] = '\0';
                     e.link_target = buf;
@@ -149,9 +153,10 @@ public:
         closedir(d);
     }
 
-    const FileEntry* find(const std::string& rel) const {
+    [[nodiscard]] const FileEntry* find(const std::string& rel) const {
         for (const auto& e : entries) {
-            if (e.path == rel) return &e;
+            if (e.path == rel) { return &e;
+}
         }
         return nullptr;
     }
@@ -160,14 +165,18 @@ public:
 // ── Exclusion helpers ────────────────────────────────────────────────────────
 
 static bool matches_pattern(const std::string& path, const std::string& pattern) {
-    if (pattern.empty()) return false;
-    size_t pi = 0, si = 0;
-    size_t star_pi = std::string::npos, star_si = si;
+    if (pattern.empty()) { return false;
+}
+    size_t pi = 0;
+    size_t si = 0;
+    size_t star_pi = std::string::npos;
+    size_t star_si = si;
     while (si < path.size()) {
         if (pi < pattern.size() && (pattern[pi] == '?' || pattern[pi] == path[si])) {
             ++pi; ++si;
         } else if (pi < pattern.size() && pattern[pi] == '*') {
-            if (path[si] == '/') return false;
+            if (path[si] == '/') { return false;
+}
             star_pi = pi++; star_si = ++si;
         } else if (star_pi != std::string::npos) {
             pi = star_pi + 1; si = ++star_si;
@@ -175,7 +184,8 @@ static bool matches_pattern(const std::string& path, const std::string& pattern)
             return false;
         }
     }
-    while (pi < pattern.size() && pattern[pi] == '*') ++pi;
+    while (pi < pattern.size() && pattern[pi] == '*') { ++pi;
+}
     return pi == pattern.size();
 }
 
@@ -199,9 +209,10 @@ static bool should_exclude(const std::string& rel,
     }
     // CVS excludes
     if (cvs_exclude) {
-        std::string basename = rel.substr(rel.find_last_of('/') + 1);
+        std::string const basename = rel.substr(rel.find_last_of('/') + 1);
         for (const auto* pat : CVS_EXCLUDES) {
-            if (matches_pattern(basename, pat)) return true;
+            if (matches_pattern(basename, pat)) { return true;
+}
         }
     }
     return false;
@@ -231,36 +242,37 @@ static bool copy_file(const std::string& src, const std::string& dst,
                       bool preserve_perms, bool preserve_times,
                       bool dryrun, bool verbose) {
     if (dryrun) {
-        if (verbose) printf("sending %s\n", src.c_str());
+        if (verbose) { printf("sending %s\n", src.c_str());
+}
         return true;
     }
     // Create parent directory
-    size_t pos = dst.rfind('/');
+    size_t const pos = dst.rfind('/');
     if (pos != std::string::npos) {
-        std::string dstdir = dst.substr(0, pos);
+        std::string const dstdir = dst.substr(0, pos);
         mkdirs(dstdir);
     }
     // Open source
-    int infd = open(src.c_str(), O_RDONLY);
+    int const infd = open(src.c_str(), O_RDONLY);
     if (infd < 0) {
-        fprintf(stderr, "rsync: cannot open '%s': %s\n", src.c_str(), strerror(errno));
+        (void)fprintf(stderr, "rsync: cannot open '%s': %s\n", src.c_str(), strerror(errno));
         return false;
     }
     // Open dest
-    int outfd = open(dst.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int const outfd = open(dst.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (outfd < 0) {
         close(infd);
-        fprintf(stderr, "rsync: cannot create '%s': %s\n", dst.c_str(), strerror(errno));
+        (void)fprintf(stderr, "rsync: cannot create '%s': %s\n", dst.c_str(), strerror(errno));
         return false;
     }
     // Copy
     char buf[65536];
     ssize_t n;
     while ((n = read(infd, buf, sizeof(buf))) > 0) {
-        ssize_t w = write(outfd, buf, static_cast<size_t>(n));
+        ssize_t const w = write(outfd, buf, static_cast<size_t>(n));
         if (w != n) {
             close(infd); close(outfd);
-            fprintf(stderr, "rsync: write error: %s\n", strerror(errno));
+            (void)fprintf(stderr, "rsync: write error: %s\n", strerror(errno));
             return false;
         }
     }
@@ -322,7 +334,7 @@ int rsync_command(int argc, char** argv) {
     struct arg_str* pos_arg          = arg_strn(NULL, NULL, "ARG", 0, 16, "positional arg");
     struct arg_end* end              = arg_end(20);
 
-    std::vector<void*> table = {
+    std::vector<void*> const table = {
         help_opt, version_opt,
         recursive_opt, links_opt, perms_opt, times_opt, group_opt, owner_opt, devices_opt,
         archive_opt, update_opt, checksum_opt, delete_opt, dryrun_opt,
@@ -335,10 +347,10 @@ int rsync_command(int argc, char** argv) {
 
     ArgTable argt(table);
 
-    int nerrors = argt.parse(argc, argv);
+    int const nerrors = argt.parse(argc, argv);
     if (nerrors > 0) {
         arg_print_errors(stderr, end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -360,7 +372,7 @@ int rsync_command(int argc, char** argv) {
 
     // ── Validate positional args ──
     if (posargs.size() < 2) {
-        fprintf(stderr, "rsync: you must specify at least one source and one destination\n");
+        (void)fprintf(stderr, "rsync: you must specify at least one source and one destination\n");
         return 1;
     }
 
@@ -369,25 +381,25 @@ int rsync_command(int argc, char** argv) {
 
     // ── Validate conflicts ──
     if (progress_opt->count > 0 && quiet_opt->count > 0) {
-        fprintf(stderr, "rsync: --progress and --quiet conflict\n");
+        (void)fprintf(stderr, "rsync: --progress and --quiet conflict\n");
         return 1;
     }
 
     // ── Build options ──
-    bool do_archive = archive_opt->count > 0;
-    bool do_recursive = do_archive || recursive_opt->count > 0;
-    bool do_links = do_archive || links_opt->count > 0;
-    bool do_preserve_perms = do_archive || perms_opt->count > 0;
-    bool do_preserve_times = do_archive || times_opt->count > 0;
-    bool do_preserve_group = do_archive || group_opt->count > 0;
-    bool do_preserve_owner = do_archive || owner_opt->count > 0;
-    bool do_delete = delete_opt->count > 0;
-    bool do_dryrun = dryrun_opt->count > 0;
-    bool do_update = update_opt->count > 0;
-    bool do_checksum = checksum_opt->count > 0;
-    bool do_itemize = itemize_opt->count > 0;
-    bool do_cvs_excl = cvs_exclude_opt->count > 0;
-    bool do_verbose = verbose_opt->count > 0;
+    bool const do_archive = archive_opt->count > 0;
+    bool const do_recursive = do_archive || recursive_opt->count > 0;
+    bool const do_links = do_archive || links_opt->count > 0;
+    bool const do_preserve_perms = do_archive || perms_opt->count > 0;
+    bool const do_preserve_times = do_archive || times_opt->count > 0;
+    bool const do_preserve_group = do_archive || group_opt->count > 0;
+    bool const do_preserve_owner = do_archive || owner_opt->count > 0;
+    bool const do_delete = delete_opt->count > 0;
+    bool const do_dryrun = dryrun_opt->count > 0;
+    bool const do_update = update_opt->count > 0;
+    bool const do_checksum = checksum_opt->count > 0;
+    bool const do_itemize = itemize_opt->count > 0;
+    bool const do_cvs_excl = cvs_exclude_opt->count > 0;
+    bool const do_verbose = verbose_opt->count > 0;
 
     // Collect exclude patterns
     std::vector<std::string> excludes;
@@ -396,14 +408,16 @@ int rsync_command(int argc, char** argv) {
     }
     if (exclude_from_opt->count > 0) {
         FILE* f = fopen(exclude_from_opt->sval[0], "r");
-        if (f) {
+        if (f != nullptr) {
             char line[4096];
-            while (fgets(line, sizeof(line), f)) {
+            while (fgets(line, sizeof(line), f) != nullptr) {
                 std::string s(line);
-                while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
-                if (!s.empty() && s[0] != '#') excludes.push_back(s);
+                while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) { s.pop_back();
+}
+                if (!s.empty() && s[0] != '#') { excludes.push_back(s);
+}
             }
-            fclose(f);
+            (void)fclose(f);
         }
     }
 
@@ -414,17 +428,19 @@ int rsync_command(int argc, char** argv) {
     }
 
     // ── Resolve paths ──
-    bool src_trailing = !src.empty() && src.back() == '/';
-    bool dst_trailing = !dst.empty() && dst.back() == '/';
+    bool const src_trailing = !src.empty() && src.back() == '/';
+    bool const dst_trailing = !dst.empty() && dst.back() == '/';
 
     // Clean trailing slashes
-    if (!src.empty() && src.back() == '/') src.pop_back();
-    if (!dst.empty() && dst.back() == '/') dst.pop_back();
+    if (!src.empty() && src.back() == '/') { src.pop_back();
+}
+    if (!dst.empty() && dst.back() == '/') { dst.pop_back();
+}
 
     // Stat source
     struct stat src_stat{};
     if (lstat(src.c_str(), &src_stat) != 0) {
-        fprintf(stderr, "rsync: failed to stat '%s': %s\n", src.c_str(), strerror(errno));
+        (void)fprintf(stderr, "rsync: failed to stat '%s': %s\n", src.c_str(), strerror(errno));
         return 1;
     }
 
@@ -449,7 +465,7 @@ int rsync_command(int argc, char** argv) {
         }
     } else {
         if (S_ISDIR(dst_stat.st_mode)) {
-            std::string base = std::filesystem::path(src).filename().string();
+            std::string const base = std::filesystem::path(src).filename().string();
             dst_path = dst + '/' + base;
         } else {
             dst_path = dst;
@@ -468,16 +484,17 @@ int rsync_command(int argc, char** argv) {
                 continue;
             }
 
-            std::string src_full = src + '/' + entry.path;
-            std::string dst_full = dst_path + entry.path;
+            std::string const src_full = src + '/' + entry.path;
+            std::string const dst_full = dst_path + entry.path;
 
             if (entry.is_dir) {
                 if (do_dryrun) {
-                    if (do_verbose) printf("%s/\n", entry.path.c_str());
+                    if (do_verbose) { printf("%s/\n", entry.path.c_str());
+}
                 } else {
                     if (mkdir(dst_full.c_str(), 0755) != 0 && errno != EEXIST) {
                         if (ignore_errors_opt->count == 0) {
-                            fprintf(stderr, "rsync: cannot create directory '%s': %s\n",
+                            (void)fprintf(stderr, "rsync: cannot create directory '%s': %s\n",
                                     dst_full.c_str(), strerror(errno));
                             ++errors;
                         }
@@ -491,11 +508,11 @@ int rsync_command(int argc, char** argv) {
                                    entry.link_target.c_str());
                         }
                     } else {
-                        std::string link_dir = dst_full.substr(0, dst_full.rfind('/'));
-                        mkdirs(link_dir.c_str());
+                        std::string const link_dir = dst_full.substr(0, dst_full.rfind('/'));
+                        mkdirs(link_dir);
                         if (symlink(entry.link_target.c_str(), dst_full.c_str()) != 0) {
                             if (ignore_errors_opt->count == 0) {
-                                fprintf(stderr, "rsync: cannot create symlink '%s': %s\n",
+                                (void)fprintf(stderr, "rsync: cannot create symlink '%s': %s\n",
                                         dst_full.c_str(), strerror(errno));
                                 ++errors;
                             }
@@ -524,13 +541,18 @@ int rsync_command(int argc, char** argv) {
                     if (do_itemize || do_verbose) {
                         // Itemize: sender/receiver ., type f, checksum c, times t, size s, perms p, owner o, group g, target .
                         std::string items = ".fc.t.s.p.o.g.";
-                        if (do_checksum) items[2] = 'c'; else items[2] = '.';
-                        if (do_preserve_times) items[4] = 't'; else items[4] = '.';
+                        if (do_checksum) { items[2] = 'c'; } else { items[2] = '.';
+}
+                        if (do_preserve_times) { items[4] = 't'; } else { items[4] = '.';
+}
                         // size changes on every transfer
                         items[6] = 's';
-                        if (do_preserve_perms) items[8] = 'p'; else items[8] = '.';
-                        if (do_preserve_owner) items[10] = 'o'; else items[10] = '.';
-                        if (do_preserve_group) items[12] = 'g'; else items[12] = '.';
+                        if (do_preserve_perms) { items[8] = 'p'; } else { items[8] = '.';
+}
+                        if (do_preserve_owner) { items[10] = 'o'; } else { items[10] = '.';
+}
+                        if (do_preserve_group) { items[12] = 'g'; } else { items[12] = '.';
+}
                         if (do_verbose) {
                             printf("%s -> %s\n", entry.path.c_str(), (dst_path + entry.path).c_str());
                         }
@@ -545,7 +567,7 @@ int rsync_command(int argc, char** argv) {
                     }
 
                     if (remove_src_opt->count > 0 && !do_dryrun) {
-                        remove(src_full.c_str());
+                        (void)remove(src_full.c_str());
                     }
                 }
             }
@@ -558,7 +580,8 @@ int rsync_command(int argc, char** argv) {
     } else {
         // Single file copy
         if (do_dryrun) {
-            if (do_verbose) printf("%s\n", src.c_str());
+            if (do_verbose) { printf("%s\n", src.c_str());
+}
         } else {
             if (!copy_file(src, dst_path,
                            do_preserve_perms, do_preserve_times,
@@ -566,7 +589,7 @@ int rsync_command(int argc, char** argv) {
                 ++errors;
             }
             if (remove_src_opt->count > 0) {
-                remove(src.c_str());
+                (void)remove(src.c_str());
             }
         }
     }

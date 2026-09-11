@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -17,7 +18,7 @@ struct FileLines {
 };
 
 static FileLines read_file(const char* filename) {
-    FileLines result = {NULL, 0};
+    FileLines result = {.lines=NULL, .count=0};
 
     FILE* fp = (strcmp(filename, "-") == 0) ? stdin : fopen(filename, "r");
     if (fp == NULL) {
@@ -26,26 +27,30 @@ static FileLines read_file(const char* filename) {
 
     int cap = 1024;
     int n = 0;
-    char** lines = (char**)malloc((size_t)cap * sizeof(char*));
-    if (!lines) { if (fp != stdin) fclose(fp); return result; }
+    char** lines = static_cast<char**>(malloc(static_cast<size_t>(cap) * sizeof(char*)));
+    if (lines == nullptr) { if (fp != stdin) { (void)fclose(fp); 
+}return result; }
 
     char buf[PASTE_MAX_LINE];
-    while (fgets(buf, PASTE_MAX_LINE, fp)) {
-        size_t len = strlen(buf);
+    while (fgets(buf, PASTE_MAX_LINE, fp) != nullptr) {
+        size_t const len = strlen(buf);
         if (len > 0 && buf[len - 1] == '\n') {
             buf[len - 1] = '\0';
         }
         if (n >= cap) {
             cap *= 2;
-            lines = (char**)realloc(lines, (size_t)cap * sizeof(char*));
-            if (!lines) { if (fp != stdin) fclose(fp); return result; }
+            lines = static_cast<char**>(realloc(lines, static_cast<size_t>(cap) * sizeof(char*)));
+            if (lines == nullptr) { if (fp != stdin) { (void)fclose(fp); 
+}return result; }
         }
         lines[n] = strdup(buf);
-        if (!lines[n]) { if (fp != stdin) fclose(fp); return result; }
+        if (lines[n] == nullptr) { if (fp != stdin) { (void)fclose(fp); 
+}return result; }
         n++;
     }
 
-    if (fp != stdin) fclose(fp);
+    if (fp != stdin) { (void)fclose(fp);
+}
 
     result.lines = lines;
     result.count = n;
@@ -53,18 +58,21 @@ static FileLines read_file(const char* filename) {
 }
 
 static void free_file_lines(FileLines fl) {
-    if (fl.lines) {
-        for (int i = 0; i < fl.count; i++) free(fl.lines[i]);
+    if (fl.lines != nullptr) {
+        for (int i = 0; i < fl.count; i++) { free(fl.lines[i]);
+}
         free(fl.lines);
     }
 }
 
 static const char* delim_at(const char* delims, int idx) {
-    size_t len = strlen(delims);
-    if (len == 0) return "";
-    if (len == 1) return delims;
+    size_t const len = strlen(delims);
+    if (len == 0) { return "";
+}
+    if (len == 1) { return delims;
+}
     static char buf[2];
-    buf[0] = delims[idx % (int)len];
+    buf[0] = delims[idx % static_cast<int>(len)];
     buf[1] = '\0';
     return buf;
 }
@@ -89,7 +97,7 @@ int paste_command(int argc, char** argv) {
         files_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -125,8 +133,8 @@ int paste_command(int argc, char** argv) {
     if (delimiters_opt->count > 0) {
         opts.delimiters = delimiters_opt->sval[0];
     }
-    opts.serial = (serial_opt->count > 0);
-    opts.zero_terminated = (zero_opt->count > 0);
+    opts.serial = static_cast<int>(serial_opt->count > 0);
+    opts.zero_terminated = static_cast<int>(zero_opt->count > 0);
 
     int nfiles = files_arg->count;
 
@@ -134,8 +142,8 @@ int paste_command(int argc, char** argv) {
         nfiles = 1;
     }
 
-    FileLines* files = (FileLines*)malloc((size_t)nfiles * sizeof(FileLines));
-    if (!files) {
+    FileLines* files = static_cast<FileLines*>(malloc(static_cast<size_t>(nfiles) * sizeof(FileLines)));
+    if (files == nullptr) {
         return 0;
     }
 
@@ -144,32 +152,31 @@ int paste_command(int argc, char** argv) {
 
     if (files_arg->count == 0) {
         files[0] = read_file("-");
-        if (files[0].lines) {
+        if (files[0].lines != nullptr) {
             max_lines = files[0].count;
         }
     } else {
         for (int i = 0; i < nfiles; i++) {
             files[i] = read_file(files_arg->filename[i]);
             if (files[i].lines == NULL && strcmp(files_arg->filename[i], "-") != 0) {
-                fprintf(stderr, "paste: %s: %s\n", files_arg->filename[i], strerror(errno));
+                (void)fprintf(stderr, "paste: %s: %s\n", files_arg->filename[i], strerror(errno));
                 open_error = 1;
             }
-            if (files[i].count > max_lines) {
-                max_lines = files[i].count;
-            }
+            max_lines = std::max(files[i].count, max_lines);
         }
     }
 
-    if (open_error) {
-        for (int i = 0; i < nfiles; i++) free_file_lines(files[i]);
+    if (open_error != 0) {
+        for (int i = 0; i < nfiles; i++) { free_file_lines(files[i]);
+}
         free(files);
         return 0;
     }
 
-    const char line_delim = opts.zero_terminated ? '\0' : '\n';
+    const char line_delim = (opts.zero_terminated != 0) ? '\0' : '\n';
     int delim_idx = 0;
 
-    if (opts.serial) {
+    if (opts.serial != 0) {
         for (int fi = 0; fi < nfiles; fi++) {
             delim_idx = 0;
             for (int li = 0; li < files[fi].count; li++) {
@@ -185,7 +192,7 @@ int paste_command(int argc, char** argv) {
             delim_idx = 0;
             int first = 1;
             for (int fi = 0; fi < nfiles; fi++) {
-                if (!first) {
+                if (first == 0) {
                     printf("%s", delim_at(opts.delimiters, delim_idx++));
                 }
                 if (li < files[fi].count) {
@@ -197,7 +204,8 @@ int paste_command(int argc, char** argv) {
         }
     }
 
-    for (int i = 0; i < nfiles; i++) free_file_lines(files[i]);
+    for (int i = 0; i < nfiles; i++) { free_file_lines(files[i]);
+}
     free(files);
     return 0;
 }

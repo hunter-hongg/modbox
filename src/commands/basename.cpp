@@ -42,7 +42,7 @@ static std::string strip_suffix(const std::string& name, const std::string& suff
         return name;
     }
     if (name.size() >= suffix.size() &&
-        name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+        name.ends_with(suffix)) {
         return name.substr(0, name.size() - suffix.size());
     }
     return name;
@@ -123,7 +123,7 @@ int basename_command(int argc, char** argv) {
     } else {
         // Multiple NAMEs mode
         for (size_t i = 0; i < names.size(); i++) {
-            std::string result = strip_suffix(strip_dir(names[i]), suffix);
+            std::string const result = strip_suffix(strip_dir(names[i]), suffix);
             if (zero) {
                 printf("%s", result.c_str());
             } else {

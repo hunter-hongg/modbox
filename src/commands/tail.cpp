@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -29,9 +30,9 @@ typedef struct {
 } RingBuf;
 
 static RingBuf *ring_new(int64_t n) {
-    RingBuf *rb = (RingBuf*)malloc(sizeof(RingBuf));
-    rb->buf = (char**)calloc((size_t)n, sizeof(char *));
-    rb->lens = (int64_t*)calloc((size_t)n, sizeof(int64_t));
+    RingBuf *rb = static_cast<RingBuf*>(malloc(sizeof(RingBuf)));
+    rb->buf = static_cast<char**>(calloc(static_cast<size_t>(n), sizeof(char *)));
+    rb->lens = static_cast<int64_t*>(calloc(static_cast<size_t>(n), sizeof(int64_t)));
     rb->size = n;
     rb->pos = 0;
     rb->count = 0;
@@ -39,28 +40,31 @@ static RingBuf *ring_new(int64_t n) {
 }
 
 static void ring_add(RingBuf *rb, const char *line, int64_t len) {
-    if (rb->buf[rb->pos]) free(rb->buf[rb->pos]);
-    rb->buf[rb->pos] = (char*)malloc((size_t)len);
-    memcpy(rb->buf[rb->pos], line, (size_t)len);
+    if (rb->buf[rb->pos] != nullptr) { free(rb->buf[rb->pos]);
+}
+    rb->buf[rb->pos] = static_cast<char*>(malloc(static_cast<size_t>(len)));
+    memcpy(rb->buf[rb->pos], line, static_cast<size_t>(len));
     rb->lens[rb->pos] = len;
     rb->pos = (rb->pos + 1) % rb->size;
-    if (rb->count < rb->size) rb->count++;
+    if (rb->count < rb->size) { rb->count++;
+}
 }
 
 static void ring_flush(RingBuf *rb, FILE *out) {
-    int64_t start = (rb->count < rb->size) ? 0 : rb->pos;
+    int64_t const start = (rb->count < rb->size) ? 0 : rb->pos;
     for (int64_t i = 0; i < rb->count; i++) {
-        int64_t idx = (start + i) % rb->size;
-        if (rb->buf[idx]) {
+        int64_t const idx = (start + i) % rb->size;
+        if (rb->buf[idx] != nullptr) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-            (void)fwrite(rb->buf[idx], 1, (size_t)rb->lens[idx], out);
+            (void)fwrite(rb->buf[idx], 1, static_cast<size_t>(rb->lens[idx]), out);
         }
     }
 }
 
 static void ring_free(RingBuf *rb) {
     for (int64_t i = 0; i < rb->size; i++) {
-        if (rb->buf[i]) free(rb->buf[i]);
+        if (rb->buf[i] != nullptr) { free(rb->buf[i]);
+}
     }
     free(rb->buf);
     free(rb->lens);
@@ -70,7 +74,8 @@ static void ring_free(RingBuf *rb) {
 /* ── Output last N lines using ring buffer ──────────────────────────────── */
 
 static void tail_lines(FILE *fp, int64_t count, int delim, FILE *out) {
-    if (count <= 0) return;
+    if (count <= 0) { return;
+}
 
     RingBuf *rb = ring_new(count);
     std::string line;
@@ -78,16 +83,16 @@ static void tail_lines(FILE *fp, int64_t count, int delim, FILE *out) {
     int c;
 
     while ((c = fgetc(fp)) != EOF) {
-        line.push_back((char)c);
+        line.push_back(static_cast<char>(c));
         if (c == delim) {
-            ring_add(rb, line.c_str(), (int64_t)line.size());
+            ring_add(rb, line.c_str(), static_cast<int64_t>(line.size()));
             line.clear();
         }
     }
 
     /* Emit unterminated tail if file doesn't end with delimiter */
     if (!line.empty()) {
-        ring_add(rb, line.c_str(), (int64_t)line.size());
+        ring_add(rb, line.c_str(), static_cast<int64_t>(line.size()));
     }
 
     /* line destructor handles cleanup */
@@ -101,37 +106,45 @@ static void tail_lines_from(FILE *fp, int64_t start_line, int delim, FILE *out) 
     int64_t line = 1;
     int c;
     while ((c = fgetc(fp)) != EOF) {
-        if (line >= start_line) (void)fputc(c, out);
-        if (c == delim) line++;
+        if (line >= start_line) { (void)fputc(c, out);
+}
+        if (c == delim) { line++;
+}
     }
 }
 
 /* ── Output last N bytes ────────────────────────────────────────────────── */
 
 static void tail_bytes(FILE *fp, int64_t count, FILE *out) {
-    if (count <= 0 || fseek(fp, 0, SEEK_END) != 0) return;
+    if (count <= 0 || fseek(fp, 0, SEEK_END) != 0) { return;
+}
 
-    long fsize = ftell(fp);
-    if (fsize < 0) return;
+    long const fsize = ftell(fp);
+    if (fsize < 0) { return;
+}
 
-    long start = fsize - (long)count;
-    if (start < 0) start = 0;
+    long start = fsize - static_cast<long>(count);
+    start = std::max<long>(start, 0);
 
-    if (fseek(fp, start, SEEK_SET) != 0) return;
+    if (fseek(fp, start, SEEK_SET) != 0) { return;
+}
 
     int c;
-    while ((c = fgetc(fp)) != EOF) (void)fputc(c, out);
+    while ((c = fgetc(fp)) != EOF) { (void)fputc(c, out);
+}
 }
 
 /* ── Output from byte N to end ──────────────────────────────────────────── */
 
 static void tail_bytes_from(FILE *fp, int64_t start_byte, FILE *out) {
-    if (fseek(fp, 0, SEEK_SET) != 0) return;
+    if (fseek(fp, 0, SEEK_SET) != 0) { return;
+}
     int64_t pos = 0;
     int c;
     while ((c = fgetc(fp)) != EOF) {
         pos++;
-        if (pos >= start_byte) (void)fputc(c, out);
+        if (pos >= start_byte) { (void)fputc(c, out);
+}
     }
 }
 
@@ -139,19 +152,20 @@ static void tail_bytes_from(FILE *fp, int64_t start_byte, FILE *out) {
 
 static void follow_file(const char *fname, FILE *fp, int sleep_sec, int retry) {
     /* Get current file size */
-    if (fseek(fp, 0, SEEK_END) != 0) return;
+    if (fseek(fp, 0, SEEK_END) != 0) { return;
+}
     long prev_size = ftell(fp);
 
     /* Use /dev/inotify when available, otherwise poll */
     for (;;) {
-        (void)sleep((unsigned int)sleep_sec);
+        (void)sleep(static_cast<unsigned int>(sleep_sec));
 
         /* Check file size */
         if (fseek(fp, 0, SEEK_END) != 0) {
-            if (retry) {
+            if (retry != 0) {
                 /* File might have been rotated. Try reopening. */
                 FILE *new_fp = fopen(fname, "r");
-                if (new_fp) {
+                if (new_fp != nullptr) {
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                     (void)fprintf(stderr, "tail: %s has been replaced; following new file\n", fname);
                     (void)fclose(fp);
@@ -163,18 +177,22 @@ static void follow_file(const char *fname, FILE *fp, int sleep_sec, int retry) {
             break;
         }
 
-        long cur_size = ftell(fp);
-        if (cur_size < 0) break;
+        long const cur_size = ftell(fp);
+        if (cur_size < 0) { break;
+}
 
         if (cur_size > prev_size) {
             /* Read new data */
-            long pos = prev_size;
-            if (fseek(fp, pos, SEEK_SET) != 0) break;
+            long const pos = prev_size;
+            if (fseek(fp, pos, SEEK_SET) != 0) { break;
+}
             int c;
-            while ((c = fgetc(fp)) != EOF) (void)fputc(c, stdout);
+            while ((c = fgetc(fp)) != EOF) { (void)fputc(c, stdout);
+}
             (void)fflush(stdout);
             prev_size = ftell(fp);
-            if (prev_size < 0) break;
+            if (prev_size < 0) { break;
+}
         } else if (cur_size < prev_size) {
             /* File truncated */
             prev_size = 0;
@@ -186,16 +204,18 @@ static void follow_file(const char *fname, FILE *fp, int sleep_sec, int retry) {
 
 static int64_t parse_count(const char *s, int *is_relative) {
     *is_relative = 0;
-    if (s == NULL) return 10;
+    if (s == NULL) { return 10;
+}
 
     if (s[0] == '+') {
         *is_relative = 1;
         // NOLINTNEXTLINE(cert-err34-c)
-        return (int64_t)strtoll(s + 1, NULL, 10);
+        return static_cast<int64_t>(strtoll(s + 1, NULL, 10));
     }
     // NOLINTNEXTLINE(cert-err34-c)
-    int64_t val = (int64_t)strtoll(s, NULL, 10);
-    if (val < 0) val = -val;
+    int64_t val = static_cast<int64_t>(strtoll(s, NULL, 10));
+    if (val < 0) { val = -val;
+}
     return val;
 }
 
@@ -203,7 +223,7 @@ static int64_t parse_count(const char *s, int *is_relative) {
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int tail_command(int argc, char **argv) {
-    TailOptions opts = {0};
+    TailOptions opts = {.lines=0};
 
     struct arg_str *lines_opt = arg_str0("n", "lines", "N", "output last N lines (default 10)");
     struct arg_str *bytes_opt = arg_str0("c", "bytes", "N", "output last N bytes");
@@ -223,7 +243,7 @@ int tail_command(int argc, char **argv) {
         help_opt, file_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -248,50 +268,53 @@ int tail_command(int argc, char **argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    opts.quiet = (quiet_opt->count > 0);
-    opts.verbose = (verbose_opt->count > 0);
-    opts.zero_terminated = (zero_opt->count > 0);
-    opts.follow = (follow_opt->count > 0);
-    opts.follow_retry = (follow_retry_opt->count > 0);
+    opts.quiet = static_cast<int>(quiet_opt->count > 0);
+    opts.verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.zero_terminated = static_cast<int>(zero_opt->count > 0);
+    opts.follow = static_cast<int>(follow_opt->count > 0);
+    opts.follow_retry = static_cast<int>(follow_retry_opt->count > 0);
     opts.sleep_interval = (sleep_opt->count > 0) ? sleep_opt->ival[0] : 1;
-    if (opts.sleep_interval < 1) opts.sleep_interval = 1;
-    if (opts.follow_retry) opts.follow = 1;
+    opts.sleep_interval = std::max(opts.sleep_interval, 1);
+    if (opts.follow_retry != 0) { opts.follow = 1;
+}
 
     /* Parse -n or -c */
-    int use_bytes = (bytes_opt->count > 0);
+    int const use_bytes = static_cast<int>(bytes_opt->count > 0);
     opts.is_relative = 0;
 
-    if (use_bytes) {
+    if (use_bytes != 0) {
         opts.bytes = parse_count(bytes_opt->sval[0], &opts.is_relative);
-        if (opts.bytes == 0) opts.bytes = 10;
+        if (opts.bytes == 0) { opts.bytes = 10;
+}
         opts.lines = 0;
     } else if (lines_opt->count > 0) {
         opts.lines = parse_count(lines_opt->sval[0], &opts.is_relative);
-        if (opts.lines == 0) opts.lines = 10;
+        if (opts.lines == 0) { opts.lines = 10;
+}
     } else {
         opts.lines = 10;
     }
 
-    int delim = opts.zero_terminated ? '\0' : '\n';
-    int file_count = file_arg->count;
-    int follow_active = opts.follow && file_count > 0;
+    int const delim = (opts.zero_terminated != 0) ? '\0' : '\n';
+    int const file_count = file_arg->count;
+    int const follow_active = static_cast<int>((opts.follow != 0) && file_count > 0);
 
     if (file_count == 0) {
         /* Read from stdin */
-        if (use_bytes) {
-            if (opts.is_relative) {
+        if (use_bytes != 0) {
+            if (opts.is_relative != 0) {
                 tail_bytes_from(stdin, opts.bytes, stdout);
             } else {
                 tail_bytes(stdin, opts.bytes, stdout);
             }
         } else {
-            if (opts.is_relative) {
+            if (opts.is_relative != 0) {
                 tail_lines_from(stdin, opts.lines, delim, stdout);
             } else {
                 tail_lines(stdin, opts.lines, delim, stdout);
             }
         }
-        if (opts.follow) {
+        if (opts.follow != 0) {
             /* -f with stdin: just exit (no meaningful follow) */
         }
     } else {
@@ -313,33 +336,36 @@ int tail_command(int argc, char **argv) {
             }
 
             int show_header = 0;
-            if (file_count > 1 && !opts.quiet) show_header = 1;
-            if (opts.verbose) show_header = 1;
+            if (file_count > 1 && (opts.quiet == 0)) { show_header = 1;
+}
+            if (opts.verbose != 0) { show_header = 1;
+}
 
-            if (show_header) {
-                if (i > 0) (void)fputc('\n', stdout);
+            if (show_header != 0) {
+                if (i > 0) { (void)fputc('\n', stdout);
+}
                 print_header(fname, stdout);
             }
 
-            if (use_bytes) {
-                if (opts.is_relative) {
+            if (use_bytes != 0) {
+                if (opts.is_relative != 0) {
                     tail_bytes_from(fp, opts.bytes, stdout);
                 } else {
                     tail_bytes(fp, opts.bytes, stdout);
                 }
             } else {
-                if (opts.is_relative) {
+                if (opts.is_relative != 0) {
                     tail_lines_from(fp, opts.lines, delim, stdout);
                 } else {
                     tail_lines(fp, opts.lines, delim, stdout);
                 }
             }
 
-            if (follow_active && opened) {
+            if ((follow_active != 0) && (opened != 0)) {
                 /* Follow mode for this file (only one file supported) */
                 follow_file(fname, fp, opts.sleep_interval, opts.follow_retry);
                 (void)fclose(fp);
-            } else if (opened) {
+            } else if (opened != 0) {
                 (void)fclose(fp);
             }
         }

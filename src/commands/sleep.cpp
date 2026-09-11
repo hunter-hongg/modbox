@@ -1,10 +1,9 @@
 #include <cerrno>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <string>
+#include <time.h>
 
 #include "commands/sleep.hpp"
 #include "commands/command_macros.hpp"
@@ -30,7 +29,7 @@ static bool parse_duration(const char* s, double* out) {
 
     char* endp = nullptr;
     errno = 0;
-    double val = strtod(s, &endp);
+    double const val = strtod(s, &endp);
 
     if (endp == s) {
         return false;
@@ -71,8 +70,8 @@ static void do_sleep(double seconds) {
     }
 
     // Split into whole seconds and nanoseconds
-    time_t sec_part = (time_t)seconds;
-    long nsec_part = (long)((seconds - (double)sec_part) * 1000000000.0);
+    time_t const sec_part = static_cast<time_t>(seconds);
+    long const nsec_part = static_cast<long>((seconds - static_cast<double>(sec_part)) * 1000000000.0);
 
     struct timespec ts;
     ts.tv_sec = sec_part;
@@ -80,8 +79,7 @@ static void do_sleep(double seconds) {
 
     // Retry on EINTR (signal interruption)
     while (nanosleep(&ts, &ts) == -1 && errno == EINTR) {
-        continue;
-    }
+           }
 }
 
 int sleep_command(int argc, char** argv) {
@@ -106,8 +104,8 @@ int sleep_command(int argc, char** argv) {
     }
 
     if (first_arg >= argc) {
-        fprintf(stderr, "sleep: missing operand\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+        (void)fprintf(stderr, "sleep: missing operand\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         return 0;
     }
 
@@ -116,8 +114,8 @@ int sleep_command(int argc, char** argv) {
         const char* a = argv[i];
         double dur = 0.0;
         if (!parse_duration(a, &dur)) {
-            fprintf(stderr, "sleep: invalid time interval '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+            (void)fprintf(stderr, "sleep: invalid time interval '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
             return 0;
         }
         total += dur;

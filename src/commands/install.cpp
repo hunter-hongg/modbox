@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <grp.h>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -16,12 +17,13 @@
 #define COPY_BUF_SIZE 8192
 #define MAX_FILES 4096
 #define PATH_BUF_SIZE 4096
+#define MODE_MASK 07777
 
 static int parse_mode(const char *mode_str, mode_t *out) {
     char *end;
-    long val = strtol(mode_str, &end, 8);
-    if (*end == '\0' && val >= 0 && val <= 07777) {
-        *out = (mode_t)(val & 07777);
+    long const val = strtol(mode_str, &end, 8);
+    if (*end == '\0' && val >= 0 && val <= MODE_MASK) {
+        *out = static_cast<mode_t>(val & MODE_MASK);
         return 0;
     }
     return -1;
@@ -29,10 +31,11 @@ static int parse_mode(const char *mode_str, mode_t *out) {
 
 static int files_match(const char *a, const char *b) {
     FILE *fa = fopen(a, "rb");
-    if (!fa) return 0;
+    if (fa == nullptr) { return 0;
+}
     FILE *fb = fopen(b, "rb");
-    if (!fb) {
-        fclose(fa);
+    if (fb == nullptr) {
+        (void)fclose(fa);
         return 0;
     }
 
@@ -40,31 +43,32 @@ static int files_match(const char *a, const char *b) {
     char buf_b[COPY_BUF_SIZE];
     int match = 1;
 
-    while (1) {
-        size_t na = fread(buf_a, 1, sizeof(buf_a), fa);
-        size_t nb = fread(buf_b, 1, sizeof(buf_b), fb);
+    while (true) {
+        size_t const na = fread(buf_a, 1, sizeof(buf_a), fa);
+        size_t const nb = fread(buf_b, 1, sizeof(buf_b), fb);
         if (na != nb || (na > 0 && memcmp(buf_a, buf_b, na) != 0)) {
             match = 0;
             break;
         }
-        if (na == 0) break;
+        if (na == 0) { break;
+}
     }
 
-    fclose(fa);
-    fclose(fb);
+    (void)fclose(fa);
+    (void)fclose(fb);
     return match;
 }
 
 static int make_backup(const char *path, const char *suffix) {
     char backup[PATH_BUF_SIZE];
-    const char *sfx = suffix ? suffix : "~";
-    int n = snprintf(backup, sizeof(backup), "%s%s", path, sfx);
-    if (n < 0 || (size_t)n >= sizeof(backup)) {
-        fprintf(stderr, "install: backup path too long\n");
+    const char *sfx = (suffix != nullptr) ? suffix : "~";
+    int const n = snprintf(backup, sizeof(backup), "%s%s", path, sfx);
+    if (n < 0 || static_cast<size_t>(n) >= sizeof(backup)) {
+        (void)fprintf(stderr, "install: backup path too long\n");
         return -1;
     }
     if (rename(path, backup) != 0) {
-        fprintf(stderr, "install: cannot create backup '%s': %s\n",
+        (void)fprintf(stderr, "install: cannot create backup '%s': %s\n",
                 backup, strerror(errno));
         return -1;
     }
@@ -73,21 +77,25 @@ static int make_backup(const char *path, const char *suffix) {
 
 static uid_t resolve_uid(const char *name) {
     char *end;
-    long val = strtol(name, &end, 10);
-    if (*end == '\0' && val >= 0) return (uid_t)val;
+    long const val = strtol(name, &end, 10);
+    if (*end == '\0' && val >= 0) { return static_cast<uid_t>(val);
+}
 
-    struct passwd *pw = getpwnam(name);
-    if (!pw) return (uid_t)-1;
+    const struct passwd *pw = getpwnam(name);
+    if (pw == nullptr) { return static_cast<uid_t>(-1);
+}
     return pw->pw_uid;
 }
 
 static gid_t resolve_gid(const char *name) {
     char *end;
-    long val = strtol(name, &end, 10);
-    if (*end == '\0' && val >= 0) return (gid_t)val;
+    long const val = strtol(name, &end, 10);
+    if (*end == '\0' && val >= 0) { return static_cast<gid_t>(val);
+}
 
-    struct group *gr = getgrnam(name);
-    if (!gr) return (gid_t)-1;
+    const struct group *gr = getgrnam(name);
+    if (gr == nullptr) { return static_cast<gid_t>(-1);
+}
     return gr->gr_gid;
 }
 
@@ -95,24 +103,24 @@ static int install_file(const char *src, const char *dst,
                         const InstallOptions *opts) {
     struct stat src_stat;
     if (stat(src, &src_stat) != 0) {
-        fprintf(stderr, "install: cannot stat '%s': %s\n",
+        (void)fprintf(stderr, "install: cannot stat '%s': %s\n",
                 src, strerror(errno));
         return -1;
     }
 
     if (!S_ISREG(src_stat.st_mode)) {
-        fprintf(stderr, "install: '%s' is not a regular file\n", src);
+        (void)fprintf(stderr, "install: '%s' is not a regular file\n", src);
         return -1;
     }
 
     struct stat dst_stat_buf_lcl;
-    int dst_exists = (stat(dst, &dst_stat_buf_lcl) == 0);
+    int const dst_exists = static_cast<int>(stat(dst, &dst_stat_buf_lcl) == 0);
 
     /* -C: skip copy if files match */
-    if (opts->is_compare && dst_exists) {
+    if ((opts->is_compare != 0) && (dst_exists != 0)) {
         struct stat dst_stat_buf;
-        if (stat(dst, &dst_stat_buf) == 0 && files_match(src, dst)) {
-            if (opts->is_verbose) {
+        if (stat(dst, &dst_stat_buf) == 0 && (files_match(src, dst) != 0)) {
+            if (opts->is_verbose != 0) {
                 printf("'%s' -> '%s' (skipped: identical)\n", src, dst);
             }
             return 0;
@@ -120,26 +128,27 @@ static int install_file(const char *src, const char *dst,
     }
 
     /* -b: backup existing destination */
-    if (opts->is_backup && dst_exists) {
-        if (make_backup(dst, opts->backup_suffix) != 0) return -1;
+    if ((opts->is_backup != 0) && (dst_exists != 0)) {
+        if (make_backup(dst, opts->backup_suffix) != 0) { return -1;
+}
     }
 
-    if (opts->is_verbose) {
+    if (opts->is_verbose != 0) {
         printf("'%s' -> '%s'\n", src, dst);
     }
 
     FILE *fsrc = fopen(src, "rb");
-    if (!fsrc) {
-        fprintf(stderr, "install: cannot open '%s': %s\n",
+    if (fsrc == nullptr) {
+        (void)fprintf(stderr, "install: cannot open '%s': %s\n",
                 src, strerror(errno));
         return -1;
     }
 
     FILE *fdst = fopen(dst, "wb");
-    if (!fdst) {
-        fprintf(stderr, "install: cannot create '%s': %s\n",
+    if (fdst == nullptr) {
+        (void)fprintf(stderr, "install: cannot create '%s': %s\n",
                 dst, strerror(errno));
-        fclose(fsrc);
+        (void)fclose(fsrc);
         return -1;
     }
 
@@ -147,78 +156,78 @@ static int install_file(const char *src, const char *dst,
     size_t nread;
     while ((nread = fread(buf, 1, sizeof(buf), fsrc)) > 0) {
         if (fwrite(buf, 1, nread, fdst) != nread) {
-            fprintf(stderr, "install: error writing to '%s'\n", dst);
-            fclose(fsrc);
-            fclose(fdst);
+            (void)fprintf(stderr, "install: error writing to '%s'\n", dst);
+            (void)fclose(fsrc);
+            (void)fclose(fdst);
             return -1;
         }
     }
 
-    if (ferror(fsrc)) {
-        fprintf(stderr, "install: error reading from '%s'\n", src);
-        fclose(fsrc);
-        fclose(fdst);
+    if (ferror(fsrc) != 0) {
+        (void)fprintf(stderr, "install: error reading from '%s'\n", src);
+        (void)fclose(fsrc);
+        (void)fclose(fdst);
         return -1;
     }
 
-    fclose(fsrc);
+    (void)fclose(fsrc);
 
     /* Set mode before ownership (clears setuid/setgid when chown later) */
-    if (opts->mode_set) {
+    if (opts->mode_set != 0) {
         fchmod(fileno(fdst), opts->mode);
     }
 
     /* Set ownership */
-    if (opts->owner || opts->group) {
-        uid_t uid = opts->owner ? resolve_uid(opts->owner) : (uid_t)-1;
-        gid_t gid = opts->group ? resolve_gid(opts->group) : (gid_t)-1;
+    if ((opts->owner != nullptr) || (opts->group != nullptr)) {
+        uid_t const uid = (opts->owner != nullptr) ? resolve_uid(opts->owner) : static_cast<uid_t>(-1);
+        gid_t const gid = (opts->group != nullptr) ? resolve_gid(opts->group) : static_cast<gid_t>(-1);
 
-        if (uid == (uid_t)-1 && opts->owner) {
-            fprintf(stderr, "install: unknown user '%s'\n", opts->owner);
-            fclose(fdst);
+        if (uid == static_cast<uid_t>(-1) && (opts->owner != nullptr)) {
+            (void)fprintf(stderr, "install: unknown user '%s'\n", opts->owner);
+            (void)fclose(fdst);
             return -1;
         }
-        if (gid == (gid_t)-1 && opts->group) {
-            fprintf(stderr, "install: unknown group '%s'\n", opts->group);
-            fclose(fdst);
+        if (gid == static_cast<gid_t>(-1) && (opts->group != nullptr)) {
+            (void)fprintf(stderr, "install: unknown group '%s'\n", opts->group);
+            (void)fclose(fdst);
             return -1;
         }
 
         if (fchown(fileno(fdst), uid, gid) != 0) {
             if (errno != EPERM) {
-                fprintf(stderr, "install: cannot set ownership of '%s': %s\n",
+                (void)fprintf(stderr, "install: cannot set ownership of '%s': %s\n",
                         dst, strerror(errno));
             }
         }
 
         /* chown may clear setuid/setgid; reapply mode */
-        if (opts->mode_set) {
+        if (opts->mode_set != 0) {
             fchmod(fileno(fdst), opts->mode);
         }
     }
 
     /* Preserve timestamps */
-    if (opts->is_preserve_timestamps) {
-        fflush(fdst);
+    if (opts->is_preserve_timestamps != 0) {
+        (void)fflush(fdst);
         struct timespec times[2];
         times[0] = src_stat.st_atim;
         times[1] = src_stat.st_mtim;
         futimens(fileno(fdst), times);
     }
 
-    fclose(fdst);
+    (void)fclose(fdst);
 
     /* Strip symbols */
-    if (opts->is_strip) {
-        const char *prog = opts->strip_program ? opts->strip_program : "strip";
+    if (opts->is_strip != 0) {
+        const char *prog = (opts->strip_program != nullptr) ? opts->strip_program : "strip";
         char cmd[PATH_BUF_SIZE];
-        int n = snprintf(cmd, sizeof(cmd), "%s \"%s\" 2>/dev/null", prog, dst);
-        if (n < 0 || (size_t)n >= sizeof(cmd)) {
-            fprintf(stderr, "install: strip command too long\n");
+        int const n = snprintf(cmd, sizeof(cmd), "%s \"%s\" 2>/dev/null", prog, dst);
+        if (n < 0 || static_cast<size_t>(n) >= sizeof(cmd)) {
+            (void)fprintf(stderr, "install: strip command too long\n");
             return -1;
         }
         if (system(cmd) != 0) {
-            fprintf(stderr, "install: strip failed on '%s'\n", dst);
+            (void)fprintf(stderr, "install: strip failed on '%s'\n", dst);
             return -1;
         }
     }
@@ -233,28 +242,28 @@ static int create_dir(const char *path, mode_t mode, int is_verbose) {
             if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
                 /* Set mode on existing directory */
                 if (chmod(path, mode) != 0) {
-                    fprintf(stderr, "install: cannot set mode of '%s': %s\n",
+                    (void)fprintf(stderr, "install: cannot set mode of '%s': %s\n",
                             path, strerror(errno));
                     return -1;
                 }
                 return 0;
             }
-            fprintf(stderr, "install: cannot create directory '%s': %s\n",
+            (void)fprintf(stderr, "install: cannot create directory '%s': %s\n",
                     path, strerror(errno));
             return -1;
         }
-        fprintf(stderr, "install: cannot create directory '%s': %s\n",
+        (void)fprintf(stderr, "install: cannot create directory '%s': %s\n",
                 path, strerror(errno));
         return -1;
     }
 
     if (chmod(path, mode) != 0) {
-        fprintf(stderr, "install: cannot set mode of '%s': %s\n",
+        (void)fprintf(stderr, "install: cannot set mode of '%s': %s\n",
                 path, strerror(errno));
         return -1;
     }
 
-    if (is_verbose) {
+    if (is_verbose != 0) {
         printf("created directory '%s'\n", path);
     }
 
@@ -263,13 +272,15 @@ static int create_dir(const char *path, mode_t mode, int is_verbose) {
 
 static int create_dir_parents(const char *path, mode_t mode, int is_verbose) {
     char *path_copy = strdup(path);
-    if (!path_copy) return -1;
+    if (path_copy == nullptr) { return -1;
+}
 
     int ret = 0;
     char *p = path_copy;
     char *sep;
 
-    if (*p == '/') p++;
+    if (*p == '/') { p++;
+}
 
     while ((sep = strchr(p, '/')) != NULL) {
         *sep = '\0';
@@ -280,7 +291,7 @@ static int create_dir_parents(const char *path, mode_t mode, int is_verbose) {
                 goto done;
             }
         } else if (!S_ISDIR(st.st_mode)) {
-            fprintf(stderr, "install: '%s' is not a directory\n", path_copy);
+            (void)fprintf(stderr, "install: '%s' is not a directory\n", path_copy);
             ret = -1;
             goto done;
         }
@@ -294,7 +305,7 @@ static int create_dir_parents(const char *path, mode_t mode, int is_verbose) {
             ret = -1;
         }
     } else if (!S_ISDIR(final_st.st_mode)) {
-        fprintf(stderr, "install: '%s' is not a directory\n", path_copy);
+        (void)fprintf(stderr, "install: '%s' is not a directory\n", path_copy);
         ret = -1;
     }
 
@@ -357,7 +368,7 @@ int install_command(int argc, char **argv) {
         no_target_dir_opt, help_opt, files_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [-T] SOURCE DEST\n", argv[0]);
@@ -388,19 +399,19 @@ int install_command(int argc, char **argv) {
 
     if (nerrors > 0) {
         (void)at.print_errors(end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
     InstallOptions opts = {};
 
-    opts.is_directory = (dir_opt->count > 0);
-    opts.is_verbose = (verbose_opt->count > 0);
-    opts.is_strip = (strip_opt->count > 0);
-    opts.is_compare = (compare_opt->count > 0);
-    opts.is_preserve_timestamps = (preserve_timestamps_opt->count > 0);
-    opts.is_backup = (backup_opt->count > 0);
-    opts.no_target_directory = (no_target_dir_opt->count > 0);
+    opts.is_directory = static_cast<int>(dir_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.is_strip = static_cast<int>(strip_opt->count > 0);
+    opts.is_compare = static_cast<int>(compare_opt->count > 0);
+    opts.is_preserve_timestamps = static_cast<int>(preserve_timestamps_opt->count > 0);
+    opts.is_backup = static_cast<int>(backup_opt->count > 0);
+    opts.no_target_directory = static_cast<int>(no_target_dir_opt->count > 0);
     opts.owner = (owner_opt->count > 0) ? owner_opt->sval[0] : nullptr;
     opts.group = (group_opt->count > 0) ? group_opt->sval[0] : nullptr;
     opts.target_dir = (target_dir_opt->count > 0) ? target_dir_opt->sval[0] : nullptr;
@@ -410,17 +421,17 @@ int install_command(int argc, char **argv) {
     /* Parse mode */
     if (mode_opt->count > 0) {
         if (parse_mode(mode_opt->sval[0], &opts.mode) != 0) {
-            fprintf(stderr, "install: invalid mode '%s'\n", mode_opt->sval[0]);
+            (void)fprintf(stderr, "install: invalid mode '%s'\n", mode_opt->sval[0]);
             return 0;
         }
         opts.mode_set = 1;
     }
 
     /* -d mode: create directories */
-    if (opts.is_directory) {
+    if (opts.is_directory != 0) {
         if (files_arg->count < 1) {
-            fprintf(stderr, "install: missing directory operand\n");
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "install: missing directory operand\n");
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
         for (int i = 0; i < files_arg->count; i++) {
@@ -433,7 +444,7 @@ int install_command(int argc, char **argv) {
     }
 
     /* File copy mode */
-    int num_files = files_arg->count;
+    int const num_files = files_arg->count;
     const char *dst = nullptr;
 
     if (opts.target_dir != nullptr) {
@@ -442,38 +453,38 @@ int install_command(int argc, char **argv) {
 
         struct stat tgt_stat;
         if (stat(dst, &tgt_stat) != 0) {
-            fprintf(stderr, "install: target directory '%s' does not exist\n", dst);
+            (void)fprintf(stderr, "install: target directory '%s' does not exist\n", dst);
             return 0;
         }
         if (!S_ISDIR(tgt_stat.st_mode)) {
-            fprintf(stderr, "install: target '%s' is not a directory\n", dst);
+            (void)fprintf(stderr, "install: target '%s' is not a directory\n", dst);
             return 0;
         }
         if (num_files < 1) {
-            fprintf(stderr, "install: missing file operand\n");
+            (void)fprintf(stderr, "install: missing file operand\n");
             return 0;
         }
     } else if (num_files < 2) {
-        fprintf(stderr, "install: missing destination operand\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "install: missing destination operand\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 0;
     } else {
         /* Last argument is the destination */
         dst = files_arg->filename[num_files - 1];
     }
 
-    int num_srcs = (opts.target_dir != nullptr) ? num_files : num_files - 1;
+    int const num_srcs = (opts.target_dir != nullptr) ? num_files : num_files - 1;
     int ret = 0;
 
-    if (num_srcs == 1 && !opts.no_target_directory) {
+    if (num_srcs == 1 && (opts.no_target_directory == 0)) {
         /* Check if destination is an existing directory */
         struct stat dst_stat_buf;
         if (stat(dst, &dst_stat_buf) == 0 && S_ISDIR(dst_stat_buf.st_mode)) {
             /* Single source into directory */
             const char *basename = strrchr(files_arg->filename[0], '/');
-            basename = basename ? basename + 1 : files_arg->filename[0];
+            basename = (basename != nullptr) ? basename + 1 : files_arg->filename[0];
             char dest_path[PATH_BUF_SIZE];
-            snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
+            (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
             if (install_file(files_arg->filename[0], dest_path, &opts) != 0) {
                 ret = -1;
             }
@@ -481,11 +492,11 @@ int install_command(int argc, char **argv) {
         }
     }
 
-    if (num_srcs > 1 && !opts.target_dir) {
+    if (num_srcs > 1 && (opts.target_dir == nullptr)) {
         /* Multiple sources: destination must be a directory */
         struct stat dst_stat_buf;
         if (stat(dst, &dst_stat_buf) != 0 || !S_ISDIR(dst_stat_buf.st_mode)) {
-            fprintf(stderr, "install: target '%s' is not a directory\n", dst);
+            (void)fprintf(stderr, "install: target '%s' is not a directory\n", dst);
             return 0;
         }
     }
@@ -496,15 +507,15 @@ int install_command(int argc, char **argv) {
 
         char dest_path[PATH_BUF_SIZE];
         if (opts.target_dir != nullptr || num_srcs > 1 ||
-            (!opts.no_target_directory &&
+            ((opts.no_target_directory == 0) &&
              stat(dst, &dst_dir_stat) == 0 && S_ISDIR(dst_dir_stat.st_mode))) {
             /* Copy into directory: dest/basename(src) */
             const char *basename = strrchr(src, '/');
-            basename = basename ? basename + 1 : src;
-            snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
+            basename = (basename != nullptr) ? basename + 1 : src;
+            (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
         } else {
             /* Copy to the given path */
-            snprintf(dest_path, sizeof(dest_path), "%s", dst);
+            (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
         }
 
         if (install_file(src, dest_path, &opts) != 0) {

@@ -1,4 +1,6 @@
 #include "commands/utmp_util.hpp"
+#include <functional>
+#include <utmp.h>
 
 void for_each_utmp(const std::function<void(const struct utmp&)>& fn) {
     setutent();

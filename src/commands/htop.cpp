@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -8,6 +9,7 @@
 #include <pwd.h>
 #include <argtable3.h>
 #include <string>
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
@@ -15,7 +17,6 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
-#include <cmath>
 
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/component/component.hpp>
@@ -73,87 +74,106 @@ static long htop_clk_tck;
 static long htop_page_sz;
 static int htop_ncpu;
 
-static HtopMemInfo htop_read_meminfo(void) {
-    HtopMemInfo info = {0, 0, 0};
+static HtopMemInfo htop_read_meminfo() {
+    HtopMemInfo info = {.total=0, .free=0, .available=0};
     FILE* f = fopen("/proc/meminfo", "r");
-    if (!f) return info;
+    if (f == nullptr) { return info;
+}
     char line[256];
-    while (fgets(line, sizeof(line), f)) {
+    while (fgets(line, sizeof(line), f) != nullptr) {
         unsigned long val;
-        if (sscanf(line, "MemTotal: %lu kB", &val) == 1) info.total = val;
-        else if (sscanf(line, "MemFree: %lu kB", &val) == 1) info.free = val;
-        else if (sscanf(line, "MemAvailable: %lu kB", &val) == 1) info.available = val;
+        if (sscanf(line, "MemTotal: %lu kB", &val) == 1) { info.total = val;
+        } else if (sscanf(line, "MemFree: %lu kB", &val) == 1) { info.free = val;
+        } else if (sscanf(line, "MemAvailable: %lu kB", &val) == 1) { info.available = val;
+}
     }
-    fclose(f);
+    (void)fclose(f);
     return info;
 }
 
-static float htop_read_uptime(void) {
+static float htop_read_uptime() {
     FILE* f = fopen("/proc/uptime", "r");
-    if (!f) return 0;
+    if (f == nullptr) { return 0;
+}
     double up;
-    if (fscanf(f, "%lf", &up) != 1) up = 0;
-    fclose(f);
-    return (float)up;
+    if (fscanf(f, "%lf", &up) != 1) { up = 0;
+}
+    (void)fclose(f);
+    return static_cast<float>(up);
 }
 
 static void htop_read_loadavg(float loads[3]) {
     FILE* f = fopen("/proc/loadavg", "r");
-    if (!f) return;
+    if (f == nullptr) { return;
+}
     if (fscanf(f, "%f %f %f", &loads[0], &loads[1], &loads[2]) != 3) {
         loads[0] = loads[1] = loads[2] = 0;
     }
-    fclose(f);
+    (void)fclose(f);
 }
 
 static bool htop_read_proc_status(int pid, unsigned* uid) {
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/status", pid);
     FILE* f = fopen(path, "r");
-    if (!f) return false;
+    if (f == nullptr) { return false;
+}
     char line[256];
     bool found = false;
-    while (fgets(line, sizeof(line), f)) {
+    while (fgets(line, sizeof(line), f) != nullptr) {
         if (sscanf(line, "Uid: %u", uid) == 1) {
             found = true;
             break;
         }
     }
-    fclose(f);
+    (void)fclose(f);
     return found;
 }
 
 static int htop_read_proc_stat_line(int pid, HtopProcInfo* info) {
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/stat", pid);
     FILE* f = fopen(path, "r");
-    if (!f) return -1;
+    if (f == nullptr) { return -1;
+}
     char buf[4096];
-    if (!fgets(buf, sizeof(buf), f)) {
-        fclose(f);
+    if (fgets(buf, sizeof(buf), f) == nullptr) {
+        (void)fclose(f);
         return -1;
     }
-    fclose(f);
+    (void)fclose(f);
 
     const char* start = strchr(buf, '(');
-    if (!start) return -1;
+    if (start == nullptr) { return -1;
+}
     start++;
     const char* end = strrchr(buf, ')');
-    if (!end) return -1;
+    if (end == nullptr) { return -1;
+}
 
     int comm_len = end - start;
-    if (comm_len > 255) comm_len = 255;
-    strncpy(info->comm, start, (size_t)comm_len);
+    comm_len = std::min(comm_len, 255);
+    strncpy(info->comm, start, static_cast<size_t>(comm_len));
     info->comm[comm_len] = '\0';
 
     const char* p = end + 2;
 
     char st;
-    int ppid, pgrp, sess, tty, tpgid;
+    int ppid;
+    int pgrp;
+    int sess;
+    int tty;
+    int tpgid;
     unsigned fl;
-    unsigned long minflt, cminflt, majflt, cmajflt;
-    unsigned long long utime, stime;
-    long priority, nice, num_threads;
+    unsigned long minflt;
+    unsigned long cminflt;
+    unsigned long majflt;
+    unsigned long cmajflt;
+    unsigned long long utime;
+    unsigned long long stime;
+    long priority;
+    long nice;
+    long num_threads;
     unsigned long long starttime;
     unsigned long vsize;
     long rss;
@@ -170,14 +190,14 @@ static int htop_read_proc_stat_line(int pid, HtopProcInfo* info) {
 
     info->pid = pid;
     info->state = st;
-    info->priority = (int)priority;
-    info->nice = (int)nice;
+    info->priority = static_cast<int>(priority);
+    info->nice = static_cast<int>(nice);
     info->utime = utime;
     info->stime = stime;
     info->rss = rss;
     info->vsize = vsize;
     info->starttime = starttime;
-    info->num_threads = (int)num_threads;
+    info->num_threads = static_cast<int>(num_threads);
     info->total_cpu_ticks = utime + stime;
     return 0;
 }
@@ -185,15 +205,15 @@ static int htop_read_proc_stat_line(int pid, HtopProcInfo* info) {
 static void htop_lookup_user(unsigned uid, std::unordered_map<unsigned, std::string>& cache, char* out, size_t out_size) {
     auto it = cache.find(uid);
     if (it != cache.end()) {
-        snprintf(out, out_size, "%s", it->second.c_str());
+        (void)snprintf(out, out_size, "%s", it->second.c_str());
         return;
     }
-    struct passwd* pw = getpwuid(uid);
-    if (pw) {
-        snprintf(out, out_size, "%s", pw->pw_name);
+    const struct passwd* pw = getpwuid(uid);
+    if (pw != nullptr) {
+        (void)snprintf(out, out_size, "%s", pw->pw_name);
         cache[uid] = pw->pw_name;
     } else {
-        snprintf(out, out_size, "%u", uid);
+        (void)snprintf(out, out_size, "%u", uid);
         cache[uid] = std::to_string(uid);
     }
 }
@@ -211,7 +231,7 @@ static std::vector<HtopProcInfo> htop_read_procs(std::unordered_map<unsigned, st
                 htop_lookup_user(uid, user_cache, info.user, sizeof(info.user));
             } else {
                 info.uid = 0;
-                snprintf(info.user, sizeof(info.user), "?");
+                (void)snprintf(info.user, sizeof(info.user), "?");
             }
             procs.push_back(info);
         }
@@ -219,21 +239,25 @@ static std::vector<HtopProcInfo> htop_read_procs(std::unordered_map<unsigned, st
     }
 
     DIR* dir = opendir("/proc");
-    if (!dir) return procs;
+    if (dir == nullptr) { return procs;
+}
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type != DT_DIR) continue;
+        if (entry->d_type != DT_DIR) { continue;
+}
         bool is_num = true;
-        for (const char* p = entry->d_name; *p; p++) {
-            if (!isdigit((unsigned char)*p)) { is_num = false; break; }
+        for (const char* p = entry->d_name; (*p) != 0; p++) {
+            if (isdigit(static_cast<unsigned char>(*p)) == 0) { is_num = false; break; }
         }
-        if (!is_num) continue;
-        int pid = atoi(entry->d_name);
+        if (!is_num) { continue;
+}
+        int const pid = atoi(entry->d_name);
 
         HtopProcInfo info;
         memset(&info, 0, sizeof(info));
-        if (htop_read_proc_stat_line(pid, &info) != 0) continue;
+        if (htop_read_proc_stat_line(pid, &info) != 0) { continue;
+}
 
         unsigned uid = 0;
         if (htop_read_proc_status(pid, &uid)) {
@@ -241,7 +265,7 @@ static std::vector<HtopProcInfo> htop_read_procs(std::unordered_map<unsigned, st
             htop_lookup_user(uid, user_cache, info.user, sizeof(info.user));
         } else {
             info.uid = 0;
-            snprintf(info.user, sizeof(info.user), "?");
+            (void)snprintf(info.user, sizeof(info.user), "?");
         }
 
         procs.push_back(info);
@@ -254,11 +278,12 @@ static std::vector<HtopProcInfo> htop_read_procs(std::unordered_map<unsigned, st
 static std::vector<HtopCpuInfo> htop_read_cpu_stats() {
     std::vector<HtopCpuInfo> stats;
     FILE* f = fopen("/proc/stat", "r");
-    if (!f) return stats;
+    if (f == nullptr) { return stats;
+}
 
     char line[512];
-    while (fgets(line, sizeof(line), f)) {
-        HtopCpuInfo cpu = {0};
+    while (fgets(line, sizeof(line), f) != nullptr) {
+        HtopCpuInfo cpu = {.user=0};
         char prefix[16];
         if (sscanf(line, "%15s %llu %llu %llu %llu %llu %llu %llu %llu",
                    prefix,
@@ -269,7 +294,7 @@ static std::vector<HtopCpuInfo> htop_read_cpu_stats() {
             }
         }
     }
-    fclose(f);
+    (void)fclose(f);
     return stats;
 }
 
@@ -278,41 +303,47 @@ static unsigned long long htop_cpu_total(const HtopCpuInfo& c) {
 }
 
 static float htop_calc_cpu_pct(unsigned long long total_ticks, float uptime_secs, unsigned long long starttime) {
-    double elapsed = (double)uptime_secs * (double)htop_clk_tck - (double)starttime;
-    if (elapsed <= 0) return 0;
-    return (float)(100.0 * (double)total_ticks / elapsed);
+    double const elapsed = static_cast<double>(uptime_secs) * static_cast<double>(htop_clk_tck) - static_cast<double>(starttime);
+    if (elapsed <= 0) { return 0;
+}
+    return static_cast<float>(100.0 * static_cast<double>(total_ticks) / elapsed);
 }
 
 static void htop_fmt_time(char* buf, size_t size, unsigned long long ticks) {
-    unsigned long total_secs = (unsigned long)(ticks / (unsigned long long)htop_clk_tck);
-    unsigned long hsecs = (unsigned long)((ticks % (unsigned long long)htop_clk_tck) * 100ULL / (unsigned long long)htop_clk_tck);
-    unsigned long mins = total_secs / 60;
-    unsigned long secs = total_secs % 60;
-    snprintf(buf, size, "%lu:%02lu.%02lu", mins, secs, hsecs);
+    unsigned long const total_secs = static_cast<unsigned long>(ticks / static_cast<unsigned long long>(htop_clk_tck));
+    unsigned long const hsecs = static_cast<unsigned long>((ticks % static_cast<unsigned long long>(htop_clk_tck)) * 100ULL / static_cast<unsigned long long>(htop_clk_tck));
+    unsigned long const mins = total_secs / 60;
+    unsigned long const secs = total_secs % 60;
+    (void)snprintf(buf, size, "%lu:%02lu.%02lu", mins, secs, hsecs);
 }
 
 static HtopFmtWidth calc_fmt_widths(const std::vector<HtopProcInfo>& procs) {
-    int pid = 3, user = 4, state = 1, cpu = 4, mem = 4, time = 5;
+    int pid = 3;
+    int user = 4;
+    int const state = 1;
+    int cpu = 4;
+    int mem = 4;
+    int time = 5;
     for (const auto& p : procs) {
         int n;
         n = snprintf(nullptr, 0, "%d", p.pid);
-        if (n > pid) pid = n;
-        n = (int)strlen(p.user);
-        if (n > user) user = n;
+        pid = std::max(n, pid);
+        n = static_cast<int>(strlen(p.user));
+        user = std::max(n, user);
         char tb[32];
         htop_fmt_time(tb, sizeof(tb), p.total_cpu_ticks);
-        n = (int)strlen(tb);
-        if (n > time) time = n;
-        n = snprintf(nullptr, 0, "%.1f", (double)p.cpu_pct);
-        if (n > cpu) cpu = n;
-        n = snprintf(nullptr, 0, "%.1f", (double)p.mem_pct);
-        if (n > mem) mem = n;
+        n = static_cast<int>(strlen(tb));
+        time = std::max(n, time);
+        n = snprintf(nullptr, 0, "%.1f", static_cast<double>(p.cpu_pct));
+        cpu = std::max(n, cpu);
+        n = snprintf(nullptr, 0, "%.1f", static_cast<double>(p.mem_pct));
+        mem = std::max(n, mem);
     }
-    return {pid, user, state, cpu, mem, time};
+    return {.pid=pid, .user=user, .state=state, .cpu=cpu, .mem=mem, .time=time};
 }
 
 static void fmt_header_line(char* buf, size_t size, const HtopFmtWidth& w) {
-    snprintf(buf, size,
+    (void)snprintf(buf, size,
         "%*s %-*s %*s %*s %*s %*s  %s",
         w.pid, "PID",
         w.user, "USER",
@@ -327,13 +358,13 @@ static void fmt_proc_line(char* buf, size_t size, const HtopProcInfo& p, const H
     char timebuf[32];
     htop_fmt_time(timebuf, sizeof(timebuf), p.total_cpu_ticks);
 
-    snprintf(buf, size,
+    (void)snprintf(buf, size,
         "%*d %-*s %*c %*.1f %*.1f %*s  %s",
         w.pid, p.pid,
         w.user, p.user,
         w.state, p.state,
-        w.cpu, (double)p.cpu_pct,
-        w.mem, (double)p.mem_pct,
+        w.cpu, static_cast<double>(p.cpu_pct),
+        w.mem, static_cast<double>(p.mem_pct),
         w.time, timebuf,
         p.comm);
 }
@@ -357,7 +388,7 @@ class HtopComponent : public ftxui::ComponentBase {
     int scroll_offset_ = 0;
     int max_rows_ = 0;
     int scroll_max_ = 0;
-    HtopFmtWidth fmt_w_{5, 8, 1, 5, 5, 7};
+    HtopFmtWidth fmt_w_{.pid=5, .user=8, .state=1, .cpu=5, .mem=5, .time=7};
 
 public:
     HtopComponent(int only_pid) : only_pid_(only_pid) {}
@@ -375,7 +406,7 @@ public:
         for (auto& p : procs_) {
             p.cpu_pct = htop_calc_cpu_pct(p.total_cpu_ticks, uptime_, p.starttime);
             if (mem_.total > 0) {
-                p.mem_pct = 100.0f * (float)(p.rss * htop_page_sz / 1024) / (float)mem_.total;
+                p.mem_pct = 100.0F * static_cast<float>(p.rss * htop_page_sz / 1024) / static_cast<float>(mem_.total);
             }
         }
 
@@ -386,16 +417,16 @@ public:
         fmt_w_ = calc_fmt_widths(procs_);
 
         if (auto* app = ftxui::App::Active()) {
-            int h = app->dimy();
-            int header_rows = 2 + htop_ncpu + 2;
+            int const h = app->dimy();
+            int const header_rows = 2 + htop_ncpu + 2;
             max_rows_ = h - header_rows - 2;
-            if (max_rows_ < 1) max_rows_ = 1;
+            max_rows_ = std::max(max_rows_, 1);
         }
 
-        int total = (int)procs_.size();
+        int const total = static_cast<int>(procs_.size());
         scroll_max_ = total - max_rows_;
-        if (scroll_max_ < 0) scroll_max_ = 0;
-        if (scroll_offset_ > scroll_max_) scroll_offset_ = scroll_max_;
+        scroll_max_ = std::max(scroll_max_, 0);
+        scroll_offset_ = std::min(scroll_offset_, scroll_max_);
     }
 
     ftxui::Element OnRender() override {
@@ -406,54 +437,55 @@ public:
 
         // --- Header: time, uptime, load ---
         time_t now_secs;
-        time(&now_secs);
-        struct tm* tm_now = localtime(&now_secs);
+        (void)time(&now_secs);
+        const struct tm* tm_now = localtime(&now_secs);
         char timebuf[64];
-        strftime(timebuf, sizeof(timebuf), "%H:%M:%S", tm_now);
+        (void)strftime(timebuf, sizeof(timebuf), "%H:%M:%S", tm_now);
 
-        int hours = (int)(uptime_ / 3600);
-        int mins = (int)((uptime_ - (float)(hours * 3600)) / 60);
+        int const hours = static_cast<int>(uptime_ / 3600);
+        int const mins = static_cast<int>((uptime_ - static_cast<float>(hours * 3600)) / 60);
 
-        snprintf(buf, sizeof(buf), "htop - %s up %d:%02d,  load average: %.2f %.2f %.2f",
+        (void)snprintf(buf, sizeof(buf), "htop - %s up %d:%02d,  load average: %.2f %.2f %.2f",
                  timebuf, hours, mins, loads_[0], loads_[1], loads_[2]);
         rows.push_back(text(buf) | bold | color(Color::Cyan));
 
         // --- Per-CPU bars ---
-        for (int i = 0; i < (int)cpu_stats_.size() && i < 64; i++) {
+        for (int i = 0; i < static_cast<int>(cpu_stats_.size()) && i < 64; i++) {
             float pct = 0;
-            if (i < (int)cpu_stats_prev_.size()) {
-                unsigned long long total_now = htop_cpu_total(cpu_stats_[i]);
-                unsigned long long total_prev = htop_cpu_total(cpu_stats_prev_[i]);
-                unsigned long long idle_now = cpu_stats_[i].idle;
-                unsigned long long idle_prev = cpu_stats_prev_[i].idle;
-                unsigned long long dtotal = total_now - total_prev;
-                unsigned long long didle = idle_now - idle_prev;
+            if (i < static_cast<int>(cpu_stats_prev_.size())) {
+                unsigned long long const total_now = htop_cpu_total(cpu_stats_[i]);
+                unsigned long long const total_prev = htop_cpu_total(cpu_stats_prev_[i]);
+                unsigned long long const idle_now = cpu_stats_[i].idle;
+                unsigned long long const idle_prev = cpu_stats_prev_[i].idle;
+                unsigned long long const dtotal = total_now - total_prev;
+                unsigned long long const didle = idle_now - idle_prev;
                 if (dtotal > 0) {
-                    pct = 100.0f * (float)(dtotal - didle) / (float)dtotal;
+                    pct = 100.0F * static_cast<float>(dtotal - didle) / static_cast<float>(dtotal);
                 }
             }
 
-            int bar_w = 40;
-            int fill = (int)(pct * bar_w / 100.0f);
-            if (fill > bar_w) fill = bar_w;
-            if (fill < 0) fill = 0;
+            int const bar_w = 40;
+            int fill = static_cast<int>(pct * bar_w / 100.0F);
+            fill = std::min(fill, bar_w);
+            fill = std::max(fill, 0);
 
             std::string bar;
             htop_make_bar(bar, bar_w, fill, "\u2588", "\u2591");
 
             Color bar_color;
-            if (pct < 50.0f) bar_color = Color::Green;
-            else if (pct < 75.0f) bar_color = Color::Yellow;
-            else bar_color = Color::Red;
+            if (pct < 50.0F) { bar_color = Color::Green;
+            } else if (pct < 75.0F) { bar_color = Color::Yellow;
+            } else { bar_color = Color::Red;
+}
 
             char pct_str[16];
-            snprintf(pct_str, sizeof(pct_str), "%.1f%%", (double)pct);
+            (void)snprintf(pct_str, sizeof(pct_str), "%.1f%%", static_cast<double>(pct));
 
             char label[16];
             if (htop_ncpu > 1) {
-                snprintf(label, sizeof(label), "CPU%d", i);
+                (void)snprintf(label, sizeof(label), "CPU%d", i);
             } else {
-                snprintf(label, sizeof(label), "CPU");
+                (void)snprintf(label, sizeof(label), "CPU");
             }
 
             auto lbl = text(std::string(label) + "  ");
@@ -465,25 +497,26 @@ public:
 
         // --- Memory bar ---
         if (mem_.total > 0) {
-            int bar_w = 40;
-            unsigned long used = mem_.total - mem_.available;
-            float used_pct = 100.0f * (float)used / (float)mem_.total;
-            int fill = (int)(used_pct * bar_w / 100.0f);
-            if (fill > bar_w) fill = bar_w;
-            if (fill < 0) fill = 0;
+            int const bar_w = 40;
+            unsigned long const used = mem_.total - mem_.available;
+            float const used_pct = 100.0F * static_cast<float>(used) / static_cast<float>(mem_.total);
+            int fill = static_cast<int>(used_pct * bar_w / 100.0F);
+            fill = std::min(fill, bar_w);
+            fill = std::max(fill, 0);
 
             std::string bar;
             htop_make_bar(bar, bar_w, fill, "\u2588", "\u2591");
 
             Color bar_color;
-            if (used_pct < 50.0f) bar_color = Color::Green;
-            else if (used_pct < 75.0f) bar_color = Color::Yellow;
-            else bar_color = Color::Red;
+            if (used_pct < 50.0F) { bar_color = Color::Green;
+            } else if (used_pct < 75.0F) { bar_color = Color::Yellow;
+            } else { bar_color = Color::Red;
+}
 
             char pct_str[16];
-            snprintf(pct_str, sizeof(pct_str), "%.1f%%", (double)used_pct);
+            (void)snprintf(pct_str, sizeof(pct_str), "%.1f%%", static_cast<double>(used_pct));
             char mem_str[48];
-            snprintf(mem_str, sizeof(mem_str), "[%.0fM/%.0fM]", (float)used / 1024.0f, (float)mem_.total / 1024.0f);
+            (void)snprintf(mem_str, sizeof(mem_str), "[%.0fM/%.0fM]", static_cast<float>(used) / 1024.0F, static_cast<float>(mem_.total) / 1024.0F);
 
             rows.push_back(hbox({
                 text("Mem  "),
@@ -500,25 +533,27 @@ public:
         rows.push_back(text(buf) | bold | color(Color::Yellow));
 
         // --- Process rows ---
-        int display_count = (int)procs_.size();
-        int avail = max_rows_;
-        if (display_count > avail) display_count = avail;
+        int display_count = static_cast<int>(procs_.size());
+        int const avail = max_rows_;
+        display_count = std::min(display_count, avail);
 
         for (int i = 0; i < display_count; i++) {
-            int idx = i + scroll_offset_;
-            if (idx >= (int)procs_.size()) break;
+            int const idx = i + scroll_offset_;
+            if (idx >= static_cast<int>(procs_.size())) { break;
+}
 
             const auto& p = procs_[idx];
 
             fmt_proc_line(buf, sizeof(buf), p, fmt_w_);
 
             Color line_color;
-            if (p.cpu_pct >= 50.0f) line_color = Color::Red;
-            else if (p.cpu_pct >= 10.0f) line_color = Color::Yellow;
-            else line_color = Color::Default;
+            if (p.cpu_pct >= 50.0F) { line_color = Color::Red;
+            } else if (p.cpu_pct >= 10.0F) { line_color = Color::Yellow;
+            } else { line_color = Color::Default;
+}
 
             auto el = text(buf);
-            if (p.cpu_pct >= 1.0f) {
+            if (p.cpu_pct >= 1.0F) {
                 el = el | color(line_color);
             }
             if (i % 2 == 1) {
@@ -529,8 +564,11 @@ public:
 
         // --- Bottom status line ---
         rows.push_back(separator());
-        int total = (int)procs_.size();
-        int running = 0, sleeping = 0, stopped = 0, zombie = 0;
+        int const total = static_cast<int>(procs_.size());
+        int running = 0;
+        int sleeping = 0;
+        int stopped = 0;
+        int zombie = 0;
         for (const auto& p : procs_) {
             switch (p.state) {
                 case 'R': running++; break;
@@ -540,7 +578,7 @@ public:
                 default: break;
             }
         }
-        snprintf(buf, sizeof(buf), "Tasks: %d, %d running  |  q:quit  j/k:scroll  PgUp/PgDn:page",
+        (void)snprintf(buf, sizeof(buf), "Tasks: %d, %d running  |  q:quit  j/k:scroll  PgUp/PgDn:page",
                  total, running);
         rows.push_back(text(buf));
 
@@ -550,8 +588,9 @@ public:
     bool OnEvent(ftxui::Event event) override {
         using namespace ftxui;
         if (event == Event::Character('q') || event == Event::Character('Q')) {
-            if (auto* app = App::Active())
+            if (auto* app = App::Active()) {
                 app->Exit();
+}
             return true;
         }
         // Periodic refresh posted by the background timer thread. This decouples
@@ -574,12 +613,12 @@ public:
         }
         if (event == Event::PageDown) {
             scroll_offset_ += max_rows_ / 2;
-            if (scroll_offset_ > scroll_max_) scroll_offset_ = scroll_max_;
+            scroll_offset_ = std::min(scroll_offset_, scroll_max_);
             return true;
         }
         if (event == Event::PageUp) {
             scroll_offset_ -= max_rows_ / 2;
-            if (scroll_offset_ < 0) scroll_offset_ = 0;
+            scroll_offset_ = std::max(scroll_offset_, 0);
             return true;
         }
         if (event == Event::Home) {
@@ -597,11 +636,13 @@ public:
 int htop_command(int argc, char** argv) {
     htop_clk_tck = sysconf(_SC_CLK_TCK);
     htop_page_sz = sysconf(_SC_PAGE_SIZE);
-    if (htop_clk_tck <= 0) htop_clk_tck = 100;
-    if (htop_page_sz <= 0) htop_page_sz = 4096;
+    if (htop_clk_tck <= 0) { htop_clk_tck = 100;
+}
+    if (htop_page_sz <= 0) { htop_page_sz = 4096;
+}
 
-    htop_ncpu = (int)sysconf(_SC_NPROCESSORS_ONLN);
-    if (htop_ncpu < 1) htop_ncpu = 1;
+    htop_ncpu = static_cast<int>(sysconf(_SC_NPROCESSORS_ONLN));
+    htop_ncpu = std::max(htop_ncpu, 1);
 
     struct arg_dbl* delay_opt = arg_dbl0("d", "delay", "SECS", "delay between updates (default 1.0)");
     struct arg_int* pid_opt = arg_int0("p", "pid", "PID", "monitor only this process");
@@ -612,7 +653,7 @@ int htop_command(int argc, char** argv) {
         delay_opt, pid_opt, help_opt, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -641,13 +682,14 @@ int htop_command(int argc, char** argv) {
     double delay = 1.0;
     if (delay_opt->count > 0) {
         delay = delay_opt->dval[0];
-        if (delay < 0.1) delay = 0.1;
+        delay = std::max(delay, 0.1);
     }
 
     int only_pid = -1;
     if (pid_opt->count > 0) {
         only_pid = pid_opt->ival[0];
-        if (only_pid < 1) only_pid = -1;
+        if (only_pid < 1) { only_pid = -1;
+}
     }
 
     auto screen = ftxui::App::Fullscreen();
@@ -668,7 +710,7 @@ int htop_command(int argc, char** argv) {
     std::atomic<bool> running{true};
     std::thread refresher([&screen, &running, delay]() {
         const auto step = std::chrono::milliseconds(50);
-        const auto interval = std::chrono::milliseconds((int)(delay * 1000));
+        const auto interval = std::chrono::milliseconds(static_cast<int>(delay * 1000));
         auto elapsed = std::chrono::milliseconds(0);
         while (running.load()) {
             std::this_thread::sleep_for(step);

@@ -1,9 +1,10 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <cstdint>
 #include <cerrno>
-#include <string>
+#include <ctime>
 #include <vector>
 #include <unistd.h>
 #include <fcntl.h>
@@ -26,7 +27,7 @@ struct ShredOptions {
     int random_source = 0;
 };
 
-static void secure_erase(int fd, off_t size, bool use_zero, int verbose) {
+void secure_erase(int fd, off_t size, bool use_zero, int verbose) {
     const size_t buf_size = 65536;
     std::vector<uint8_t> buf(buf_size);
 
@@ -38,74 +39,74 @@ static void secure_erase(int fd, off_t size, bool use_zero, int verbose) {
     off_t written = 0;
 
     while (remaining > 0) {
-        size_t chunk = remaining > (off_t)buf_size ? buf_size : (size_t)remaining;
+        size_t const chunk = remaining > static_cast<off_t>(buf_size) ? buf_size : static_cast<size_t>(remaining);
 
         if (!use_zero) {
             for (size_t i = 0; i < chunk; i++) {
-                buf[i] = (uint8_t)(rand() % 256);
+                buf[i] = static_cast<uint8_t>(rand() % 256);
             }
         }
 
-        ssize_t n = write(fd, buf.data(), chunk);
+        ssize_t const n = write(fd, buf.data(), chunk);
         if (n <= 0) {
-            fprintf(stderr, "shred: write error: %s\n", strerror(errno));
+            (void)fprintf(stderr, "shred: write error: %s\n", strerror(errno));
             return;
         }
         written += n;
         remaining -= n;
 
-        if (verbose && written % (1024 * 1024) == 0) {
-            fprintf(stderr, "shred: %lld bytes written\r", (long long)written);
+        if ((verbose != 0) && written % (1024 * 1024) == 0) {
+            (void)fprintf(stderr, "shred: %lld bytes written\r", static_cast<long long>(written));
         }
     }
 
-    if (verbose) {
-        fprintf(stderr, "shred: %lld bytes written\n", (long long)written);
+    if (verbose != 0) {
+        (void)fprintf(stderr, "shred: %lld bytes written\n", static_cast<long long>(written));
     }
 }
 
-static void shred_file(const char* filename, ShredOptions& opts) {
+void shred_file(const char* filename, ShredOptions& opts) {
     struct stat st;
     if (stat(filename, &st) != 0) {
-        fprintf(stderr, "shred: %s: %s\n", filename, strerror(errno));
+        (void)fprintf(stderr, "shred: %s: %s\n", filename, strerror(errno));
         return;
     }
 
     if (!S_ISREG(st.st_mode)) {
-        fprintf(stderr, "shred: %s: refusing to shred non-regular file\n", filename);
+        (void)fprintf(stderr, "shred: %s: refusing to shred non-regular file\n", filename);
         return;
     }
 
     int fd = open(filename, O_RDWR);
     if (fd < 0) {
-        if (opts.force) {
+        if (opts.force != 0) {
             if (chmod(filename, st.st_mode | S_IWUSR) != 0) {
-                fprintf(stderr, "shred: %s: cannot make writable: %s\n", filename, strerror(errno));
+                (void)fprintf(stderr, "shred: %s: cannot make writable: %s\n", filename, strerror(errno));
                 return;
             }
             fd = open(filename, O_RDWR);
         }
         if (fd < 0) {
-            fprintf(stderr, "shred: %s: cannot open: %s\n", filename, strerror(errno));
+            (void)fprintf(stderr, "shred: %s: cannot open: %s\n", filename, strerror(errno));
             return;
         }
     }
 
-    off_t file_size = st.st_size;
+    off_t const file_size = st.st_size;
 
-    if (opts.verbose) {
-        fprintf(stderr, "shred: %s: %lld bytes, %d pass%s\n",
-                filename, (long long)file_size, opts.iterations,
+    if (opts.verbose != 0) {
+        (void)fprintf(stderr, "shred: %s: %lld bytes, %d pass%s\n",
+                filename, static_cast<long long>(file_size), opts.iterations,
                 opts.iterations == 1 ? "" : "es");
     }
 
     if (opts.iterations > 0) {
         for (int i = 0; i < opts.iterations; i++) {
-            if (opts.verbose) {
-                fprintf(stderr, "shred: pass %d/%d: random\n", i + 1, opts.iterations);
+            if (opts.verbose != 0) {
+                (void)fprintf(stderr, "shred: pass %d/%d: random\n", i + 1, opts.iterations);
             }
-            if (lseek(fd, 0, SEEK_SET) == (off_t)-1) {
-                fprintf(stderr, "shred: %s: lseek error: %s\n", filename, strerror(errno));
+            if (lseek(fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
+                (void)fprintf(stderr, "shred: %s: lseek error: %s\n", filename, strerror(errno));
                 close(fd);
                 return;
             }
@@ -113,12 +114,12 @@ static void shred_file(const char* filename, ShredOptions& opts) {
         }
     }
 
-    if (opts.zero_pass) {
-        if (opts.verbose) {
-            fprintf(stderr, "shred: final pass: zero\n");
+    if (opts.zero_pass != 0) {
+        if (opts.verbose != 0) {
+            (void)fprintf(stderr, "shred: final pass: zero\n");
         }
-        if (lseek(fd, 0, SEEK_SET) == (off_t)-1) {
-            fprintf(stderr, "shred: %s: lseek error: %s\n", filename, strerror(errno));
+        if (lseek(fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
+            (void)fprintf(stderr, "shred: %s: lseek error: %s\n", filename, strerror(errno));
             close(fd);
             return;
         }
@@ -126,17 +127,17 @@ static void shred_file(const char* filename, ShredOptions& opts) {
     }
 
     if (fsync(fd) != 0) {
-        fprintf(stderr, "shred: %s: fsync error: %s\n", filename, strerror(errno));
+        (void)fprintf(stderr, "shred: %s: fsync error: %s\n", filename, strerror(errno));
     }
 
     close(fd);
 
-    if (opts.remove) {
-        if (opts.verbose) {
-            fprintf(stderr, "shred: removing %s\n", filename);
+    if (opts.remove != 0) {
+        if (opts.verbose != 0) {
+            (void)fprintf(stderr, "shred: removing %s\n", filename);
         }
         if (unlink(filename) != 0) {
-            fprintf(stderr, "shred: %s: cannot remove: %s\n", filename, strerror(errno));
+            (void)fprintf(stderr, "shred: %s: cannot remove: %s\n", filename, strerror(errno));
         }
     }
 }
@@ -157,7 +158,7 @@ int shred_command(int argc, char** argv) {
     ArgTable at({iter_opt, zero_opt, remove_opt, verbose_opt, force_opt,
                  size_opt, help_opt, files_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -184,21 +185,21 @@ int shred_command(int argc, char** argv) {
 
     if (iter_opt->count > 0) {
         opts.iterations = iter_opt->ival[0];
-        if (opts.iterations < 0) opts.iterations = 0;
+        opts.iterations = std::max(opts.iterations, 0);
     }
 
-    opts.zero_pass = (zero_opt->count > 0);
-    opts.remove = (remove_opt->count > 0);
-    opts.verbose = (verbose_opt->count > 0);
-    opts.force = (force_opt->count > 0);
-    opts.exact_size = (size_opt->count > 0);
+    opts.zero_pass = static_cast<int>(zero_opt->count > 0);
+    opts.remove = static_cast<int>(remove_opt->count > 0);
+    opts.verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.force = static_cast<int>(force_opt->count > 0);
+    opts.exact_size = static_cast<int>(size_opt->count > 0);
 
-    if (opts.iterations == 0 && !opts.zero_pass && !opts.remove) {
-        fprintf(stderr, "shred: no action specified (use -n, -z, or -u)\n");
+    if (opts.iterations == 0 && (opts.zero_pass == 0) && (opts.remove == 0)) {
+        (void)fprintf(stderr, "shred: no action specified (use -n, -z, or -u)\n");
         return 0;
     }
 
-    srand((unsigned int)time(nullptr));
+    srand(static_cast<unsigned int>(time(nullptr)));
 
     for (int i = 0; i < files_arg->count; i++) {
         shred_file(files_arg->filename[i], opts);

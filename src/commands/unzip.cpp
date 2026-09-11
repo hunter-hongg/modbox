@@ -1,8 +1,10 @@
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include <vector>
 
 #include <zlib.h>
@@ -20,27 +22,35 @@ namespace {
 
 bool ends_with(const std::string& s, const std::string& suffix) {
     return s.size() >= suffix.size() &&
-           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+           s.ends_with(suffix);
 }
 
 // ----------------------------------------------------------------
 // Recursively create directories along path, like mkdir -p.
 // ----------------------------------------------------------------
 int mkdir_p(const std::string& path, mode_t mode) {
-    if (path.empty()) return 0;
-    if (mkdir(path.c_str(), mode) == 0) return 0;
+    if (path.empty()) { return 0;
+}
+    if (mkdir(path.c_str(), mode) == 0) { return 0;
+}
     if (errno == EEXIST) {
         struct stat st;
-        if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) return 0;
+        if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) { return 0;
+}
         return -1;
     }
     // Recurse on parent.
-    size_t slash = path.find_last_of('/');
-    if (slash == 0) return 0;
-    if (slash == std::string::npos) return 0;
-    if (mkdir_p(path.substr(0, slash), mode) != 0) return -1;
-    if (mkdir(path.c_str(), mode) == 0) return 0;
-    if (errno == EEXIST) return 0;
+    size_t const slash = path.find_last_of('/');
+    if (slash == 0) { return 0;
+}
+    if (slash == std::string::npos) { return 0;
+}
+    if (mkdir_p(path.substr(0, slash), mode) != 0) { return -1;
+}
+    if (mkdir(path.c_str(), mode) == 0) { return 0;
+}
+    if (errno == EEXIST) { return 0;
+}
     return -1;
 }
 
@@ -48,7 +58,8 @@ int mkdir_p(const std::string& path, mode_t mode) {
 // Strip trailing "/" from an internal path used as a directory key.
 // ----------------------------------------------------------------
 std::string strip_trailing_slash(const std::string& s) {
-    if (!s.empty() && s.back() == '/') return s.substr(0, s.size() - 1);
+    if (!s.empty() && s.back() == '/') { return s.substr(0, s.size() - 1);
+}
     return s;
 }
 
@@ -57,7 +68,7 @@ std::string strip_trailing_slash(const std::string& s) {
 // ----------------------------------------------------------------
 int list_archive(const std::string& archive_path, const UnzipOptions& opt) {
     unzFile zf = unzOpen(archive_path.c_str());
-    if (!zf) {
+    if (zf == nullptr) {
         struct stat st;
         if (stat(archive_path.c_str(), &st) != 0) {
             cmd_perror("unzip", archive_path.c_str());
@@ -86,24 +97,28 @@ int list_archive(const std::string& archive_path, const UnzipOptions& opt) {
         char name[4096];
         int rc = unzGetCurrentFileInfo(zf, &fi, name, sizeof(name),
                                        nullptr, 0, nullptr, 0);
-        if (rc != UNZ_OK) break;
+        if (rc != UNZ_OK) { break;
+}
         printf("%10lu  %04d-%02d-%02d %02d:%02d:%02d   %s\n",
-               (unsigned long)fi.uncompressed_size,
+               static_cast<unsigned long>(fi.uncompressed_size),
                fi.tmu_date.tm_year, fi.tmu_date.tm_mon + 1,
                fi.tmu_date.tm_mday,
                fi.tmu_date.tm_hour, fi.tmu_date.tm_min,
                fi.tmu_date.tm_sec,
                name);
-        lengths.push_back((unsigned long)fi.uncompressed_size);
+        lengths.push_back(static_cast<unsigned long>(fi.uncompressed_size));
         rc = unzGoToNextFile(zf);
-        if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-        if (rc != UNZ_OK) break;
+        if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+        if (rc != UNZ_OK) { break;
+}
     }
     unsigned long total = 0;
-    for (unsigned long l : lengths) total += l;
+    for (unsigned long l : lengths) { total += l;
+}
     printf("---------                     -------\n");
     printf("%10lu                     %5lu files\n",
-           total, (unsigned long)lengths.size());
+           total, static_cast<unsigned long>(lengths.size()));
     unzClose(zf);
     return 0;
 }
@@ -114,7 +129,7 @@ int list_archive(const std::string& archive_path, const UnzipOptions& opt) {
 // ----------------------------------------------------------------
 int test_archive(const std::string& archive_path, const UnzipOptions& opt) {
     unzFile zf = unzOpen(archive_path.c_str());
-    if (!zf) {
+    if (zf == nullptr) {
         struct stat st;
         if (stat(archive_path.c_str(), &st) != 0) {
             cmd_perror("unzip", archive_path.c_str());
@@ -131,7 +146,7 @@ int test_archive(const std::string& archive_path, const UnzipOptions& opt) {
     }
 
     printf("%s:  %lu files, %lu bytes\n",
-           archive_path.c_str(), (unsigned long)gi.number_entry, 0UL);
+           archive_path.c_str(), static_cast<unsigned long>(gi.number_entry), 0UL);
 
     int status = 0;
     if (unzGoToFirstFile(zf) != UNZ_OK) {
@@ -143,11 +158,12 @@ int test_archive(const std::string& archive_path, const UnzipOptions& opt) {
         char name[4096];
         int rc = unzGetCurrentFileInfo(zf, &fi, name, sizeof(name),
                                        nullptr, 0, nullptr, 0);
-        if (rc != UNZ_OK) break;
+        if (rc != UNZ_OK) { break;
+}
 
-        int open_rc = unzOpenCurrentFile(zf);
+        int const open_rc = unzOpenCurrentFile(zf);
         if (open_rc != UNZ_OK) {
-            fprintf(stderr, "unzip: %s: error %d reading entry\n", name,
+            (void)fprintf(stderr, "unzip: %s: error %d reading entry\n", name,
                     open_rc);
             status = 1;
             // Skip to next without draining.
@@ -156,23 +172,27 @@ int test_archive(const std::string& archive_path, const UnzipOptions& opt) {
         }
         unsigned char buf[65536];
         for (;;) {
-            int n = unzReadCurrentFile(zf, buf, sizeof(buf));
-            if (n <= 0) break;
+            int const n = unzReadCurrentFile(zf, buf, sizeof(buf));
+            if (n <= 0) { break;
+}
             (void)n;
         }
-        int close_rc = unzCloseCurrentFile(zf);
+        int const close_rc = unzCloseCurrentFile(zf);
         if (close_rc == UNZ_CRCERROR) {
-            fprintf(stderr, "unzip: %s: CRC failed\n", name);
+            (void)fprintf(stderr, "unzip: %s: CRC failed\n", name);
             status = 1;
         } else if (close_rc != UNZ_OK) {
-            fprintf(stderr, "unzip: %s: read error %d\n", name, close_rc);
+            (void)fprintf(stderr, "unzip: %s: read error %d\n", name, close_rc);
             status = 1;
         } else {
-            if (!opt.quiet) printf("  %s: OK\n", name);
+            if (!opt.quiet) { printf("  %s: OK\n", name);
+}
         }
         rc = unzGoToNextFile(zf);
-        if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-        if (rc != UNZ_OK) break;
+        if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+        if (rc != UNZ_OK) { break;
+}
     }
     unzClose(zf);
     return status;
@@ -184,7 +204,7 @@ int test_archive(const std::string& archive_path, const UnzipOptions& opt) {
 int print_entry(const std::string& archive_path,
                 const std::string& entry_name, const UnzipOptions& opt) {
     unzFile zf = unzOpen(archive_path.c_str());
-    if (!zf) {
+    if (zf == nullptr) {
         struct stat st;
         if (stat(archive_path.c_str(), &st) != 0) {
             cmd_perror("unzip", archive_path.c_str());
@@ -195,7 +215,7 @@ int print_entry(const std::string& archive_path,
     }
     int rc = unzLocateFile(zf, entry_name.c_str(), 0);
     if (rc != UNZ_OK) {
-        fprintf(stderr, "unzip: %s: '%s' not found in %s\n",
+        (void)fprintf(stderr, "unzip: %s: '%s' not found in %s\n",
                 archive_path.c_str(), entry_name.c_str(), archive_path.c_str());
         unzClose(zf);
         return 1;
@@ -208,21 +228,22 @@ int print_entry(const std::string& archive_path,
     unsigned char buf[65536];
     int n;
     while ((n = unzReadCurrentFile(zf, buf, sizeof(buf))) > 0) {
-        if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n) {
-            fprintf(stderr, "unzip: %s: write error: %s\n",
+        if (fwrite(buf, 1, static_cast<size_t>(n), stdout) != static_cast<size_t>(n)) {
+            (void)fprintf(stderr, "unzip: %s: write error: %s\n",
                     archive_path.c_str(), strerror(errno));
             unzCloseCurrentFile(zf);
             unzClose(zf);
             return 1;
         }
     }
-    int close_rc = unzCloseCurrentFile(zf);
+    int const close_rc = unzCloseCurrentFile(zf);
     unzClose(zf);
     if (close_rc == UNZ_CRCERROR) {
-        fprintf(stderr, "unzip: %s: CRC failed\n", entry_name.c_str());
+        (void)fprintf(stderr, "unzip: %s: CRC failed\n", entry_name.c_str());
         return 1;
     }
-    if (close_rc != UNZ_OK) return 1;
+    if (close_rc != UNZ_OK) { return 1;
+}
     return 0;
 }
 
@@ -234,7 +255,7 @@ int print_entry(const std::string& archive_path,
 int extract_archive(const std::string& archive_path,
                     const UnzipOptions& opt) {
     unzFile zf = unzOpen(archive_path.c_str());
-    if (!zf) {
+    if (zf == nullptr) {
         // Check if file exists to distinguish "not found" from "bad zip".
         struct stat st;
         if (stat(archive_path.c_str(), &st) != 0) {
@@ -246,7 +267,7 @@ int extract_archive(const std::string& archive_path,
     }
     if (!opt.target_dir.empty()) {
         if (mkdir_p(opt.target_dir, 0755) != 0) {
-            fprintf(stderr, "unzip: cannot create directory %s: %s\n",
+            (void)fprintf(stderr, "unzip: cannot create directory %s: %s\n",
                     opt.target_dir.c_str(), strerror(errno));
             unzClose(zf);
             return 1;
@@ -255,8 +276,9 @@ int extract_archive(const std::string& archive_path,
     int status = 0;
     if (opt.verbose) {
         printf("Archive:  %s\n", archive_path.c_str());
-        if (!opt.target_dir.empty())
+        if (!opt.target_dir.empty()) {
             printf("Replacing with: %s/\n", opt.target_dir.c_str());
+}
     }
 
     if (unzGoToFirstFile(zf) != UNZ_OK) {
@@ -268,7 +290,8 @@ int extract_archive(const std::string& archive_path,
         char name[4096];
         int rc = unzGetCurrentFileInfo(zf, &fi, name, sizeof(name),
                                        nullptr, 0, nullptr, 0);
-        if (rc != UNZ_OK) break;
+        if (rc != UNZ_OK) { break;
+}
 
         // Entry-name filter: if opt.entry_names is non-empty, only
         // entries whose internal name exactly matches one of the
@@ -285,8 +308,10 @@ int extract_archive(const std::string& archive_path,
         }
         if (!wanted) {
             rc = unzGoToNextFile(zf);
-            if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-            if (rc != UNZ_OK) break;
+            if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+            if (rc != UNZ_OK) { break;
+}
             continue;
         }
 
@@ -294,35 +319,39 @@ int extract_archive(const std::string& archive_path,
         // (trailing "/") — create the directory rather than writing
         // an empty file; this makes `-d` + nested archives work
         // cleanly.
-        bool is_dir = (!name[0]) || ends_with(name, "/");
-        std::string target =
+        bool const is_dir = (name[0] == 0) || ends_with(name, "/");
+        std::string const target =
             opt.target_dir.empty() ? name : opt.target_dir + "/" + name;
 
         if (is_dir) {
-            std::string d = strip_trailing_slash(target);
+            std::string const d = strip_trailing_slash(target);
             if (!d.empty() && mkdir_p(d, 0755) != 0) {
-                fprintf(stderr, "unzip: cannot create directory %s: %s\n",
+                (void)fprintf(stderr, "unzip: cannot create directory %s: %s\n",
                         d.c_str(), strerror(errno));
                 status = 1;
             }
             rc = unzGoToNextFile(zf);
-            if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-            if (rc != UNZ_OK) break;
+            if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+            if (rc != UNZ_OK) { break;
+}
             continue;
         }
 
         // Ensure the parent directory exists.
-        std::string parent = target;
-        size_t slash = parent.find_last_of('/');
+        std::string const parent = target;
+        size_t const slash = parent.find_last_of('/');
         if (slash != std::string::npos && slash > 0) {
-            std::string p = parent.substr(0, slash);
+            std::string const p = parent.substr(0, slash);
             if (mkdir_p(p, 0755) != 0) {
-                fprintf(stderr, "unzip: cannot create directory %s: %s\n",
+                (void)fprintf(stderr, "unzip: cannot create directory %s: %s\n",
                         p.c_str(), strerror(errno));
                 status = 1;
                 rc = unzGoToNextFile(zf);
-                if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-                if (rc != UNZ_OK) break;
+                if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+                if (rc != UNZ_OK) { break;
+}
                 continue;
             }
         }
@@ -333,61 +362,72 @@ int extract_archive(const std::string& archive_path,
             struct stat st;
             if (stat(target.c_str(), &st) == 0) {
                 if (!opt.no_clobber) {
-                    if (!opt.quiet) printf("%s: exists; skipped\n", name);
+                    if (!opt.quiet) { printf("%s: exists; skipped\n", name);
+}
                     rc = unzGoToNextFile(zf);
-                    if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-                    if (rc != UNZ_OK) break;
+                    if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+                    if (rc != UNZ_OK) { break;
+}
                     continue;
                 }
             }
         }
 
-        int open_rc = unzOpenCurrentFile(zf);
+        int const open_rc = unzOpenCurrentFile(zf);
         if (open_rc != UNZ_OK) {
-            fprintf(stderr, "unzip: %s: error %d opening entry\n", name,
+            (void)fprintf(stderr, "unzip: %s: error %d opening entry\n", name,
                     open_rc);
             status = 1;
             rc = unzGoToNextFile(zf);
-            if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-            if (rc != UNZ_OK) break;
+            if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+            if (rc != UNZ_OK) { break;
+}
             continue;
         }
         FILE* out = fopen(target.c_str(), "wb");
-        if (!out) {
-            fprintf(stderr, "unzip: %s: %s\n", target.c_str(),
+        if (out == nullptr) {
+            (void)fprintf(stderr, "unzip: %s: %s\n", target.c_str(),
                     strerror(errno));
             unzCloseCurrentFile(zf);
             status = 1;
             rc = unzGoToNextFile(zf);
-            if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-            if (rc != UNZ_OK) break;
+            if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+            if (rc != UNZ_OK) { break;
+}
             continue;
         }
         unsigned char buf[65536];
         for (;;) {
-            int n = unzReadCurrentFile(zf, buf, sizeof(buf));
-            if (n <= 0) break;
-            if (fwrite(buf, 1, (size_t)n, out) != (size_t)n) {
-                fprintf(stderr, "unzip: %s: write error: %s\n",
+            int const n = unzReadCurrentFile(zf, buf, sizeof(buf));
+            if (n <= 0) { break;
+}
+            if (fwrite(buf, 1, static_cast<size_t>(n), out) != static_cast<size_t>(n)) {
+                (void)fprintf(stderr, "unzip: %s: write error: %s\n",
                         target.c_str(), strerror(errno));
                 status = 1;
                 break;
             }
         }
-        fclose(out);
-        int close_rc = unzCloseCurrentFile(zf);
+        (void)fclose(out);
+        int const close_rc = unzCloseCurrentFile(zf);
         if (close_rc == UNZ_CRCERROR) {
-            fprintf(stderr, "unzip: %s: CRC failed\n", name);
+            (void)fprintf(stderr, "unzip: %s: CRC failed\n", name);
             status = 1;
         } else if (close_rc != UNZ_OK) {
-            fprintf(stderr, "unzip: %s: read error %d\n", name, close_rc);
+            (void)fprintf(stderr, "unzip: %s: read error %d\n", name, close_rc);
             status = 1;
         } else {
-            if (!opt.quiet) printf("%s\n", name);
+            if (!opt.quiet) { printf("%s\n", name);
+}
         }
         rc = unzGoToNextFile(zf);
-        if (rc == UNZ_END_OF_LIST_OF_FILE) break;
-        if (rc != UNZ_OK) break;
+        if (rc == UNZ_END_OF_LIST_OF_FILE) { break;
+}
+        if (rc != UNZ_OK) { break;
+}
     }
     unzClose(zf);
     return status;
@@ -427,13 +467,13 @@ int unzip_command(int argc, char** argv) {
                                      "archive and entries");
     struct arg_end* end = arg_end(20);
 
-    std::vector<void*> table = {
+    std::vector<void*> const table = {
         opt_l, opt_t, opt_p, opt_n, opt_o, opt_q, opt_v, opt_h, opt_ver,
         opt_d, pos, end,
     };
 
     ArgTable at(table);
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (opt_h->count > 0) {
         print_unzip_help(argv[0]);
@@ -445,7 +485,7 @@ int unzip_command(int argc, char** argv) {
     }
     if (nerrors > 0) {
         at.print_errors(end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -457,11 +497,12 @@ int unzip_command(int argc, char** argv) {
     opt.overwrite = opt_o->count > 0;
     opt.quiet = opt_q->count > 0;
     opt.verbose = opt_v->count > 0;
-    if (opt_d->count > 0) opt.target_dir = opt_d->sval[0];
+    if (opt_d->count > 0) { opt.target_dir = opt_d->sval[0];
+}
 
     if (pos->count == 0) {
-        fprintf(stderr, "unzip: ARCHIVE is required\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "unzip: ARCHIVE is required\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -493,7 +534,7 @@ int unzip_command(int argc, char** argv) {
         // in that case would need to be a name filter, which requires at
         // least 2 positionals). This keeps the CLI simple.
         if (opt.entry_names.empty()) {
-            fprintf(stderr, "unzip: -p requires an entry name\n");
+            (void)fprintf(stderr, "unzip: -p requires an entry name\n");
             return 1;
         }
         return print_entry(opt.archive, opt.entry_names[0], opt);

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cmath>
@@ -16,7 +17,7 @@ static bool parse_number(const char* s, long double* out) {
     }
     char* endp = nullptr;
     errno = 0;
-    long double v = strtold(s, &endp);
+    long double const v = strtold(s, &endp);
     if (endp == s || *endp != '\0') {
         return false;
     }
@@ -30,7 +31,7 @@ static int fractional_digits(const char* s) {
         return 0;
     }
     int n = 0;
-    for (const char* p = dot + 1; *p != '\0' && isdigit((unsigned char)*p); p++) {
+    for (const char* p = dot + 1; *p != '\0' && (isdigit(static_cast<unsigned char>(*p)) != 0); p++) {
         n++;
     }
     return n;
@@ -51,7 +52,7 @@ static bool looks_like_number(const char* s) {
     if (*p == '+' || *p == '-') {
         p++;
     }
-    return isdigit((unsigned char)*p) || (*p == '.' && isdigit((unsigned char)p[1]));
+    return (isdigit(static_cast<unsigned char>(*p)) != 0) || (*p == '.' && (isdigit(static_cast<unsigned char>(p[1])) != 0));
 }
 
 static void print_help(const char* prog) {
@@ -86,11 +87,11 @@ int seq_command(int argc, char** argv) {
             if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
                 print_help(prog);
                 return 0;
-            } else if (strcmp(a, "-w") == 0 || strcmp(a, "--equal-width") == 0) {
+            } if (strcmp(a, "-w") == 0 || strcmp(a, "--equal-width") == 0) {
                 equal_width = true;
             } else if (strcmp(a, "-f") == 0 || strcmp(a, "--format") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "seq: option requires an argument -- 'f'\n");
+                    (void)fprintf(stderr, "seq: option requires an argument -- 'f'\n");
                     return 0;
                 }
                 format = argv[++i];
@@ -100,7 +101,7 @@ int seq_command(int argc, char** argv) {
                 format = a + 2;
             } else if (strcmp(a, "-s") == 0 || strcmp(a, "--separator") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "seq: option requires an argument -- 's'\n");
+                    (void)fprintf(stderr, "seq: option requires an argument -- 's'\n");
                     return 0;
                 }
                 sep = argv[++i];
@@ -109,8 +110,8 @@ int seq_command(int argc, char** argv) {
             } else if (strncmp(a, "-s", 2) == 0) {
                 sep = a + 2;
             } else {
-                fprintf(stderr, "seq: invalid option -- '%s'\n", a);
-                fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+                (void)fprintf(stderr, "seq: invalid option -- '%s'\n", a);
+                (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
                 return 0;
             }
         } else {
@@ -119,8 +120,8 @@ int seq_command(int argc, char** argv) {
     }
 
     if (operands.empty() || operands.size() > 3) {
-        fprintf(stderr, "seq: missing operand\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+        (void)fprintf(stderr, "seq: missing operand\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         return 0;
     }
 
@@ -139,90 +140,92 @@ int seq_command(int argc, char** argv) {
         last_s = operands[2];
     }
 
-    long double first = 0, incr = 0, last = 0;
+    long double first = 0;
+    long double incr = 0;
+    long double last = 0;
     if (!parse_number(first_s, &first)) {
-        fprintf(stderr, "seq: invalid floating point argument: '%s'\n", first_s);
+        (void)fprintf(stderr, "seq: invalid floating point argument: '%s'\n", first_s);
         return 0;
     }
     if (!parse_number(incr_s, &incr)) {
-        fprintf(stderr, "seq: invalid floating point argument: '%s'\n", incr_s);
+        (void)fprintf(stderr, "seq: invalid floating point argument: '%s'\n", incr_s);
         return 0;
     }
     if (!parse_number(last_s, &last)) {
-        fprintf(stderr, "seq: invalid floating point argument: '%s'\n", last_s);
+        (void)fprintf(stderr, "seq: invalid floating point argument: '%s'\n", last_s);
         return 0;
     }
 
     if (incr == 0) {
-        fprintf(stderr, "seq: invalid Zero increment value: '%s'\n", incr_s);
+        (void)fprintf(stderr, "seq: invalid Zero increment value: '%s'\n", incr_s);
         return 0;
     }
 
-    bool all_int = is_integer_literal(first_s) && is_integer_literal(incr_s) && is_integer_literal(last_s);
+    bool const all_int = is_integer_literal(first_s) && is_integer_literal(incr_s) && is_integer_literal(last_s);
 
     int prec = fractional_digits(first_s);
     int d = fractional_digits(incr_s);
-    if (d > prec) prec = d;
+    prec = std::max(d, prec);
     d = fractional_digits(last_s);
-    if (d > prec) prec = d;
+    prec = std::max(d, prec);
 
     std::string fmt;
-    bool user_format = (format != nullptr);
+    bool const user_format = (format != nullptr);
     if (user_format) {
         fmt = format;
     } else if (all_int) {
         fmt = "%.0Lf";
     } else {
         char buf[32];
-        snprintf(buf, sizeof(buf), "%%.%dLf", prec);
+        (void)snprintf(buf, sizeof(buf), "%%.%dLf", prec);
         fmt = buf;
     }
 
-    long double n_ld = floorl((last - first) / incr + 1e-9L);
+    long double const n_ld = floorl((last - first) / incr + 1e-9L);
     if (n_ld < 0) {
         return 0;
     }
-    long long count = (long long)n_ld + 1;
+    long long const count = static_cast<long long>(n_ld) + 1;
 
     int width = 0;
     if (equal_width && !user_format) {
         for (long long i = 0; i < count; i++) {
-            long double val = first + (long double)i * incr;
+            long double const val = first + static_cast<long double>(i) * incr;
             char buf[128];
-            snprintf(buf, sizeof(buf), fmt.c_str(), val);
-            int len = (int)strlen(buf);
-            if (len > width) width = len;
+            (void)snprintf(buf, sizeof(buf), fmt.c_str(), val);
+            int const len = static_cast<int>(strlen(buf));
+            width = std::max(len, width);
         }
     }
 
     for (long long i = 0; i < count; i++) {
-        long double val = first + (long double)i * incr;
+        long double const val = first + static_cast<long double>(i) * incr;
         if (i > 0) {
-            fputs(sep.c_str(), stdout);
+            (void)fputs(sep.c_str(), stdout);
         }
         if (width > 0) {
             char buf[128];
-            snprintf(buf, sizeof(buf), fmt.c_str(), val);
-            int len = (int)strlen(buf);
+            (void)snprintf(buf, sizeof(buf), fmt.c_str(), val);
+            int len = static_cast<int>(strlen(buf));
             const char* p = buf;
-            bool neg = (buf[0] == '-');
+            bool const neg = (buf[0] == '-');
             if (neg) {
-                fputc('-', stdout);
+                (void)fputc('-', stdout);
                 p++;
                 len--;
             }
             for (int k = len; k < width - (neg ? 1 : 0); k++) {
-                fputc('0', stdout);
+                (void)fputc('0', stdout);
             }
-            fputs(p, stdout);
+            (void)fputs(p, stdout);
         } else if (user_format) {
-            printf(fmt.c_str(), (double)val);
+            printf(fmt.c_str(), static_cast<double>(val));
         } else {
             printf(fmt.c_str(), val);
         }
     }
     if (count > 0) {
-        fputc('\n', stdout);
+        (void)fputc('\n', stdout);
     }
     return 0;
 }

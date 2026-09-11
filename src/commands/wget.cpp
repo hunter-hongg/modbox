@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "commands/http_client.hpp"
@@ -75,7 +76,7 @@ static std::vector<char*> preprocess_argv(int argc, char** argv) {
     std::vector<char*> out;
     out.reserve(argc * 2);
     for (int i = 0; i < argc; ++i) {
-        std::string arg(argv[i]);
+        std::string const arg(argv[i]);
         if (arg == "-nc") {
             out.push_back(strdup("--no-clobber"));
         } else if (arg == "-nH") {
@@ -111,20 +112,20 @@ static std::string get_content_disp_filename(const std::string& cd_value) {
     if (pos != std::string::npos) {
         pos += 10;
         // Skip encoding prefix like "UTF-8''"
-        size_t quote1 = cd_value.find('\'', pos);
+        size_t const quote1 = cd_value.find('\'', pos);
         if (quote1 != std::string::npos) {
-            size_t quote2 = cd_value.find('\'', quote1 + 1);
+            size_t const quote2 = cd_value.find('\'', quote1 + 1);
             if (quote2 != std::string::npos) {
                 std::string encoded = cd_value.substr(quote1 + 1, quote2 - quote1 - 1);
                 // Simple URL decode
                 std::string result;
                 for (size_t i = 0; i < encoded.size(); ++i) {
                     if (encoded[i] == '%' && i + 2 < encoded.size()) {
-                        std::string hex = encoded.substr(i + 1, 2);
+                        std::string const hex = encoded.substr(i + 1, 2);
                         char* end;
-                        int val = (int)strtol(hex.c_str(), &end, 16);
+                        int const val = static_cast<int>(strtol(hex.c_str(), &end, 16));
                         if (end == hex.c_str() + 2) {
-                            result += (char)val;
+                            result += static_cast<char>(val);
                             i += 2;
                         } else {
                             result += encoded[i];
@@ -145,15 +146,16 @@ static std::string get_content_disp_filename(const std::string& cd_value) {
         pos += 9;
         std::string fname;
         // Skip whitespace
-        while (pos < cd_value.size() && cd_value[pos] == ' ') ++pos;
+        while (pos < cd_value.size() && cd_value[pos] == ' ') { ++pos;
+}
         if (pos < cd_value.size() && cd_value[pos] == '"') {
             ++pos;
-            size_t end = cd_value.find('"', pos);
+            size_t const end = cd_value.find('"', pos);
             if (end != std::string::npos) {
                 fname = cd_value.substr(pos, end - pos);
             }
         } else {
-            size_t end = cd_value.find_first_of("; ", pos);
+            size_t const end = cd_value.find_first_of("; ", pos);
             if (end != std::string::npos) {
                 fname = cd_value.substr(pos, end - pos);
             }
@@ -167,24 +169,30 @@ static std::string get_content_disp_filename(const std::string& cd_value) {
 static std::string get_remote_filename(const std::string& url) {
     // Find the path portion after the host
     size_t pos = url.find("://");
-    if (pos == std::string::npos) pos = 0;
-    else pos += 3;
+    if (pos == std::string::npos) { pos = 0;
+    } else { pos += 3;
+}
 
     // Skip past host
-    size_t host_end = url.find('/', pos);
-    if (host_end == std::string::npos) return "index.html";
+    size_t const host_end = url.find('/', pos);
+    if (host_end == std::string::npos) { return "index.html";
+}
 
     std::string path = url.substr(host_end);
     // Remove query string
-    size_t q = path.find('?');
-    if (q != std::string::npos) path = path.substr(0, q);
-    if (path.empty() || path == "/") return "index.html";
+    size_t const q = path.find('?');
+    if (q != std::string::npos) { path = path.substr(0, q);
+}
+    if (path.empty() || path == "/") { return "index.html";
+}
 
     // Get basename
-    size_t last_slash = path.rfind('/');
-    if (last_slash == std::string::npos) return path;
+    size_t const last_slash = path.rfind('/');
+    if (last_slash == std::string::npos) { return path;
+}
     std::string fname = path.substr(last_slash + 1);
-    if (fname.empty()) return "index.html";
+    if (fname.empty()) { return "index.html";
+}
     return fname;
 }
 
@@ -192,7 +200,7 @@ int wget_command(int argc, char** argv) {
     // ── Pre-process combined short flags ──
     std::vector<char*> pre_argc;
     pre_argc = preprocess_argv(argc, argv);
-    int pargc = (int)pre_argc.size();
+    int const pargc = static_cast<int>(pre_argc.size());
     char** pargv = pre_argc.data();
 
     // ── Argtable3 for all flags ──
@@ -229,7 +237,7 @@ int wget_command(int argc, char** argv) {
     struct arg_str* pos_arg          = arg_strn(NULL, NULL, "ARG", 0, 1, "positional arg");
     struct arg_end* end              = arg_end(20);
 
-    std::vector<void*> table = {
+    std::vector<void*> const table = {
         help_opt, version_opt, quiet_opt, verbose_opt, server_resp_opt, spider_opt,
         no_clobber_opt, continue_dl_opt, background_opt, insecure_opt, content_disp_opt,
         no_host_dir_opt, use_full_dir_opt,
@@ -241,10 +249,10 @@ int wget_command(int argc, char** argv) {
 
     ArgTable argt(table);
 
-    int nerrors = argt.parse(pargc, pargv);
+    int const nerrors = argt.parse(pargc, pargv);
     if (nerrors > 0) {
         arg_print_errors(stderr, end, pargv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", pargv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", pargv[0]);
         return 1;
     }
 
@@ -266,21 +274,21 @@ int wget_command(int argc, char** argv) {
 
     // ── Validate positional args ──
     if (url.empty()) {
-        fprintf(stderr, "wget: missing URL\n");
+        (void)fprintf(stderr, "wget: missing URL\n");
         return 1;
     }
 
     // ── Validate conflicts ──
     if (output_doc_opt->count > 0 && output_file_opt->count > 0) {
-        fprintf(stderr, "wget: --output-document and --output-file conflict\n");
+        (void)fprintf(stderr, "wget: --output-document and --output-file conflict\n");
         return 1;
     }
     if (no_clobber_opt->count > 0 && continue_dl_opt->count > 0) {
-        fprintf(stderr, "wget: --no-clobber and --continue conflict\n");
+        (void)fprintf(stderr, "wget: --no-clobber and --continue conflict\n");
         return 1;
     }
     if (background_opt->count > 0 && output_file_opt->count > 0) {
-        fprintf(stderr, "wget: --background and --output-file conflict\n");
+        (void)fprintf(stderr, "wget: --background and --output-file conflict\n");
         return 1;
     }
 
@@ -296,7 +304,7 @@ int wget_command(int argc, char** argv) {
 
     // Progress type
     if (progress_opt->count > 0) {
-        std::string prog_type = progress_opt->sval[0];
+        std::string const prog_type = progress_opt->sval[0];
         if (prog_type == "dot") {
             opts.show_progress = true;
             opts.progress_bar = false;
@@ -314,12 +322,13 @@ int wget_command(int argc, char** argv) {
 
     // Headers
     for (int i = 0; i < header_opt->count; ++i) {
-        std::string h = header_opt->sval[i];
-        size_t colon = h.find(':');
+        std::string const h = header_opt->sval[i];
+        size_t const colon = h.find(':');
         if (colon != std::string::npos) {
-            std::string key = h.substr(0, colon);
+            std::string const key = h.substr(0, colon);
             std::string val = h.substr(colon + 1);
-            if (!val.empty() && val[0] == ' ') val = val.substr(1);
+            if (!val.empty() && val[0] == ' ') { val = val.substr(1);
+}
             opts.custom_headers.emplace_back(key, val);
         } else {
             opts.custom_headers.emplace_back(h, "");
@@ -368,15 +377,15 @@ int wget_command(int argc, char** argv) {
 
     // ── Resolve output path ──
     if (output_file.empty()) {
-        std::string remote_fname = get_remote_filename(url);
-        std::string disp_fname;
+        std::string const remote_fname = get_remote_filename(url);
+        std::string const disp_fname;
         if (content_disp_opt->count > 0) {
             // We'll check Content-Disposition after the request
         }
 
         if (dir_prefix_opt->count > 0) {
             std::string prefix = dir_prefix_opt->sval[0];
-            if (!no_host_dir_opt->count && use_full_dir_opt->count == 0) {
+            if ((no_host_dir_opt->count == 0) && use_full_dir_opt->count == 0) {
                 // Parse host from URL
                 UrlParts up;
                 if (parse_url(url.c_str(), up)) {
@@ -389,11 +398,12 @@ int wget_command(int argc, char** argv) {
                 if (parse_url(url.c_str(), up)) {
                     prefix += up.path;
                     // Remove trailing slash
-                    if (!prefix.empty() && prefix.back() == '/') prefix.pop_back();
+                    if (!prefix.empty() && prefix.back() == '/') { prefix.pop_back();
+}
                     // Find last slash for directory
-                    size_t last_slash = prefix.rfind('/');
+                    size_t const last_slash = prefix.rfind('/');
                     if (last_slash != std::string::npos) {
-                        std::string dir = prefix.substr(0, last_slash + 1);
+                        std::string const dir = prefix.substr(0, last_slash + 1);
                         mkdirs(dir);
                     }
                     output_file = prefix;
@@ -412,7 +422,7 @@ int wget_command(int argc, char** argv) {
     if (no_clobber_opt->count > 0 && !output_to_stdout) {
         struct stat st{};
         if (stat(output_file.c_str(), &st) == 0) {
-            fprintf(stderr, "wget: File '%s' already there. Not retrieving.\n", output_file.c_str());
+            (void)fprintf(stderr, "wget: File '%s' already there. Not retrieving.\n", output_file.c_str());
             return 0;
         }
     }
@@ -420,14 +430,14 @@ int wget_command(int argc, char** argv) {
     // ── Spider mode ──
     if (spider_opt->count > 0) {
         HttpResponse resp;
-        int rc = http_request(opts, resp);
+        int const rc = http_request(opts, resp);
         if (rc != 0) {
             return 1;
         }
         if (resp.status_code >= 200 && resp.status_code < 400) {
             return 0;
         }
-        fprintf(stderr, "wget: server response: %d %s\n", resp.status_code, resp.status_text.c_str());
+        (void)fprintf(stderr, "wget: server response: %d %s\n", resp.status_code, resp.status_text.c_str());
         return 1;
     }
 
@@ -436,14 +446,14 @@ int wget_command(int argc, char** argv) {
     if (continue_dl_opt->count > 0 && !output_to_stdout) {
         struct stat st{};
         if (stat(output_file.c_str(), &st) == 0 && st.st_size > 0) {
-            resume_from = (long)st.st_size;
+            resume_from = static_cast<long>(st.st_size);
         }
     }
 
     // ── Make the request ──
     // For resume, we need Range header
     if (resume_from > 0) {
-        std::string range_header = "Range: bytes=" + std::to_string(resume_from) + "-";
+        std::string const range_header = "Range: bytes=" + std::to_string(resume_from) + "-";
         opts.custom_headers.emplace_back(range_header.substr(0, range_header.find('=')) == "Range" ? "Range" : "Range",
             range_header.substr(range_header.find('=') + 1));
         // Actually just add as a proper header
@@ -462,7 +472,7 @@ int wget_command(int argc, char** argv) {
         if (resp.status_code >= 200 && resp.status_code < 400) {
             return 0;
         }
-        fprintf(stderr, "wget: server response: %d %s\n", resp.status_code, resp.status_text.c_str());
+        (void)fprintf(stderr, "wget: server response: %d %s\n", resp.status_code, resp.status_text.c_str());
         return 1;
     }
 
@@ -470,7 +480,7 @@ int wget_command(int argc, char** argv) {
     if (content_disp_opt->count > 0 && !output_to_stdout) {
         auto it = resp.headers.find("content-disposition");
         if (it != resp.headers.end()) {
-            std::string disp_fname = get_content_disp_filename(it->second);
+            std::string const disp_fname = get_content_disp_filename(it->second);
             if (!disp_fname.empty()) {
                 output_file = disp_fname;
             }
@@ -479,11 +489,11 @@ int wget_command(int argc, char** argv) {
 
     // ── Write output ──
     if (output_to_stdout) {
-        fwrite(resp.body.data(), 1, resp.body.size(), stdout);
-        fflush(stdout);
+        (void)fwrite(resp.body.data(), 1, resp.body.size(), stdout);
+        (void)fflush(stdout);
     } else {
         // Create parent directory if needed
-        std::string dir = output_file.substr(0, output_file.rfind('/'));
+        std::string const dir = output_file.substr(0, output_file.rfind('/'));
         if (!dir.empty()) {
             mkdirs(dir);
         }
@@ -496,7 +506,7 @@ int wget_command(int argc, char** argv) {
             fd = open(output_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         }
         if (fd < 0) {
-            fprintf(stderr, "wget: Failed to open file '%s': %s\n", output_file.c_str(), strerror(errno));
+            (void)fprintf(stderr, "wget: Failed to open file '%s': %s\n", output_file.c_str(), strerror(errno));
             return 1;
         }
 
@@ -509,7 +519,7 @@ int wget_command(int argc, char** argv) {
             }
             fd = open(output_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
-                fprintf(stderr, "wget: Failed to open file '%s': %s\n", output_file.c_str(), strerror(errno));
+                (void)fprintf(stderr, "wget: Failed to open file '%s': %s\n", output_file.c_str(), strerror(errno));
                 return 1;
             }
             // Re-fetch without range
@@ -526,22 +536,22 @@ int wget_command(int argc, char** argv) {
             resp = resp2;
         }
 
-        ssize_t written = write(fd, resp.body.data(), resp.body.size());
+        ssize_t const written = write(fd, resp.body.data(), resp.body.size());
         close(fd);
-        if ((size_t)written != resp.body.size()) {
-            fprintf(stderr, "wget: Failed to write to file '%s': %s\n", output_file.c_str(), strerror(errno));
+        if (static_cast<size_t>(written) != resp.body.size()) {
+            (void)fprintf(stderr, "wget: Failed to write to file '%s': %s\n", output_file.c_str(), strerror(errno));
             return 1;
         }
     }
 
     // ── Success message ──
     if (quiet_opt->count == 0) {
-        fprintf(stderr, "wget: saved [%ld] %s\n", (long)resp.body.size(), output_file.c_str());
+        (void)fprintf(stderr, "wget: saved [%ld] %s\n", static_cast<long>(resp.body.size()), output_file.c_str());
     }
 
     // ── HTTP error check ──
     if (resp.status_code >= 400) {
-        fprintf(stderr, "wget: HTTP error %d %s\n", resp.status_code, resp.status_text.c_str());
+        (void)fprintf(stderr, "wget: HTTP error %d %s\n", resp.status_code, resp.status_text.c_str());
         return 1;
     }
 

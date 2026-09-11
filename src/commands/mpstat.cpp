@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -6,11 +7,11 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
-#include <iomanip>
 #include <unistd.h>
 #include <sys/utsname.h>
 
 #include "commands/mpstat.hpp"
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
@@ -49,12 +50,15 @@ struct CpuTimes {
 static bool parse_cpu_line(const std::string& line, CpuTimes& t) {
     std::istringstream iss(line);
     std::string label;
-    if (!(iss >> label)) return false;
-    if (label.substr(0, 3) != "cpu") return false;
+    if (!(iss >> label)) { return false;
+}
+    if (!label.starts_with("cpu")) { return false;
+}
 
     long long vals[10] = {0};
     for (int i = 0; i < 10; i++) {
-        if (!(iss >> vals[i])) return false;
+        if (!(iss >> vals[i])) { return false;
+}
     }
 
     t.user      = vals[0];
@@ -73,11 +77,12 @@ static bool parse_cpu_line(const std::string& line, CpuTimes& t) {
 static std::vector<CpuTimes> read_proc_stat() {
     std::vector<CpuTimes> result;
     std::ifstream f("/proc/stat");
-    if (!f.is_open()) return result;
+    if (!f.is_open()) { return result;
+}
 
     std::string line;
     while (std::getline(f, line)) {
-        if (line.substr(0, 3) == "cpu") {
+        if (line.starts_with("cpu")) {
             CpuTimes t;
             if (parse_cpu_line(line, t)) {
                 result.push_back(t);
@@ -90,11 +95,12 @@ static std::vector<CpuTimes> read_proc_stat() {
 static std::vector<std::string> read_cpu_labels() {
     std::vector<std::string> result;
     std::ifstream f("/proc/stat");
-    if (!f.is_open()) return result;
+    if (!f.is_open()) { return result;
+}
 
     std::string line;
     while (std::getline(f, line)) {
-        if (line.substr(0, 3) == "cpu") {
+        if (line.starts_with("cpu")) {
             std::istringstream iss(line);
             std::string label;
             iss >> label;
@@ -105,24 +111,25 @@ static std::vector<std::string> read_cpu_labels() {
 }
 
 static void format_date_time(char* date_buf, size_t date_sz, char* time_buf, size_t time_sz) {
-    time_t now = time(nullptr);
+    time_t const now = time(nullptr);
     struct tm tm_now;
     localtime_r(&now, &tm_now);
-    strftime(date_buf, date_sz, "%Y-%m-%d", &tm_now);
-    strftime(time_buf, time_sz, "%H:%M:%S", &tm_now);
+    (void)strftime(date_buf, date_sz, "%Y-%m-%d", &tm_now);
+    (void)strftime(time_buf, time_sz, "%H:%M:%S", &tm_now);
 }
 
 static std::string format_timestamp() {
-    time_t now = time(nullptr);
+    time_t const now = time(nullptr);
     struct tm tm_now;
     localtime_r(&now, &tm_now);
     char buf[64];
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm_now);
+    (void)strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm_now);
     return std::string(buf);
 }
 
 static double safe_pct(long long num, long long den) {
-    if (den == 0) return 0.0;
+    if (den == 0) { return 0.0;
+}
     return (num * 100.0) / den;
 }
 
@@ -156,7 +163,8 @@ static StatEntry compute_entry(const CpuTimes& prev, const CpuTimes& curr) {
     diffs[9]  = curr.guest_nice - prev.guest_nice;
 
     long long total = 0;
-    for (int i = 0; i < 10; i++) total += diffs[i];
+    for (int i = 0; i < 10; i++) { total += diffs[i];
+}
 
     e.usr     = safe_pct(diffs[0], total);
     e.nice    = safe_pct(diffs[1], total);
@@ -172,12 +180,14 @@ static StatEntry compute_entry(const CpuTimes& prev, const CpuTimes& curr) {
 }
 
 static bool is_per_cpu_label(const std::string& label) {
-    if (label.size() < 4) return false;
-    return label.substr(0, 3) == "cpu" && label[3] >= '0' && label[3] <= '9';
+    if (label.size() < 4) { return false;
+}
+    return label.starts_with("cpu") && label[3] >= '0' && label[3] <= '9';
 }
 
 static std::string get_cpu_label(const std::string& label) {
-    if (label == "cpu") return "all";
+    if (label == "cpu") { return "all";
+}
     return label;
 }
 
@@ -192,7 +202,7 @@ int mpstat_command(int argc, char** argv) {
 
     ArgTable at({help_opt, ver_opt, json_opt, all_opt, delay_opt, count_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTIONS] [DELAY] [COUNT]\n", argv[0]);
@@ -217,17 +227,17 @@ int mpstat_command(int argc, char** argv) {
 
     int delay_sec = delay_opt->count > 0 ? delay_opt->ival[0] : 0;
     int count     = count_opt->count > 0 ? count_opt->ival[0] : 1;
-    bool json_mode = (json_opt->count > 0);
-    bool show_all  = (all_opt->count > 0);
+    bool const json_mode = (json_opt->count > 0);
+    bool const show_all  = (all_opt->count > 0);
 
-    if (delay_sec < 0) delay_sec = 0;
-    if (count < 1) count = 1;
+    delay_sec = std::max(delay_sec, 0);
+    count = std::max(count, 1);
 
     const long long US_PER_SEC = 1000000LL;
 
-    std::string kernel(get_kernel_version());
-    std::string host(get_hostname());
-    std::string arch(get_arch());
+    std::string const kernel(get_kernel_version());
+    std::string const host(get_hostname());
+    std::string const arch(get_arch());
 
     char date_buf[32] = {0};
     char time_buf[32] = {0};
@@ -237,18 +247,18 @@ int mpstat_command(int argc, char** argv) {
     auto samples = read_proc_stat();
 
     if (samples.empty()) {
-        fprintf(stderr, "mpstat: cannot read /proc/stat\n");
+        (void)fprintf(stderr, "mpstat: cannot read /proc/stat\n");
         return 1;
     }
 
-    bool has_aggregate = !labels.empty() && labels[0] == "cpu";
+    bool const has_aggregate = !labels.empty() && labels[0] == "cpu";
 
     std::ostringstream header_oss;
     header_oss << "Linux " << kernel << " (" << host << ")  "
                << arch << "  "
                << date_buf << "  " << time_buf
                << "  CPU  %usr  %nice  %sys  %iowait  %soft  %irq  %steal  %guest  %gnice  %idle";
-    std::string header = header_oss.str();
+    std::string const header = header_oss.str();
 
     if (json_mode) {
         std::vector<StatEntry> all_entries;
@@ -268,7 +278,8 @@ int mpstat_command(int argc, char** argv) {
             }
 
             for (size_t i = 0; i < samples.size(); i++) {
-                if (!show_all && i != 0) continue;
+                if (!show_all && i != 0) { continue;
+}
                 StatEntry e = compute_entry(samples[i], cur_samples[i]);
                 e.cpu = get_cpu_label(labels[i]);
                 all_entries.push_back(e);
@@ -277,12 +288,13 @@ int mpstat_command(int argc, char** argv) {
             samples = cur_samples;
         }
 
-        std::string ts = format_timestamp();
-        int cpu_count = static_cast<int>(labels.size());
+        std::string const ts = format_timestamp();
+        int const cpu_count = static_cast<int>(labels.size());
 
         printf("{\"timestamp\": \"%s\", \"cpu_count\": %d, \"statistics\": [", ts.c_str(), cpu_count);
         for (size_t i = 0; i < all_entries.size(); i++) {
-            if (i > 0) printf(", ");
+            if (i > 0) { printf(", ");
+}
             const auto& e = all_entries[i];
             printf("{\"cpu\": \"%s\", \"usr\": %.2f, \"nice\": %.2f, \"sys\": %.2f, \"iowait\": %.2f, \"soft\": %.2f, \"irq\": %.2f, \"steal\": %.2f, \"guest\": %.2f, \"gnice\": %.2f, \"idle\": %.2f}",
                    e.cpu.c_str(), e.usr, e.nice, e.sys, e.iowait, e.soft, e.irq, e.steal, e.guest, e.gnice, e.idle);
@@ -305,8 +317,10 @@ int mpstat_command(int argc, char** argv) {
 
             if (rep > 0 || delay_sec > 0) {
                 for (size_t i = 0; i < samples.size(); i++) {
-                    if (!show_all && i != 0) continue;
-                    if (!show_all && !has_aggregate) continue;
+                    if (!show_all && i != 0) { continue;
+}
+                    if (!show_all && !has_aggregate) { continue;
+}
                     StatEntry e = compute_entry(samples[i], cur_samples[i]);
                     e.cpu = get_cpu_label(labels[i]);
                     printf("%-9s %-8s %-5s %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %7.2f\n",
@@ -321,7 +335,8 @@ int mpstat_command(int argc, char** argv) {
                 }
                 if (show_all) {
                     for (size_t i = 0; i < labels.size(); i++) {
-                        if (!is_per_cpu_label(labels[i])) continue;
+                        if (!is_per_cpu_label(labels[i])) { continue;
+}
                         printf("%-9s %-8s %-5s %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f %7.2f\n",
                                "", "", labels[i].c_str(),
                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);

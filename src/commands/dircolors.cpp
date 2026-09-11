@@ -1,9 +1,6 @@
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <cstdint>
-#include <cctype>
-#include <string>
-#include <vector>
 
 #include "commands/dircolors.hpp"
 #include "commands/command_macros.hpp"
@@ -465,34 +462,41 @@ static void print_bourne(const char* db) {
     printf("LS_COLORS='");
     const char* p = db;
     bool first = true;
-    while (*p) {
-        while (*p == '\n' || *p == ' ' || *p == '\t') p++;
+    while ((*p) != 0) {
+        while (*p == '\n' || *p == ' ' || *p == '\t') { p++;
+}
         if (*p == '#') {
-            while (*p && *p != '\n') p++;
+            while (((*p) != 0) && *p != '\n') { p++;
+}
             continue;
         }
-        if (*p == '\0') break;
+        if (*p == '\0') { break;
+}
 
         char key[256];
         int ki = 0;
-        while (*p && *p != ' ' && *p != '\t' && *p != '\n' && ki < 254) {
+        while (((*p) != 0) && *p != ' ' && *p != '\t' && *p != '\n' && ki < 254) {
             key[ki++] = *p++;
         }
         key[ki] = '\0';
-        if (ki == 0) continue;
+        if (ki == 0) { continue;
+}
 
-        while (*p == ' ' || *p == '\t') p++;
+        while (*p == ' ' || *p == '\t') { p++;
+}
         if (*p == '\n') { p++; continue; }
 
         char val[256];
         int vi = 0;
-        while (*p && *p != '\n' && vi < 254) {
+        while (((*p) != 0) && *p != '\n' && vi < 254) {
             val[vi++] = *p++;
         }
         val[vi] = '\0';
-        if (*p == '\n') p++;
+        if (*p == '\n') { p++;
+}
 
-        if (!first) printf(":");
+        if (!first) { printf(":");
+}
         first = false;
         printf("%s=%s", key, val);
     }
@@ -504,34 +508,41 @@ static void print_csh(const char* db) {
     printf("setenv LS_COLORS '");
     const char* p = db;
     bool first = true;
-    while (*p) {
-        while (*p == '\n' || *p == ' ' || *p == '\t') p++;
+    while ((*p) != 0) {
+        while (*p == '\n' || *p == ' ' || *p == '\t') { p++;
+}
         if (*p == '#') {
-            while (*p && *p != '\n') p++;
+            while (((*p) != 0) && *p != '\n') { p++;
+}
             continue;
         }
-        if (*p == '\0') break;
+        if (*p == '\0') { break;
+}
 
         char key[256];
         int ki = 0;
-        while (*p && *p != ' ' && *p != '\t' && *p != '\n' && ki < 254) {
+        while (((*p) != 0) && *p != ' ' && *p != '\t' && *p != '\n' && ki < 254) {
             key[ki++] = *p++;
         }
         key[ki] = '\0';
-        if (ki == 0) continue;
+        if (ki == 0) { continue;
+}
 
-        while (*p == ' ' || *p == '\t') p++;
+        while (*p == ' ' || *p == '\t') { p++;
+}
         if (*p == '\n') { p++; continue; }
 
         char val[256];
         int vi = 0;
-        while (*p && *p != '\n' && vi < 254) {
+        while (((*p) != 0) && *p != '\n' && vi < 254) {
             val[vi++] = *p++;
         }
         val[vi] = '\0';
-        if (*p == '\n') p++;
+        if (*p == '\n') { p++;
+}
 
-        if (!first) printf(":");
+        if (!first) { printf(":");
+}
         first = false;
         printf("%s=%s", key, val);
     }
@@ -571,8 +582,8 @@ int dircolors_command(int argc, char** argv) {
             continue;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "dircolors: invalid option '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "dircolors: invalid option '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
         filename = a;
@@ -588,20 +599,20 @@ int dircolors_command(int argc, char** argv) {
     }
 
     const char* db = default_database;
-    if (filename) {
+    if (filename != nullptr) {
         FILE* f = fopen(filename, "r");
-        if (!f) {
-            fprintf(stderr, "dircolors: %s: No such file or directory\n", filename);
+        if (f == nullptr) {
+            (void)fprintf(stderr, "dircolors: %s: No such file or directory\n", filename);
             return 0;
         }
-        fseek(f, 0, SEEK_END);
-        long sz = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        char* buf = (char*)malloc((size_t)sz + 1);
-        if (!buf) { fclose(f); return 0; }
-        fread(buf, 1, (size_t)sz, f);
+        (void)fseek(f, 0, SEEK_END);
+        long const sz = ftell(f);
+        (void)fseek(f, 0, SEEK_SET);
+        char* buf = static_cast<char*>(malloc(static_cast<size_t>(sz) + 1));
+        if (buf == nullptr) { (void)fclose(f); return 0; }
+        (void)fread(buf, 1, static_cast<size_t>(sz), f);
         buf[sz] = '\0';
-        fclose(f);
+        (void)fclose(f);
         db = buf;
     }
 

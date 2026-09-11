@@ -20,30 +20,30 @@ static int lines_equal(const char* a, const char* b, const UniqOptions* opts) {
         int f;
         for (f = 0; f < opts->skip_fields; f++) {
             /* Skip whitespace */
-            while (*pa && (unsigned char)*pa <= ' ') { pa++; }
-            while (*pb && (unsigned char)*pb <= ' ') { pb++; }
+            while (((*pa) != 0) && static_cast<unsigned char>(*pa) <= ' ') { pa++; }
+            while (((*pb) != 0) && static_cast<unsigned char>(*pb) <= ' ') { pb++; }
             /* Skip non-whitespace */
-            while (*pa && (unsigned char)*pa > ' ') { pa++; }
-            while (*pb && (unsigned char)*pb > ' ') { pb++; }
+            while (((*pa) != 0) && static_cast<unsigned char>(*pa) > ' ') { pa++; }
+            while (((*pb) != 0) && static_cast<unsigned char>(*pb) > ' ') { pb++; }
         }
     }
 
     /* Skip characters */
     {
-        size_t la = strlen(pa);
-        size_t lb = strlen(pb);
-        int sc = opts->skip_chars;
-        pa += (sc < (int)la) ? sc : (int)la;
-        pb += (sc < (int)lb) ? sc : (int)lb;
+        size_t const la = strlen(pa);
+        size_t const lb = strlen(pb);
+        int const sc = opts->skip_chars;
+        pa += (sc < static_cast<int>(la)) ? sc : static_cast<int>(la);
+        pb += (sc < static_cast<int>(lb)) ? sc : static_cast<int>(lb);
     }
 
     /* Determine compare length */
-    size_t max_cmp = opts->check_chars > 0 ? (size_t)opts->check_chars : (size_t)-1;
+    size_t const max_cmp = opts->check_chars > 0 ? static_cast<size_t>(opts->check_chars) : static_cast<size_t>(-1);
 
-    if (opts->ignore_case) {
+    if (opts->ignore_case != 0) {
         size_t n = 0;
-        while (*pa && *pb && n < max_cmp) {
-            if (std::tolower((unsigned char)*pa) != std::tolower((unsigned char)*pb)) {
+        while (((*pa) != 0) && ((*pb) != 0) && n < max_cmp) {
+            if (std::tolower(static_cast<unsigned char>(*pa)) != std::tolower(static_cast<unsigned char>(*pb))) {
                 return 1;
             }
             pa++;
@@ -58,7 +58,7 @@ static int lines_equal(const char* a, const char* b, const UniqOptions* opts) {
     }
 
     size_t n = 0;
-    while (*pa && *pb && n < max_cmp) {
+    while (((*pa) != 0) && ((*pb) != 0) && n < max_cmp) {
         if (*pa != *pb) {
             return 1;
         }
@@ -75,24 +75,24 @@ static int lines_equal(const char* a, const char* b, const UniqOptions* opts) {
 /* Output a group of lines according to options. */
 static void output_group(FILE* out_fp, const UniqOptions* opts, const char* line, int count) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    int is_dup = (count > 1);
-    if (opts->count) {
+    int const is_dup = static_cast<int>(count > 1);
+    if (opts->count != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(out_fp, "%7d %s\n", count, line);
-    } else if (opts->all_repeated) {
-        if (is_dup) {
+    } else if (opts->all_repeated != 0) {
+        if (is_dup != 0) {
             for (int i = 0; i < count; i++) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(out_fp, "%s\n", line);
             }
         }
-    } else if (opts->repeated) {
-        if (is_dup) {
+    } else if (opts->repeated != 0) {
+        if (is_dup != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(out_fp, "%s\n", line);
         }
-    } else if (opts->unique) {
-        if (!is_dup) {
+    } else if (opts->unique != 0) {
+        if (is_dup == 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(out_fp, "%s\n", line);
         }
@@ -110,14 +110,14 @@ static void uniq_file(FILE* fp, const UniqOptions* opts, FILE* out_fp) {
     int has_prev = 0;
     int count = 1;
 
-    while (fgets(line_buf, UNIQ_MAX_LINE, fp)) {
-        size_t len = strlen(line_buf);
+    while (fgets(line_buf, UNIQ_MAX_LINE, fp) != nullptr) {
+        size_t const len = strlen(line_buf);
         /* Strip trailing newline */
         if (len > 0 && line_buf[len - 1] == '\n') {
             line_buf[len - 1] = '\0';
         }
 
-        if (!has_prev) {
+        if (has_prev == 0) {
             memcpy(prev_buf, line_buf, UNIQ_MAX_LINE);
             has_prev = 1;
             count = 1;
@@ -134,7 +134,7 @@ static void uniq_file(FILE* fp, const UniqOptions* opts, FILE* out_fp) {
     }
 
     /* Output last group */
-    if (has_prev) {
+    if (has_prev != 0) {
         output_group(out_fp, opts, prev_buf, count);
     }
 }
@@ -142,7 +142,7 @@ static void uniq_file(FILE* fp, const UniqOptions* opts, FILE* out_fp) {
 /* ── Main command ────────────────────────────────────────────────────────── */
 
 int uniq_command(int argc, char** argv) {
-    UniqOptions opts = {0};
+    UniqOptions opts = {.count=0};
 
     struct arg_lit* count_opt = arg_lit0("c", "count", "prefix lines by the number of occurrences");
     struct arg_lit* repeated_opt = arg_lit0("d", "repeated", "only print duplicate lines, one per group");
@@ -164,7 +164,7 @@ int uniq_command(int argc, char** argv) {
         file_arg, output_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [INPUT [OUTPUT]]\n", argv[0]);
@@ -189,11 +189,11 @@ int uniq_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    opts.count = (count_opt->count > 0);
-    opts.repeated = (repeated_opt->count > 0);
-    opts.all_repeated = (all_repeated_opt->count > 0);
-    opts.unique = (unique_opt->count > 0);
-    opts.ignore_case = (ignore_case_opt->count > 0);
+    opts.count = static_cast<int>(count_opt->count > 0);
+    opts.repeated = static_cast<int>(repeated_opt->count > 0);
+    opts.all_repeated = static_cast<int>(all_repeated_opt->count > 0);
+    opts.unique = static_cast<int>(unique_opt->count > 0);
+    opts.ignore_case = static_cast<int>(ignore_case_opt->count > 0);
     opts.skip_fields = (skip_fields_opt->count > 0 ? skip_fields_opt->ival[0] : 0);
     opts.skip_chars = (skip_chars_opt->count > 0 ? skip_chars_opt->ival[0] : 0);
     opts.check_chars = (check_chars_opt->count > 0 ? check_chars_opt->ival[0] : 0);

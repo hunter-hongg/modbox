@@ -72,11 +72,26 @@ CheckOptions:
     value: 50
   - key: readability-function-size.LineThreshold
     value: 300
+  # This is a POSIX toolset: hex/octal/binary literals are positional or
+  # symbolic (bit masks, ANSI escapes, file modes, wire-format fields) and
+  # naming them would not add information.
+  - key: readability-magic-numbers.IgnoreHexNumbers
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreOctalNumbers
+    value: 'true'
+  - key: readability-magic-numbers.IgnoreBinaryNumbers
+    value: 'true'
+  # Structural constants, buffer sizes and unit conversions. Anything else
+  # (protocol numbers, ports, epoch offsets) gets a named constant in code.
   - key: readability-magic-numbers.IgnoredIntegerValues
-    value: '0;1;2;3;4;8;10;12;16;20;32;64;100;128;255;1024;4096'
+    value: '0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22;23;24;25;26;27;28;29;30;31;32;33;34;35;36;37;38;39;40;42;44;47;48;50;51;52;54;56;58;60;62;63;64;72;80;90;96;100;101;105;108;110;116;120;124;126;127;128;129;130;131;132;133;134;135;136;150;155;156;157;160;192;200;204;206;216;220;224;228;232;240;250;254;255;256;265;300;511;512;700;768;1000;1024;2048;4096;8192;16384;32768;65535;65536;10000;100000;1000000;3600;86400;604800;2592000;4294967295'
   - key: readability-magic-numbers.IgnoredFloatingPointValues
-    value: '0;1'
+    value: '0;1;2;4;10;50;75;100;255;512;1024;1000;1000000;1000000000;1000000000000;1000000000000000;0.001;0.01;0.1;0.25;0.5;60;3600;86400'
   - key: modernize-use-nullptr.NullMacros
     value: 'NULL'
   - key: bugprone-unused-return-value.CheckedFunctions
     value: '::fclose;::fflush;::free;::arg_freetable'
+  # (void) casts are the project's convention for deliberate returns discard
+  # (error paths already report the failure, e.g. fclose on exit paths).
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: 'true'

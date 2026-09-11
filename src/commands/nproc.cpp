@@ -1,6 +1,6 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
-#include <climits>
 #include <unistd.h>
 
 #include "commands/nproc.hpp"
@@ -29,7 +29,7 @@ int nproc_command(int argc, char** argv) {
     }
 
     long n = sysconf(_SC_NPROCESSORS_ONLN);
-    if (n < 1) n = 1;
+    n = std::max<long>(n, 1);
     printf("%ld\n", n);
     return 0;
 }

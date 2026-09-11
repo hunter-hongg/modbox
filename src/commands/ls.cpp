@@ -1,5 +1,6 @@
 #include <argtable3.h>
 #include <dirent.h>
+#include <algorithm>
 #include <cerrno>
 #include <climits>
 #include <pwd.h>
@@ -12,6 +13,7 @@
 #include <sys/types.h>
 #include <ctime>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -74,18 +76,18 @@ static int should_color(ColorMode mode) {
  *  Returns a pointer into the original string (no allocation). */
 static const char *display_name_of(const char *path) {
   const char *slash = strrchr(path, '/');
-  return slash ? slash + 1 : path;
+  return (slash != nullptr) ? slash + 1 : path;
 }
 
 static void print_escaped_filename(const char *filename) {
-  for (const unsigned char *p = (const unsigned char *)filename; *p != '\0';
+  for (const unsigned char *p = reinterpret_cast<const unsigned char *>(filename); *p != '\0';
        p++) {
     // Tab is printed as-is; printable ASCII is printed as-is
     if (*p == '\t' || (*p >= ASCII_SPACE && *p <= ASCII_TILDE)) {
-      putchar((int)*p);
+      putchar(static_cast<int>(*p));
     } else {
       // All other bytes are escaped as \ooo (3-digit octal)
-      printf("\\%03o", (int)*p);
+      printf("\\%03o", static_cast<int>(*p));
     }
   }
 }
@@ -112,12 +114,12 @@ static const char *file_type_color(mode_t mode) {
 static void print_colored_triad(mode_t mode, int bit_r, int bit_w, int bit_x,
                                 int special_bit, char special_set_char,
                                 char special_unset_char) {
-  printf("\033[37m%c\033[0m", mode & bit_r ? 'r' : '-');
-  printf("\033[33m%c\033[0m", mode & bit_w ? 'w' : '-');
-  if (mode & special_bit) {
-    printf("\033[1;31m%c\033[0m", mode & bit_x ? special_set_char : special_unset_char);
+  printf("\033[37m%c\033[0m", ((mode & bit_r) != 0u) ? 'r' : '-');
+  printf("\033[33m%c\033[0m", ((mode & bit_w) != 0u) ? 'w' : '-');
+  if ((mode & special_bit) != 0u) {
+    printf("\033[1;31m%c\033[0m", ((mode & bit_x) != 0u) ? special_set_char : special_unset_char);
   } else {
-    printf("\033[1;32m%c\033[0m", mode & bit_x ? 'x' : '-');
+    printf("\033[1;32m%c\033[0m", ((mode & bit_x) != 0u) ? 'x' : '-');
   }
 }
 
@@ -133,44 +135,44 @@ static void print_colorful_permissions(const struct stat *st) {
 
 static void print_plain_permissions(const struct stat *st) {
   printf("%c%c%c%c%c%c%c%c%c ", S_ISDIR(st->st_mode) ? 'd' : '-',
-         st->st_mode & S_IRUSR ? 'r' : '-', st->st_mode & S_IWUSR ? 'w' : '-',
-         st->st_mode & S_IXUSR ? 'x' : '-', st->st_mode & S_IRGRP ? 'r' : '-',
-         st->st_mode & S_IWGRP ? 'w' : '-', st->st_mode & S_IXGRP ? 'x' : '-',
-         st->st_mode & S_IROTH ? 'r' : '-', st->st_mode & S_IWOTH ? 'w' : '-');
+         ((st->st_mode & S_IRUSR) != 0u) ? 'r' : '-', ((st->st_mode & S_IWUSR) != 0u) ? 'w' : '-',
+         ((st->st_mode & S_IXUSR) != 0u) ? 'x' : '-', ((st->st_mode & S_IRGRP) != 0u) ? 'r' : '-',
+         ((st->st_mode & S_IWGRP) != 0u) ? 'w' : '-', ((st->st_mode & S_IXGRP) != 0u) ? 'x' : '-',
+         ((st->st_mode & S_IROTH) != 0u) ? 'r' : '-', ((st->st_mode & S_IWOTH) != 0u) ? 'w' : '-');
 }
 
 static void print_owner_group(const struct stat *st, const LsOptions *opts) {
-  int colorful = opts->colorful;
-  struct passwd *pwd = getpwuid(st->st_uid);
-  struct group *grp = getgrgid(st->st_gid);
-  if (opts->show_author) {
-    if (colorful) {
+  int const colorful = opts->colorful;
+  const struct passwd *pwd = getpwuid(st->st_uid);
+  const struct group *grp = getgrgid(st->st_gid);
+  if (opts->show_author != 0) {
+    if (colorful != 0) {
       printf("\033[1;33m");
     }
-    printf("%s %s ", pwd ? pwd->pw_name : "-", pwd ? pwd->pw_name : "-");
-    if (colorful) {
+    printf("%s %s ", (pwd != nullptr) ? pwd->pw_name : "-", (pwd != nullptr) ? pwd->pw_name : "-");
+    if (colorful != 0) {
       printf("\033[0m");
     }
-    if (colorful) {
+    if (colorful != 0) {
       printf("\033[1;36m");
     }
-    printf("%s ", grp ? grp->gr_name : "-");
-    if (colorful) {
+    printf("%s ", (grp != nullptr) ? grp->gr_name : "-");
+    if (colorful != 0) {
       printf("\033[0m");
     }
   } else {
-    if (colorful) {
+    if (colorful != 0) {
       printf("\033[1;33m");
     }
-    printf("%s ", pwd ? pwd->pw_name : "-");
-    if (colorful) {
+    printf("%s ", (pwd != nullptr) ? pwd->pw_name : "-");
+    if (colorful != 0) {
       printf("\033[0m");
     }
-    if (colorful) {
+    if (colorful != 0) {
       printf("\033[1;36m");
     }
-    printf("%s ", grp ? grp->gr_name : "-");
-    if (colorful) {
+    printf("%s ", (grp != nullptr) ? grp->gr_name : "-");
+    if (colorful != 0) {
       printf("\033[0m");
     }
   }
@@ -178,7 +180,7 @@ static void print_owner_group(const struct stat *st, const LsOptions *opts) {
 
 static void print_size_with_color(unsigned long raw, unsigned long display_size,
                                    const LsOptions *opts) {
-  if (opts->colorful) {
+  if (opts->colorful != 0) {
     if (raw > ONE_GIB) {
       printf("\033[1;31m");
     } else if (raw > ONE_MIB) {
@@ -192,14 +194,14 @@ static void print_size_with_color(unsigned long raw, unsigned long display_size,
   } else {
     printf("%8lu ", display_size);
   }
-  if (opts->colorful) {
+  if (opts->colorful != 0) {
     printf("\033[0m");
   }
 }
 
 static void print_date_with_color(const struct stat *st) {
-  time_t now = time(NULL);
-  double diff = difftime(now, st->st_mtime);
+  time_t const now = time(NULL);
+  double const diff = difftime(now, st->st_mtime);
   if (diff < AGE_12H) {
     printf("\033[1;32m");
   } else if (diff < AGE_24H) {
@@ -216,22 +218,22 @@ static void print_long_format(const char *display_name, const struct stat *st,
                                 const LsOptions *opts,
                                 const char *color_code,
                                 const char *classify_suffix) {
-  int colorful = opts->colorful;
+  int const colorful = opts->colorful;
 
   // ── Permissions ──
-  if (colorful) {
+  if (colorful != 0) {
     print_colorful_permissions(st);
   } else {
     print_plain_permissions(st);
   }
 
   // ── Link count ──
-  if (colorful) {
+  if (colorful != 0) {
     printf("\033[33m");
   }
   // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-  printf("%4ld ", (long)st->st_nlink);
-  if (colorful) {
+  printf("%4ld ", static_cast<long>(st->st_nlink));
+  if (colorful != 0) {
     printf("\033[0m");
   }
 
@@ -239,11 +241,11 @@ static void print_long_format(const char *display_name, const struct stat *st,
   print_owner_group(st, opts);
 
   // ── Size ──
-  unsigned long raw = (unsigned long)st->st_size;
-  unsigned long display_size =
+  unsigned long const raw = static_cast<unsigned long>(st->st_size);
+  unsigned long const display_size =
       opts->block_size > 0
-          ? (unsigned long)((st->st_size + ((off_t)opts->block_size / 2))
-                            / (off_t)opts->block_size)
+          ? static_cast<unsigned long>((st->st_size + (static_cast<off_t>(opts->block_size) / 2))
+                            / static_cast<off_t>(opts->block_size))
           : raw;
   print_size_with_color(raw, display_size, opts);
 
@@ -252,22 +254,22 @@ static void print_long_format(const char *display_name, const struct stat *st,
   // NOLINTNEXTLINE(bugprone-unused-return-value)
   (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M",
                  localtime(&st->st_mtime));
-  if (colorful) {
+  if (colorful != 0) {
     print_date_with_color(st);
   }
   printf("%s ", time_buf);
-  if (colorful) {
+  if (colorful != 0) {
     printf("\033[0m");
   }
 
   // ── Filename ──
-  if (opts->show_icons) {
+  if (opts->show_icons != 0) {
     printf("%s ", icon_utf8(classify(*st)));
   }
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
   }
-  if (opts->escape_mode) {
+  if (opts->escape_mode != 0) {
     print_escaped_filename(display_name);
   } else {
     printf("%s", display_name);
@@ -283,72 +285,72 @@ static void print_file_info(const char* display_name, const struct stat* st, con
   int use_color = should_color(opts->color_mode);
   const char *suffix = "";
 
-  if (!opts->show_details && !use_color) {
+  if ((opts->show_details == 0) && (use_color == 0)) {
     int have_stat = 0;
     struct stat lst;
-    if (opts->classify || opts->show_icons) {
-      have_stat = (lstat(display_name, &lst) == 0);
-      if (have_stat && opts->classify) {
+    if ((opts->classify != 0) || (opts->show_icons != 0)) {
+      have_stat = static_cast<int>(lstat(display_name, &lst) == 0);
+      if ((have_stat != 0) && (opts->classify != 0)) {
         suffix = classify_suffix(classify(lst));
       }
     }
-    if (opts->show_icons && have_stat) {
+    if ((opts->show_icons != 0) && (have_stat != 0)) {
       printf("%s ", icon_utf8(classify(lst)));
     }
-    if (opts->escape_mode) {
+    if (opts->escape_mode != 0) {
       print_escaped_filename(display_name);
     } else {
       printf("%s", display_name);
     }
-    printf("%s%s", suffix, opts->show_one_column ? "\n" : "  ");
+    printf("%s%s", suffix, (opts->show_one_column != 0) ? "\n" : "  ");
     return;
   }
 
   struct stat st_buf;
-  const struct stat* use_st = st ? st : &st_buf;
-  if (!st) {
+  const struct stat* use_st = (st != nullptr) ? st : &st_buf;
+  if (st == nullptr) {
     if (lstat(display_name, &st_buf) == -1) {
-      if (opts->show_details) {
-        fprintf(stderr, "ls: cannot access '%s': %s\n", display_name, strerror(errno));
+      if (opts->show_details != 0) {
+        (void)fprintf(stderr, "ls: cannot access '%s': %s\n", display_name, strerror(errno));
       } else {
-        if (opts->escape_mode) {
+        if (opts->escape_mode != 0) {
           print_escaped_filename(display_name);
         } else {
           printf("%s", display_name);
         }
-        printf("%s", opts->show_one_column ? "\n" : "  ");
+        printf("%s", (opts->show_one_column != 0) ? "\n" : "  ");
       }
       return;
     }
   }
 
-  if (opts->classify) {
+  if (opts->classify != 0) {
     suffix = classify_suffix(classify(*use_st));
   }
 
   const char *color_code = NULL;
-  if (use_color) {
+  if (use_color != 0) {
     color_code = ansi_color_code(classify(*use_st));
-    use_color = (color_code != NULL);
+    use_color = static_cast<int>(color_code != NULL);
   }
 
-  if (!opts->show_details) {
-    if (opts->show_icons) {
+  if (opts->show_details == 0) {
+    if (opts->show_icons != 0) {
       printf("%s ", icon_utf8(classify(*use_st)));
     }
-    if (use_color) {
+    if (use_color != 0) {
       printf("\033[%sm", color_code);
     }
-    if (opts->escape_mode) {
+    if (opts->escape_mode != 0) {
       print_escaped_filename(display_name);
     } else {
       printf("%s", display_name);
     }
     printf("%s", suffix);
-    if (use_color) {
+    if (use_color != 0) {
       printf("\033[0m");
     }
-    printf("%s", opts->show_one_column ? "\n" : "  ");
+    printf("%s", (opts->show_one_column != 0) ? "\n" : "  ");
     return;
   }
 
@@ -419,18 +421,18 @@ static unsigned long parse_block_size(const char *str) {
 
 /** Get the terminal width in columns, falling back to the COLUMNS env var,
  *  then to a default of 80. */
-static int get_terminal_width(void) {
+static int get_terminal_width() {
   struct winsize ws;
   // NOLINTNEXTLINE(misc-include-cleaner)
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
-    return (int)ws.ws_col;
+    return static_cast<int>(ws.ws_col);
   }
   const char *cols = getenv("COLUMNS");
   if (cols != NULL) {
     char *endptr;
-    long val = strtol(cols, &endptr, 10);
+    long const val = strtol(cols, &endptr, 10);
     if (endptr != cols && val > 0 && val < MAX_COLUMNS_ENV) {
-      return (int)val;
+      return static_cast<int>(val);
     }
   }
   return DEFAULT_TERMINAL_WIDTH;
@@ -441,7 +443,7 @@ static int get_terminal_width(void) {
  *  non-printable bytes count as 4 ( "\ooo" ). */
 static int escaped_display_width(const char *s) {
   int width = 0;
-  for (const unsigned char *p = (const unsigned char *)s; *p != '\0'; p++) {
+  for (const unsigned char *p = reinterpret_cast<const unsigned char *>(s); *p != '\0'; p++) {
     if (*p == '\t' || (*p >= ASCII_SPACE && *p <= ASCII_TILDE)) {
       width++;
     } else {
@@ -452,17 +454,17 @@ static int escaped_display_width(const char *s) {
 }
 
 /** Compute the visual width of a plain (non-escaped) filename. */
-static int plain_display_width(const char *s) { return (int)strlen(s); }
+static int plain_display_width(const char *s) { return static_cast<int>(strlen(s)); }
 
 /** Decide whether to use column layout.
  *  On terminal, unsorted output uses single-column layout (no wrap).
  *  When piped or redirected, preserve the configured column mode.
  *  -1 forces single-column output. */
 static int should_use_columns(const LsOptions *opts) {
-    if (opts->show_one_column) {
+    if (opts->show_one_column != 0) {
         return 0;
     }
-    if (opts->unsorted && isatty(STDOUT_FILENO)) {
+    if ((opts->unsorted != 0) && (isatty(STDOUT_FILENO) != 0)) {
         return 0;
     }
     return opts->show_columns;
@@ -478,12 +480,12 @@ static void print_one_entry(const char *name, int col, int num_cols,
                              int use_color) {
   const char *display_name = display_name_of(name);
   int name_display_w =
-      opts->escape_mode ? escaped_display_width(display_name)
+      (opts->escape_mode != 0) ? escaped_display_width(display_name)
                         : plain_display_width(display_name);
-  if (opts->classify) {
+  if (opts->classify != 0) {
     name_display_w += 1;
   }
-  if (opts->show_icons) {
+  if (opts->show_icons != 0) {
     name_display_w += ICON_DISPLAY_WIDTH + 1; // icon + space
   }
 
@@ -491,25 +493,25 @@ static void print_one_entry(const char *name, int col, int num_cols,
   const char *suffix = "";
   struct stat st;
   int have_stat = 0;
-  if (use_color || opts->classify || opts->show_icons) {
-    have_stat = (lstat(name, &st) == 0);
-    if (have_stat) {
-      if (use_color) {
+  if ((use_color != 0) || (opts->classify != 0) || (opts->show_icons != 0)) {
+    have_stat = static_cast<int>(lstat(name, &st) == 0);
+    if (have_stat != 0) {
+      if (use_color != 0) {
         color_code = ansi_color_code(classify(st));
       }
-      if (opts->classify) {
+      if (opts->classify != 0) {
         suffix = classify_suffix(classify(st));
       }
     }
   }
 
-  if (opts->show_icons && have_stat) {
+  if ((opts->show_icons != 0) && (have_stat != 0)) {
     printf("%s ", icon_utf8(classify(st)));
   }
   if (color_code != NULL) {
     printf("\033[%sm", color_code);
   }
-  if (opts->escape_mode) {
+  if (opts->escape_mode != 0) {
     print_escaped_filename(display_name);
   } else {
     printf("%s", display_name);
@@ -531,9 +533,9 @@ static void print_one_entry(const char *name, int col, int num_cols,
 }
 
 static void print_columns(const std::vector<LsEntry>& files, const LsOptions *opts) {
-  int use_color = should_color(opts->color_mode);
-  int term_width = get_terminal_width();
-  int count = (int)files.size();
+  int const use_color = should_color(opts->color_mode);
+  int const term_width = get_terminal_width();
+  int const count = static_cast<int>(files.size());
 
   if (count == 0) {
     return;
@@ -543,35 +545,27 @@ static void print_columns(const std::vector<LsEntry>& files, const LsOptions *op
   int max_width = 0;
   for (const auto& fe : files) {
     const char *display_name = display_name_of(fe.display_name.c_str());
-    int w = opts->escape_mode ? escaped_display_width(display_name)
+    int w = (opts->escape_mode != 0) ? escaped_display_width(display_name)
                               : plain_display_width(display_name);
-    if (opts->classify) {
+    if (opts->classify != 0) {
       w += 1;
     }
-    if (opts->show_icons) {
+    if (opts->show_icons != 0) {
       w += ICON_DISPLAY_WIDTH + 1; // icon + space
     }
-    if (w > max_width) {
-      max_width = w;
-    }
+    max_width = std::max(w, max_width);
   }
 
   const int gap = COLUMN_GAP;
   int col_width = max_width + gap;
-  if (col_width > term_width) {
-    col_width = term_width;
-  }
+  col_width = std::min(col_width, term_width);
   int num_cols = term_width / col_width;
-  if (num_cols < 1) {
-    num_cols = 1;
-  }
-  if (num_cols > count) {
-    num_cols = count;
-  }
-  int num_rows = (count + num_cols - 1) / num_cols;
+  num_cols = std::max(num_cols, 1);
+  num_cols = std::min(num_cols, count);
+  int const num_rows = (count + num_cols - 1) / num_cols;
 
   /* Build an array of C-string pointers for indexed access */
-  const char **names = (const char **)malloc(sizeof(*names) * (size_t)count);
+  const char **names = static_cast<const char **>(malloc(sizeof(*names) * static_cast<size_t>(count)));
   {
     int idx = 0;
     for (const auto& fentry : files) {
@@ -582,7 +576,7 @@ static void print_columns(const std::vector<LsEntry>& files, const LsOptions *op
   /* Print in vertical-sorted order (down columns) */
   for (int row = 0; row < num_rows; row++) {
     for (int col = 0; col < num_cols; col++) {
-      int index = (col * num_rows) + row;
+      int const index = (col * num_rows) + row;
       if (index >= count) {
         continue;
       }
@@ -605,24 +599,24 @@ static void sort_and_output_files(std::vector<LsEntry>& files, const LsOptions *
     return;
   }
 
-  if (!opts->unsorted) {
+  if (opts->unsorted == 0) {
     std::sort(files.begin(), files.end(),
               [](const LsEntry& a, const LsEntry& b) {
                   return a.display_name < b.display_name;
               });
   }
 
-  if (opts->reverse_sort && !opts->unsorted) {
+  if ((opts->reverse_sort != 0) && (opts->unsorted == 0)) {
     std::reverse(files.begin(), files.end());
   }
 
-  if (should_use_columns(opts)) {
+  if (should_use_columns(opts) != 0) {
     print_columns(files, opts);
   } else {
     for (const auto& fentry : files) {
       print_file_info(fentry.path.c_str(), &fentry.st, opts);
     }
-    if (!opts->show_details && !opts->show_one_column) {
+    if ((opts->show_details == 0) && (opts->show_one_column == 0)) {
       printf("\n");
     }
   }
@@ -631,17 +625,17 @@ static void sort_and_output_files(std::vector<LsEntry>& files, const LsOptions *
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 static std::vector<LsEntry> collect_entries(DIR* dir, const char* dirpath, const LsOptions* opts) {
     std::vector<LsEntry> entries = ls_collect_entries(dirpath, opts->show_all, opts->show_almost_all, opts->ignore_backups);
-    if (!opts->show_all && !opts->show_almost_all) {
+    if ((opts->show_all == 0) && (opts->show_almost_all == 0)) {
         entries.erase(
             std::remove_if(entries.begin(), entries.end(),
                 [](const LsEntry& e) { return e.display_name.empty() || e.display_name[0] == '.'; }),
             entries.end());
     }
-    if (opts->ignore_backups) {
+    if (opts->ignore_backups != 0) {
         entries.erase(
             std::remove_if(entries.begin(), entries.end(),
                 [](const LsEntry& e) {
-                    size_t dlen = e.display_name.size();
+                    size_t const dlen = e.display_name.size();
                     return dlen > 0 && e.display_name[dlen - 1] == '~';
                 }),
             entries.end());
@@ -651,7 +645,7 @@ static std::vector<LsEntry> collect_entries(DIR* dir, const char* dirpath, const
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int ls_command(int argc, char **argv) {
-  LsOptions opts = {0};
+  LsOptions opts = {.show_all=0};
   opts.list_dir_contents = 1; /* default: list directory contents */
   opts.color_mode = ColorMode::NEVER;
 
@@ -724,7 +718,7 @@ int ls_command(int argc, char **argv) {
                dir_arg,
                end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... [DIR]...\n", argv[0]);
@@ -756,27 +750,27 @@ int ls_command(int argc, char **argv) {
     return at.print_errors(end, argv[0]);
   }
 
-  opts.show_almost_all = (almost_all_opt->count > 0);
-  opts.show_all = (all_opt->count > 0) && (!opts.show_almost_all); // -A overrides -a
-  opts.show_details = (long_opt->count > 0);
-  opts.show_columns = (columns_opt->count > 0) && (!opts.show_details);
-  opts.show_one_column = (one_column_opt->count > 0);
-  if (opts.show_one_column) {
+  opts.show_almost_all = static_cast<int>(almost_all_opt->count > 0);
+  opts.show_all = static_cast<int>((all_opt->count > 0) && (opts.show_almost_all == 0)); // -A overrides -a
+  opts.show_details = static_cast<int>(long_opt->count > 0);
+  opts.show_columns = static_cast<int>((columns_opt->count > 0) && (opts.show_details == 0));
+  opts.show_one_column = static_cast<int>(one_column_opt->count > 0);
+  if (opts.show_one_column != 0) {
     opts.show_columns = 0;
   }
-  opts.classify = (classify_opt->count > 0);
-  opts.colorful = (colorful_opt->count > 0);
-  opts.show_icons = (icons_opt->count > 0);
-  opts.tui_mode = (tui_opt->count > 0);
-  bool json_mode = (json_opt->count > 0);
-  if (opts.colorful) {
+  opts.classify = static_cast<int>(classify_opt->count > 0);
+  opts.colorful = static_cast<int>(colorful_opt->count > 0);
+  opts.show_icons = static_cast<int>(icons_opt->count > 0);
+  opts.tui_mode = static_cast<int>(tui_opt->count > 0);
+  bool const json_mode = (json_opt->count > 0);
+  if (opts.colorful != 0) {
     opts.color_mode = ColorMode::ALWAYS;
   }
-  opts.reverse_sort = (reverse_opt->count > 0);
-  opts.unsorted = (unsorted_opt->count > 0);
-  opts.show_author = (author_opt->count > 0);
-  opts.escape_mode = (escape_opt->count > 0);
-  opts.ignore_backups = (ignore_backups_opt->count > 0);
+  opts.reverse_sort = static_cast<int>(reverse_opt->count > 0);
+  opts.unsorted = static_cast<int>(unsorted_opt->count > 0);
+  opts.show_author = static_cast<int>(author_opt->count > 0);
+  opts.escape_mode = static_cast<int>(escape_opt->count > 0);
+  opts.ignore_backups = static_cast<int>(ignore_backups_opt->count > 0);
   if (directory_opt->count > 0) {
     opts.list_dir_contents = 0;
   }
@@ -798,9 +792,9 @@ int ls_command(int argc, char **argv) {
     }
   }
 
-  if (opts.tui_mode) {
-    if (!isatty(STDOUT_FILENO)) {
-      fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
+  if (opts.tui_mode != 0) {
+    if (isatty(STDOUT_FILENO) == 0) {
+      (void)fprintf(stderr, "ls: --tui requires a terminal; falling back to normal output\n");
     } else {
       ls_tui_command(argc, argv, opts.color_mode);
       return 0;
@@ -810,7 +804,7 @@ int ls_command(int argc, char **argv) {
   if (block_size_opt->count > 0) {
     opts.block_size = parse_block_size(block_size_opt->sval[0]);
     const char *bs_str = block_size_opt->sval[0];
-    size_t bs_len = strlen(bs_str);
+    size_t const bs_len = strlen(bs_str);
     for (size_t j = bs_len; j > 0; j--) {
       if ((bs_str[j - 1] >= 'A' && bs_str[j - 1] <= 'Z') ||
           (bs_str[j - 1] >= 'a' && bs_str[j - 1] <= 'z')) {
@@ -830,7 +824,7 @@ int ls_command(int argc, char **argv) {
 
    std::vector<LsEntry> all_json_entries;
 
-   if (opts.list_dir_contents) {
+   if (opts.list_dir_contents != 0) {
       for (int i = 0; i < dir_arg->count; i++) {
         DIR* dir = opendir(dir_arg->filename[i]);
         if (dir == NULL) {
@@ -870,44 +864,44 @@ int ls_command(int argc, char **argv) {
       if (json_mode) {
         all_json_entries = std::move(files);
       } else {
-        opts.show_columns = opts.show_columns || !opts.show_details;
+        opts.show_columns = static_cast<int>((opts.show_columns != 0) || (opts.show_details) == 0);
         sort_and_output_files(files, &opts);
       }
     }
 
     if (json_mode) {
-      if (!opts.unsorted) {
+      if (opts.unsorted == 0) {
         std::sort(all_json_entries.begin(), all_json_entries.end(),
                   [](const LsEntry& a, const LsEntry& b) {
                       return a.display_name < b.display_name;
                   });
       }
-      if (opts.reverse_sort && !opts.unsorted) {
+      if ((opts.reverse_sort != 0) && (opts.unsorted == 0)) {
         std::reverse(all_json_entries.begin(), all_json_entries.end());
       }
-      fprintf(stdout, "[\n");
+      (void)fprintf(stdout, "[\n");
       for (size_t i = 0; i < all_json_entries.size(); i++) {
         const LsEntry& fentry = all_json_entries[i];
         char mode_buf[16];
-        snprintf(mode_buf, sizeof(mode_buf), "0o%o", (unsigned)fentry.st.st_mode & 07777);
-        fprintf(stdout, "  {\n");
-        fprintf(stdout, "    \"name\": ");
+        (void)snprintf(mode_buf, sizeof(mode_buf), "0o%o", static_cast<unsigned>(fentry.st.st_mode) & 07777);
+        (void)fprintf(stdout, "  {\n");
+        (void)fprintf(stdout, "    \"name\": ");
         json_escape_string(stdout, fentry.display_name.c_str());
-        fprintf(stdout, ",\n");
-        fprintf(stdout, "    \"path\": ");
+        (void)fprintf(stdout, ",\n");
+        (void)fprintf(stdout, "    \"path\": ");
         json_escape_string(stdout, fentry.path.c_str());
-        fprintf(stdout, ",\n");
-        fprintf(stdout, "    \"mode\": ");
+        (void)fprintf(stdout, ",\n");
+        (void)fprintf(stdout, "    \"mode\": ");
         json_escape_string(stdout, mode_buf);
-        fprintf(stdout, ",\n");
-        fprintf(stdout, "    \"nlink\": %d,\n", (int)fentry.st.st_nlink);
-        fprintf(stdout, "    \"uid\": %d,\n", fentry.st.st_uid);
-        fprintf(stdout, "    \"gid\": %d,\n", fentry.st.st_gid);
-        fprintf(stdout, "    \"size\": %ld,\n", (long)fentry.st.st_size);
-        fprintf(stdout, "    \"mtime\": %ld\n", (long)fentry.st.st_mtime);
-        fprintf(stdout, "  }%s\n", (i + 1 < all_json_entries.size()) ? "," : "");
+        (void)fprintf(stdout, ",\n");
+        (void)fprintf(stdout, "    \"nlink\": %d,\n", static_cast<int>(fentry.st.st_nlink));
+        (void)fprintf(stdout, "    \"uid\": %d,\n", fentry.st.st_uid);
+        (void)fprintf(stdout, "    \"gid\": %d,\n", fentry.st.st_gid);
+        (void)fprintf(stdout, "    \"size\": %ld,\n", static_cast<long>(fentry.st.st_size));
+        (void)fprintf(stdout, "    \"mtime\": %ld\n", static_cast<long>(fentry.st.st_mtime));
+        (void)fprintf(stdout, "  }%s\n", (i + 1 < all_json_entries.size()) ? "," : "");
       }
-      fprintf(stdout, "]\n");
+      (void)fprintf(stdout, "]\n");
     }
 
   return 0;

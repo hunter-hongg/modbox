@@ -1,10 +1,9 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
-#include <unistd.h>
+#include <system_error>
 
 #include <filesystem>
 #include <string>
@@ -17,9 +16,11 @@
 static int dirs_same(const char* a, const char* b) {
   struct stat sa;
   struct stat sb;
-  if (stat(a, &sa) != 0) return 0;
-  if (stat(b, &sb) != 0) return 0;
-  return sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino;
+  if (stat(a, &sa) != 0) { return 0;
+}
+  if (stat(b, &sb) != 0) { return 0;
+}
+  return static_cast<int>(sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino);
 }
 
 int pwd_command(int argc, char** argv) {
@@ -35,7 +36,7 @@ int pwd_command(int argc, char** argv) {
 
   ArgTable at({logical_opt, physical_opt, help_opt, version_opt, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -57,12 +58,12 @@ int pwd_command(int argc, char** argv) {
     return at.print_errors(end, argv[0]);
   }
 
-  int use_physical = (physical_opt->count > 0);
+  int const use_physical = static_cast<int>(physical_opt->count > 0);
 
-  if (!use_physical) {
+  if (use_physical == 0) {
     const char* pwd_env = getenv("PWD");
     if (pwd_env != NULL && pwd_env[0] == '/') {
-      if (dirs_same(pwd_env, ".")) {
+      if (dirs_same(pwd_env, ".") != 0) {
         printf("%s\n", pwd_env);
         return 0;
       }
@@ -70,7 +71,7 @@ int pwd_command(int argc, char** argv) {
   }
 
   std::error_code ec;
-  std::filesystem::path cwd = std::filesystem::current_path(ec);
+  std::filesystem::path const cwd = std::filesystem::current_path(ec);
   if (ec) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "pwd: %s\n", ec.message().c_str());

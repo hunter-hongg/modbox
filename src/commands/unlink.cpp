@@ -1,8 +1,8 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 
 #include "commands/unlink.hpp"
@@ -20,7 +20,7 @@ int unlink_command(int argc, char** argv) {
 
     ArgTable at({verbose_opt, help_opt, file_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION] FILE\n", argv[0]);
@@ -36,7 +36,7 @@ int unlink_command(int argc, char** argv) {
     }
 
     UnlinkOptions opts = {};
-    opts.is_verbose = (verbose_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
 
     const char* filename = file_arg->filename[0];
 
@@ -47,7 +47,7 @@ int unlink_command(int argc, char** argv) {
         return 0;
     }
 
-    if (opts.is_verbose) {
+    if (opts.is_verbose != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)printf("unlinked '%s'\n", filename);
     }

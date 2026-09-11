@@ -24,7 +24,7 @@ inline bool read_all(FILE* fp, std::vector<unsigned char>& out) {
 }
 
 inline bool ends_with(const std::string& s, const std::string& suffix) {
-    return s.size() >= suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+    return s.size() >= suffix.size() && s.ends_with(suffix);
 }
 
 inline std::string strip_suffix(const std::string& p, const std::string& suffix) {
@@ -38,21 +38,21 @@ inline int write_output_file(const std::vector<unsigned char>& data,
     if (!force) {
         struct stat st;
         if (stat(outname.c_str(), &st) == 0) {
-            fprintf(stderr, "%s: %s: File exists\n", prog, outname.c_str());
+            (void)fprintf(stderr, "%s: %s: File exists\n", prog, outname.c_str());
             return 1;
         }
     }
     FILE* out = fopen(outname.c_str(), "wb");
-    if (!out) {
+    if (out == nullptr) {
         cmd_perror(prog, outname.c_str());
         return 1;
     }
     if (fwrite(data.data(), 1, data.size(), out) != data.size()) {
-        fclose(out);
+        (void)fclose(out);
         cmd_perror(prog, outname.c_str());
         return 1;
     }
-    int close_res = fclose(out);
+    int const close_res = fclose(out);
     if (close_res != 0) {
         cmd_perror(prog, outname.c_str());
         return 1;
@@ -62,7 +62,7 @@ inline int write_output_file(const std::vector<unsigned char>& data,
 
 inline void print_ratio(const std::string& name, size_t in_size,
                         size_t out_size, const char* replaced_with = nullptr) {
-    double ratio = in_size == 0 ? PERCENT_100 : ((1.0 - ((double)out_size / (double)in_size)) * PERCENT_100);
+    double const ratio = in_size == 0 ? PERCENT_100 : ((1.0 - (static_cast<double>(out_size) / static_cast<double>(in_size))) * PERCENT_100);
     if (replaced_with != nullptr) {
         printf("%s: %5.1f%% -- replaced with %s\n", name.c_str(), ratio, replaced_with);
     } else {

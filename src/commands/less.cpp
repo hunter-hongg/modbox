@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
 #include <vector>
 #include <string>
 
@@ -101,7 +100,7 @@ int less_command(int argc, char** argv) {
         long_prompt_opt, quit_at_eof_opt, quit_one_opt, no_init_opt, chop_opt,
         pattern_opt, help_opt, version_opt, file_arg, end});
 
-    const int nerrors = static_cast<int>(at.parse(fargc, fargv));
+    const int nerrors = at.parse(fargc, fargv);
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", prog);
         printf("View FILE(s) or standard input one screen at a time.\n");

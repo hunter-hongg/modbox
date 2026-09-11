@@ -1,7 +1,8 @@
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
-#include <cerrno>
+#include <linux/sockios.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -9,8 +10,6 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
-#include <dirent.h>
-#include <fcntl.h>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -26,11 +25,12 @@
 
 static std::string read_file(const char* path) {
     FILE* f = fopen(path, "r");
-    if (!f) return "";
+    if (f == nullptr) { return "";
+}
     char buf[4096];
-    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    size_t const n = fread(buf, 1, sizeof(buf) - 1, f);
     buf[n] = '\0';
-    fclose(f);
+    (void)fclose(f);
     return std::string(buf);
 }
 
@@ -60,9 +60,12 @@ struct InterfaceInfo {
 };
 
 static std::string operstate_to_string(const std::string& s) {
-    if (s == "up") return "UP";
-    if (s == "down") return "DOWN";
-    if (s == "unknown") return "UNKNOWN";
+    if (s == "up") { return "UP";
+}
+    if (s == "down") { return "DOWN";
+}
+    if (s == "unknown") { return "UNKNOWN";
+}
     return s;
 }
 
@@ -70,7 +73,8 @@ static std::string flags_to_string(unsigned short flags) {
     std::string out;
     auto add = [&](const char* s, int bit) {
         if (flags & (1 << bit)) {
-            if (!out.empty()) out += ",";
+            if (!out.empty()) { out += ",";
+}
             out += s;
         }
     };
@@ -91,8 +95,9 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
     
     struct ifaddrs *addrs = nullptr;
     if (getifaddrs(&addrs) == 0) {
-        for (struct ifaddrs *ptr = addrs; ptr; ptr = ptr->ifa_next) {
-            if (!ptr->ifa_addr) continue;
+        for (struct ifaddrs *ptr = addrs; ptr != nullptr; ptr = ptr->ifa_next) {
+            if (ptr->ifa_addr == nullptr) { continue;
+}
             
             auto& info = by_name[ptr->ifa_name];
             if (info.index == 0) {
@@ -104,13 +109,13 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
             InterfaceAddr ia;
             if (ptr->ifa_addr->sa_family == AF_INET) {
                 char buf[64];
-                inet_ntop(AF_INET, &((struct sockaddr_in*)ptr->ifa_addr)->sin_addr, buf, sizeof(buf));
+                inet_ntop(AF_INET, &(reinterpret_cast<struct sockaddr_in*>(ptr->ifa_addr))->sin_addr, buf, sizeof(buf));
                 ia.ip = buf;
                 ia.family = "inet";
                 ia.prefix = 32;
             } else if (ptr->ifa_addr->sa_family == AF_INET6) {
                 char buf[64];
-                inet_ntop(AF_INET6, &((struct sockaddr_in6*)ptr->ifa_addr)->sin6_addr, buf, sizeof(buf));
+                inet_ntop(AF_INET6, &(reinterpret_cast<struct sockaddr_in6*>(ptr->ifa_addr))->sin6_addr, buf, sizeof(buf));
                 ia.ip = buf;
                 ia.family = "inet6";
                 ia.prefix = 128;
@@ -130,22 +135,23 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
         struct ifreq ir;
         memset(&ir, 0, sizeof(ir));
         strncpy(ir.ifr_name, info.name.c_str(), sizeof(ir.ifr_name) - 1);
-        int s = socket(AF_INET, SOCK_DGRAM, 0);
+        int const s = socket(AF_INET, SOCK_DGRAM, 0);
         if (s >= 0) {
             if (ioctl(s, SIOCGIFADDR, &ir) == 0) {
                 for (auto& addr : info.addrs) {
                     if (addr.family == "inet") {
-                        struct sockaddr_in* sa = (struct sockaddr_in*)&ir.ifr_addr;
+                        struct sockaddr_in* sa = reinterpret_cast<struct sockaddr_in*>(&ir.ifr_addr);
                         char buf[64];
                         inet_ntop(AF_INET, &sa->sin_addr, buf, sizeof(buf));
                         if (addr.ip == buf) {
                             if (ioctl(s, SIOCGIFNETMASK, &ir) == 0) {
-                                struct sockaddr_in* mask_sa = (struct sockaddr_in*)&ir.ifr_addr;
-                                uint32_t mask = __builtin_bswap32(mask_sa->sin_addr.s_addr);
+                                const struct sockaddr_in* mask_sa = reinterpret_cast<struct sockaddr_in*>(&ir.ifr_addr);
+                                uint32_t const mask = __builtin_bswap32(mask_sa->sin_addr.s_addr);
                                 addr.prefix = 0;
-                                for (uint32_t bit = 0x80000000; bit && mask; bit >>= 1) {
-                                    if (mask & bit) addr.prefix++;
-                                    else break;
+                                for (uint32_t bit = 0x80000000; (bit != 0u) && (mask != 0u); bit >>= 1) {
+                                    if ((mask & bit) != 0u) { addr.prefix++;
+                                    } else { break;
+}
                                 }
                             }
                             break;
@@ -159,10 +165,10 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
         // Set ipv6 prefixes based on address type
         for (auto& addr : info.addrs) {
             if (addr.family == "inet6") {
-                if (addr.ip == "::1" || addr.ip.find("0000:0000:0000:0000:0000:0000:0000:0001") == 0 ||
-                    addr.ip.find("0:0:0:0:0:0:0:1") == 0) {
+                if (addr.ip == "::1" || addr.ip.starts_with("0000:0000:0000:0000:0000:0000:0000:0001") ||
+                    addr.ip.starts_with("0:0:0:0:0:0:0:1")) {
                     addr.prefix = 128;
-                } else if (addr.ip.find("fe80:") == 0) {
+                } else if (addr.ip.starts_with("fe80:")) {
                     addr.prefix = 64;
                 } else {
                     addr.prefix = 64;
@@ -172,18 +178,20 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
         
         // Enrich with sysfs data
         char path[512];
-        snprintf(path, sizeof(path), "/sys/class/net/%s/address", info.name.c_str());
+        (void)snprintf(path, sizeof(path), "/sys/class/net/%s/address", info.name.c_str());
         std::string mac = read_file(path);
-        if (!mac.empty() && mac.back() == '\n') mac.pop_back();
+        if (!mac.empty() && mac.back() == '\n') { mac.pop_back();
+}
         info.mac = mac;
         
-        snprintf(path, sizeof(path), "/sys/class/net/%s/operstate", info.name.c_str());
+        (void)snprintf(path, sizeof(path), "/sys/class/net/%s/operstate", info.name.c_str());
         std::string state = read_file(path);
-        if (!state.empty() && state.back() == '\n') state.pop_back();
+        if (!state.empty() && state.back() == '\n') { state.pop_back();
+}
         info.operstate = operstate_to_string(state);
         
-        snprintf(path, sizeof(path), "/sys/class/net/%s/mtu", info.name.c_str());
-        std::string mtu_s = read_file(path);
+        (void)snprintf(path, sizeof(path), "/sys/class/net/%s/mtu", info.name.c_str());
+        std::string const mtu_s = read_file(path);
         if (!mtu_s.empty()) {
             info.mtu = atoi(mtu_s.c_str());
         }
@@ -191,24 +199,25 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
         info.flags_str = flags_to_string(info.flags);
         
         if (show_stats) {
-            snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_bytes", info.name.c_str());
+            (void)snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_bytes", info.name.c_str());
             info.rx_bytes = atoll(read_file(path).c_str());
-            snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_bytes", info.name.c_str());
+            (void)snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_bytes", info.name.c_str());
             info.tx_bytes = atoll(read_file(path).c_str());
-            snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_packets", info.name.c_str());
+            (void)snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_packets", info.name.c_str());
             info.rx_packets = atoll(read_file(path).c_str());
-            snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_packets", info.name.c_str());
+            (void)snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_packets", info.name.c_str());
             info.tx_packets = atoll(read_file(path).c_str());
-            snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_errors", info.name.c_str());
+            (void)snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_errors", info.name.c_str());
             info.rx_errors = atoll(read_file(path).c_str());
-            snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_errors", info.name.c_str());
+            (void)snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_errors", info.name.c_str());
             info.tx_errors = atoll(read_file(path).c_str());
         }
     }
     
     // Sort by index
     std::vector<InterfaceInfo> ifaces;
-    for (auto& p : by_name) ifaces.push_back(p.second);
+    for (auto& p : by_name) { ifaces.push_back(p.second);
+}
     std::sort(ifaces.begin(), ifaces.end(),
               [](const InterfaceInfo& a, const InterfaceInfo& b) {
                   return a.index < b.index;
@@ -217,7 +226,8 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
     if (!filter_iface.empty()) {
         std::vector<InterfaceInfo> filtered;
         for (auto& info : ifaces) {
-            if (info.name == filter_iface) filtered.push_back(info);
+            if (info.name == filter_iface) { filtered.push_back(info);
+}
         }
         ifaces = filtered;
     }
@@ -231,9 +241,10 @@ static std::vector<InterfaceInfo> enumerate_interfaces(bool show_stats, const st
 
 static std::string hex_to_ipv4(const char* hex) {
     uint32_t addr;
-    if (sscanf(hex, "%08x", &addr) != 1) return "0.0.0.0";
+    if (sscanf(hex, "%08x", &addr) != 1) { return "0.0.0.0";
+}
     char buf[16];
-    snprintf(buf, sizeof(buf), "%u.%u.%u.%u",
+    (void)snprintf(buf, sizeof(buf), "%u.%u.%u.%u",
              (addr >> 24) & 0xff,
              (addr >> 16) & 0xff,
              (addr >> 8) & 0xff,
@@ -252,8 +263,9 @@ struct RouteEntry {
 
 static std::vector<RouteEntry> read_routes() {
     std::vector<RouteEntry> routes;
-    std::string content = read_file("/proc/net/route");
-    if (content.empty()) return routes;
+    std::string const content = read_file("/proc/net/route");
+    if (content.empty()) { return routes;
+}
     
     std::istringstream iss(content);
     std::string line;
@@ -261,8 +273,16 @@ static std::vector<RouteEntry> read_routes() {
     while (std::getline(iss, line)) {
         if (header) { header = false; continue; }
         std::istringstream lss(line);
-        std::string iface, dst_hex, gw_hex, flags_hex, refcnt, use, metric_s, mask_hex;
-        if (!(lss >> iface >> dst_hex >> gw_hex >> flags_hex >> refcnt >> use >> metric_s >> mask_hex)) continue;
+        std::string iface;
+        std::string dst_hex;
+        std::string gw_hex;
+        std::string flags_hex;
+        std::string refcnt;
+        std::string use;
+        std::string metric_s;
+        std::string mask_hex;
+        if (!(lss >> iface >> dst_hex >> gw_hex >> flags_hex >> refcnt >> use >> metric_s >> mask_hex)) { continue;
+}
         
         RouteEntry r;
         r.iface = iface;
@@ -271,25 +291,35 @@ static std::vector<RouteEntry> read_routes() {
         r.metric = atoi(metric_s.c_str());
         
         uint32_t mask_val;
-        sscanf(mask_hex.c_str(), "%08x", &mask_val);
+        (void)sscanf(mask_hex.c_str(), "%08x", &mask_val);
         r.prefix = 0;
-        for (uint32_t bit = 0x80000000; bit && mask_val; bit >>= 1) {
-            if (mask_val & bit) r.prefix++;
-            else break;
+        for (uint32_t bit = 0x80000000; (bit != 0u) && (mask_val != 0u); bit >>= 1) {
+            if ((mask_val & bit) != 0u) { r.prefix++;
+            } else { break;
+}
         }
-        if (dst_hex == "00000000") r.prefix = 0;
+        if (dst_hex == "00000000") { r.prefix = 0;
+}
         
         unsigned short fl;
-        sscanf(flags_hex.c_str(), "%hx", &fl);
+        (void)sscanf(flags_hex.c_str(), "%hx", &fl);
         std::string fstr;
-        if (fl & 0x0001) fstr += "U";
-        if (fl & 0x0002) fstr += "H";
-        if (fl & 0x0004) fstr += "G";
-        if (fl & 0x0008) fstr += "R";
-        if (fl & 0x0010) fstr += "M";
-        if (fl & 0x0020) fstr += "C";
-        if (fl & 0x0040) fstr += "A";
-        if (fstr.empty()) fstr = "-";
+        if ((fl & 0x0001) != 0) { fstr += "U";
+}
+        if ((fl & 0x0002) != 0) { fstr += "H";
+}
+        if ((fl & 0x0004) != 0) { fstr += "G";
+}
+        if ((fl & 0x0008) != 0) { fstr += "R";
+}
+        if ((fl & 0x0010) != 0) { fstr += "M";
+}
+        if ((fl & 0x0020) != 0) { fstr += "C";
+}
+        if ((fl & 0x0040) != 0) { fstr += "A";
+}
+        if (fstr.empty()) { fstr = "-";
+}
         r.flags = fstr;
         
         if (r.dst == "0.0.0.0" && r.prefix == 0) {
@@ -314,19 +344,22 @@ static void print_addr(const std::vector<InterfaceInfo>& ifaces, int fam_filter)
         printf("    link/%s %s",
                (iface.name == "lo") ? "loopback" : "ether",
                iface.mac.c_str());
-        if (iface.name != "lo") printf(" brd ff:ff:ff:ff:ff:ff");
+        if (iface.name != "lo") { printf(" brd ff:ff:ff:ff:ff:ff");
+}
         printf("\n");
 
         for (const auto& addr : iface.addrs) {
-            if (fam_filter == 4 && addr.family != "inet") continue;
-            if (fam_filter == 6 && addr.family != "inet6") continue;
+            if (fam_filter == 4 && addr.family != "inet") { continue;
+}
+            if (fam_filter == 6 && addr.family != "inet6") { continue;
+}
 
             const char* fam = (addr.family == "inet6") ? "inet6" : "inet";
             const char* scope = "global";
             if (addr.family == "inet" && addr.ip == "127.0.0.1") {
                 scope = "host";
             }
-            if (addr.family == "inet6" && (addr.ip == "::1" || addr.ip.find("fe80:") == 0)) {
+            if (addr.family == "inet6" && (addr.ip == "::1" || addr.ip.starts_with("fe80:"))) {
                 scope = (addr.ip == "::1") ? "host" : "link";
             }
 
@@ -382,7 +415,8 @@ static void print_route(const std::vector<RouteEntry>& routes) {
         }
         if (!r.flags.empty()) {
             printf("proto kernel ");
-            if (r.metric) printf("metric %d ", r.metric);
+            if (r.metric != 0) { printf("metric %d ", r.metric);
+}
         }
         printf("\n");
     }
@@ -413,7 +447,7 @@ int ip_command(int argc, char** argv) {
     
     std::vector<std::string> args;
     for (int i = 1; i < argc; i++) {
-        std::string a(argv[i]);
+        std::string const a(argv[i]);
         if (a == "--help" || a == "-h") { show_help = true; continue; }
         if (a == "-4" || a == "--4") { fam_filter = 4; continue; }
         if (a == "-6" || a == "--6") { fam_filter = 6; continue; }
@@ -427,28 +461,30 @@ int ip_command(int argc, char** argv) {
     }
     
     if (args.empty()) {
-        fprintf(stderr, "ip: need a subcommand: addr, link, or route\n");
+        (void)fprintf(stderr, "ip: need a subcommand: addr, link, or route\n");
         return 1;
     }
     
-    std::string subcmd = args[0];
+    std::string const subcmd = args[0];
     std::string filter_iface;
     
     if (subcmd == "addr" || subcmd == "address") {
         // optional: show <iface>
         for (size_t i = 1; i < args.size(); i++) {
-            if (args[i][0] == '-') continue;
+            if (args[i][0] == '-') { continue;
+}
             filter_iface = args[i];
         }
     } else if (subcmd == "link") {
         for (size_t i = 1; i < args.size(); i++) {
-            if (args[i][0] == '-') continue;
+            if (args[i][0] == '-') { continue;
+}
             filter_iface = args[i];
         }
     } else if (subcmd == "route" || subcmd == "ru") {
         // no extra args
     } else {
-        fprintf(stderr, "ip: unknown command \"%s\". Use: addr, link, route\n", subcmd.c_str());
+        (void)fprintf(stderr, "ip: unknown command \"%s\". Use: addr, link, route\n", subcmd.c_str());
         return 1;
     }
     
@@ -457,8 +493,9 @@ int ip_command(int argc, char** argv) {
         print_addr(ifaces, fam_filter);
     } else if (subcmd == "link") {
         auto ifaces = enumerate_interfaces(show_stats, filter_iface);
-        if (show_stats) print_link_stats(ifaces);
-        else print_link(ifaces);
+        if (show_stats) { print_link_stats(ifaces);
+        } else { print_link(ifaces);
+}
     } else if (subcmd == "route" || subcmd == "ru") {
         auto routes = read_routes();
         print_route(routes);

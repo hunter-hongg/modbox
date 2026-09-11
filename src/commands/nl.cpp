@@ -50,7 +50,7 @@ static int should_number(const char* line, const char* style, int is_empty) {
         return 1;
     }
     if (strcmp(style, "t") == 0) {
-        return !is_empty;
+        return static_cast<int>(static_cast<int>(is_empty == 0));
     }
     if (strcmp(style, "n") == 0) {
         return 0;
@@ -62,7 +62,7 @@ static int should_number(const char* line, const char* style, int is_empty) {
             return 1; /* empty BRE matches all */
         }
         try {
-            std::regex re(bre);
+            std::regex const re(bre);
             if (std::regex_search(line, re)) {
                 return 1;
             }
@@ -103,20 +103,20 @@ static void nl_process(FILE* fp, const NlOptions* opts, FILE* out_fp) {
 
     line_num = opts->starting_line_number;
 
-    while (fgets(line_buf, NL_MAX_LINE, fp)) {
+    while (fgets(line_buf, NL_MAX_LINE, fp) != nullptr) {
         size_t len = strlen(line_buf);
         /* Strip trailing newline for processing */
-        int has_newline = (len > 0 && line_buf[len - 1] == '\n');
-        if (has_newline) {
+        int const has_newline = static_cast<int>(len > 0 && line_buf[len - 1] == '\n');
+        if (has_newline != 0) {
             line_buf[len - 1] = '\0';
             len--;
         }
 
         /* Check for section delimiter */
-        int delim_type = check_section_delimiter(line_buf, opts->section_delimiters);
+        int const delim_type = check_section_delimiter(line_buf, opts->section_delimiters);
         if (delim_type > 0) {
             page_state = delim_type;
-            if (!opts->no_renumber) {
+            if (opts->no_renumber == 0) {
                 line_num = opts->starting_line_number;
             }
             blank_count = 0;
@@ -134,12 +134,12 @@ static void nl_process(FILE* fp, const NlOptions* opts, FILE* out_fp) {
         }
 
         /* Check if line is empty */
-        int is_empty = (len == 0);
+        int const is_empty = static_cast<int>(len == 0);
 
         /* Handle --join-blank-lines: group N consecutive blank lines as one logical line
          * for numbering purposes. All blank lines are still output. */
         int do_number;
-        if (is_empty) {
+        if (is_empty != 0) {
             blank_count++;
             /* Number this blank line if it is the first in its logical group,
              * or if join-blank-lines is not active */
@@ -158,7 +158,7 @@ static void nl_process(FILE* fp, const NlOptions* opts, FILE* out_fp) {
             do_number = should_number(line_buf, num_style, is_empty);
         }
 
-        if (do_number) {
+        if (do_number != 0) {
             char num_buf[64];
             format_number(line_num, opts->number_format, opts->number_width, num_buf, sizeof(num_buf));
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -175,7 +175,7 @@ static void nl_process(FILE* fp, const NlOptions* opts, FILE* out_fp) {
 /* ── Main command ────────────────────────────────────────────────────────── */
 
 int nl_command(int argc, char** argv) {
-    NlOptions opts = {0};
+    NlOptions opts = {.body_numbering=0};
 
     struct arg_str* body_numbering_opt = arg_str0("b", "body-numbering", "STYLE", "line numbering style (a, t, n, pBRE)");
     struct arg_str* header_numbering_opt = arg_str0("h", "header-numbering", "STYLE", "header numbering style");
@@ -201,7 +201,7 @@ int nl_command(int argc, char** argv) {
         file_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -246,7 +246,7 @@ int nl_command(int argc, char** argv) {
     opts.number_format = strdup(num_format_opt->count > 0 ? num_format_opt->sval[0] : "rn");
     opts.line_increment = (line_inc_opt->count > 0 ? line_inc_opt->ival[0] : 1);
     opts.join_blank_lines = (join_blanks_opt->count > 0 ? join_blanks_opt->ival[0] : 0);
-    opts.no_renumber = (no_renumber_opt->count > 0);
+    opts.no_renumber = static_cast<int>(no_renumber_opt->count > 0);
     opts.starting_line_number = (start_num_opt->count > 0 ? start_num_opt->ival[0] : 1);
     opts.number_width = (width_opt->count > 0 ? width_opt->ival[0] : NL_DEFAULT_WIDTH);
 

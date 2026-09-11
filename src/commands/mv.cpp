@@ -1,9 +1,9 @@
 #include <argtable3.h>
 #include <dirent.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -120,7 +120,7 @@ static int copy_recursive_for_mv(const char *src, const char *dst) {
     size_t nread;
     // NOLINTNEXTLINE(clang-analyzer-unix.Stream)
     while ((nread = fread(buf, 1, sizeof(buf), fsrc)) > 0) {
-      size_t nwritten = fwrite(buf, 1, nread, fdst);
+      size_t const nwritten = fwrite(buf, 1, nread, fdst);
       (void)nwritten;
     }
 
@@ -134,15 +134,15 @@ static int copy_recursive_for_mv(const char *src, const char *dst) {
   /* Directory: create destination and recurse */
   if (S_ISDIR(src_stat.st_mode)) {
     struct stat dst_stat;
-    int dst_exists = (stat(dst, &dst_stat) == 0);
+    int const dst_exists = static_cast<int>(stat(dst, &dst_stat) == 0);
 
-    if (dst_exists && !S_ISDIR(dst_stat.st_mode)) {
+    if ((dst_exists != 0) && !S_ISDIR(dst_stat.st_mode)) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: %s: Not a directory\n", dst);
       return -1;
     }
 
-    if (!dst_exists) {
+    if (dst_exists == 0) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       if (mkdir(dst, DIR_MODE) != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -198,13 +198,13 @@ static bool prompt_overwrite(const char *dst) {
   int in_opened = 0;
   int out_opened = 0;
 
-  if (isatty(STDIN_FILENO)) {
+  if (isatty(STDIN_FILENO) != 0) {
     in = fopen("/dev/tty", "r");
     if (in != NULL) {
       in_opened = 1;
     }
   }
-  if (isatty(STDOUT_FILENO)) {
+  if (isatty(STDOUT_FILENO) != 0) {
     out = fopen("/dev/tty", "w");
     if (out != NULL) {
       out_opened = 1;
@@ -225,11 +225,11 @@ static bool prompt_overwrite(const char *dst) {
     }
   }
 
-  if (in_opened && in != NULL) {
+  if ((in_opened != 0) && in != NULL) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(in);
   }
-  if (out_opened && out != NULL) {
+  if ((out_opened != 0) && out != NULL) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(out);
   }
@@ -253,27 +253,27 @@ static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
 
   /* Check if destination exists */
   struct stat dst_stat;
-  int dst_exists = (stat(dst, &dst_stat) == 0);
+  int const dst_exists = static_cast<int>(stat(dst, &dst_stat) == 0);
 
   /* -u (update): only move if SOURCE is newer than DEST or DEST missing */
-  if (opts->is_update && dst_exists) {
+  if ((opts->is_update != 0) && (dst_exists != 0)) {
     if (src_stat.st_mtime <= dst_stat.st_mtime) {
       return 0;
     }
   }
 
-  if (dst_exists) {
-    if (opts->is_no_clobber) {
+  if (dst_exists != 0) {
+    if (opts->is_no_clobber != 0) {
       return 0;
     }
     /* -f (force) overrides -i (interactive) */
-    if (opts->is_interactive && !opts->is_force) {
+    if ((opts->is_interactive != 0) && (opts->is_force == 0)) {
       if (!prompt_overwrite(dst)) {
         return 0;
       }
     }
     /* -b (backup): move existing destination to DEST~ */
-    if (opts->is_backup) {
+    if (opts->is_backup != 0) {
       char backup_path[4096];
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)snprintf(backup_path, sizeof(backup_path), "%s~", dst);
@@ -281,7 +281,7 @@ static int move_entry(const char *src, const char *dst, const MvOptions *opts) {
       (void)rename(dst, backup_path);
     }
     /* -f (force): remove existing destination before rename */
-    if (opts->is_force) {
+    if (opts->is_force != 0) {
       // NOLINTNEXTLINE(bugprone-unused-return-value)
       (void)unlink(dst);
     }
@@ -348,7 +348,7 @@ int mv_command(int argc, char **argv) {
                help_opt,
                files_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... SOURCE DEST\n", argv[0]);
@@ -374,26 +374,26 @@ int mv_command(int argc, char **argv) {
   }
 
   MvOptions opts = {};
-  opts.is_interactive = (interactive_opt->count > 0);
-  opts.is_no_clobber = (no_clobber_opt->count > 0);
-  opts.is_force = (force_opt->count > 0);
-  opts.is_verbose = (verbose_opt->count > 0);
-  opts.is_update = (update_opt->count > 0);
-  opts.is_backup = (backup_opt->count > 0);
+  opts.is_interactive = static_cast<int>(interactive_opt->count > 0);
+  opts.is_no_clobber = static_cast<int>(no_clobber_opt->count > 0);
+  opts.is_force = static_cast<int>(force_opt->count > 0);
+  opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+  opts.is_update = static_cast<int>(update_opt->count > 0);
+  opts.is_backup = static_cast<int>(backup_opt->count > 0);
   opts.target_dir = (target_dir_opt->count > 0) ? target_dir_opt->sval[0] : NULL;
-  opts.no_target_dir = (no_target_dir_opt->count > 0);
+  opts.no_target_dir = static_cast<int>(no_target_dir_opt->count > 0);
 
   /* no-clobber overrides interactive */
-  if (opts.is_no_clobber) {
+  if (opts.is_no_clobber != 0) {
     opts.is_interactive = 0;
     opts.is_force = 0;
   }
   /* force overrides interactive */
-  if (opts.is_force) {
+  if (opts.is_force != 0) {
     opts.is_interactive = 0;
   }
 
-  int num_files = files_arg->count;
+  int const num_files = files_arg->count;
   const char *dst = NULL;
   int num_srcs = 0;
 
@@ -435,10 +435,10 @@ int mv_command(int argc, char **argv) {
 
   /* Check if destination is an existing directory */
   struct stat dst_stat;
-  int dst_is_dir = (stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode));
+  int dst_is_dir = static_cast<int>(stat(dst, &dst_stat) == 0 && S_ISDIR(dst_stat.st_mode));
 
   /* -T: treat DEST as normal file, error if multiple sources */
-  if (opts.no_target_dir) {
+  if (opts.no_target_dir != 0) {
     if (num_srcs > 1) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)fprintf(stderr, "mv: extra operand '%s'\n",
@@ -449,7 +449,7 @@ int mv_command(int argc, char **argv) {
   }
 
   /* Multiple sources: destination must be an existing directory */
-  if (num_srcs > 1 && !dst_is_dir) {
+  if (num_srcs > 1 && (dst_is_dir == 0)) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "mv: target '%s' is not a directory\n", dst);
     return 0;
@@ -467,10 +467,10 @@ int mv_command(int argc, char **argv) {
 
     /* Determine actual destination path */
     char dest_path[4096];
-    if (dst_is_dir) {
+    if (dst_is_dir != 0) {
       /* Destination is an existing directory: move into it */
       const char *basename = strrchr(src, '/');
-      basename = basename ? basename + 1 : src;
+      basename = (basename != nullptr) ? basename + 1 : src;
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
     } else {
@@ -480,11 +480,11 @@ int mv_command(int argc, char **argv) {
     }
 
     /* Prevent moving a directory into itself */
-    if (S_ISDIR(src_stat.st_mode) && dst_is_dir) {
+    if (S_ISDIR(src_stat.st_mode) && (dst_is_dir != 0)) {
       char *resolved_src = realpath(src, NULL);
       char *resolved_dst = realpath(dest_path, NULL);
       if (resolved_src != NULL && resolved_dst != NULL) {
-        size_t src_len = strlen(resolved_src);
+        size_t const src_len = strlen(resolved_src);
         if (strncmp(resolved_src, resolved_dst, src_len) == 0 &&
             (resolved_dst[src_len] == '/' || resolved_dst[src_len] == '\0')) {
           // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -501,7 +501,7 @@ int mv_command(int argc, char **argv) {
       free(resolved_dst);
     }
 
-    if (move_entry(src, dest_path, &opts) == 0 && opts.is_verbose) {
+    if (move_entry(src, dest_path, &opts) == 0 && (opts.is_verbose != 0)) {
       // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
       (void)printf("'%s' -> '%s'\n", src, dest_path);
     }

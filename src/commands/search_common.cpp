@@ -14,7 +14,7 @@ std::regex search_compile_pattern(const std::string& pattern,
     // Note: word_regexp word boundaries are checked manually by callers
     // because std::regex does not support PCRE lookahead/lookbehind.
     std::string effective;
-    if (line_regexp) {
+    if (line_regexp != 0) {
         effective = "^(?:" + pattern + ")$";
     } else {
         effective = pattern;
@@ -36,14 +36,14 @@ int search_should_color(SearchColorMode mode) {
 bool search_check_word_boundary(const char* haystack, std::size_t match_start,
                                 std::size_t match_end, std::size_t haystack_len) {
     if (match_start > 0) {
-        unsigned char prev = (unsigned char)haystack[match_start - 1];
-        if (std::isalnum(prev) || prev == '_') {
+        unsigned char const prev = static_cast<unsigned char>(haystack[match_start - 1]);
+        if ((std::isalnum(prev) != 0) || prev == '_') {
             return false;
         }
     }
     if (match_end < haystack_len) {
-        unsigned char next = (unsigned char)haystack[match_end];
-        if (std::isalnum(next) || next == '_') {
+        unsigned char const next = static_cast<unsigned char>(haystack[match_end]);
+        if ((std::isalnum(next) != 0) || next == '_') {
             return false;
         }
     }
@@ -59,21 +59,21 @@ bool search_fixed_loop(const char* haystack, const char* pattern,
                        std::size_t haystack_len, std::size_t* match_start,
                        std::size_t* match_end,
                        int word_regexp, int line_regexp) {
-    std::size_t pat_len = strlen(pattern);
+    std::size_t const pat_len = strlen(pattern);
     const char* found = haystack;
     while ((found = strstr(found, pattern)) != nullptr) {
-        *match_start = (std::size_t)(found - haystack);
+        *match_start = static_cast<std::size_t>(found - haystack);
         *match_end = *match_start + pat_len;
         int ok = 1;
-        if (word_regexp) {
-            ok = ok && search_check_word_boundary(haystack, *match_start,
-                                                   *match_end, haystack_len);
+        if (word_regexp != 0) {
+            ok = static_cast<int>((ok != 0) && search_check_word_boundary(haystack, *match_start,
+                                                   *match_end, haystack_len));
         }
-        if (line_regexp) {
-            ok = ok && search_check_line_boundary(*match_start, *match_end,
-                                                   haystack_len);
+        if (line_regexp != 0) {
+            ok = static_cast<int>((ok != 0) && search_check_line_boundary(*match_start, *match_end,
+                                                   haystack_len));
         }
-        if (ok) {
+        if (ok != 0) {
             return true;
         }
         found++;
@@ -84,15 +84,15 @@ bool search_fixed_loop(const char* haystack, const char* pattern,
 bool search_match_fixed(const char* pattern, const char* line,
                         std::size_t line_len, int ignore_case,
                         int word_regexp, int line_regexp) {
-    if (ignore_case) {
+    if (ignore_case != 0) {
         // Manual ASCII-only tolower for comparison (no UTF-8 dependency)
         std::string lower_line(line, line_len);
         std::string lower_pat(pattern);
         for (auto& ch : lower_line) {
-            ch = (char)std::tolower((unsigned char)ch);
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         }
         for (auto& ch : lower_pat) {
-            ch = (char)std::tolower((unsigned char)ch);
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         }
         std::size_t ms = 0;
         std::size_t me = 0;
@@ -111,24 +111,25 @@ void search_print_match(const char* line, std::size_t line_len, int show_ln,
                          int only_matching, int is_fixed,
                          int word_regexp)
 {
-    if (only_matching) {
-        if (is_fixed) {
-            if (use_color) {
+    if (only_matching != 0) {
+        if (is_fixed != 0) {
+            if (use_color != 0) {
                 printf("\033[01;31m%s\033[0m\n", pattern.c_str());
             } else {
                 printf("%s\n", pattern.c_str());
             }
-        } else if (re) {
-            std::string s(line, line_len);
+        } else if (re != nullptr) {
+            std::string const s(line, line_len);
             std::smatch m;
             std::string::const_iterator search_start(s.cbegin());
             while (std::regex_search(search_start, s.cend(), m, *re)) {
-                std::size_t abs_pos = (std::size_t)(m.position(0) + (search_start - s.cbegin()));
-                if (!word_regexp || search_check_word_boundary(line, abs_pos, abs_pos + m.length(0), line_len)) {
-                    if (use_color)
-                        printf("\033[01;31m%.*s\033[0m\n", (int)m.length(0), line + m.position(0));
-                    else
-                        printf("%.*s\n", (int)m.length(0), line + m.position(0));
+                std::size_t const abs_pos = static_cast<std::size_t>(m.position(0) + (search_start - s.cbegin()));
+                if ((word_regexp == 0) || search_check_word_boundary(line, abs_pos, abs_pos + m.length(0), line_len)) {
+                    if (use_color != 0) {
+                        printf("\033[01;31m%.*s\033[0m\n", static_cast<int>(m.length(0)), line + m.position(0));
+                    } else {
+                        printf("%.*s\n", static_cast<int>(m.length(0)), line + m.position(0));
+}
                 }
                 search_start = m.suffix().first;
             }
@@ -139,33 +140,33 @@ void search_print_match(const char* line, std::size_t line_len, int show_ln,
     if (prefix != nullptr) {
         printf("%s:", prefix);
     }
-    if (show_ln) {
+    if (show_ln != 0) {
         printf("%d:", ln);
     }
 
-    if (use_color && !is_fixed && re != nullptr) {
-        std::string s(line, line_len);
+    if ((use_color != 0) && (is_fixed == 0) && re != nullptr) {
+        std::string const s(line, line_len);
         std::smatch m;
         std::string::const_iterator search_start(s.cbegin());
         std::size_t last_end = 0;
         while (std::regex_search(search_start, s.cend(), m, *re)) {
-            std::size_t abs_pos = (std::size_t)(m.position(0) + (search_start - s.cbegin()));
-            if (word_regexp && !search_check_word_boundary(line, abs_pos, abs_pos + m.length(0), line_len)) {
+            std::size_t const abs_pos = static_cast<std::size_t>(m.position(0) + (search_start - s.cbegin()));
+            if ((word_regexp != 0) && !search_check_word_boundary(line, abs_pos, abs_pos + m.length(0), line_len)) {
                 // Skip this match - doesn't satisfy word boundary
-                printf("%.*s", (int)m.length(0), line + m.position(0));
+                printf("%.*s", static_cast<int>(m.length(0)), line + m.position(0));
                 last_end = abs_pos + m.length(0);
                 search_start = m.suffix().first;
                 continue;
             }
             // Print text between matches in plain
-            printf("%.*s", (int)(abs_pos - last_end), line + last_end);
+            printf("%.*s", static_cast<int>(abs_pos - last_end), line + last_end);
             // Print match in color
-            printf("\033[01;31m%.*s\033[0m", (int)m.length(0), line + m.position(0));
+            printf("\033[01;31m%.*s\033[0m", static_cast<int>(m.length(0)), line + m.position(0));
             last_end = abs_pos + m.length(0);
             search_start = m.suffix().first;
         }
         printf("%s\n", line + last_end);
     } else {
-        printf("%.*s\n", (int)line_len, line);
+        printf("%.*s\n", static_cast<int>(line_len), line);
     }
 }

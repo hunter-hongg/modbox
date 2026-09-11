@@ -1,14 +1,17 @@
 #include "commands/http_client.hpp"
 
 #include <algorithm>
+#include <bits/types/struct_timeval.h>
+#include <asm-generic/socket.h>
 #include <cerrno>
 #include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
 #include <netdb.h>
-#include <netinet/in.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <sstream>
@@ -16,50 +19,58 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <unordered_map>
-#include <vector>
 
 // ── URL Parsing ─────────────────────────────────────────────────────────────
 
 bool parse_url(const char* url_str, UrlParts& out) {
-    if (!url_str || url_str[0] == '\0') return false;
+    if ((url_str == nullptr) || url_str[0] == '\0') { return false;
+}
 
-    std::string s(url_str);
+    std::string const s(url_str);
     out = UrlParts{};
 
-    size_t scheme_end = s.find("://");
-    if (scheme_end == std::string::npos) return false;
+    size_t const scheme_end = s.find("://");
+    if (scheme_end == std::string::npos) { return false;
+}
     out.scheme = s.substr(0, scheme_end);
-    if (out.scheme != "http" && out.scheme != "https") return false;
-    size_t rest_start = scheme_end + 3;
+    if (out.scheme != "http" && out.scheme != "https") { return false;
+}
+    size_t const rest_start = scheme_end + 3;
 
     size_t path_start = s.find('/', rest_start);
-    if (path_start == std::string::npos) path_start = s.size();
+    if (path_start == std::string::npos) { path_start = s.size();
+}
 
     std::string authority = s.substr(rest_start, path_start - rest_start);
-    size_t at_pos = authority.find('@');
-    if (at_pos != std::string::npos) authority = authority.substr(at_pos + 1);
+    size_t const at_pos = authority.find('@');
+    if (at_pos != std::string::npos) { authority = authority.substr(at_pos + 1);
+}
 
-    size_t host_end = authority.find(':');
+    size_t const host_end = authority.find(':');
     if (host_end != std::string::npos) {
         out.host = authority.substr(0, host_end);
-        std::string port_str = authority.substr(host_end + 1);
-        if (!port_str.empty()) out.port = std::stoi(port_str);
+        std::string const port_str = authority.substr(host_end + 1);
+        if (!port_str.empty()) { out.port = std::stoi(port_str);
+}
     } else {
         out.host = authority;
     }
-    if (out.host.empty()) return false;
+    if (out.host.empty()) { return false;
+}
 
-    std::string remainder = (path_start < s.size()) ? s.substr(path_start) : "/";
-    size_t query_pos = remainder.find('?');
-    size_t frag_pos = remainder.find('#');
+    std::string const remainder = (path_start < s.size()) ? s.substr(path_start) : "/";
+    size_t const query_pos = remainder.find('?');
+    size_t const frag_pos = remainder.find('#');
 
     if (query_pos != std::string::npos) {
         out.path = remainder.substr(0, query_pos);
-        size_t end = (frag_pos != std::string::npos) ? frag_pos : remainder.size();
+        size_t const end = (frag_pos != std::string::npos) ? frag_pos : remainder.size();
         out.query = remainder.substr(query_pos + 1, end - query_pos - 1);
-        if (frag_pos != std::string::npos) out.fragment = remainder.substr(frag_pos + 1);
+        if (frag_pos != std::string::npos) { out.fragment = remainder.substr(frag_pos + 1);
+}
     } else if (frag_pos != std::string::npos) {
         out.path = remainder.substr(0, frag_pos);
         out.fragment = remainder.substr(frag_pos + 1);
@@ -67,8 +78,10 @@ bool parse_url(const char* url_str, UrlParts& out) {
         out.path = remainder;
     }
 
-    if (out.path.empty()) out.path = "/";
-    if (out.port == 0) out.port = default_port(out.scheme);
+    if (out.path.empty()) { out.path = "/";
+}
+    if (out.port == 0) { out.port = default_port(out.scheme);
+}
     return true;
 }
 
@@ -78,7 +91,8 @@ int default_port(const std::string& scheme) {
 
 std::string build_request_target(const UrlParts& url) {
     std::string target = url.path;
-    if (!url.query.empty()) target += "?" + url.query;
+    if (!url.query.empty()) { target += "?" + url.query;
+}
     return target;
 }
 
@@ -106,41 +120,46 @@ std::string url_encode(const std::string& input) {
 // ── Low-level I/O ───────────────────────────────────────────────────────────
 
 static ssize_t recv_timeout(int fd, void* buf, size_t len, double timeout_secs) {
-    if (timeout_secs <= 0) return recv(fd, buf, len, 0);
+    if (timeout_secs <= 0) { return recv(fd, buf, len, 0);
+}
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(fd, &readfds);
     struct timeval tv;
-    tv.tv_sec = (time_t)timeout_secs;
-    tv.tv_usec = (long)((timeout_secs - tv.tv_sec) * 1000000);
-    int ret = select(fd + 1, &readfds, nullptr, nullptr, &tv);
-    if (ret <= 0) return -1;
+    tv.tv_sec = static_cast<time_t>(timeout_secs);
+    tv.tv_usec = static_cast<long>((timeout_secs - tv.tv_sec) * 1000000);
+    int const ret = select(fd + 1, &readfds, nullptr, nullptr, &tv);
+    if (ret <= 0) { return -1;
+}
     return recv(fd, buf, len, 0);
 }
 
 static bool send_all(int fd, const char* data, size_t len) {
     size_t sent = 0;
     while (sent < len) {
-        ssize_t n = send(fd, data + sent, len - sent, 0);
-        if (n <= 0) return false;
+        ssize_t const n = send(fd, data + sent, len - sent, 0);
+        if (n <= 0) { return false;
+}
         sent += n;
     }
     return true;
 }
 
 static int connect_with_timeout(const std::string& host, int port, double timeout) {
-    struct addrinfo hints, *res;
+    struct addrinfo hints;
+    struct addrinfo *res;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     char port_str[16];
-    snprintf(port_str, sizeof(port_str), "%d", port);
-    if (getaddrinfo(host.c_str(), port_str, &hints, &res) != 0) return -1;
+    (void)snprintf(port_str, sizeof(port_str), "%d", port);
+    if (getaddrinfo(host.c_str(), port_str, &hints, &res) != 0) { return -1;
+}
 
-    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    int const sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) { freeaddrinfo(res); return -1; }
 
-    int flags = fcntl(sock, F_GETFL, 0);
+    int const flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
     if (::connect(sock, res->ai_addr, res->ai_addrlen) < 0 && errno != EINPROGRESS) {
@@ -151,8 +170,8 @@ static int connect_with_timeout(const std::string& host, int port, double timeou
         fd_set wset;
         FD_ZERO(&wset); FD_SET(sock, &wset);
         struct timeval tv;
-        tv.tv_sec = (time_t)timeout;
-        tv.tv_usec = (long)((timeout - tv.tv_sec) * 1000000);
+        tv.tv_sec = static_cast<time_t>(timeout);
+        tv.tv_usec = static_cast<long>((timeout - tv.tv_sec) * 1000000);
         if (select(sock + 1, nullptr, &wset, nullptr, &tv) <= 0) {
             close(sock); freeaddrinfo(res); errno = ETIMEDOUT; return -1;
         }
@@ -171,10 +190,12 @@ static int connect_with_timeout(const std::string& host, int port, double timeou
 static SSL* ssl_handshake(int fd, bool insecure) {
     SSL_library_init();
     SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
-    if (!ctx) return nullptr;
-    if (insecure) SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
+    if (ctx == nullptr) { return nullptr;
+}
+    if (insecure) { SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
+}
     SSL* ssl = SSL_new(ctx);
-    if (!ssl) { SSL_CTX_free(ctx); return nullptr; }
+    if (ssl == nullptr) { SSL_CTX_free(ctx); return nullptr; }
     SSL_set_fd(ssl, fd);
     if (SSL_connect(ssl) <= 0) {
         SSL_free(ssl); SSL_CTX_free(ctx); errno = ECONNRESET; return nullptr;
@@ -187,32 +208,41 @@ static SSL* ssl_handshake(int fd, bool insecure) {
 
 static bool parse_status_line(const char* line, size_t len, int& status_code, std::string& status_text) {
     // Format: "HTTP/1.1 200 OK" or "HTTP/1.0 200 OK"
-    if (len < 12 || strncmp(line, "HTTP/", 5) != 0) return false;
+    if (len < 12 || strncmp(line, "HTTP/", 5) != 0) { return false;
+}
     const char* p = line + 5;
     // Skip version (e.g., "1.1" or "1.0")
-    while (*p && *p != ' ') ++p;
+    while (((*p) != 0) && *p != ' ') { ++p;
+}
     // Skip spaces
-    while (*p == ' ') ++p;
+    while (*p == ' ') { ++p;
+}
     // Now p should point to the status code
     char* end = nullptr;
-    long code = strtol(p, &end, 10);
-    if (end == p) return false;
-    status_code = (int)code;
-    if (*end == ' ') status_text = end + 1;
-    else status_text = "";
+    long const code = strtol(p, &end, 10);
+    if (end == p) { return false;
+}
+    status_code = static_cast<int>(code);
+    if (*end == ' ') { status_text = end + 1;
+    } else { status_text = "";
+}
     return true;
 }
 
 static void parse_header_line(const char* line, size_t len,
                                std::unordered_map<std::string, std::string>& headers) {
-    const char* colon = (const char*)memchr(line, ':', len);
-    if (!colon) return;
+    const char* colon = static_cast<const char*>(memchr(line, ':', len));
+    if (colon == nullptr) { return;
+}
     std::string key(line, colon - line);
     std::string val(colon + 1, line + len - colon - 1);
     // Trim
-    while (!key.empty() && key.back() == ' ') key.pop_back();
-    while (!key.empty() && key.front() == ' ') key.erase(key.begin());
-    while (!val.empty() && val.front() == ' ') val.erase(val.begin());
+    while (!key.empty() && key.back() == ' ') { key.pop_back();
+}
+    while (!key.empty() && key.front() == ' ') { key.erase(key.begin());
+}
+    while (!val.empty() && val.front() == ' ') { val.erase(val.begin());
+}
     std::transform(key.begin(), key.end(), key.begin(), ::tolower);
     headers[key] = val;
 }
@@ -227,12 +257,13 @@ static bool read_response(int fd, SSL* ssl, const CurlOptions& opts, HttpRespons
     char rbuf[4096];
     while (true) {
         ssize_t n;
-        if (ssl) {
+        if (ssl != nullptr) {
             n = SSL_read(ssl, rbuf, sizeof(rbuf));
         } else {
             n = recv(fd, rbuf, sizeof(rbuf), 0);
         }
-        if (n <= 0) break;
+        if (n <= 0) { break;
+}
         raw.append(rbuf, n);
     }
 
@@ -241,18 +272,19 @@ static bool read_response(int fd, SSL* ssl, const CurlOptions& opts, HttpRespons
     }
 
     // Find end of headers
-    size_t header_end = raw.find("\r\n\r\n");
+    size_t const header_end = raw.find("\r\n\r\n");
     if (header_end == std::string::npos) {
         return false;
     }
 
     // Parse status line
-    std::string header_block = raw.substr(0, header_end);
-    size_t nl = header_block.find('\n');
+    std::string const header_block = raw.substr(0, header_end);
+    size_t const nl = header_block.find('\n');
     if (nl != std::string::npos) {
         std::string status_line = header_block.substr(0, nl);
         // Strip \r
-        if (!status_line.empty() && status_line.back() == '\r') status_line.pop_back();
+        if (!status_line.empty() && status_line.back() == '\r') { status_line.pop_back();
+}
         // Parse: "HTTP/1.0 200 OK" or "HTTP/1.1 200 OK"
         int status_code = 0;
         std::string status_text;
@@ -270,22 +302,25 @@ static bool read_response(int fd, SSL* ssl, const CurlOptions& opts, HttpRespons
     std::string line;
     while (std::getline(iss, line)) {
         // Strip \r
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        size_t colon = line.find(':');
+        if (!line.empty() && line.back() == '\r') { line.pop_back();
+}
+        size_t const colon = line.find(':');
         if (colon != std::string::npos) {
             std::string key = line.substr(0, colon);
             std::string val = line.substr(colon + 1);
-            while (!key.empty() && key.back() == ' ') key.pop_back();
-            while (!val.empty() && val.front() == ' ') val.erase(val.begin());
+            while (!key.empty() && key.back() == ' ') { key.pop_back();
+}
+            while (!val.empty() && val.front() == ' ') { val.erase(val.begin());
+}
             std::transform(key.begin(), key.end(), key.begin(), ::tolower);
             response.headers[key] = val;
         }
     }
 
     // Get body (everything after \r\n\r\n)
-    size_t body_start = header_end + 4;
+    size_t const body_start = header_end + 4;
     response.body = raw.substr(body_start);
-    response.size_download = (long)response.body.size();
+    response.size_download = static_cast<long>(response.body.size());
 
     return true;
 }
@@ -293,7 +328,7 @@ static bool read_response(int fd, SSL* ssl, const CurlOptions& opts, HttpRespons
 int http_request(const CurlOptions& opts, HttpResponse& response) {
     UrlParts url;
     if (!parse_url(opts.url.c_str(), url)) {
-        fprintf(stderr, "curl: failed to parse URL '%s'\n", opts.url.c_str());
+        (void)fprintf(stderr, "curl: failed to parse URL '%s'\n", opts.url.c_str());
         return 1;
     }
 
@@ -308,7 +343,8 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
         t = tv.tv_sec + tv.tv_usec / 1000000.0;
     };
 
-    double t_start, t_connect;
+    double t_start;
+    double t_connect;
     get_time(t_start);
 
     int sock = -1;
@@ -317,22 +353,24 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
 
     for (int attempt = 0; ; ++attempt) {
         if (attempt > 0) { usleep(retry_delay * 1000000); retry_delay *= 2; }
-        if (sock >= 0) close(sock);
+        if (sock >= 0) { close(sock);
+}
         ssl = nullptr;
         sock = connect_with_timeout(url.host, url.port, opts.connect_timeout);
         if (sock < 0) {
-            bool retryable = (errno == ECONNREFUSED && opts.retry_connrefused) ||
+            bool const retryable = (errno == ECONNREFUSED && opts.retry_connrefused) ||
                              (errno == ETIMEDOUT) || (errno == ECONNRESET) ||
                              (errno == ECONNABORTED);
             if (!retryable || attempt >= opts.retry_count) {
-                if (errno == ECONNREFUSED)
-                    fprintf(stderr, "curl: Failed to connect to '%s' port %d: Connection refused\n",
+                if (errno == ECONNREFUSED) {
+                    (void)fprintf(stderr, "curl: Failed to connect to '%s' port %d: Connection refused\n",
                             url.host.c_str(), url.port);
-                else if (errno == ETIMEDOUT)
-                    fprintf(stderr, "curl: Operation timed out\n");
-                else
-                    fprintf(stderr, "curl: Failed to connect to '%s' port %d: %s\n",
+                } else if (errno == ETIMEDOUT) {
+                    (void)fprintf(stderr, "curl: Operation timed out\n");
+                } else {
+                    (void)fprintf(stderr, "curl: Failed to connect to '%s' port %d: %s\n",
                             url.host.c_str(), url.port, strerror(errno));
+}
                 return 7;
             }
             continue;
@@ -341,9 +379,9 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
 
         if (url.scheme == "https") {
             ssl = ssl_handshake(sock, opts.insecure);
-            if (!ssl) {
+            if (ssl == nullptr) {
                 if (opts.retry_count > 0 && attempt < opts.retry_count) { close(sock); continue; }
-                fprintf(stderr, "curl: SSL connection error\n");
+                (void)fprintf(stderr, "curl: SSL connection error\n");
                 return 35;
             }
         }
@@ -351,16 +389,17 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
         // Build request
         std::string target = build_request_target(url);
         if (opts.get_with_data && !current_body.empty() && current_body.find('=') != std::string::npos) {
-            std::string extra = (!url.query.empty() ? "&" : "") + current_body;
+            std::string const extra = (!url.query.empty() ? "&" : "") + current_body;
             target = url.path + "?" + extra;
         }
 
         std::string host_header = url.host;
-        if (url.port != default_port(url.scheme)) host_header += ":" + std::to_string(url.port);
+        if (url.port != default_port(url.scheme)) { host_header += ":" + std::to_string(url.port);
+}
 
         // Check content-type
         bool has_ct = false;
-        for (auto& h : opts.custom_headers) {
+        for (const auto& h : opts.custom_headers) {
             std::string k = h.first;
             std::transform(k.begin(), k.end(), k.begin(), ::tolower);
             if (k == "content-type") { has_ct = true; break; }
@@ -371,28 +410,35 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
         req += "Host: " + host_header + "\r\n";
         req += "Connection: close\r\n";
         req += "User-Agent: modbox-curl/1.0\r\n";
-        for (auto& h : opts.custom_headers)
+        for (const auto& h : opts.custom_headers) {
             req += h.first + ": " + h.second + "\r\n";
-        if (!opts.head_only && !current_body.empty() && !has_ct)
+}
+        if (!opts.head_only && !current_body.empty() && !has_ct) {
             req += "Content-Type: application/x-www-form-urlencoded\r\n";
-        if (!current_body.empty())
+}
+        if (!current_body.empty()) {
             req += "Content-Length: " + std::to_string(current_body.size()) + "\r\n";
+}
         req += "\r\n";
 
         // Verbose output
         if (opts.verbose) {
-            fprintf(stderr, "> %s %s HTTP/1.1\n", current_method.c_str(), target.c_str());
-            fprintf(stderr, "> Host: %s\n", host_header.c_str());
-            fprintf(stderr, "> User-Agent: modbox-curl/1.0\n");
-            for (auto& h : opts.custom_headers)
-                fprintf(stderr, "> %s: %s\n", h.first.c_str(), h.second.c_str());
-            if (!opts.head_only && !current_body.empty() && !has_ct)
-                fprintf(stderr, "> Content-Type: application/x-www-form-urlencoded\n");
-            if (!current_body.empty())
-                fprintf(stderr, "> Content-Length: %zu\n", current_body.size());
-            if (!current_body.empty())
-                fprintf(stderr, ">\n> %s\n", current_body.c_str());
-            fprintf(stderr, ">\n");
+            (void)fprintf(stderr, "> %s %s HTTP/1.1\n", current_method.c_str(), target.c_str());
+            (void)fprintf(stderr, "> Host: %s\n", host_header.c_str());
+            (void)fprintf(stderr, "> User-Agent: modbox-curl/1.0\n");
+            for (const auto& h : opts.custom_headers) {
+                (void)fprintf(stderr, "> %s: %s\n", h.first.c_str(), h.second.c_str());
+}
+            if (!opts.head_only && !current_body.empty() && !has_ct) {
+                (void)fprintf(stderr, "> Content-Type: application/x-www-form-urlencoded\n");
+}
+            if (!current_body.empty()) {
+                (void)fprintf(stderr, "> Content-Length: %zu\n", current_body.size());
+}
+            if (!current_body.empty()) {
+                (void)fprintf(stderr, ">\n> %s\n", current_body.c_str());
+}
+            (void)fprintf(stderr, ">\n");
         }
 
         auto do_send = [&](const char* data, size_t len) -> bool {
@@ -401,10 +447,12 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
                 ssize_t n;
                 if (ssl) {
                     n = SSL_write(ssl, data + sent, len - sent);
-                    if (n <= 0) return false;
+                    if (n <= 0) { return false;
+}
                 } else {
                     n = send(sock, data + sent, len - sent, 0);
-                    if (n <= 0) return false;
+                    if (n <= 0) { return false;
+}
                 }
                 sent += n;
             }
@@ -412,18 +460,22 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
         };
 
         if (!do_send(req.c_str(), req.size())) {
-            if (ssl) SSL_shutdown(ssl);
+            if (ssl != nullptr) { SSL_shutdown(ssl);
+}
             close(sock);
-            if (attempt < opts.retry_count) continue;
-            fprintf(stderr, "curl: Failed to send request\n");
+            if (attempt < opts.retry_count) { continue;
+}
+            (void)fprintf(stderr, "curl: Failed to send request\n");
             return 56;
         }
 
         if (!current_body.empty()) {
             if (!do_send(current_body.c_str(), current_body.size())) {
-                if (ssl) SSL_shutdown(ssl); close(sock);
-                if (attempt < opts.retry_count) continue;
-                fprintf(stderr, "curl: Failed to send request\n");
+                if (ssl != nullptr) { SSL_shutdown(ssl); 
+}close(sock);
+                if (attempt < opts.retry_count) { continue;
+}
+                (void)fprintf(stderr, "curl: Failed to send request\n");
                 return 56;
             }
         }
@@ -436,23 +488,24 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
         response.num_redirects = redirect_count;
 
         if (!read_response(sock, ssl, opts, response)) {
-            if (ssl) SSL_shutdown(ssl);
+            if (ssl != nullptr) { SSL_shutdown(ssl);
+}
             close(sock);
-            fprintf(stderr, "curl: Failed to read response\n");
+            (void)fprintf(stderr, "curl: Failed to read response\n");
             return 56;
         }
 
         // Verbose output for response
         if (opts.verbose) {
-            fprintf(stderr, "< HTTP/1.1 %d %s\n", response.status_code, response.status_text.c_str());
+            (void)fprintf(stderr, "< HTTP/1.1 %d %s\n", response.status_code, response.status_text.c_str());
             for (auto& h : response.headers) {
-                fprintf(stderr, "< %s: %s\n", h.first.c_str(), h.second.c_str());
+                (void)fprintf(stderr, "< %s: %s\n", h.first.c_str(), h.second.c_str());
             }
-            fprintf(stderr, "<\n");
+            (void)fprintf(stderr, "<\n");
         }
 
         // Handle redirect
-        bool is_redirect = (response.status_code == 301 || response.status_code == 302 ||
+        bool const is_redirect = (response.status_code == 301 || response.status_code == 302 ||
                            response.status_code == 303 || response.status_code == 307 ||
                            response.status_code == 308);
         if (is_redirect && opts.follow_redirects) {
@@ -464,12 +517,14 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
                               (url.port != default_port(url.scheme) ? ":" + std::to_string(url.port) : "") + loc_url;
                 }
                 if (redirect_count >= opts.max_redirs) {
-                    if (ssl) SSL_shutdown(ssl); close(sock);
-                    fprintf(stderr, "curl: Too many redirects\n");
+                    if (ssl != nullptr) { SSL_shutdown(ssl); 
+}close(sock);
+                    (void)fprintf(stderr, "curl: Too many redirects\n");
                     return 47;
                 }
-                if (opts.verbose)
-                    fprintf(stderr, "curl: %d %s -> %s\n", response.status_code, current_url.c_str(), loc_url.c_str());
+                if (opts.verbose) {
+                    (void)fprintf(stderr, "curl: %d %s -> %s\n", response.status_code, current_url.c_str(), loc_url.c_str());
+}
                 redirect_count++;
                 current_url = loc_url;
                 parse_url(loc_url.c_str(), url);
@@ -479,7 +534,8 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
                         current_body.clear();
                     }
                 }
-                if (ssl) SSL_shutdown(ssl);
+                if (ssl != nullptr) { SSL_shutdown(ssl);
+}
                 close(sock);
                 // Reset attempt counter for redirects - don't count as retry
                 attempt = -1; // Will become 0 after ++attempt
@@ -487,7 +543,8 @@ int http_request(const CurlOptions& opts, HttpResponse& response) {
             }
         }
 
-        if (ssl) SSL_shutdown(ssl);
+        if (ssl != nullptr) { SSL_shutdown(ssl);
+}
         close(sock);
         break;
     }

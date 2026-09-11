@@ -1,3 +1,4 @@
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
 #include <cerrno>
 #include <cstdio>
@@ -5,8 +6,10 @@
 #include <cstring>
 #include <grp.h>
 #include <pwd.h>
+#include <sys/types.h>
+#include <string>
 #include <unistd.h>
-#include <sys/fsuid.h>
+#include <vector>
 
 #include "commands/chroot.hpp"
 #include "commands/command_macros.hpp"
@@ -15,17 +18,17 @@ static bool parse_userspec(const char* spec, uid_t* uid, gid_t* gid,
                             const char** user_name, const char** group_name) {
     // Format: [user][:group]
     const char* colon = strchr(spec, ':');
-    if (!colon) {
+    if (colon == nullptr) {
         // Just a user name or numeric uid
         char* endptr = nullptr;
-        long val = strtol(spec, &endptr, 10);
+        long const val = strtol(spec, &endptr, 10);
         if (*endptr == '\0' && val >= 0) {
-            *uid = (uid_t)val;
+            *uid = static_cast<uid_t>(val);
             user_name = nullptr;
         } else {
-            struct passwd* pw = getpwnam(spec);
-            if (!pw) {
-                fprintf(stderr, "chroot: invalid user '%s'\n", spec);
+            const struct passwd* pw = getpwnam(spec);
+            if (pw == nullptr) {
+                (void)fprintf(stderr, "chroot: invalid user '%s'\n", spec);
                 return false;
             }
             *uid = pw->pw_uid;
@@ -35,17 +38,17 @@ static bool parse_userspec(const char* spec, uid_t* uid, gid_t* gid,
     }
 
     // Has colon: user:group or :group or user:
-    size_t user_len = colon - spec;
+    size_t const user_len = colon - spec;
     if (user_len > 0) {
-        std::string user_str(spec, user_len);
+        std::string const user_str(spec, user_len);
         char* endptr = nullptr;
-        long val = strtol(user_str.c_str(), &endptr, 10);
+        long const val = strtol(user_str.c_str(), &endptr, 10);
         if (*endptr == '\0' && val >= 0) {
-            *uid = (uid_t)val;
+            *uid = static_cast<uid_t>(val);
         } else {
-            struct passwd* pw = getpwnam(user_str.c_str());
-            if (!pw) {
-                fprintf(stderr, "chroot: invalid user '%s'\n", user_str.c_str());
+            const struct passwd* pw = getpwnam(user_str.c_str());
+            if (pw == nullptr) {
+                (void)fprintf(stderr, "chroot: invalid user '%s'\n", user_str.c_str());
                 return false;
             }
             *uid = pw->pw_uid;
@@ -53,15 +56,15 @@ static bool parse_userspec(const char* spec, uid_t* uid, gid_t* gid,
     }
 
     const char* group_str = colon + 1;
-    if (*group_str) {
+    if ((*group_str) != 0) {
         char* endptr = nullptr;
-        long val = strtol(group_str, &endptr, 10);
+        long const val = strtol(group_str, &endptr, 10);
         if (*endptr == '\0' && val >= 0) {
-            *gid = (gid_t)val;
+            *gid = static_cast<gid_t>(val);
         } else {
-            struct group* gr = getgrnam(group_str);
-            if (!gr) {
-                fprintf(stderr, "chroot: invalid group '%s'\n", group_str);
+            const struct group* gr = getgrnam(group_str);
+            if (gr == nullptr) {
+                (void)fprintf(stderr, "chroot: invalid group '%s'\n", group_str);
                 return false;
             }
             *gid = gr->gr_gid;
@@ -87,7 +90,7 @@ int chroot_command(int argc, char** argv) {
     ArgTable at({userspec_opt, groups_opt, skip_chdir_opt,
                  help_opt, newroot_arg, command_arg, cmd_args, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION] NEWROOT [COMMAND [ARG]...]\n", argv[0]);
@@ -126,28 +129,29 @@ int chroot_command(int argc, char** argv) {
 
     // chroot requires root privileges
     if (geteuid() != 0) {
-        fprintf(stderr, "chroot: must be run as root\n");
+        (void)fprintf(stderr, "chroot: must be run as root\n");
         return 0;
     }
 
     // Step 1: Set supplementary groups (before chroot)
     if (groups_opt->count > 0) {
         // Parse comma-separated group list
-        std::string groups_str(groups_opt->sval[0]);
+        std::string const groups_str(groups_opt->sval[0]);
         std::vector<gid_t> gid_list;
         size_t start = 0;
         while (start < groups_str.length()) {
             size_t end = groups_str.find(',', start);
-            if (end == std::string::npos) end = groups_str.length();
-            std::string token = groups_str.substr(start, end - start);
+            if (end == std::string::npos) { end = groups_str.length();
+}
+            std::string const token = groups_str.substr(start, end - start);
             char* endptr = nullptr;
             long val = strtol(token.c_str(), &endptr, 10);
             if (*endptr == '\0' && val >= 0) {
-                gid_list.push_back((gid_t)val);
+                gid_list.push_back(static_cast<gid_t>(val));
             } else {
-                struct group* gr = getgrnam(token.c_str());
-                if (!gr) {
-                    fprintf(stderr, "chroot: invalid group '%s'\n", token.c_str());
+                const struct group* gr = getgrnam(token.c_str());
+                if (gr == nullptr) {
+                    (void)fprintf(stderr, "chroot: invalid group '%s'\n", token.c_str());
                     return 0;
                 }
                 gid_list.push_back(gr->gr_gid);
@@ -155,14 +159,14 @@ int chroot_command(int argc, char** argv) {
             start = end + 1;
         }
         if (setgroups(gid_list.size(), gid_list.data()) != 0) {
-            fprintf(stderr, "chroot: failed to set groups: %s\n", strerror(errno));
+            (void)fprintf(stderr, "chroot: failed to set groups: %s\n", strerror(errno));
             return 0;
         }
     }
 
     // Step 2: chroot()
     if (chroot(newroot) != 0) {
-        fprintf(stderr, "chroot: failed to change root directory to '%s': %s\n",
+        (void)fprintf(stderr, "chroot: failed to change root directory to '%s': %s\n",
                 newroot, strerror(errno));
         return 0;
     }
@@ -170,7 +174,7 @@ int chroot_command(int argc, char** argv) {
     // Step 3: cd to root (unless --skip-chdir)
     if (skip_chdir_opt->count == 0) {
         if (chdir("/") != 0) {
-            fprintf(stderr, "chroot: failed to change working directory: %s\n",
+            (void)fprintf(stderr, "chroot: failed to change working directory: %s\n",
                     strerror(errno));
             return 0;
         }
@@ -186,21 +190,21 @@ int chroot_command(int argc, char** argv) {
 
         // Set GID first, then UID (permissions check)
         if (setgid(gid) != 0) {
-            fprintf(stderr, "chroot: failed to set group ID: %s\n", strerror(errno));
+            (void)fprintf(stderr, "chroot: failed to set group ID: %s\n", strerror(errno));
             return 0;
         }
         if (setuid(uid) != 0) {
-            fprintf(stderr, "chroot: failed to set user ID: %s\n", strerror(errno));
+            (void)fprintf(stderr, "chroot: failed to set user ID: %s\n", strerror(errno));
             return 0;
         }
     }
 
 
     // Step 5: exec the command
-    execvp(cmd, (char* const*)exec_argv.data());
+    execvp(cmd, const_cast<char* const*>(exec_argv.data()));
 
     // If exec fails
-    fprintf(stderr, "chroot: failed to execute '%s': %s\n", cmd, strerror(errno));
+    (void)fprintf(stderr, "chroot: failed to execute '%s': %s\n", cmd, strerror(errno));
     exit(127);
 }
 

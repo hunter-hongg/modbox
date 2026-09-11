@@ -143,7 +143,7 @@ static inline const char* pci_class_name(uint16_t cs) {
         case 0x1201: return "SNIA Smart Data Accelerator Interface (SDXI) controller";
         default: {
             // Fall back to the base class (top byte) for unnamed subclasses.
-            uint8_t base = static_cast<uint8_t>(cs >> 8);
+            uint8_t const base = static_cast<uint8_t>(cs >> 8);
             switch (base) {
                 case 0x00: return "Unclassified device";
                 case 0x01: return "Mass storage controller";

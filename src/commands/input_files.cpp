@@ -1,6 +1,8 @@
 #include "commands/input_files.hpp"
 
+#include <cstdio>
 #include <cstring>
+#include <functional>
 
 #include "commands/cmd_error.hpp"
 
@@ -22,7 +24,7 @@ int for_each_input(const char* prog, const char* const* files, int nfiles,
             continue;
         }
         FILE* fp = fopen(path, "rb");
-        if (!fp) {
+        if (fp == nullptr) {
             cmd_perror(prog, path);
             status = 1;
             continue;
@@ -30,7 +32,7 @@ int for_each_input(const char* prog, const char* const* files, int nfiles,
         if (fn(fp, path) != 0) {
             status = 1;
         }
-        fclose(fp);
+        (void)fclose(fp);
     }
     return status;
 }

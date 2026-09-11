@@ -1,8 +1,8 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 
 #include "commands/tty.hpp"
@@ -21,7 +21,7 @@ int tty_command(int argc, char** argv) {
 
   ArgTable at({silent_opt, help_opt, version_opt, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -42,11 +42,11 @@ int tty_command(int argc, char** argv) {
     return at.print_errors(end, argv[0]);
   }
 
-  int is_terminal = isatty(STDIN_FILENO);
+  int const is_terminal = isatty(STDIN_FILENO);
   int exit_status;
 
-  if (is_terminal) {
-    char* name = ttyname(STDIN_FILENO);
+  if (is_terminal != 0) {
+    char const * name = ttyname(STDIN_FILENO);
     if (name == NULL) {
       if (silent_opt->count == 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)

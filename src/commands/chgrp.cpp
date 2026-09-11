@@ -5,7 +5,6 @@
 #include <cstring>
 #include <ftw.h>
 #include <grp.h>
-#include <pwd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -24,14 +23,14 @@ static int chgrp_changes_made;
 
 static gid_t resolve_gid(const char *name) {
     char *end;
-    long val = strtol(name, &end, 10);
+    long const val = strtol(name, &end, 10);
     if (*end == '\0' && val >= 0) {
-        return (gid_t)val;
+        return static_cast<gid_t>(val);
     }
 
-    struct group *gr = getgrnam(name);
-    if (!gr) {
-        return (gid_t)-1;
+    const struct group *gr = getgrnam(name);
+    if (gr == nullptr) {
+        return static_cast<gid_t>(-1);
     }
     return gr->gr_gid;
 }
@@ -39,50 +38,50 @@ static gid_t resolve_gid(const char *name) {
 /* ── Single-file chgrp ─────────────────────────────────────────────────── */
 
 static int chgrp_one_file(const char *path, const ChgrpOptions *opts) {
-    if (opts->preserve_root && strcmp(path, "/") == 0) {
-        if (!opts->is_silent) {
-            fprintf(stderr, "chgrp: it is dangerous to operate recursively on '/'\n");
+    if ((opts->preserve_root != 0) && strcmp(path, "/") == 0) {
+        if (opts->is_silent == 0) {
+            (void)fprintf(stderr, "chgrp: it is dangerous to operate recursively on '/'\n");
         }
         return 1;
     }
 
     struct stat st_before;
-    int have_before = (opts->is_verbose || opts->is_changes)
-                          ? (lstat(path, &st_before) == 0)
+    int const have_before = ((opts->is_verbose != 0) || (opts->is_changes != 0))
+                          ? static_cast<int>(lstat(path, &st_before) == 0)
                           : 0;
 
     int rc;
-    if (opts->no_dereference) {
-        rc = lchown(path, (uid_t)-1, opts->group);
+    if (opts->no_dereference != 0) {
+        rc = lchown(path, static_cast<uid_t>(-1), opts->group);
     } else {
-        rc = chown(path, (uid_t)-1, opts->group);
+        rc = chown(path, static_cast<uid_t>(-1), opts->group);
     }
 
     if (rc != 0) {
-        if (!opts->is_silent) {
-            fprintf(stderr, "chgrp: changing group of '%s': %s\n", path, strerror(errno));
+        if (opts->is_silent == 0) {
+            (void)fprintf(stderr, "chgrp: changing group of '%s': %s\n", path, strerror(errno));
         }
         return 1;
     }
 
     chgrp_changes_made = 1;
 
-    if (opts->is_verbose || opts->is_changes) {
+    if ((opts->is_verbose != 0) || (opts->is_changes != 0)) {
         int changed = 1;
-        if (opts->is_changes && have_before) {
+        if ((opts->is_changes != 0) && (have_before != 0)) {
             struct stat st_after;
             if (lstat(path, &st_after) == 0) {
-                changed = (st_before.st_gid != st_after.st_gid);
+                changed = static_cast<int>(st_before.st_gid != st_after.st_gid);
             }
         }
-        if (changed) {
+        if (changed != 0) {
             struct stat st;
             if (lstat(path, &st) == 0) {
-                struct group *gr = getgrgid(st.st_gid);
+                const struct group *gr = getgrgid(st.st_gid);
                 printf("changed group of '%s' from %s to %s\n",
                        path,
-                       gr ? gr->gr_name : "?",
-                       gr ? gr->gr_name : "?");
+                       (gr != nullptr) ? gr->gr_name : "?",
+                       (gr != nullptr) ? gr->gr_name : "?");
             }
         }
     }
@@ -98,9 +97,9 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
     (void)typeflag;
     (void)ftwbuf;
 
-    if (chgrp_glob_opts->preserve_root && strcmp(fpath, "/") == 0) {
-        if (!chgrp_glob_opts->is_silent) {
-            fprintf(stderr, "chgrp: it is dangerous to operate recursively on '/'\n");
+    if ((chgrp_glob_opts->preserve_root != 0) && strcmp(fpath, "/") == 0) {
+        if (chgrp_glob_opts->is_silent == 0) {
+            (void)fprintf(stderr, "chgrp: it is dangerous to operate recursively on '/'\n");
         }
         chgrp_errors = 1;
         return 0;
@@ -152,7 +151,7 @@ int chgrp_command(int argc, char **argv) {
         help_opt, all_args, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... GROUP FILE...\n", argv[0]);
@@ -178,17 +177,17 @@ int chgrp_command(int argc, char **argv) {
 
     if (nerrors > 0) {
         at.print_errors(end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
     ChgrpOptions opts = {};
-    opts.is_recursive = (recursive_opt->count > 0);
-    opts.is_verbose = (verbose_opt->count > 0);
-    opts.is_changes = (changes_opt->count > 0);
-    opts.is_silent = (silent_opt->count > 0 || quiet_opt->count > 0);
-    opts.no_dereference = (no_dereference_opt->count > 0);
-    opts.preserve_root = (preserve_root_opt->count > 0);
+    opts.is_recursive = static_cast<int>(recursive_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.is_changes = static_cast<int>(changes_opt->count > 0);
+    opts.is_silent = static_cast<int>(silent_opt->count > 0 || quiet_opt->count > 0);
+    opts.no_dereference = static_cast<int>(no_dereference_opt->count > 0);
+    opts.preserve_root = static_cast<int>(preserve_root_opt->count > 0);
     opts.reference = (reference_opt->count > 0) ? reference_opt->sval[0] : nullptr;
 
     if (traverse_L_opt->count > 0) {
@@ -204,8 +203,8 @@ int chgrp_command(int argc, char **argv) {
 
     if (reference_opt->count == 0) {
         if (num_files < 1) {
-            fprintf(stderr, "%s: missing operand\n", argv[0]);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
         const char *spec = all_args->filename[0];
@@ -213,30 +212,30 @@ int chgrp_command(int argc, char **argv) {
         num_files--;
 
         if (num_files == 0) {
-            fprintf(stderr, "%s: missing operand\n", argv[0]);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
 
-        gid_t g = resolve_gid(spec);
-        if (g == (gid_t)-1) {
-            fprintf(stderr, "%s: invalid group: '%s'\n", argv[0], spec);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        gid_t const g = resolve_gid(spec);
+        if (g == static_cast<gid_t>(-1)) {
+            (void)fprintf(stderr, "%s: invalid group: '%s'\n", argv[0], spec);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
         opts.group = g;
         opts.group_set = 1;
     } else {
         if (num_files == 0) {
-            fprintf(stderr, "%s: missing operand\n", argv[0]);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
 
         /* --reference: stat the reference file */
         struct stat ref_st;
         if (stat(reference_opt->sval[0], &ref_st) != 0) {
-            fprintf(stderr, "%s: cannot access '%s': %s\n", argv[0],
+            (void)fprintf(stderr, "%s: cannot access '%s': %s\n", argv[0],
                     reference_opt->sval[0], strerror(errno));
             return 0;
         }
@@ -254,12 +253,12 @@ int chgrp_command(int argc, char **argv) {
 
     chgrp_glob_opts = &opts;
 
-    if (opts.is_recursive) {
+    if (opts.is_recursive != 0) {
         for (int i = 0; i < num_files; i++) {
             const char *path = all_args->filename[file_offset + i];
             if (nftw(path, recursive_callback, 20, nftw_opts) != 0) {
-                if (!opts.is_silent) {
-                    fprintf(stderr, "chgrp: %s: %s\n", path, strerror(errno));
+                if (opts.is_silent == 0) {
+                    (void)fprintf(stderr, "chgrp: %s: %s\n", path, strerror(errno));
                 }
                 chgrp_errors = 1;
             }

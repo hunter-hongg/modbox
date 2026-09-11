@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -9,7 +10,7 @@ int lf_command(int argc, char** argv) {
     if (argc >= 2 && strcmp(argv[1], "init") == 0) {
         const char* shell = (argc >= 3) ? argv[2] : "";
         if (shell[0] == '\0') {
-            fprintf(stderr, "lf: please specify a shell: bash, zsh, fish\n");
+            (void)fprintf(stderr, "lf: please specify a shell: bash, zsh, fish\n");
             return 0;
         }
         if (strcmp(shell, "bash") == 0 || strcmp(shell, "zsh") == 0) {
@@ -36,13 +37,13 @@ int lf_command(int argc, char** argv) {
             printf("  end\n");
             printf("end\n");
         } else {
-            fprintf(stderr, "lf: unsupported shell '%s'. Supported: bash, zsh, fish\n", shell);
+            (void)fprintf(stderr, "lf: unsupported shell '%s'. Supported: bash, zsh, fish\n", shell);
         }
         return 0;
     }
 
-    int new_argc = argc + 1;
-    char** new_argv = (char**)malloc((size_t)(new_argc + 1) * sizeof(char*));
+    int const new_argc = argc + 1;
+    char** new_argv = static_cast<char**>(malloc(static_cast<size_t>(new_argc + 1) * sizeof(char*)));
 
     new_argv[0] = argv[0];
     new_argv[1] = "--tui";

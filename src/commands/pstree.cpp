@@ -40,63 +40,74 @@ bool read_proc(pid_t pid, ProcInfo& info) {
     FILE* fp = nullptr;
 
     // --- stat: (comm) ppid uid... ---
-    snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/stat", pid);
     fp = fopen(path, "r");
-    if (!fp) return false;
+    if (fp == nullptr) { return false;
+}
 
     char stat_buf[4096];
     bool ok = false;
-    if (fgets(stat_buf, sizeof(stat_buf), fp)) {
+    if (fgets(stat_buf, sizeof(stat_buf), fp) != nullptr) {
         const char* p = stat_buf;
-        while (*p && *p != ' ') p++;       // skip pid
-        while (*p == ' ') p++;
+        while (((*p) != 0) && *p != ' ') { p++;       // skip pid
+}
+        while (*p == ' ') { p++;
+}
         if (*p == '(') {
             p++;
             const char* cstart = p;
-            while (*p && *p != ')') p++;
-            size_t clen = (size_t)(p - cstart);
+            while (((*p) != 0) && *p != ')') { p++;
+}
+            size_t const clen = static_cast<size_t>(p - cstart);
             if (clen < sizeof(info.comm) - 1) {
                 memcpy(info.comm, cstart, clen);
                 info.comm[clen] = '\0';
             }
             p++;  // skip ')'
         }
-        while (*p == ' ') p++;
+        while (*p == ' ') { p++;
+}
         // state ppid pgrp session ... -> we only need ppid.
-        int parsed = sscanf(p, "%*c %d", &info.ppid);
+        int const parsed = sscanf(p, "%*c %d", &info.ppid);
         ok = (parsed >= 1);
     }
-    fclose(fp);
-    if (!ok) return false;
+    (void)fclose(fp);
+    if (!ok) { return false;
+}
 
     // --- status: effective uid (Uid: line, 2nd field) ---
-    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/status", pid);
     fp = fopen(path, "r");
-    if (fp) {
+    if (fp != nullptr) {
         char line[256];
-        while (fgets(line, sizeof(line), fp)) {
+        while (fgets(line, sizeof(line), fp) != nullptr) {
             if (strncmp(line, "Uid:", 4) == 0) {
-                int r = 0, e = 0, s = 0, f = 0;
+                int r = 0;
+                int e = 0;
+                int s = 0;
+                int f = 0;
                 if (sscanf(line, "Uid: %d %d %d %d", &r, &e, &s, &f) >= 2) {
-                    info.uid = (uid_t)e;
+                    info.uid = static_cast<uid_t>(e);
                 }
                 break;
             }
         }
-        fclose(fp);
+        (void)fclose(fp);
     }
 
     // --- cmdline: NUL-separated args ---
-    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
     fp = fopen(path, "r");
-    if (fp) {
-        size_t n = fread(info.cmd, 1, sizeof(info.cmd) - 1, fp);
-        fclose(fp);
+    if (fp != nullptr) {
+        size_t const n = fread(info.cmd, 1, sizeof(info.cmd) - 1, fp);
+        (void)fclose(fp);
         if (n > 0) {
             for (size_t i = 0; i < n; i++) {
-                if (info.cmd[i] == '\0') info.cmd[i] = ' ';
+                if (info.cmd[i] == '\0') { info.cmd[i] = ' ';
+}
             }
-            if (info.cmd[n - 1] == ' ') info.cmd[n - 1] = '\0';
+            if (info.cmd[n - 1] == ' ') { info.cmd[n - 1] = '\0';
+}
         } else {
             // Kernel thread / no cmdline -> fall back to comm.
             strncpy(info.cmd, info.comm, sizeof(info.cmd) - 1);
@@ -111,9 +122,10 @@ bool read_proc(pid_t pid, ProcInfo& info) {
 }
 
 const char* username_for(uid_t uid, char* buf, size_t buflen) {
-    struct passwd* pw = getpwuid(uid);
-    if (pw) return pw->pw_name;
-    snprintf(buf, buflen, "%u", (unsigned)uid);
+    const struct passwd* pw = getpwuid(uid);
+    if (pw != nullptr) { return pw->pw_name;
+}
+    (void)snprintf(buf, buflen, "%u", static_cast<unsigned>(uid));
     return buf;
 }
 std::string username_of(uid_t uid) {
@@ -133,12 +145,13 @@ void print_node(const ProcInfo& info,
                 bool show_user,
                 const std::string& parent_user) {
     std::string line = spacer;
-    if (!top) line += last ? "`----" : "|----";
+    if (!top) { line += last ? "`----" : "|----";
+}
 
     line += info.comm;
     if (show_pid) {
         char pbuf[32];
-        snprintf(pbuf, sizeof(pbuf), "(%d)", info.pid);
+        (void)snprintf(pbuf, sizeof(pbuf), "(%d)", info.pid);
         line += pbuf;
     }
     if (show_user) {
@@ -154,7 +167,7 @@ void print_node(const ProcInfo& info,
         const char* args = info.cmd;
         // cmdline echoes the command name as its first token; skip it so we
         // don't print the name twice (e.g. "sleep sleep 120").
-        size_t clen = strlen(info.comm);
+        size_t const clen = strlen(info.comm);
         if (strncmp(info.cmd, info.comm, clen) == 0 && info.cmd[clen] == ' ') {
             args = info.cmd + clen + 1;
         }
@@ -181,7 +194,7 @@ int pstree_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({p_opt, a_opt, u_opt, s_opt, help_opt, version_opt, pid_args, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [PID]...\n", prog);
@@ -208,13 +221,14 @@ int pstree_command(int argc, char** argv) {
     bool show_pid = p_opt->count > 0;
     bool show_args = a_opt->count > 0;
     bool show_user = u_opt->count > 0;
-    bool show_parents = s_opt->count > 0;
+    bool const show_parents = s_opt->count > 0;
 
     // Parse requested PID roots (ascending, de-duplicated).
     std::vector<pid_t> roots;
     for (int i = 0; i < pid_args->count; i++) {
-        pid_t pid = (pid_t)atoi(pid_args->sval[i]);
-        if (pid > 0) roots.push_back(pid);
+        pid_t const pid = static_cast<pid_t>(atoi(pid_args->sval[i]));
+        if (pid > 0) { roots.push_back(pid);
+}
     }
     std::sort(roots.begin(), roots.end());
     roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
@@ -228,21 +242,25 @@ int pstree_command(int argc, char** argv) {
     std::unordered_map<pid_t, std::vector<pid_t>> children;
 
     DIR* dir = opendir("/proc");
-    if (!dir) {
+    if (dir == nullptr) {
         return cmd_error(prog, "cannot open /proc");
     }
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_type != DT_DIR) continue;
+        if (entry->d_type != DT_DIR) { continue;
+}
         bool is_num = true;
-        for (const char* p = entry->d_name; *p; p++) {
-            if (!isdigit((unsigned char)*p)) { is_num = false; break; }
+        for (const char* p = entry->d_name; (*p) != 0; p++) {
+            if (isdigit(static_cast<unsigned char>(*p)) == 0) { is_num = false; break; }
         }
-        if (!is_num) continue;
-        pid_t pid = (pid_t)atoi(entry->d_name);
-        if (pid <= 0) continue;
+        if (!is_num) { continue;
+}
+        pid_t const pid = static_cast<pid_t>(atoi(entry->d_name));
+        if (pid <= 0) { continue;
+}
         ProcInfo info;
-        if (!read_proc(pid, info)) continue;
+        if (!read_proc(pid, info)) { continue;
+}
         procs[pid] = info;
         children[info.ppid].push_back(pid);
     }
@@ -276,7 +294,8 @@ int pstree_command(int argc, char** argv) {
         [&](pid_t pid, const std::string& spacer, bool top, bool last,
             const std::string& parent_user) {
             auto it = procs.find(pid);
-            if (it == procs.end()) return;
+            if (it == procs.end()) { return;
+}
             const ProcInfo& info = it->second;
             print_node(info, spacer, top, last, show_pid, show_args, show_user, parent_user);
 
@@ -284,7 +303,8 @@ int pstree_command(int argc, char** argv) {
             const char* uname = username_for(info.uid, ubuf, sizeof(ubuf));
 
             std::string child_spacer = spacer;
-            if (!top) child_spacer += last ? "     " : "|    ";
+            if (!top) { child_spacer += last ? "     " : "|    ";
+}
             const auto& ch = children[pid];
             for (size_t i = 0; i < ch.size(); i++) {
                 emit(ch[i], child_spacer, false, (i + 1 == ch.size()), uname);
@@ -296,7 +316,7 @@ int pstree_command(int argc, char** argv) {
         // single linear path (each node descends only into the next chain
         // element), then emit the target's real subtree below it.
         for (size_t ri = 0; ri < roots.size(); ri++) {
-            pid_t target = roots[ri];
+            pid_t const target = roots[ri];
             std::vector<pid_t> chain;
             pid_t cur = target;
             while (cur > 0 && procs.find(cur) != procs.end()) {
@@ -311,17 +331,18 @@ int pstree_command(int argc, char** argv) {
             // level's connector.
             std::string spacer;
             for (size_t i = 0; i < chain.size(); i++) {
-                bool top = (i == 0);
-                bool last = (i + 1 == chain.size());
+                bool const top = (i == 0);
+                bool const last = (i + 1 == chain.size());
                 const std::string& parent_user =
                     (i == 0) ? std::string() : username_of(procs[chain[i - 1]].uid);
                 print_node(procs[chain[i]], spacer, top, last,
                            show_pid, show_args, show_user, parent_user);
-                if (!top) spacer += "     ";  // node is sole child -> pad
+                if (!top) { spacer += "     ";  // node is sole child -> pad
+}
             }
             // Emit the target's real subtree (all its children) under it.
             const auto& ch = children[target];
-            std::string child_spacer = spacer + "|    ";
+            std::string const child_spacer = spacer + "|    ";
             for (size_t i = 0; i < ch.size(); i++) {
                 emit(ch[i], child_spacer, false, (i + 1 == ch.size()),
                      username_of(procs[target].uid));

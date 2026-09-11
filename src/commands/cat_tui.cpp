@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <algorithm>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/app.hpp>
@@ -6,10 +8,10 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
-#include <unordered_map>
-#include <algorithm>
 #include <unistd.h>
 
 #include "commands/tui_base.hpp"
@@ -36,7 +38,8 @@ struct StyledSegment {
 
 static std::vector<StyledSegment> parse_ansi(const std::string& s) {
     std::vector<StyledSegment> segs;
-    if (s.empty()) return segs;
+    if (s.empty()) { return segs;
+}
 
     Color cur_color = Color::Default;
     bool cur_bold = false;
@@ -48,9 +51,10 @@ static std::vector<StyledSegment> parse_ansi(const std::string& s) {
     while (i < s.size()) {
         if (s[i] == '\033' && i + 1 < s.size() && s[i + 1] == '[') {
             size_t j = i + 2;
-            while (j < s.size() && s[j] != 'm') j++;
+            while (j < s.size() && s[j] != 'm') { j++;
+}
             if (j < s.size()) {
-                std::string param = s.substr(i + 2, j - i - 2);
+                std::string const param = s.substr(i + 2, j - i - 2);
                 if (param.empty() || param == "0") {
                     cur_color = Color::Default;
                     cur_bold = false;
@@ -60,9 +64,9 @@ static std::vector<StyledSegment> parse_ansi(const std::string& s) {
                 } else {
                     size_t p = 0;
                     while (p < param.size()) {
-                        size_t semi = param.find(';', p);
-                        std::string tok = param.substr(p, semi == std::string::npos ? semi : semi - p);
-                        int val = atoi(tok.c_str());
+                        size_t const semi = param.find(';', p);
+                        std::string const tok = param.substr(p, semi == std::string::npos ? semi : semi - p);
+                        int const val = atoi(tok.c_str());
                         if (val == 0) {
                             cur_color = Color::Default;
                             cur_bold = false;
@@ -98,10 +102,11 @@ static std::vector<StyledSegment> parse_ansi(const std::string& s) {
                 continue;
             }
         }
-        size_t start = i;
-        while (i < s.size() && s[i] != '\033') i++;
+        size_t const start = i;
+        while (i < s.size() && s[i] != '\033') { i++;
+}
         if (i > start) {
-            std::string chunk = s.substr(start, i - start);
+            std::string const chunk = s.substr(start, i - start);
             StyledSegment seg;
             seg.text = chunk;
             seg.color = cur_color;
@@ -121,14 +126,17 @@ static std::vector<StyledSegment> parse_ansi(const std::string& s) {
 }
 
 static std::string highlight_line(const char* line, const char* ext) {
-    if (!line || !ext || !ext[0]) return line;
+    if ((line == nullptr) || (ext == nullptr) || (ext[0] == 0)) { return line;
+}
     char* buf = nullptr;
     size_t size = 0;
     FILE* fp = open_memstream(&buf, &size);
-    if (!fp) return line;
+    if (fp == nullptr) { return line;
+}
     print_highlighted(line, ext, fp);
-    fclose(fp);
-    if (!buf) return line;
+    (void)fclose(fp);
+    if (buf == nullptr) { return line;
+}
     std::string result(buf, size);
     free(buf);
     return result;
@@ -164,7 +172,7 @@ public:
 
         size_t pos = 0;
         while (pos < lines_str.size()) {
-            size_t nl = lines_str.find('\n', pos);
+            size_t const nl = lines_str.find('\n', pos);
             if (nl == std::string::npos) {
                 fd.lines.push_back(lines_str.substr(pos));
                 pos = lines_str.size();
@@ -176,29 +184,32 @@ public:
         files_.push_back(std::move(fd));
     }
 
-     int entries_size() const override { return current_file_ >= 0 && current_file_ < (int)files_.size() ? (int)files_[current_file_].lines.size() : 0; }
+     [[nodiscard]] int entries_size() const override { return current_file_ >= 0 && current_file_ < static_cast<int>(files_.size()) ? static_cast<int>(files_[current_file_].lines.size()) : 0; }
 
-     int header_rows() const override { return 1; }
+     [[nodiscard]] int header_rows() const override { return 1; }
 
      void fill_entries() override {}
 
-    ftxui::Element render_row(int idx) const override {
-        if (current_file_ < 0 || current_file_ >= (int)files_.size()) return text("");
+    [[nodiscard]] ftxui::Element render_row(int idx) const override {
+        if (current_file_ < 0 || current_file_ >= static_cast<int>(files_.size())) { return text("");
+}
         const auto& fd = files_[current_file_];
-        if (idx < 0 || idx >= (int)fd.lines.size()) return text("");
+        if (idx < 0 || idx >= static_cast<int>(fd.lines.size())) { return text("");
+}
 
         const std::string& raw = fd.lines[idx];
-        int blank = raw.empty();
+        int const blank = static_cast<int>(raw.empty());
 
         std::vector<Element> row_elements;
 
         if (show_line_numbers_) {
-            bool should_number = show_line_numbers_ || (show_nonempty_line_numbers_ && !blank);
+            bool const should_number = show_line_numbers_ || (show_nonempty_line_numbers_ && (blank == 0));
             if (should_number) {
                 char buf[32];
-                if (number_format_ == 1) snprintf(buf, sizeof(buf), "0x%04x", idx + 1);
-                else if (number_format_ == 2) snprintf(buf, sizeof(buf), "%06o", idx + 1);
-                else snprintf(buf, sizeof(buf), "%*d", number_width_, idx + 1);
+                if (number_format_ == 1) { (void)snprintf(buf, sizeof(buf), "0x%04x", idx + 1);
+                } else if (number_format_ == 2) { (void)snprintf(buf, sizeof(buf), "%06o", idx + 1);
+                } else { (void)snprintf(buf, sizeof(buf), "%*d", number_width_, idx + 1);
+}
                 row_elements.push_back(text(buf) | color(Color::GrayLight));
             } else {
                 row_elements.push_back(text(std::string(number_width_, ' ')));
@@ -214,11 +225,16 @@ public:
         Elements line_elements;
         for (const auto& seg : segs) {
             Element el = text(seg.text);
-            if (seg.bold) el = el | bold;
-            if (seg.dim) el = el | dim;
-            if (seg.italic) el = el | italic;
-            if (seg.underline) el = el | underlined;
-            if (seg.color != Color::Default) el = el | color(seg.color);
+            if (seg.bold) { el = el | bold;
+}
+            if (seg.dim) { el = el | dim;
+}
+            if (seg.italic) { el = el | italic;
+}
+            if (seg.underline) { el = el | underlined;
+}
+            if (seg.color != Color::Default) { el = el | color(seg.color);
+}
             line_elements.push_back(el);
         }
         row_elements.push_back(hbox(std::move(line_elements)));
@@ -242,14 +258,17 @@ public:
                 update_scroll_math();
                 return true;
             }
-            if (handle_search(event)) return true;
+            if (handle_search(event)) { return true;
+}
             return ComponentBase::OnEvent(event);
         }
 
-        if (handle_nav(event)) return true;
+        if (handle_nav(event)) { return true;
+}
 
         if (event == Event::Character('q') || event == Event::Character('Q')) {
-            if (auto* app = App::Active()) app->Exit();
+            if (auto* app = App::Active()) { app->Exit();
+}
             return true;
         }
         if (event == Event::Character('n')) {
@@ -278,7 +297,7 @@ public:
         }
         if (event == Event::Tab) {
             if (!files_.empty()) {
-                current_file_ = (current_file_ + 1) % (int)files_.size();
+                current_file_ = (current_file_ + 1) % static_cast<int>(files_.size());
                 selected_ = 0;
                 scroll_offset_ = 0;
                 update_scroll_math();
@@ -287,7 +306,7 @@ public:
         }
         if (event == Event::Character('p')) {
             if (!files_.empty()) {
-                current_file_ = (current_file_ - 1 + (int)files_.size()) % (int)files_.size();
+                current_file_ = (current_file_ - 1 + static_cast<int>(files_.size())) % static_cast<int>(files_.size());
                 selected_ = 0;
                 scroll_offset_ = 0;
                 update_scroll_math();
@@ -297,13 +316,15 @@ public:
         if (event == Event::Character('x')) {
             if (files_.size() > 1) {
                 files_.erase(files_.begin() + current_file_);
-                if (current_file_ >= (int)files_.size()) current_file_ = (int)files_.size() - 1;
-                if (current_file_ < 0) current_file_ = 0;
+                if (current_file_ >= static_cast<int>(files_.size())) { current_file_ = static_cast<int>(files_.size()) - 1;
+}
+                current_file_ = std::max(current_file_, 0);
                 selected_ = 0;
                 scroll_offset_ = 0;
                 update_scroll_math();
             } else if (files_.size() == 1) {
-                if (auto* app = App::Active()) app->Exit();
+                if (auto* app = App::Active()) { app->Exit();
+}
                 return true;
             }
             return true;
@@ -332,7 +353,8 @@ public:
     Element OnRender() override {
         using namespace ftxui;
 
-        if (files_.empty()) return text("(empty)") | dim | center;
+        if (files_.empty()) { return text("(empty)") | dim | center;
+}
 
         Elements body;
 
@@ -340,15 +362,16 @@ public:
             Elements tabs;
             for (size_t i = 0; i < files_.size(); i++) {
                 auto label = text(files_[i].display_name);
-                if ((int)i == current_file_) {
+                if (static_cast<int>(i) == current_file_) {
                     label = label | bold | color(Color::Cyan);
                 }
-                if ((int)i == current_file_) {
+                if (static_cast<int>(i) == current_file_) {
                     tabs.push_back(label | bgcolor(Color::Blue));
                 } else {
                     tabs.push_back(label);
                 }
-                if (i + 1 < files_.size()) tabs.push_back(text(" "));
+                if (i + 1 < files_.size()) { tabs.push_back(text(" "));
+}
             }
             body.push_back(hbox(tabs));
             body.push_back(separator());
@@ -366,7 +389,7 @@ public:
 };
 
 void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool nonempty_number_mode, int number_format, bool highlight_mode) {
-    if (!isatty(STDOUT_FILENO)) {
+    if (isatty(STDOUT_FILENO) == 0) {
         return;
     }
 
@@ -398,14 +421,14 @@ void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool
     for (int i = 0; i < file_count; i++) {
         const char* name = filenames[i];
         if (strcmp(name, "-") == 0) {
-            std::string ext;
+            std::string const ext;
             component->add_file(stdin_content, "(stdin)", ext, true);
             continue;
         }
         std::string content;
         if (highlight_mode) {
             const char* ext = get_file_extension(name);
-            std::vector<PipelineLine*> plines = read_file_to_lines(name);
+            std::vector<PipelineLine*> const plines = read_file_to_lines(name);
             char* buf = nullptr;
             size_t size = 0;
             FILE* fp = open_memstream(&buf, &size);
@@ -413,19 +436,19 @@ void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool
                 print_highlighted(pl->text.c_str(), ext, fp);
                 delete pl;
             }
-            fclose(fp);
-            if (buf) {
+            (void)fclose(fp);
+            if (buf != nullptr) {
                 content.assign(buf, size);
                 free(buf);
             }
         } else {
-            std::vector<PipelineLine*> plines = read_file_to_lines(name);
+            std::vector<PipelineLine*> const plines = read_file_to_lines(name);
             for (auto* pl : plines) {
                 content += pl->text;
                 delete pl;
             }
         }
-        std::string ext = get_file_extension(name);
+        std::string const ext = get_file_extension(name);
         component->add_file(std::move(content), name, ext, false);
     }
 
@@ -442,7 +465,7 @@ void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool
     }
 
     if (component->entries_size() == 0 && file_count > 0 && !have_stdin) {
-        fprintf(stderr, "cat: %s: No such file or directory\n", filenames[0]);
+        (void)fprintf(stderr, "cat: %s: No such file or directory\n", filenames[0]);
         return;
     }
 

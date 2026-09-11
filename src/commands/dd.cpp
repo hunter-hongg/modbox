@@ -6,7 +6,6 @@
 #include <vector>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 #include "commands/dd.hpp"
 #include "commands/command_macros.hpp"
@@ -65,52 +64,52 @@ struct symbol_value {
 };
 
 static const symbol_value conversions[] = {
-    {"ascii",   C_ASCII | C_UNBLOCK | C_TWOBUFS},
-    {"ebcdic",  C_EBCDIC | C_BLOCK | C_TWOBUFS},
-    {"ibm",     C_IBM | C_BLOCK | C_TWOBUFS},
-    {"block",   C_BLOCK | C_TWOBUFS},
-    {"unblock", C_UNBLOCK | C_TWOBUFS},
-    {"lcase",   C_LCASE | C_TWOBUFS},
-    {"ucase",   C_UCASE | C_TWOBUFS},
-    {"sparse",  C_SPARSE},
-    {"swab",    C_SWAB | C_TWOBUFS},
-    {"noerror", C_NOERROR},
-    {"nocreat", C_NOCREAT},
-    {"excl",    C_EXCL},
-    {"notrunc", C_NOTRUNC},
-    {"sync",    C_SYNC},
-    {"fdatasync", C_FDATASYNC},
-    {"fsync",   C_FSYNC},
-    {NULL, 0}
+    {.symbol="ascii",   .value=C_ASCII | C_UNBLOCK | C_TWOBUFS},
+    {.symbol="ebcdic",  .value=C_EBCDIC | C_BLOCK | C_TWOBUFS},
+    {.symbol="ibm",     .value=C_IBM | C_BLOCK | C_TWOBUFS},
+    {.symbol="block",   .value=C_BLOCK | C_TWOBUFS},
+    {.symbol="unblock", .value=C_UNBLOCK | C_TWOBUFS},
+    {.symbol="lcase",   .value=C_LCASE | C_TWOBUFS},
+    {.symbol="ucase",   .value=C_UCASE | C_TWOBUFS},
+    {.symbol="sparse",  .value=C_SPARSE},
+    {.symbol="swab",    .value=C_SWAB | C_TWOBUFS},
+    {.symbol="noerror", .value=C_NOERROR},
+    {.symbol="nocreat", .value=C_NOCREAT},
+    {.symbol="excl",    .value=C_EXCL},
+    {.symbol="notrunc", .value=C_NOTRUNC},
+    {.symbol="sync",    .value=C_SYNC},
+    {.symbol="fdatasync", .value=C_FDATASYNC},
+    {.symbol="fsync",   .value=C_FSYNC},
+    {.symbol=NULL, .value=0}
 };
 
 static const symbol_value flags[] = {
-    {"append",     O_APPEND},
-    {"binary",     O_BINARY},
-    {"cio",        O_CIO},
-    {"direct",     O_DIRECT},
-    {"directory",  O_DIRECTORY},
-    {"dsync",      O_DSYNC},
-    {"noatime",    O_NOATIME},
-    {"nocache",    0},
-    {"noctty",     O_NOCTTY},
-    {"nofollow",   O_NOFOLLOW},
-    {"nolinks",    O_NOLINKS},
-    {"nonblock",   O_NONBLOCK},
-    {"sync",       O_SYNC},
-    {"text",       O_TEXT},
-    {"fullblock",  O_FULLBLOCK},
-    {"count_bytes", O_COUNT_BYTES},
-    {"skip_bytes", O_SKIP_BYTES},
-    {"seek_bytes", O_SEEK_BYTES},
-    {NULL, 0}
+    {.symbol="append",     .value=O_APPEND},
+    {.symbol="binary",     .value=O_BINARY},
+    {.symbol="cio",        .value=O_CIO},
+    {.symbol="direct",     .value=O_DIRECT},
+    {.symbol="directory",  .value=O_DIRECTORY},
+    {.symbol="dsync",      .value=O_DSYNC},
+    {.symbol="noatime",    .value=O_NOATIME},
+    {.symbol="nocache",    .value=0},
+    {.symbol="noctty",     .value=O_NOCTTY},
+    {.symbol="nofollow",   .value=O_NOFOLLOW},
+    {.symbol="nolinks",    .value=O_NOLINKS},
+    {.symbol="nonblock",   .value=O_NONBLOCK},
+    {.symbol="sync",       .value=O_SYNC},
+    {.symbol="text",       .value=O_TEXT},
+    {.symbol="fullblock",  .value=O_FULLBLOCK},
+    {.symbol="count_bytes", .value=O_COUNT_BYTES},
+    {.symbol="skip_bytes", .value=O_SKIP_BYTES},
+    {.symbol="seek_bytes", .value=O_SEEK_BYTES},
+    {.symbol=NULL, .value=0}
 };
 
 static const symbol_value statuses[] = {
-    {"none",     STATUS_NONE},
-    {"noxfer",   STATUS_NOXFER},
-    {"progress", STATUS_PROGRESS},
-    {NULL, 0}
+    {.symbol="none",     .value=STATUS_NONE},
+    {.symbol="noxfer",   .value=STATUS_NOXFER},
+    {.symbol="progress", .value=STATUS_PROGRESS},
+    {.symbol=NULL, .value=0}
 };
 
 /* Standard translation tables, taken from POSIX 1003.1-2013 / GNU dd. */
@@ -250,8 +249,9 @@ static void dd_error(const char* msg) {
 
 static int64_t suffix_multiplier(const char* p, bool* is_binary) {
     *is_binary = false;
-    size_t len = strlen(p);
-    if (len == 0) return 1;
+    size_t const len = strlen(p);
+    if (len == 0) { return 1;
+}
     switch (len) {
         case 1:
             switch (p[0]) {
@@ -270,15 +270,24 @@ static int64_t suffix_multiplier(const char* p, bool* is_binary) {
                 default: return -1;
             }
         case 2:
-            if (strcmp(p, "kB") == 0) return 1000LL;
-            if (strcmp(p, "KB") == 0) return 1000LL;
-            if (strcmp(p, "MB") == 0) return 1000LL * 1000;
-            if (strcmp(p, "GB") == 0) return 1000LL * 1000 * 1000;
-            if (strcmp(p, "TB") == 0) return 1000LL * 1000 * 1000 * 1000;
-            if (strcmp(p, "PB") == 0) return 1000LL * 1000 * 1000 * 1000 * 1000;
-            if (strcmp(p, "EB") == 0) return 1000LL * 1000 * 1000 * 1000 * 1000 * 1000;
-            if (strcmp(p, "ZB") == 0) return INT64_MAX;
-            if (strcmp(p, "YB") == 0) return INT64_MAX;
+            if (strcmp(p, "kB") == 0) { return 1000LL;
+}
+            if (strcmp(p, "KB") == 0) { return 1000LL;
+}
+            if (strcmp(p, "MB") == 0) { return 1000LL * 1000;
+}
+            if (strcmp(p, "GB") == 0) { return 1000LL * 1000 * 1000;
+}
+            if (strcmp(p, "TB") == 0) { return 1000LL * 1000 * 1000 * 1000;
+}
+            if (strcmp(p, "PB") == 0) { return 1000LL * 1000 * 1000 * 1000 * 1000;
+}
+            if (strcmp(p, "EB") == 0) { return 1000LL * 1000 * 1000 * 1000 * 1000 * 1000;
+}
+            if (strcmp(p, "ZB") == 0) { return INT64_MAX;
+}
+            if (strcmp(p, "YB") == 0) { return INT64_MAX;
+}
             if (strcmp(p, "Ki") == 0) { *is_binary = true; return 1024LL; }
             if (strcmp(p, "Mi") == 0) { *is_binary = true; return 1024LL * 1024; }
             if (strcmp(p, "Gi") == 0) { *is_binary = true; return 1024LL * 1024 * 1024; }
@@ -287,14 +296,22 @@ static int64_t suffix_multiplier(const char* p, bool* is_binary) {
             if (strcmp(p, "Ei") == 0) { *is_binary = true; return 1024LL * 1024 * 1024 * 1024 * 1024 * 1024; }
             return -1;
         case 3:
-            if (strcmp(p, "KiB") == 0) return 1024LL;
-            if (strcmp(p, "MiB") == 0) return 1024LL * 1024;
-            if (strcmp(p, "GiB") == 0) return 1024LL * 1024 * 1024;
-            if (strcmp(p, "TiB") == 0) return 1024LL * 1024 * 1024 * 1024;
-            if (strcmp(p, "PiB") == 0) return 1024LL * 1024 * 1024 * 1024 * 1024;
-            if (strcmp(p, "EiB") == 0) return 1024LL * 1024 * 1024 * 1024 * 1024 * 1024;
-            if (strcmp(p, "ZiB") == 0) return INT64_MAX;
-            if (strcmp(p, "YiB") == 0) return INT64_MAX;
+            if (strcmp(p, "KiB") == 0) { return 1024LL;
+}
+            if (strcmp(p, "MiB") == 0) { return 1024LL * 1024;
+}
+            if (strcmp(p, "GiB") == 0) { return 1024LL * 1024 * 1024;
+}
+            if (strcmp(p, "TiB") == 0) { return 1024LL * 1024 * 1024 * 1024;
+}
+            if (strcmp(p, "PiB") == 0) { return 1024LL * 1024 * 1024 * 1024 * 1024;
+}
+            if (strcmp(p, "EiB") == 0) { return 1024LL * 1024 * 1024 * 1024 * 1024 * 1024;
+}
+            if (strcmp(p, "ZiB") == 0) { return INT64_MAX;
+}
+            if (strcmp(p, "YiB") == 0) { return INT64_MAX;
+}
             return -1;
         default:
             return -1;
@@ -303,18 +320,21 @@ static int64_t suffix_multiplier(const char* p, bool* is_binary) {
 
 static int64_t parse_number(const char* s, bool* ends_with_B) {
     *ends_with_B = false;
-    if (s == NULL || *s == '\0') return -1;
+    if (s == NULL || *s == '\0') { return -1;
+}
 
     char* end = NULL;
     errno = 0;
-    long long a = strtoll(s, &end, 10);
-    if (end == s) return -1;
+    long long const a = strtoll(s, &end, 10);
+    if (end == s) { return -1;
+}
     int64_t result = a;
 
     if (*end == 'x') {
         char* end2 = NULL;
-        long long b = strtoll(end + 1, &end2, 10);
-        if (end2 == end + 1) return -1;
+        long long const b = strtoll(end + 1, &end2, 10);
+        if (end2 == end + 1) { return -1;
+}
         result *= b;
         end = end2;
     }
@@ -324,8 +344,9 @@ static int64_t parse_number(const char* s, bool* ends_with_B) {
             *ends_with_B = true;
         } else {
             bool is_binary = false;
-            int64_t mult = suffix_multiplier(end, &is_binary);
-            if (mult < 0) return -1;
+            int64_t const mult = suffix_multiplier(end, &is_binary);
+            if (mult < 0) { return -1;
+}
             result *= mult;
         }
     }
@@ -335,8 +356,9 @@ static int64_t parse_number(const char* s, bool* ends_with_B) {
 /* ── Symbol parsing for conv= / iflag= / oflag= / status= ─────────────── */
 
 static bool operand_is(const char* operand, const char* name) {
-    size_t nlen = strlen(name);
-    if (strncmp(operand, name, nlen) != 0) return false;
+    size_t const nlen = strlen(name);
+    if (strncmp(operand, name, nlen) != 0) { return false;
+}
     return operand[nlen] == '\0' || operand[nlen] == '=';
 }
 
@@ -346,13 +368,14 @@ static int parse_symbols(const char* str, const symbol_value* table,
     const char* s = str;
     while (true) {
         const char* comma = strchr(s, ',');
-        size_t len = comma ? (size_t)(comma - s) : strlen(s);
+        size_t const len = (comma != nullptr) ? static_cast<size_t>(comma - s) : strlen(s);
         const symbol_value* entry;
         for (entry = table; entry->symbol != NULL; entry++) {
-            size_t slen = strlen(entry->symbol);
+            size_t const slen = strlen(entry->symbol);
             if (slen == len && strncmp(s, entry->symbol, slen) == 0) {
-                if (exclusive) value = entry->value;
-                else value |= entry->value;
+                if (exclusive) { value = entry->value;
+                } else { value |= entry->value;
+}
                 break;
             }
         }
@@ -361,7 +384,8 @@ static int parse_symbols(const char* str, const symbol_value* table,
             (void)fprintf(stderr, "dd: %s: %s\n", errmsg, s);
             return -1;
         }
-        if (comma == NULL) break;
+        if (comma == NULL) { break;
+}
         s = comma + 1;
     }
     return value;
@@ -371,45 +395,51 @@ static int parse_symbols(const char* str, const symbol_value* table,
 
 static ssize_t dd_read_full(int fd, void* buf, size_t size) {
     size_t total = 0;
-    char* p = (char*)buf;
+    char* p = static_cast<char*>(buf);
     while (total < size) {
-        ssize_t n = read(fd, p + total, size - total);
+        ssize_t const n = read(fd, p + total, size - total);
         if (n < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) { continue;
+}
             return -1;
         }
-        if (n == 0) break;
-        total += (size_t)n;
+        if (n == 0) { break;
+}
+        total += static_cast<size_t>(n);
     }
-    return (ssize_t)total;
+    return static_cast<ssize_t>(total);
 }
 
 static ssize_t dd_read(int fd, void* buf, size_t size, bool fullblock) {
-    if (fullblock) return dd_read_full(fd, buf, size);
+    if (fullblock) { return dd_read_full(fd, buf, size);
+}
     return read(fd, buf, size);
 }
 
 static ssize_t dd_write_all(int fd, const void* buf, size_t size) {
     size_t total = 0;
-    const char* p = (const char*)buf;
+    const char* p = static_cast<const char*>(buf);
     while (total < size) {
-        ssize_t n = write(fd, p + total, size - total);
+        ssize_t const n = write(fd, p + total, size - total);
         if (n < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) { continue;
+}
             return -1;
         }
         if (n == 0) {
             errno = ENOSPC;
             break;
         }
-        total += (size_t)n;
+        total += static_cast<size_t>(n);
     }
-    return (ssize_t)total;
+    return static_cast<ssize_t>(total);
 }
 
 static bool is_nul(const char* buf, size_t n) {
-    for (size_t i = 0; i < n; i++)
-        if (buf[i] != '\0') return false;
+    for (size_t i = 0; i < n; i++) {
+        if (buf[i] != '\0') { return false;
+}
+}
     return true;
 }
 
@@ -418,23 +448,25 @@ static bool is_nul(const char* buf, size_t n) {
  * zeros for the residual. */
 static int64_t dd_skip(int fd, int64_t records, int64_t blocksize,
                        int64_t* bytes) {
-    off_t offset = (off_t)(records * blocksize + *bytes);
+    off_t const offset = static_cast<off_t>(records * blocksize + *bytes);
     if (lseek(fd, offset, SEEK_CUR) >= 0) {
         *bytes = 0;
         return 0;
     }
 
-    std::vector<char> buf(blocksize > 0 ? (size_t)blocksize : 4096);
+    std::vector<char> buf(blocksize > 0 ? static_cast<size_t>(blocksize) : 4096);
     while (records > 0 || *bytes > 0) {
-        size_t want = records > 0 ? (size_t)blocksize : (size_t)*bytes;
-        ssize_t n = dd_read(fd, buf.data(), want, false);
+        size_t const want = records > 0 ? static_cast<size_t>(blocksize) : static_cast<size_t>(*bytes);
+        ssize_t const n = dd_read(fd, buf.data(), want, false);
         if (n < 0) {
             dd_error(strerror(errno));
             return -1;
         }
-        if (n == 0) break;
-        if (records > 0) records--;
-        else *bytes = 0;
+        if (n == 0) { break;
+}
+        if (records > 0) { records--;
+        } else { *bytes = 0;
+}
     }
     return records;
 }
@@ -448,33 +480,38 @@ static int64_t col = 0;
 static int64_t pending_spaces = 0;
 
 static void translate_charset(const char* new_trans) {
-    for (int i = 0; i < 256; i++)
+    for (int i = 0; i < 256; i++) {
         trans_table[i] = new_trans[trans_table[i]];
+}
 }
 
 static void translate_buffer(char* buf, int64_t nread) {
-    for (int64_t i = 0; i < nread; i++)
-        buf[i] = (char)trans_table[(unsigned char)buf[i]];
+    for (int64_t i = 0; i < nread; i++) {
+        buf[i] = static_cast<char>(trans_table[static_cast<unsigned char>(buf[i])]);
+}
 }
 
 static char* swab_buffer(char* buf, int64_t* nread, int* saved_byte) {
-    if (*nread == 0) return buf;
+    if (*nread == 0) { return buf;
+}
 
-    int prev_saved = *saved_byte;
-    if ((prev_saved < 0) == (*nread & 1)) {
-        unsigned char c = (unsigned char)buf[--*nread];
+    int const prev_saved = *saved_byte;
+    if (static_cast<int64_t>(prev_saved < 0) == (*nread & 1)) {
+        unsigned char const c = static_cast<unsigned char>(buf[--*nread]);
         *saved_byte = c;
     } else {
         *saved_byte = -1;
     }
 
-    for (int64_t i = *nread; 1 < i; i -= 2)
+    for (int64_t i = *nread; 1 < i; i -= 2) {
         buf[i] = buf[i - 2];
+}
 
-    if (prev_saved < 0)
+    if (prev_saved < 0) {
         return buf + 1;
+}
 
-    buf[1] = (char)prev_saved;
+    buf[1] = static_cast<char>(prev_saved);
     ++*nread;
     return buf;
 }
@@ -485,7 +522,7 @@ static int64_t oc = 0;
 static int64_t output_blocksize_g = 0;
 
 static void write_output(int fd) {
-    ssize_t n = dd_write_all(fd, obuf.data(), (size_t)output_blocksize_g);
+    ssize_t const n = dd_write_all(fd, obuf.data(), static_cast<size_t>(output_blocksize_g));
     if (n != output_blocksize_g) {
         dd_error("write error");
         exit(1);
@@ -495,21 +532,23 @@ static void write_output(int fd) {
 
 static void output_char(int fd, char c) {
     obuf[oc++] = c;
-    if (oc >= output_blocksize_g)
+    if (oc >= output_blocksize_g) {
         write_output(fd);
+}
 }
 
 static void copy_simple(int fd, const char* buf, int64_t nread) {
     const char* start = buf;
     while (nread != 0) {
-        int64_t nfree = nread < output_blocksize_g - oc
+        int64_t const nfree = nread < output_blocksize_g - oc
                             ? nread : output_blocksize_g - oc;
-        memcpy(obuf.data() + oc, start, (size_t)nfree);
+        memcpy(obuf.data() + oc, start, static_cast<size_t>(nfree));
         nread -= nfree;
         start += nfree;
         oc += nfree;
-        if (oc >= output_blocksize_g)
+        if (oc >= output_blocksize_g) {
             write_output(fd);
+}
     }
 }
 
@@ -518,15 +557,17 @@ static void copy_with_block(int fd, const char* buf, int64_t nread,
     for (int64_t i = 0; i < nread; i++, buf++) {
         if (*buf == newline_character) {
             if (col < cbs) {
-                for (int64_t j = col; j < cbs; j++)
+                for (int64_t j = col; j < cbs; j++) {
                     output_char(fd, space_character);
+}
             }
             col = 0;
         } else {
-            if (col == cbs)
+            if (col == cbs) {
                 r_truncate++;
-            else if (col < cbs)
+            } else if (col < cbs) {
                 output_char(fd, *buf);
+}
             col++;
         }
     }
@@ -535,7 +576,7 @@ static void copy_with_block(int fd, const char* buf, int64_t nread,
 static void copy_with_unblock(int fd, const char* buf, int64_t nread,
                               int64_t cbs) {
     for (int64_t i = 0; i < nread; i++) {
-        char c = buf[i];
+        char const c = buf[i];
         if (col++ >= cbs) {
             col = pending_spaces = 0;
             i--;
@@ -543,7 +584,7 @@ static void copy_with_unblock(int fd, const char* buf, int64_t nread,
         } else if (c == space_character) {
             pending_spaces++;
         } else {
-            while (pending_spaces) {
+            while (pending_spaces != 0) {
                 output_char(fd, space_character);
                 --pending_spaces;
             }
@@ -560,7 +601,9 @@ static bool scanargs(int argc, char** argv, DdOptions* opts) {
     int64_t count = -1;
     int64_t skip = 0;
     int64_t seek = 0;
-    bool count_B = false, skip_B = false, seek_B = false;
+    bool count_B = false;
+    bool skip_B = false;
+    bool seek_B = false;
 
     for (int i = 1; i < argc; i++) {
         const char* name = argv[i];
@@ -577,24 +620,28 @@ static bool scanargs(int argc, char** argv, DdOptions* opts) {
         } else if (operand_is(name, "of")) {
             opts->output_file = val;
         } else if (operand_is(name, "conv")) {
-            int v = parse_symbols(val, conversions, false, "invalid conversion");
-            if (v < 0) return false;
+            int const v = parse_symbols(val, conversions, false, "invalid conversion");
+            if (v < 0) { return false;
+}
             opts->conv_mask |= v;
         } else if (operand_is(name, "iflag")) {
-            int v = parse_symbols(val, flags, false, "invalid input flag");
-            if (v < 0) return false;
+            int const v = parse_symbols(val, flags, false, "invalid input flag");
+            if (v < 0) { return false;
+}
             opts->in_flags |= v;
         } else if (operand_is(name, "oflag")) {
-            int v = parse_symbols(val, flags, false, "invalid output flag");
-            if (v < 0) return false;
+            int const v = parse_symbols(val, flags, false, "invalid output flag");
+            if (v < 0) { return false;
+}
             opts->out_flags |= v;
         } else if (operand_is(name, "status")) {
-            int v = parse_symbols(val, statuses, true, "invalid status level");
-            if (v < 0) return false;
+            int const v = parse_symbols(val, statuses, true, "invalid status level");
+            if (v < 0) { return false;
+}
             opts->status_level = v;
         } else {
             bool has_B = false;
-            int64_t n = parse_number(val, &has_B);
+            int64_t const n = parse_number(val, &has_B);
             if (n < 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "dd: invalid number: '%s'\n", val);
@@ -616,7 +663,7 @@ static bool scanargs(int argc, char** argv, DdOptions* opts) {
             } else if (operand_is(name, "skip") || operand_is(name, "iseek")) {
                 skip = n;
                 skip_B = has_B;
-            } else if (operand_is(name + (*name == 'o'), "seek")) {
+            } else if (operand_is(name + static_cast<int>(*name == 'o'), "seek")) {
                 seek = n;
                 seek_B = has_B;
             } else if (operand_is(name, "count")) {
@@ -630,18 +677,21 @@ static bool scanargs(int argc, char** argv, DdOptions* opts) {
         }
     }
 
-    if (blocksize) {
+    if (blocksize != 0) {
         opts->input_blocksize = opts->output_blocksize = blocksize;
     } else {
         opts->conv_mask |= C_TWOBUFS;
     }
 
-    if (opts->input_blocksize == 0)
+    if (opts->input_blocksize == 0) {
         opts->input_blocksize = DEFAULT_BLOCKSIZE;
-    if (opts->output_blocksize == 0)
+}
+    if (opts->output_blocksize == 0) {
         opts->output_blocksize = DEFAULT_BLOCKSIZE;
-    if (opts->conversion_blocksize == 0)
+}
+    if (opts->conversion_blocksize == 0) {
         opts->conv_mask &= ~(C_BLOCK | C_UNBLOCK);
+}
 
     opts->max_records = (count < 0) ? -1 : count;
     opts->max_bytes = 0;
@@ -652,14 +702,14 @@ static bool scanargs(int argc, char** argv, DdOptions* opts) {
     if (count_B) {
         opts->in_flags |= O_COUNT_BYTES;
     }
-    if (opts->in_flags & O_SKIP_BYTES && skip != 0) {
+    if (((opts->in_flags & O_SKIP_BYTES) != 0) && skip != 0) {
         opts->skip_records = skip / opts->input_blocksize;
         opts->skip_bytes = skip % opts->input_blocksize;
     } else if (skip != 0) {
         opts->skip_records = skip;
     }
 
-    if (opts->in_flags & O_COUNT_BYTES && count >= 0) {
+    if (((opts->in_flags & O_COUNT_BYTES) != 0) && count >= 0) {
         opts->max_records = count / opts->input_blocksize;
         opts->max_bytes = count % opts->input_blocksize;
     }
@@ -667,35 +717,35 @@ static bool scanargs(int argc, char** argv, DdOptions* opts) {
     if (seek_B) {
         opts->out_flags |= O_SEEK_BYTES;
     }
-    if (opts->out_flags & O_SEEK_BYTES && seek != 0) {
+    if (((opts->out_flags & O_SEEK_BYTES) != 0) && seek != 0) {
         opts->seek_records = seek / opts->output_blocksize;
         opts->seek_bytes = seek % opts->output_blocksize;
     } else if (seek != 0) {
         opts->seek_records = seek;
     }
 
-    if (opts->out_flags & O_FULLBLOCK) {
+    if ((opts->out_flags & O_FULLBLOCK) != 0) {
         dd_error("invalid output flag: 'fullblock'");
         return false;
     }
 
     int combined = opts->conv_mask & (C_ASCII | C_EBCDIC | C_IBM);
-    if (combined & (combined - 1)) {
+    if ((combined & (combined - 1)) != 0) {
         dd_error("cannot combine any two of {ascii,ebcdic,ibm}");
         return false;
     }
     combined = opts->conv_mask & (C_BLOCK | C_UNBLOCK);
-    if (combined & (combined - 1)) {
+    if ((combined & (combined - 1)) != 0) {
         dd_error("cannot combine block and unblock");
         return false;
     }
     combined = opts->conv_mask & (C_LCASE | C_UCASE);
-    if (combined & (combined - 1)) {
+    if ((combined & (combined - 1)) != 0) {
         dd_error("cannot combine lcase and ucase");
         return false;
     }
     combined = opts->conv_mask & (C_EXCL | C_NOCREAT);
-    if (combined & (combined - 1)) {
+    if ((combined & (combined - 1)) != 0) {
         dd_error("cannot combine excl and nocreat");
         return false;
     }
@@ -710,33 +760,35 @@ static int64_t w_full = 0, w_partial = 0;
 static int64_t w_bytes = 0;
 
 static void print_stats(int status_level) {
-    if (status_level == STATUS_NONE) return;
+    if (status_level == STATUS_NONE) { return;
+}
 
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "%lld+%lld records in\n",
-                  (long long)r_full, (long long)r_partial);
+                  static_cast<long long>(r_full), static_cast<long long>(r_partial));
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "%lld+%lld records out\n",
-                  (long long)w_full, (long long)w_partial);
+                  static_cast<long long>(w_full), static_cast<long long>(w_partial));
 
     if (r_truncate != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "%lld truncated record%s\n",
-                      (long long)r_truncate,
+                      static_cast<long long>(r_truncate),
                       r_truncate == 1 ? "" : "s");
     }
 
-    if (status_level == STATUS_NOXFER) return;
+    if (status_level == STATUS_NOXFER) { return;
+}
 
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)fprintf(stderr, "%lld bytes copied\n", (long long)w_bytes);
+    (void)fprintf(stderr, "%lld bytes copied\n", static_cast<long long>(w_bytes));
 }
 
 /* ── Main copy loop ───────────────────────────────────────────────────── */
 
 static int dd_copy(int infd, int outfd, const DdOptions* opts) {
     int exit_status = 0;
-    std::vector<char> ibuf((size_t)opts->input_blocksize + 1);
+    std::vector<char> ibuf(static_cast<size_t>(opts->input_blocksize) + 1);
 
     if (opts->skip_records != 0 || opts->skip_bytes != 0) {
         int64_t bytes = opts->skip_bytes;
@@ -745,65 +797,69 @@ static int dd_copy(int infd, int outfd, const DdOptions* opts) {
 
     if (opts->seek_records != 0 || opts->seek_bytes != 0) {
         int64_t bytes = opts->seek_bytes;
-        int64_t recs = dd_skip(outfd, opts->seek_records,
+        int64_t const recs = dd_skip(outfd, opts->seek_records,
                                opts->output_blocksize, &bytes);
         (void)recs;
         if (bytes != 0) {
-            std::vector<char> z((size_t)opts->output_blocksize, 0);
-            dd_write_all(outfd, z.data(), (size_t)bytes);
+            std::vector<char> z(static_cast<size_t>(opts->output_blocksize), 0);
+            dd_write_all(outfd, z.data(), static_cast<size_t>(bytes));
         }
     }
 
-    if (opts->max_records == 0 && opts->max_bytes == 0)
+    if (opts->max_records == 0 && opts->max_bytes == 0) {
         return exit_status;
+}
 
     output_blocksize_g = opts->output_blocksize;
-    obuf.assign((size_t)opts->output_blocksize, 0);
+    obuf.assign(static_cast<size_t>(opts->output_blocksize), 0);
     oc = 0;
     col = 0;
     pending_spaces = 0;
 
-    bool twobufs = (opts->conv_mask & C_TWOBUFS) != 0;
-    bool fullblock = (opts->in_flags & O_FULLBLOCK) != 0;
+    bool const twobufs = (opts->conv_mask & C_TWOBUFS) != 0;
+    bool const fullblock = (opts->in_flags & O_FULLBLOCK) != 0;
     int saved_byte = -1;
     int64_t partread = 0;
 
     while (true) {
         if (opts->max_records >= 0 &&
-            r_full + r_partial >= opts->max_records + (opts->max_bytes ? 1 : 0))
+            r_full + r_partial >= opts->max_records + ((opts->max_bytes != 0) ? 1 : 0)) {
             break;
+}
 
-        int64_t want = (opts->max_records >= 0 &&
+        int64_t const want = (opts->max_records >= 0 &&
                         r_full + r_partial >= opts->max_records)
                            ? opts->max_bytes
                            : opts->input_blocksize;
 
-        if ((opts->conv_mask & C_SYNC) && (opts->conv_mask & C_NOERROR))
+        if (((opts->conv_mask & C_SYNC) != 0) && ((opts->conv_mask & C_NOERROR) != 0)) {
             memset(ibuf.data(),
-                   (opts->conv_mask & (C_BLOCK | C_UNBLOCK)) ? ' ' : '\0',
-                   (size_t)opts->input_blocksize);
+                   ((opts->conv_mask & (C_BLOCK | C_UNBLOCK)) != 0) ? ' ' : '\0',
+                   static_cast<size_t>(opts->input_blocksize));
+}
 
-        ssize_t nread = dd_read(infd, ibuf.data(), (size_t)want, fullblock);
+        ssize_t nread = dd_read(infd, ibuf.data(), static_cast<size_t>(want), fullblock);
         if (nread > 0) {
             /* ok */
         } else if (nread == 0) {
             break;
         } else {
-            if (!(opts->conv_mask & C_NOERROR) ||
-                opts->status_level != STATUS_NONE)
+            if (((opts->conv_mask & C_NOERROR) == 0) ||
+                opts->status_level != STATUS_NONE) {
                 dd_error(strerror(errno));
+}
 
-            if (opts->conv_mask & C_NOERROR) {
+            if ((opts->conv_mask & C_NOERROR) != 0) {
                 print_stats(opts->status_level);
-                int64_t bad = opts->input_blocksize - partread;
-                if ((opts->conv_mask & C_SYNC) && !partread) {
+                int64_t const bad = opts->input_blocksize - partread;
+                if (((opts->conv_mask & C_SYNC) != 0) && (partread == 0)) {
                     nread = 0;
                 } else {
                     memmove(ibuf.data(), ibuf.data() + partread,
-                            (size_t)(opts->input_blocksize - partread));
+                            static_cast<size_t>(opts->input_blocksize - partread));
                     memset(ibuf.data() + (opts->input_blocksize - partread),
-                           '\0', (size_t)partread);
-                    nread = (ssize_t)opts->input_blocksize;
+                           '\0', static_cast<size_t>(partread));
+                    nread = static_cast<ssize_t>(opts->input_blocksize);
                     if (lseek(infd, bad, SEEK_CUR) < 0) {
                         exit_status = 1;
                         break;
@@ -820,11 +876,12 @@ static int dd_copy(int infd, int outfd, const DdOptions* opts) {
         if (n < opts->input_blocksize) {
             r_partial++;
             partread = n;
-            if (opts->conv_mask & C_SYNC) {
-                if (!(opts->conv_mask & C_NOERROR))
+            if ((opts->conv_mask & C_SYNC) != 0) {
+                if ((opts->conv_mask & C_NOERROR) == 0) {
                     memset(ibuf.data() + n,
-                           (opts->conv_mask & (C_BLOCK | C_UNBLOCK)) ? ' ' : '\0',
-                           (size_t)(opts->input_blocksize - n));
+                           ((opts->conv_mask & (C_BLOCK | C_UNBLOCK)) != 0) ? ' ' : '\0',
+                           static_cast<size_t>(opts->input_blocksize - n));
+}
                 n = opts->input_blocksize;
             }
         } else {
@@ -833,66 +890,73 @@ static int dd_copy(int infd, int outfd, const DdOptions* opts) {
         }
 
         if (!twobufs) {
-            ssize_t nwritten = dd_write_all(outfd, ibuf.data(), (size_t)n);
+            ssize_t const nwritten = dd_write_all(outfd, ibuf.data(), static_cast<size_t>(n));
             w_bytes += nwritten;
             if (nwritten != n) {
                 dd_error(strerror(errno));
                 return 1;
             }
-            if (n == opts->input_blocksize) w_full++;
-            else w_partial++;
+            if (n == opts->input_blocksize) { w_full++;
+            } else { w_partial++;
+}
             continue;
         }
 
-        if (opts->conv_mask & (C_ASCII | C_EBCDIC | C_IBM | C_LCASE | C_UCASE))
+        if ((opts->conv_mask & (C_ASCII | C_EBCDIC | C_IBM | C_LCASE | C_UCASE)) != 0) {
             translate_buffer(ibuf.data(), n);
+}
 
         char* bufstart;
-        if (opts->conv_mask & C_SWAB)
+        if ((opts->conv_mask & C_SWAB) != 0) {
             bufstart = swab_buffer(ibuf.data(), &n, &saved_byte);
-        else
+        } else {
             bufstart = ibuf.data();
+}
 
-        if (opts->conv_mask & C_BLOCK)
+        if ((opts->conv_mask & C_BLOCK) != 0) {
             copy_with_block(outfd, bufstart, n, opts->conversion_blocksize);
-        else if (opts->conv_mask & C_UNBLOCK)
+        } else if ((opts->conv_mask & C_UNBLOCK) != 0) {
             copy_with_unblock(outfd, bufstart, n, opts->conversion_blocksize);
-        else
+        } else {
             copy_simple(outfd, bufstart, n);
+}
     }
 
     if (0 <= saved_byte) {
-        char sc = (char)saved_byte;
-        if (opts->conv_mask & C_BLOCK)
+        char const sc = static_cast<char>(saved_byte);
+        if ((opts->conv_mask & C_BLOCK) != 0) {
             copy_with_block(outfd, &sc, 1, opts->conversion_blocksize);
-        else if (opts->conv_mask & C_UNBLOCK)
+        } else if ((opts->conv_mask & C_UNBLOCK) != 0) {
             copy_with_unblock(outfd, &sc, 1, opts->conversion_blocksize);
-        else
+        } else {
             output_char(outfd, sc);
+}
     }
 
-    if ((opts->conv_mask & C_BLOCK) && col > 0) {
-        for (int64_t i = col; i < opts->conversion_blocksize; i++)
+    if (((opts->conv_mask & C_BLOCK) != 0) && col > 0) {
+        for (int64_t i = col; i < opts->conversion_blocksize; i++) {
             output_char(outfd, space_character);
+}
     }
-    if (col && (opts->conv_mask & C_UNBLOCK)) {
+    if ((col != 0) && ((opts->conv_mask & C_UNBLOCK) != 0)) {
         output_char(outfd, newline_character);
     }
 
     if (oc != 0) {
-        ssize_t nwritten = dd_write_all(outfd, obuf.data(), (size_t)oc);
+        ssize_t const nwritten = dd_write_all(outfd, obuf.data(), static_cast<size_t>(oc));
         w_bytes += nwritten;
-        if (nwritten != 0) w_partial++;
+        if (nwritten != 0) { w_partial++;
+}
         if (nwritten != oc) {
             dd_error(strerror(errno));
             return 1;
         }
     }
 
-    if (opts->conv_mask & C_FDATASYNC) {
+    if ((opts->conv_mask & C_FDATASYNC) != 0) {
         if (fdatasync(outfd) != 0) { dd_error(strerror(errno)); exit_status = 1; }
     }
-    if (opts->conv_mask & C_FSYNC) {
+    if ((opts->conv_mask & C_FSYNC) != 0) {
         if (fsync(outfd) != 0) { dd_error(strerror(errno)); exit_status = 1; }
     }
 
@@ -977,34 +1041,42 @@ int dd_command(int argc, char** argv) {
         return 0;
     }
 
-    for (int i = 0; i < 256; i++)
-        trans_table[i] = (unsigned char)i;
-    if (opts.conv_mask & C_ASCII)
+    for (int i = 0; i < 256; i++) {
+        trans_table[i] = static_cast<unsigned char>(i);
+}
+    if ((opts.conv_mask & C_ASCII) != 0) {
         translate_charset(ebcdic_to_ascii);
-    if (opts.conv_mask & C_EBCDIC)
+}
+    if ((opts.conv_mask & C_EBCDIC) != 0) {
         translate_charset(ascii_to_ebcdic);
-    if (opts.conv_mask & C_IBM)
+}
+    if ((opts.conv_mask & C_IBM) != 0) {
         translate_charset(ascii_to_ibm);
-    if (opts.conv_mask & C_LCASE) {
-        for (int i = 0; i < 256; i++)
-            if (trans_table[i] >= 'A' && trans_table[i] <= 'Z')
-                trans_table[i] = (unsigned char)(trans_table[i] - 'A' + 'a');
+}
+    if ((opts.conv_mask & C_LCASE) != 0) {
+        for (int i = 0; i < 256; i++) {
+            if (trans_table[i] >= 'A' && trans_table[i] <= 'Z') {
+                trans_table[i] = static_cast<unsigned char>(trans_table[i] - 'A' + 'a');
+}
+}
     }
-    if (opts.conv_mask & C_UCASE) {
-        for (int i = 0; i < 256; i++)
-            if (trans_table[i] >= 'a' && trans_table[i] <= 'z')
-                trans_table[i] = (unsigned char)(trans_table[i] - 'a' + 'A');
+    if ((opts.conv_mask & C_UCASE) != 0) {
+        for (int i = 0; i < 256; i++) {
+            if (trans_table[i] >= 'a' && trans_table[i] <= 'z') {
+                trans_table[i] = static_cast<unsigned char>(trans_table[i] - 'a' + 'A');
+}
+}
     }
 
-    if (opts.conv_mask & (C_EBCDIC | C_IBM)) {
-        newline_character = (char)ascii_to_ebcdic[(unsigned char)'\n'];
-        space_character = (char)ascii_to_ebcdic[(unsigned char)' '];
+    if ((opts.conv_mask & (C_EBCDIC | C_IBM)) != 0) {
+        newline_character = ascii_to_ebcdic[static_cast<unsigned char>('\n')];
+        space_character = ascii_to_ebcdic[static_cast<unsigned char>(' ')];
     }
 
     int infd = STDIN_FILENO;
     if (opts.input_file != nullptr && strcmp(opts.input_file, "-") != 0) {
         int flags = O_RDONLY;
-        int extra = opts.in_flags & (O_DIRECT | O_NONBLOCK | O_NOATIME |
+        int const extra = opts.in_flags & (O_DIRECT | O_NONBLOCK | O_NOATIME |
                                      O_NOFOLLOW | O_BINARY | O_DIRECTORY |
                                      O_NOCTTY | O_NOLINKS | O_TEXT | O_DSYNC | O_SYNC);
         flags |= extra;
@@ -1018,11 +1090,15 @@ int dd_command(int argc, char** argv) {
     int outfd = STDOUT_FILENO;
     if (opts.output_file != nullptr && strcmp(opts.output_file, "-") != 0) {
         int flags = O_WRONLY | O_CREAT;
-        if (!(opts.conv_mask & C_NOTRUNC)) flags |= O_TRUNC;
-        if (opts.out_flags & O_APPEND) flags |= O_APPEND;
-        if (opts.conv_mask & C_EXCL) flags |= O_EXCL;
-        if (opts.conv_mask & C_NOCREAT) flags &= ~O_CREAT;
-        int extra = opts.out_flags & (O_DIRECT | O_NONBLOCK | O_NOATIME |
+        if ((opts.conv_mask & C_NOTRUNC) == 0) { flags |= O_TRUNC;
+}
+        if ((opts.out_flags & O_APPEND) != 0) { flags |= O_APPEND;
+}
+        if ((opts.conv_mask & C_EXCL) != 0) { flags |= O_EXCL;
+}
+        if ((opts.conv_mask & C_NOCREAT) != 0) { flags &= ~O_CREAT;
+}
+        int const extra = opts.out_flags & (O_DIRECT | O_NONBLOCK | O_NOATIME |
                                       O_NOFOLLOW | O_BINARY | O_DIRECTORY |
                                       O_NOCTTY | O_NOLINKS | O_TEXT | O_DSYNC | O_SYNC);
         flags |= extra;
@@ -1033,14 +1109,17 @@ int dd_command(int argc, char** argv) {
         }
     }
 
-    int status = dd_copy(infd, outfd, &opts);
+    int const status = dd_copy(infd, outfd, &opts);
 
-    if (infd != STDIN_FILENO) close(infd);
-    if (outfd != STDOUT_FILENO) close(outfd);
+    if (infd != STDIN_FILENO) { close(infd);
+}
+    if (outfd != STDOUT_FILENO) { close(outfd);
+}
 
     print_stats(opts.status_level);
 
-    if (status != 0) exit(status);
+    if (status != 0) { exit(status);
+}
     return 0;
 }
 

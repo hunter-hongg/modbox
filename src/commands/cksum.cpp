@@ -3,8 +3,6 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
-#include <string>
-#include <vector>
 
 #include "commands/cksum.hpp"
 #include "commands/command_macros.hpp"
@@ -12,9 +10,9 @@
 
 static uint32_t crc32_posix_bit(const uint8_t* data, size_t len, uint32_t crc) {
     for (size_t i = 0; i < len; i++) {
-        crc ^= ((uint32_t)data[i]) << 24;
+        crc ^= (static_cast<uint32_t>(data[i])) << 24;
         for (int j = 0; j < 8; j++) {
-            if (crc & 0x80000000) {
+            if ((crc & 0x80000000) != 0u) {
                 crc = (crc << 1) ^ 0x04C11DB7;
             } else {
                 crc <<= 1;
@@ -30,28 +28,29 @@ static void cksum_file(FILE* in, const char* filename, bool verbose) {
     uint8_t buf[4096];
 
     while (true) {
-        size_t n = fread(buf, 1, sizeof(buf), in);
-        if (n == 0) break;
+        size_t const n = fread(buf, 1, sizeof(buf), in);
+        if (n == 0) { break;
+}
         crc = crc32_posix_bit(buf, n, crc);
         total_bytes += n;
     }
 
-    if (ferror(in)) {
-        fprintf(stderr, "cksum: %s: read error: %s\n",
-                filename ? filename : "-", strerror(errno));
+    if (ferror(in) != 0) {
+        (void)fprintf(stderr, "cksum: %s: read error: %s\n",
+                (filename != nullptr) ? filename : "-", strerror(errno));
         return;
     }
 
     // POSIX requires CRC of data, then CRC of length (variable bytes, LSB first)
     unsigned long remaining = total_bytes;
     while (remaining != 0) {
-        uint8_t c = (uint8_t)(remaining & 0xFF);
+        uint8_t const c = static_cast<uint8_t>(remaining & 0xFF);
         remaining >>= 8;
         crc = crc32_posix_bit(&c, 1, crc);
     }
     crc ^= 0xFFFFFFFF;
 
-    if (filename) {
+    if (filename != nullptr) {
         printf("%u %lu %s\n", crc, total_bytes, filename);
     } else {
         printf("%u %lu\n", crc, total_bytes);
@@ -65,7 +64,7 @@ int cksum_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({verbose_opt, help_opt, files_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -88,7 +87,7 @@ int cksum_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    bool verbose = (verbose_opt->count > 0);
+    bool const verbose = (verbose_opt->count > 0);
 
     if (files_arg->count == 0) {
         // Read from stdin
@@ -100,12 +99,12 @@ int cksum_command(int argc, char** argv) {
                 cksum_file(stdin, nullptr, verbose);
             } else {
                 FILE* in = fopen(filename, "rb");
-                if (!in) {
-                    fprintf(stderr, "cksum: %s: No such file or directory\n", filename);
+                if (in == nullptr) {
+                    (void)fprintf(stderr, "cksum: %s: No such file or directory\n", filename);
                     continue;
                 }
                 cksum_file(in, filename, verbose);
-                fclose(in);
+                (void)fclose(in);
             }
         }
     }

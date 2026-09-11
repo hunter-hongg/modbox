@@ -41,22 +41,22 @@ struct AttrEntry {
 };
 
 static const AttrEntry g_attr_map[] = {
-    {'a', FLAG_APPEND, "append only"},
-    {'A', FLAG_NOATIME, "no atime updates"},
-    {'c', FLAG_COMPRESSED, "compressed"},
-    {'d', FLAG_NODUMP, "no dump"},
-    {'D', FLAG_DIRSYNC, "synchronous directory updates"},
-    {'e', FLAG_EXTENT, "extent format (read-only)"},
-    {'i', FLAG_IMMUTABLE, "immutable"},
-    {'j', FLAG_JOURNAL, "journal data"},
-    {'s', FLAG_SECURE_DELETED, "secure deletion"},
-    {'S', FLAG_SYNC, "synchronous updates"},
-    {'t', FLAG_NOTAIL, "no tail-merging"},
-    {'T', FLAG_TOPDIR, "top of directory hierarchy"},
-    {'u', FLAG_UNDELETABLE, "undeletable"},
-    {'x', FLAG_COMPBLK, "compression (deprecated, no-op)"},
-    {'X', FLAG_COMPRESS_RAW, "compression raw (deprecated, no-op)"},
-    {'Z', FLAG_COMPR_DIRTY, "compressed dirty (deprecated, no-op)"},
+    {.letter='a', .mask=FLAG_APPEND, .name="append only"},
+    {.letter='A', .mask=FLAG_NOATIME, .name="no atime updates"},
+    {.letter='c', .mask=FLAG_COMPRESSED, .name="compressed"},
+    {.letter='d', .mask=FLAG_NODUMP, .name="no dump"},
+    {.letter='D', .mask=FLAG_DIRSYNC, .name="synchronous directory updates"},
+    {.letter='e', .mask=FLAG_EXTENT, .name="extent format (read-only)"},
+    {.letter='i', .mask=FLAG_IMMUTABLE, .name="immutable"},
+    {.letter='j', .mask=FLAG_JOURNAL, .name="journal data"},
+    {.letter='s', .mask=FLAG_SECURE_DELETED, .name="secure deletion"},
+    {.letter='S', .mask=FLAG_SYNC, .name="synchronous updates"},
+    {.letter='t', .mask=FLAG_NOTAIL, .name="no tail-merging"},
+    {.letter='T', .mask=FLAG_TOPDIR, .name="top of directory hierarchy"},
+    {.letter='u', .mask=FLAG_UNDELETABLE, .name="undeletable"},
+    {.letter='x', .mask=FLAG_COMPBLK, .name="compression (deprecated, no-op)"},
+    {.letter='X', .mask=FLAG_COMPRESS_RAW, .name="compression raw (deprecated, no-op)"},
+    {.letter='Z', .mask=FLAG_COMPR_DIRTY, .name="compressed dirty (deprecated, no-op)"},
 };
 
 constexpr size_t ATTR_COUNT = sizeof(g_attr_map) / sizeof(g_attr_map[0]);
@@ -101,25 +101,25 @@ static int chattr_apply_file(const char *path, unsigned int add_mask,
                             unsigned int remove_mask, bool set_exact,
                             unsigned int keep_flags, const ChattrOptions *opts,
                             bool use_version, const char *version_str) {
-    int fd = open(path, O_RDONLY | O_NONBLOCK);
+    int const fd = open(path, O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
-        if (!opts->is_silent) {
-            fprintf(stderr, "chattr: cannot open '%s': %s\n", path, strerror(errno));
+        if (opts->is_silent == 0) {
+            (void)fprintf(stderr, "chattr: cannot open '%s': %s\n", path, strerror(errno));
         }
         return 1;
     }
 
     /* Handle version number first */
-    if (use_version && version_str) {
-        uint64_t version = std::stoull(version_str);
+    if (use_version && (version_str != nullptr)) {
+        uint64_t const version = std::stoull(version_str);
         if (set_version(fd, version) < 0) {
             close(fd);
-            if (!opts->is_silent) {
-                fprintf(stderr, "chattr: set version on '%s': %s\n", path, strerror(errno));
+            if (opts->is_silent == 0) {
+                (void)fprintf(stderr, "chattr: set version on '%s': %s\n", path, strerror(errno));
             }
             return 1;
         }
-        if (opts->is_verbose || opts->is_recursive) {
+        if ((opts->is_verbose != 0) || (opts->is_recursive != 0)) {
             printf("changed generation number of '%s' to %lu\n", path, version);
         }
         close(fd);
@@ -129,8 +129,8 @@ static int chattr_apply_file(const char *path, unsigned int add_mask,
     unsigned int current_flags = 0;
     if (get_flags(fd, &current_flags) < 0) {
         close(fd);
-        if (!opts->is_silent) {
-            fprintf(stderr, "chattr: cannot get flags for '%s': %s\n", path, strerror(errno));
+        if (opts->is_silent == 0) {
+            (void)fprintf(stderr, "chattr: cannot get flags for '%s': %s\n", path, strerror(errno));
         }
         close(fd);
         return 1;
@@ -155,13 +155,13 @@ static int chattr_apply_file(const char *path, unsigned int add_mask,
     if (new_flags != current_flags) {
         if (set_flags(fd, new_flags) < 0) {
             close(fd);
-            if (!opts->is_silent) {
-                fprintf(stderr, "chattr: set flags on '%s': %s\n", path, strerror(errno));
+            if (opts->is_silent == 0) {
+                (void)fprintf(stderr, "chattr: set flags on '%s': %s\n", path, strerror(errno));
             }
             close(fd);
             return 1;
         }
-        if (opts->is_verbose || opts->is_recursive) {
+        if ((opts->is_verbose != 0) || (opts->is_recursive != 0)) {
             printf("changed attributes of '%s'\n", path);
         }
     }
@@ -176,16 +176,16 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
     (void)sb;
     (void)ftwbuf;
 
-    if (chattr_glob_opts->preserve_root && strcmp(fpath, "/") == 0) {
-        fprintf(stderr, "chattr: it is dangerous to operate recursively on '/'\n");
-        fprintf(stderr, "chattr: use --no-preserve-root to override this failsafe\n");
+    if ((chattr_glob_opts->preserve_root != 0) && strcmp(fpath, "/") == 0) {
+        (void)fprintf(stderr, "chattr: it is dangerous to operate recursively on '/'\n");
+        (void)fprintf(stderr, "chattr: use --no-preserve-root to override this failsafe\n");
         chattr_errors = 1;
         return 0;
     }
 
     if (typeflag == FTW_NS || typeflag == FTW_DNR || typeflag == FTW_SLN) {
-        if (!chattr_glob_opts->is_silent) {
-            fprintf(stderr, "chattr: cannot access '%s': %s\n", fpath, strerror(errno));
+        if (chattr_glob_opts->is_silent == 0) {
+            (void)fprintf(stderr, "chattr: cannot access '%s': %s\n", fpath, strerror(errno));
         }
         chattr_errors = 1;
         return 0;
@@ -215,7 +215,8 @@ static void print_help(const char *prog) {
     for (size_t i = 0; i < ATTR_COUNT; ++i) {
         printf("  %c - %s (%s)", g_attr_map[i].letter, g_attr_map[i].name,
                (g_attr_map[i].letter == 'e' ? "(read-only)" : ""));
-        if (i < ATTR_COUNT - 1) printf(", ");
+        if (i < ATTR_COUNT - 1) { printf(", ");
+}
         printf("\n");
     }
 }
@@ -243,7 +244,7 @@ int chattr_command(int argc, char **argv) {
     ArgTable at({recursive_opt, verbose_opt, silent_opt, version_num_opt,
                  preserve_root_opt, no_preserve_root_opt, help_opt, all_args, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         print_help(argv[0]);
@@ -252,7 +253,7 @@ int chattr_command(int argc, char **argv) {
 
     if (nerrors > 0) {
         at.print_errors(end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -266,10 +267,10 @@ int chattr_command(int argc, char **argv) {
         version_set = 1;
     }
 
-    int num_tokens = all_args->count;
+    int const num_tokens = all_args->count;
     if (num_tokens == 0) {
-        fprintf(stderr, "%s: missing operand\n", argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -283,14 +284,14 @@ int chattr_command(int argc, char **argv) {
     }
 
     if (file_paths.empty()) {
-        fprintf(stderr, "%s: missing operand\n", argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
-    if (mode_strings.empty() && !version_set) {
-        fprintf(stderr, "%s: missing mode specification\n", argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+    if (mode_strings.empty() && (version_set == 0)) {
+        (void)fprintf(stderr, "%s: missing mode specification\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -303,13 +304,13 @@ int chattr_command(int argc, char **argv) {
     opts.no_preserve_root_opt = no_preserve_root_opt;
     opts.help_opt = help_opt;
     opts.files_arg = all_args;
-    opts.is_recursive = recursive_opt->count > 0;
-    opts.is_verbose = verbose_opt->count > 0;
-    opts.is_silent = silent_opt->count > 0;
-    opts.preserve_root = preserve_root_opt->count > 0;
-    opts.no_preserve_root = no_preserve_root_opt->count > 0;
+    opts.is_recursive = static_cast<int>(recursive_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.is_silent = static_cast<int>(silent_opt->count > 0);
+    opts.preserve_root = static_cast<int>(preserve_root_opt->count > 0);
+    opts.no_preserve_root = static_cast<int>(no_preserve_root_opt->count > 0);
     opts.use_version = version_set;
-    opts.version_str = version_set ? ver_str : nullptr;
+    opts.version_str = (version_set != 0) ? ver_str : nullptr;
 
     unsigned int add_mask = 0;
     unsigned int remove_mask = 0;
@@ -318,22 +319,22 @@ int chattr_command(int argc, char **argv) {
 
     if (!mode_strings.empty()) {
         for (const auto &mode_str : mode_strings) {
-            char op = *mode_str.c_str();
+            char const op = *mode_str.c_str();
             const char *p = mode_str.c_str() + 1;
 
             if (op != '+' && op != '-' && op != '=') {
-                fprintf(stderr, "%s: invalid mode: '%s' — must start with +, -, or =\n",
+                (void)fprintf(stderr, "%s: invalid mode: '%s' — must start with +, -, or =\n",
                         argv[0], mode_str.c_str());
-                fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+                (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
                 return 1;
             }
 
-            while (*p) {
-                char letter = *p++;
+            while ((*p) != 0) {
+                char const letter = *p++;
                 const AttrEntry* entry = find_attr_by_letter(letter);
-                if (!entry) {
-                    fprintf(stderr, "%s: unknown attribute '%c'\n", argv[0], letter);
-                    fprintf(stderr, "Valid attributes: ");
+                if (entry == nullptr) {
+                    (void)fprintf(stderr, "%s: unknown attribute '%c'\n", argv[0], letter);
+                    (void)fprintf(stderr, "Valid attributes: ");
                     for (size_t i = 0; i < ATTR_COUNT; ++i) {
                         printf("%c ", g_attr_map[i].letter);
                     }
@@ -343,7 +344,7 @@ int chattr_command(int argc, char **argv) {
 
                 if (is_read_only_attr(letter)) {
                     if (op == '-') {
-                        fprintf(stderr, "%s: read-only attribute '%c' cannot be removed\n",
+                        (void)fprintf(stderr, "%s: read-only attribute '%c' cannot be removed\n",
                                 argv[0], letter);
                         return 1;
                     }
@@ -363,19 +364,20 @@ int chattr_command(int argc, char **argv) {
                     set_exact = true;
                 }
 
-                if (*p == ',') p++;
+                if (*p == ',') { p++;
+}
             }
         }
     }
 
-    if (opts.is_recursive) {
+    if (opts.is_recursive != 0) {
         chattr_glob_opts = &opts;
 
         for (size_t fi = 0; fi < file_paths.size(); ++fi) {
             const char *path = file_paths[fi].c_str();
             if (nftw(path, recursive_callback, 20, FTW_PHYS) != 0) {
-                if (!opts.is_silent) {
-                    fprintf(stderr, "chattr: '%s': %s\n", path, strerror(errno));
+                if (opts.is_silent == 0) {
+                    (void)fprintf(stderr, "chattr: '%s': %s\n", path, strerror(errno));
                 }
                 chattr_errors = 1;
             }
@@ -385,13 +387,13 @@ int chattr_command(int argc, char **argv) {
             const char *path = file_paths[fi].c_str();
             if (chattr_apply_file(path, add_mask, remove_mask, set_exact,
                                  keep_flags, &opts,
-                                 opts.use_version, opts.version_str) != 0) {
+                                 opts.use_version != 0, opts.version_str) != 0) {
                 chattr_errors = 1;
             }
         }
     }
 
-    return chattr_errors ? 1 : 0;
+    return (chattr_errors != 0) ? 1 : 0;
 }
 
 REGISTER_COMMAND("chattr", chattr_command, "Change file attributes on a Linux file system")

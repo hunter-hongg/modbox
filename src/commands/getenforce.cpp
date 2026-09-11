@@ -15,7 +15,7 @@ int getenforce_command(int argc, char** argv) {
 
     ArgTable at({help_opt, version_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (nerrors > 0) {
         return print_arg_errors(end, argv[0]);
@@ -36,7 +36,7 @@ int getenforce_command(int argc, char** argv) {
         return 0;
     }
 
-    int enforce = security_getenforce();
+    int const enforce = security_getenforce();
     if (enforce < 0) {
         printf("Disabled\n");
     } else if (enforce > 0) {

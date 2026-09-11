@@ -1,5 +1,6 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include <utility>
 #endif
 
 #include <cstdio>
@@ -12,17 +13,16 @@
 #include <vector>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include "commands/mount.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 
 struct MountEntry {
-    std::string source{};
-    std::string target{};
-    std::string fstype{};
-    std::string options{};
+    std::string source;
+    std::string target;
+    std::string fstype;
+    std::string options;
     unsigned int dump{0};
     unsigned int passno{0};
 };
@@ -32,11 +32,13 @@ struct MountEntry {
 static std::vector<MountEntry> read_proc_mounts() {
     std::vector<MountEntry> entries;
     std::ifstream f("/proc/mounts");
-    if (!f) return entries;
+    if (!f) { return entries;
+}
 
     std::string line;
     while (std::getline(f, line)) {
-        if (line.empty()) continue;
+        if (line.empty()) { continue;
+}
         MountEntry e;
         std::istringstream iss(line);
         iss >> e.source >> e.target >> e.fstype >> e.options;
@@ -62,21 +64,23 @@ static void print_help(const char* prog) {
 static int parse_mount_options(const std::string& opt_str, int& flags, std::string& data) {
     size_t pos = 0;
     while (pos < opt_str.size()) {
-        size_t comma = opt_str.find(',', pos);
-        std::string opt = (comma == std::string::npos)
+        size_t const comma = opt_str.find(',', pos);
+        std::string const opt = (comma == std::string::npos)
             ? opt_str.substr(pos)
             : opt_str.substr(pos, comma - pos);
 
-        if (opt == "bind") flags |= MS_BIND;
-        else if (opt == "remount") flags |= MS_REMOUNT;
-        else if (opt == "rw") flags &= ~MS_RDONLY;
-        else if (opt == "ro") flags |= MS_RDONLY;
-        else if (!opt.empty()) {
-            if (!data.empty()) data += ",";
+        if (opt == "bind") { { flags |= MS_BIND;
+        } } else if (opt == "remount") { { flags |= MS_REMOUNT;
+        } } else if (opt == "rw") { { flags &= ~MS_RDONLY;
+        } } else if (opt == "ro") { { flags |= MS_RDONLY;
+        } } else if (!opt.empty()) {
+            if (!data.empty()) { data += ",";
+}
             data += opt;
         }
         
-        if (comma == std::string::npos) break;
+        if (comma == std::string::npos) { break;
+}
         pos = comma + 1;
     }
     return 0;
@@ -109,14 +113,14 @@ int mount_command(int argc, char** argv) {
         if (strcmp(a, "-a") == 0 || strcmp(a, "--all") == 0) {
             list_all = true;
     } else if (strncmp(a, "-O", 2) == 0) {
-      if (a[2]) { /* -Oxxx as data is non-standard; treat as no-op */ }
+      if (a[2] != 0) { /* -Oxxx as data is non-standard; treat as no-op */ }
       else if (i + 1 < argc) { i++; /* -O <opt>: ignore in fake mode */ }
     } else if (strcmp(a, "--fake") == 0) {
             fake = true;
         } else if (strcmp(a, "-t") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "mount: option '-t' requires an argument\n");
+                (void)fprintf(stderr, "mount: option '-t' requires an argument\n");
                 return 1;
             }
             fstype = argv[i];
@@ -125,7 +129,7 @@ int mount_command(int argc, char** argv) {
         } else if (strcmp(a, "-o") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "mount: option '-o' requires an argument\n");
+                (void)fprintf(stderr, "mount: option '-o' requires an argument\n");
                 return 1;
             }
             options = argv[i];
@@ -134,7 +138,7 @@ int mount_command(int argc, char** argv) {
         } else if (strcmp(a, "--options") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "mount: option '--options' requires an argument\n");
+                (void)fprintf(stderr, "mount: option '--options' requires an argument\n");
                 return 1;
             }
             options = argv[i];
@@ -143,7 +147,7 @@ int mount_command(int argc, char** argv) {
         } else if (strcmp(a, "--target") == 0) {
             i++;
             if (i >= argc) {
-                fprintf(stderr, "mount: option '--target' requires an argument\n");
+                (void)fprintf(stderr, "mount: option '--target' requires an argument\n");
                 return 1;
             }
             target = argv[i];
@@ -152,8 +156,8 @@ int mount_command(int argc, char** argv) {
         } else if (a[0] != '-') {
             positional.push_back(a);
         } else {
-            fprintf(stderr, "mount: invalid option '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "mount: invalid option '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 1;
         }
     }
@@ -162,7 +166,7 @@ int mount_command(int argc, char** argv) {
     if (list_all) {
         auto entries = read_proc_mounts();
         if (entries.empty()) {
-            fprintf(stderr, "mount: /proc/mounts: No such file or directory\n");
+            (void)fprintf(stderr, "mount: /proc/mounts: No such file or directory\n");
             return 1;
         }
         printf("%-25s %-30s %-12s %-30s %s %s\n",
@@ -189,7 +193,8 @@ int mount_command(int argc, char** argv) {
             if (options.empty() && positional.size() > 3) {
                 // Join remaining positional args as options
                 for (size_t j = 3; j < positional.size(); j++) {
-                    if (j > 3) options += ",";
+                    if (j > 3) { options += ",";
+}
                     options += positional[j];
                 }
             }
@@ -197,14 +202,14 @@ int mount_command(int argc, char** argv) {
     }
 
     if (device.empty()) {
-        fprintf(stderr, "mount: missing device operand\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "mount: missing device operand\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
     if (target.empty()) {
-        fprintf(stderr, "mount: missing target directory\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "mount: missing target directory\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -212,11 +217,11 @@ int mount_command(int argc, char** argv) {
     if (!fake) {
         struct stat st;
         if (stat(target.c_str(), &st) != 0) {
-            fprintf(stderr, "mount: %s: No such file or directory\n", target.c_str());
+            (void)fprintf(stderr, "mount: %s: No such file or directory\n", target.c_str());
             return 1;
         }
         if (!S_ISDIR(st.st_mode)) {
-            fprintf(stderr, "mount: %s: Not a directory\n", target.c_str());
+            (void)fprintf(stderr, "mount: %s: Not a directory\n", target.c_str());
             return 1;
         }
     }
@@ -231,7 +236,7 @@ int mount_command(int argc, char** argv) {
 
     if (fake) {
         printf("mount %s on %s type %s", device.c_str(), target.c_str(),
-               fstype_c ? fstype_c : "auto");
+               (fstype_c != nullptr) ? fstype_c : "auto");
         if (!options.empty()) {
             printf(" (%s)", options.c_str());
         }
@@ -239,12 +244,12 @@ int mount_command(int argc, char** argv) {
         return 0;
     }
 
-    int ret = mount(device.c_str(), target.c_str(), fstype_c, flags, data_c);
+    int const ret = mount(device.c_str(), target.c_str(), fstype_c, flags, data_c);
     if (ret != 0) {
         if (errno == EPERM || errno == EACCES) {
-            fprintf(stderr, "mount: operation not permitted\n");
+            (void)fprintf(stderr, "mount: operation not permitted\n");
         } else {
-            fprintf(stderr, "mount: %s\n", strerror(errno));
+            (void)fprintf(stderr, "mount: %s\n", strerror(errno));
         }
         return 1;
     }

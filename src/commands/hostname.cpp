@@ -24,7 +24,8 @@ static std::vector<std::string> get_host_addresses() {
         return addrs;
     }
 
-    struct addrinfo hints, *res;
+    struct addrinfo hints;
+    struct addrinfo *res;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = 0;
@@ -34,11 +35,12 @@ static std::vector<std::string> get_host_addresses() {
         for (struct addrinfo* p = res; p != NULL; p = p->ai_next) {
             char ipstr[INET6_ADDRSTRLEN];
             if (p->ai_family == AF_INET) {
-                struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
+                const struct sockaddr_in* ipv4 = reinterpret_cast<struct sockaddr_in*>(p->ai_addr);
                 const char* ip = inet_ntoa(ipv4->sin_addr);
-                if (ip) addrs.push_back(std::string(ip));
+                if (ip != nullptr) { addrs.push_back(std::string(ip));
+}
             } else if (p->ai_family == AF_INET6) {
-                struct sockaddr_in6* ipv6 = (struct sockaddr_in6*)p->ai_addr;
+                struct sockaddr_in6* ipv6 = reinterpret_cast<struct sockaddr_in6*>(p->ai_addr);
                 if (inet_ntop(AF_INET6, &(ipv6->sin6_addr), ipstr, sizeof(ipstr)) != NULL) {
                     addrs.push_back(std::string(ipstr));
                 }
@@ -68,7 +70,7 @@ static std::string get_fqdn() {
     if (hn.find('.') != std::string::npos) {
         return hn;
     }
-    std::string domain = get_domain_name();
+    std::string const domain = get_domain_name();
     if (!domain.empty()) {
         return hn + "." + domain;
     }
@@ -84,7 +86,8 @@ int hostname_command(int argc, char** argv) {
     bool show_short = false;
     bool set_hostname = false;
     std::string new_hostname;
-    bool help = false, version = false;
+    bool help = false;
+    bool version = false;
 
     int i = 1;
     while (i < argc) {
@@ -133,7 +136,7 @@ int hostname_command(int argc, char** argv) {
 
     if (set_hostname && !show_aliases && !show_domain && !show_fqdn && !show_ips && !show_all_ips && !show_short) {
         if (sethostname(new_hostname.c_str(), new_hostname.length()) < 0) {
-            fprintf(stderr, "hostname: %s\n", strerror(errno));
+            (void)fprintf(stderr, "hostname: %s\n", strerror(errno));
             return 0;
         }
         printf("%s\n", new_hostname.c_str());
@@ -142,13 +145,14 @@ int hostname_command(int argc, char** argv) {
 
     char hostname_buf[HOSTNAME_BUF];
     if (gethostname(hostname_buf, sizeof(hostname_buf)) < 0) {
-        fprintf(stderr, "hostname: %s\n", strerror(errno));
+        (void)fprintf(stderr, "hostname: %s\n", strerror(errno));
         return 0;
     }
-    std::string nodename(hostname_buf);
+    std::string const nodename(hostname_buf);
 
-    bool any_display = show_aliases || show_domain || show_fqdn || show_ips || show_all_ips || show_short;
-    if (!any_display) show_short = true;
+    bool const any_display = show_aliases || show_domain || show_fqdn || show_ips || show_all_ips || show_short;
+    if (!any_display) { show_short = true;
+}
 
     bool first = true;
 
@@ -158,18 +162,20 @@ int hostname_command(int argc, char** argv) {
     }
 
     if (show_domain) {
-        std::string domain = get_domain_name();
+        std::string const domain = get_domain_name();
         if (!domain.empty()) {
-            if (!first) printf(" ");
+            if (!first) { printf(" ");
+}
             printf("%s", domain.c_str());
             first = false;
         }
     }
 
     if (show_fqdn) {
-        std::string fqdn = get_fqdn();
+        std::string const fqdn = get_fqdn();
         if (!fqdn.empty()) {
-            if (!first) printf(" ");
+            if (!first) { printf(" ");
+}
             printf("%s", fqdn.c_str());
             first = false;
         }
@@ -178,7 +184,8 @@ int hostname_command(int argc, char** argv) {
     if (show_ips) {
         std::vector<std::string> addrs = get_host_addresses();
         for (size_t j = 0; j < addrs.size(); ++j) {
-            if (j > 0) printf(" ");
+            if (j > 0) { printf(" ");
+}
             printf("%s", addrs[j].c_str());
         }
         first = false;
@@ -187,7 +194,8 @@ int hostname_command(int argc, char** argv) {
     if (show_all_ips) {
         std::vector<std::string> addrs = get_host_addresses();
         for (size_t j = 0; j < addrs.size(); ++j) {
-            if (j > 0) putchar('\n');
+            if (j > 0) { putchar('\n');
+}
             printf("%s", addrs[j].c_str());
             first = false;
         }
@@ -195,11 +203,12 @@ int hostname_command(int argc, char** argv) {
 
     if (show_short) {
         std::string short_name = nodename;
-        size_t dot_pos = short_name.find('.');
+        size_t const dot_pos = short_name.find('.');
         if (dot_pos != std::string::npos) {
             short_name = short_name.substr(0, dot_pos);
         }
-        if (!first) printf(" ");
+        if (!first) { printf(" ");
+}
         printf("%s", short_name.c_str());
         first = false;
     }

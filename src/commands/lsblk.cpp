@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <dirent.h>
 #include <unistd.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 #include "commands/lsblk.hpp"
 #include "commands/command_macros.hpp"
@@ -41,22 +39,25 @@ struct BlockDevice {
 };
 
 static std::string trim(const std::string& s) {
-    size_t start = s.find_first_not_of(" \t\n\r");
-    if (start == std::string::npos) return "";
-    size_t end = s.find_last_not_of(" \t\n\r");
+    size_t const start = s.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) { return "";
+}
+    size_t const end = s.find_last_not_of(" \t\n\r");
     return s.substr(start, end - start + 1);
 }
 
 static std::string read_sysfs(const std::string& path) {
     FILE* f = fopen(path.c_str(), "r");
-    if (!f) return "";
+    if (f == nullptr) { return "";
+}
     char buf[256];
     size_t n = fread(buf, 1, sizeof(buf) - 1, f);
     buf[n] = '\0';
-    fclose(f);
+    (void)fclose(f);
     // Strip trailing whitespace/newlines
-    while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == '\r' || buf[n-1] == ' ' || buf[n-1] == '\t'))
+    while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == '\r' || buf[n-1] == ' ' || buf[n-1] == '\t')) {
         buf[--n] = '\0';
+}
     return std::string(buf);
 }
 
@@ -67,13 +68,16 @@ static std::vector<BlockDevice> collect_devices(bool include_all) {
 
 
     DIR* dir = opendir(block_dir.c_str());
-    if (!dir) return devices;
+    if (dir == nullptr) { return devices;
+}
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_name[0] == '.') continue;
-        std::string dname = entry->d_name;
-        if (!include_all && dname.find("loop") == 0) continue;
+        if (entry->d_name[0] == '.') { continue;
+}
+        std::string const dname = entry->d_name;
+        if (!include_all && dname.starts_with("loop")) { continue;
+}
         dev_names.push_back(dname);
     }
     closedir(dir);
@@ -84,55 +88,58 @@ static std::vector<BlockDevice> collect_devices(bool include_all) {
         dev.name = dname;
 
         // Read size (sectors)
-        std::string size_str = read_sysfs(block_dir + "/" + dname + "/size");
+        std::string const size_str = read_sysfs(block_dir + "/" + dname + "/size");
         if (!size_str.empty()) {
             dev.size_bytes = std::strtoll(size_str.c_str(), nullptr, 10) * 512;
         }
 
         // Read removable
-        std::string rm_str = read_sysfs(block_dir + "/" + dname + "/removable");
+        std::string const rm_str = read_sysfs(block_dir + "/" + dname + "/removable");
         if (!rm_str.empty()) {
             dev.removable = (std::atoi(rm_str.c_str()) != 0);
         }
 
         // Read maj:min
-        std::string majmin_str = read_sysfs(block_dir + "/" + dname + "/dev");
+        std::string const majmin_str = read_sysfs(block_dir + "/" + dname + "/dev");
         if (!majmin_str.empty()) {
             dev.maj_min = majmin_str;
         }
 
         // Read mountpoints from /proc/mounts
         FILE* mounts = fopen("/proc/mounts", "r");
-        if (mounts) {
+        if (mounts != nullptr) {
             char line[512];
-            std::string devpath = "/dev/" + dname;
-            while (fgets(line, sizeof(line), mounts)) {
+            std::string const devpath = "/dev/" + dname;
+            while (fgets(line, sizeof(line), mounts) != nullptr) {
                 // Parse: device mountpoint fs_type ...
-                char* dev_tok = strtok(line, " \t\n");
-                char* mp_tok = strtok(nullptr, " \t\n");
-                if (dev_tok && mp_tok) {
-                    std::string dev_str = dev_tok;
-                    std::string mp_str = mp_tok;
+                char const * dev_tok = strtok(line, " \t\n");
+                char const * mp_tok = strtok(nullptr, " \t\n");
+                if ((dev_tok != nullptr) && (mp_tok != nullptr)) {
+                    std::string const dev_str = dev_tok;
+                    std::string const mp_str = mp_tok;
                     if (dev_str == devpath || (dev_str.size() > dname.size() &&
-                        dev_str.compare(dev_str.size() - dname.size(), dname.size(), dname) == 0)) {
-                        if (!dev.mountpoint.empty()) dev.mountpoint += " ";
+                        dev_str.ends_with(dname))) {
+                        if (!dev.mountpoint.empty()) { dev.mountpoint += " ";
+}
                         dev.mountpoint += mp_str;
                     }
                 }
             }
-            fclose(mounts);
+            (void)fclose(mounts);
         }
 
         // Read children (partitions)
         DIR* sub_dir = opendir((block_dir + "/" + dname).c_str());
-        if (sub_dir) {
+        if (sub_dir != nullptr) {
             struct dirent* child;
             while ((child = readdir(sub_dir)) != nullptr) {
-                if (child->d_name[0] == '.') continue;
-                std::string cname = child->d_name;
-                if (cname == dname) continue;
+                if (child->d_name[0] == '.') { continue;
+}
+                std::string const cname = child->d_name;
+                if (cname == dname) { continue;
+}
                 // Partitions have a "partition" attribute
-                std::string cpath = block_dir + "/" + dname + "/" + cname + "/partition";
+                std::string const cpath = block_dir + "/" + dname + "/" + cname + "/partition";
                 if (access(cpath.c_str(), F_OK) == 0) {
                     dev.children.push_back(cname);
                 }
@@ -149,21 +156,21 @@ static std::vector<BlockDevice> collect_devices(bool include_all) {
 static std::string format_size(long long bytes, bool in_bytes) {
     if (in_bytes) {
         char buf[32];
-        snprintf(buf, sizeof(buf), "%lld", bytes);
+        (void)snprintf(buf, sizeof(buf), "%lld", bytes);
         return buf;
     }
     const char* suffixes[] = {"B", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei"};
     int idx = 0;
-    double size = (double)bytes;
+    double size = static_cast<double>(bytes);
     while (size >= 1024.0 && idx < 6) {
         size /= 1024.0;
         idx++;
     }
     char buf[32];
     if (idx == 0) {
-        snprintf(buf, sizeof(buf), "%lldB", bytes);
+        (void)snprintf(buf, sizeof(buf), "%lldB", bytes);
     } else {
-        snprintf(buf, sizeof(buf), "%.1f%s", size, suffixes[idx]);
+        (void)snprintf(buf, sizeof(buf), "%.1f%s", size, suffixes[idx]);
     }
     return buf;
 }
@@ -171,7 +178,8 @@ static std::string format_size(long long bytes, bool in_bytes) {
 // Find device by name
 static const BlockDevice* find_device(const std::vector<BlockDevice>& devices, const std::string& name) {
     for (const auto& d : devices) {
-        if (d.name == name) return &d;
+        if (d.name == name) { return &d;
+}
     }
     return nullptr;
 }
@@ -180,7 +188,8 @@ static const BlockDevice* find_device(const std::vector<BlockDevice>& devices, c
 static bool is_child(const std::vector<BlockDevice>& devices, const std::string& name) {
     for (const auto& d : devices) {
         for (const auto& c : d.children) {
-            if (c == name) return true;
+            if (c == name) { return true;
+}
         }
     }
     return false;
@@ -192,8 +201,9 @@ static void print_device_line(const BlockDevice& dev, const std::string& prefix,
                               const std::vector<std::string>& output_cols) {
     // Tree connector
     if (!noheadings) {
-        if (is_last) printf("%s└─ ", prefix.c_str());
-        else printf("%s├─ ", prefix.c_str());
+        if (is_last) { printf("%s└─ ", prefix.c_str());
+        } else { printf("%s├─ ", prefix.c_str());
+}
     }
     
     // Print columns
@@ -214,7 +224,8 @@ static void print_device_line(const BlockDevice& dev, const std::string& prefix,
             val = "";
         }
         printf("%s", val.c_str());
-        if (c + 1 < output_cols.size()) printf(" ");
+        if (c + 1 < output_cols.size()) { printf(" ");
+}
     }
     printf("\n");
 }
@@ -227,11 +238,11 @@ static void print_device_tree(const BlockDevice& dev, const std::vector<BlockDev
     print_device_line(dev, prefix, is_last, paths, bytes, noheadings, output_cols);
     
     // Print children
-    std::string new_prefix = prefix + (is_last ? "    " : "│   ");
+    std::string const new_prefix = prefix + (is_last ? "    " : "│   ");
     for (size_t i = 0; i < dev.children.size(); i++) {
         const BlockDevice* child = find_device(devices, dev.children[i]);
-        if (child) {
-            bool child_last = (i == dev.children.size() - 1);
+        if (child != nullptr) {
+            bool const child_last = (i == dev.children.size() - 1);
             print_device_tree(*child, devices, new_prefix, child_last, paths, bytes, noheadings, output_cols);
         }
     }
@@ -278,24 +289,27 @@ int lsblk_command(int argc, char** argv) {
         if (strcmp(a, "-o") == 0 || strcmp(a, "--output") == 0) {
             i++;
             if (i < argc) {
-                std::string single = argv[i];
+                std::string const single = argv[i];
                 size_t pos = 0;
                 while (pos <= single.size()) {
                     size_t comma = single.find(',', pos);
-                    if (comma == std::string::npos) comma = single.size();
+                    if (comma == std::string::npos) { comma = single.size();
+}
                     std::string col = single.substr(pos, comma - pos);
-                    size_t s = col.find_first_not_of(" \t");
-                    size_t e = col.find_last_not_of(" \t");
-                    if (s != std::string::npos) col = col.substr(s, e - s + 1);
-                    if (!col.empty()) output_cols.push_back(col);
+                    size_t const s = col.find_first_not_of(" \t");
+                    size_t const e = col.find_last_not_of(" \t");
+                    if (s != std::string::npos) { col = col.substr(s, e - s + 1);
+}
+                    if (!col.empty()) { output_cols.push_back(col);
+}
                     pos = comma + 1;
                 }
             }
             continue;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "lsblk: unrecognized option '%s'\n", a);
-            fprintf(stderr, "Try 'lsblk --help' for more information.\n");
+            (void)fprintf(stderr, "lsblk: unrecognized option '%s'\n", a);
+            (void)fprintf(stderr, "Try 'lsblk --help' for more information.\n");
             return 1;
         }
     }
@@ -318,7 +332,8 @@ int lsblk_command(int argc, char** argv) {
             printf("    \"mountpoint\": "); json_escape_string(stdout, dev.mountpoint.c_str()); printf(",\n");
             printf("    \"children\": [");
             for (size_t j = 0; j < dev.children.size(); j++) {
-                if (j > 0) printf(", ");
+                if (j > 0) { printf(", ");
+}
                 json_escape_string(stdout, dev.children[j].c_str());
             }
             printf("]\n");
@@ -327,7 +342,7 @@ int lsblk_command(int argc, char** argv) {
         printf("]\n");
     } else {
         // Check if default output (tree format)
-        bool is_default_output = (output_cols == std::vector<std::string>{"NAME", "SIZE", "TYPE", "MOUNTPOINT"});
+        bool const is_default_output = (output_cols == std::vector<std::string>{"NAME", "SIZE", "TYPE", "MOUNTPOINT"});
         
         if (is_default_output) {
             // Tree format - find root devices
@@ -338,7 +353,7 @@ int lsblk_command(int argc, char** argv) {
                 }
             }
             for (size_t i = 0; i < root_indices.size(); i++) {
-                bool is_last = (i == root_indices.size() - 1);
+                bool const is_last = (i == root_indices.size() - 1);
                 print_device_tree(devices[root_indices[i]], devices, "", is_last, paths, bytes, noheadings, output_cols);
             }
 
@@ -347,13 +362,15 @@ int lsblk_command(int argc, char** argv) {
             if (!noheadings) {
                 for (size_t c = 0; c < output_cols.size(); c++) {
                     const char* col = output_cols[c].c_str();
-                    if (strcmp(col, "NAME") == 0) printf("NAME");
-                    else if (strcmp(col, "SIZE") == 0) printf("SIZE");
-                    else if (strcmp(col, "TYPE") == 0) printf("TYPE");
-                    else if (strcmp(col, "MOUNTPOINT") == 0) printf("MOUNTPOINT");
-                    else if (strcmp(col, "MAJ:MIN") == 0) printf("MAJ:MIN");
-                    else printf("%s", col);
-                    if (c + 1 < output_cols.size()) printf(" ");
+                    if (strcmp(col, "NAME") == 0) { printf("NAME");
+                    } else if (strcmp(col, "SIZE") == 0) { printf("SIZE");
+                    } else if (strcmp(col, "TYPE") == 0) { printf("TYPE");
+                    } else if (strcmp(col, "MOUNTPOINT") == 0) { printf("MOUNTPOINT");
+                    } else if (strcmp(col, "MAJ:MIN") == 0) { printf("MAJ:MIN");
+                    } else { printf("%s", col);
+}
+                    if (c + 1 < output_cols.size()) { printf(" ");
+}
                 }
                 printf("\n");
             }
@@ -376,7 +393,8 @@ int lsblk_command(int argc, char** argv) {
                         val = "";
                     }
                     printf("%s", val.c_str());
-                    if (c + 1 < output_cols.size()) printf(" ");
+                    if (c + 1 < output_cols.size()) { printf(" ");
+}
                 }
                 printf("\n");
             }

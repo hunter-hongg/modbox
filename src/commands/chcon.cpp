@@ -7,7 +7,7 @@
 #include <string>
 #include <selinux/selinux.h>
 #include <selinux/context.h>
-#include <unistd.h>
+#include <sys/stat.h>
 
 #include "commands/chcon.hpp"
 #include "commands/arg_util.hpp"
@@ -30,30 +30,31 @@ static int chcon_errors = 0;
 static std::string build_context(const char* current_ctx_str,
                                   const ChconOptions* opts,
                                   const char* ref_ctx_str) {
-    const char* base_ctx = ref_ctx_str ? ref_ctx_str : current_ctx_str;
+    const char* base_ctx = (ref_ctx_str != nullptr) ? ref_ctx_str : current_ctx_str;
 
     context_t ctx = context_new(base_ctx);
-    if (!ctx) return "";
+    if (ctx == nullptr) { return "";
+}
 
-    if (opts->user) {
+    if (opts->user != nullptr) {
         if (context_user_set(ctx, opts->user) != 0) {
             context_free(ctx);
             return "";
         }
     }
-    if (opts->role) {
+    if (opts->role != nullptr) {
         if (context_role_set(ctx, opts->role) != 0) {
             context_free(ctx);
             return "";
         }
     }
-    if (opts->type) {
+    if (opts->type != nullptr) {
         if (context_type_set(ctx, opts->type) != 0) {
             context_free(ctx);
             return "";
         }
     }
-    if (opts->range) {
+    if (opts->range != nullptr) {
         if (context_range_set(ctx, opts->range) != 0) {
             context_free(ctx);
             return "";
@@ -61,7 +62,7 @@ static std::string build_context(const char* current_ctx_str,
     }
 
     const char* result = context_str(ctx);
-    std::string out = result ? result : "";
+    std::string out = (result != nullptr) ? result : "";
     context_free(ctx);
     return out;
 }
@@ -70,7 +71,7 @@ static int chcon_one_file(const char* path, const ChconOptions* opts) {
     char* current_ctx = nullptr;
 
     int get_rc;
-    if (opts->no_dereference) {
+    if (opts->no_dereference != 0) {
         get_rc = lgetfilecon(path, &current_ctx);
     } else {
         get_rc = getfilecon(path, &current_ctx);
@@ -78,10 +79,10 @@ static int chcon_one_file(const char* path, const ChconOptions* opts) {
 
     if (get_rc < 0) {
         if (errno != ENOTSUP) {
-            fprintf(stderr, "chcon: failed to get context of '%s': %s\n",
+            (void)fprintf(stderr, "chcon: failed to get context of '%s': %s\n",
                     path, strerror(errno));
         } else {
-            fprintf(stderr, "chcon: '%s' has no security context\n", path);
+            (void)fprintf(stderr, "chcon: '%s' has no security context\n", path);
         }
         return 1;
     }
@@ -89,11 +90,11 @@ static int chcon_one_file(const char* path, const ChconOptions* opts) {
     const char* ref_ctx_str = nullptr;
     std::string ref_ctx_owned;
 
-    if (opts->reference) {
+    if (opts->reference != nullptr) {
         char* ref_ctx = nullptr;
-        int ref_rc = getfilecon(opts->reference, &ref_ctx);
+        int const ref_rc = getfilecon(opts->reference, &ref_ctx);
         if (ref_rc < 0) {
-            fprintf(stderr, "chcon: failed to get context of '%s': %s\n",
+            (void)fprintf(stderr, "chcon: failed to get context of '%s': %s\n",
                     opts->reference, strerror(errno));
             freecon(current_ctx);
             return 1;
@@ -103,28 +104,28 @@ static int chcon_one_file(const char* path, const ChconOptions* opts) {
         freecon(ref_ctx);
     }
 
-    std::string new_ctx = build_context(current_ctx, opts, ref_ctx_str);
+    std::string const new_ctx = build_context(current_ctx, opts, ref_ctx_str);
     freecon(current_ctx);
 
     if (new_ctx.empty()) {
-        fprintf(stderr, "chcon: failed to construct new context for '%s'\n", path);
+        (void)fprintf(stderr, "chcon: failed to construct new context for '%s'\n", path);
         return 1;
     }
 
     int set_rc;
-    if (opts->no_dereference) {
+    if (opts->no_dereference != 0) {
         set_rc = lsetfilecon(path, new_ctx.c_str());
     } else {
         set_rc = setfilecon(path, new_ctx.c_str());
     }
 
     if (set_rc < 0) {
-        fprintf(stderr, "chcon: failed to change context of '%s' to '%s': %s\n",
+        (void)fprintf(stderr, "chcon: failed to change context of '%s' to '%s': %s\n",
                 path, new_ctx.c_str(), strerror(errno));
         return 1;
     }
 
-    if (opts->is_verbose) {
+    if (opts->is_verbose != 0) {
         printf("changed context of '%s' to '%s'\n", path, new_ctx.c_str());
     }
 
@@ -139,9 +140,9 @@ static int recursive_callback(const char* fpath, const struct stat* sb,
     (void)sb;
     (void)ftwbuf;
 
-    if (chcon_glob_opts->preserve_root && strcmp(fpath, "/") == 0) {
-        fprintf(stderr, "chcon: it is dangerous to operate recursively on '/'\n");
-        fprintf(stderr, "chcon: use --no-preserve-root to override this failsafe\n");
+    if ((chcon_glob_opts->preserve_root != 0) && strcmp(fpath, "/") == 0) {
+        (void)fprintf(stderr, "chcon: it is dangerous to operate recursively on '/'\n");
+        (void)fprintf(stderr, "chcon: use --no-preserve-root to override this failsafe\n");
         chcon_errors = 1;
         return 0;
     }
@@ -172,7 +173,7 @@ int chcon_command(int argc, char** argv) {
                  user_opt, role_opt, type_opt, range_opt,
                  reference_opt, help_opt, files_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... CONTEXT FILE...\n", argv[0]);
@@ -200,10 +201,10 @@ int chcon_command(int argc, char** argv) {
     }
 
     ChconOptions opts;
-    opts.is_recursive = (recursive_opt->count > 0);
-    opts.is_verbose = (verbose_opt->count > 0);
-    opts.no_dereference = (no_deref_opt->count > 0);
-    opts.preserve_root = (preserve_root_opt->count > 0);
+    opts.is_recursive = static_cast<int>(recursive_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.no_dereference = static_cast<int>(no_deref_opt->count > 0);
+    opts.preserve_root = static_cast<int>(preserve_root_opt->count > 0);
     opts.user = (user_opt->count > 0) ? user_opt->sval[0] : nullptr;
     opts.role = (role_opt->count > 0) ? role_opt->sval[0] : nullptr;
     opts.type = (type_opt->count > 0) ? type_opt->sval[0] : nullptr;
@@ -211,15 +212,15 @@ int chcon_command(int argc, char** argv) {
     opts.reference = (reference_opt->count > 0) ? reference_opt->sval[0] : nullptr;
 
     // At least one context specification must be given
-    bool has_context_spec = (user_opt->count > 0 || role_opt->count > 0 ||
+    bool const has_context_spec = (user_opt->count > 0 || role_opt->count > 0 ||
                              type_opt->count > 0 || range_opt->count > 0 ||
                              reference_opt->count > 0);
 
     if (!has_context_spec) {
         // The first positional arg could be a full context string
         if (files_arg->count < 2) {
-            fprintf(stderr, "%s: missing operand\n", argv[0]);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
 
@@ -228,7 +229,7 @@ int chcon_command(int argc, char** argv) {
         // Actually with arg_file, they're all in files_arg. Let's handle it:
         // If no -u/-r/-t/-l/--reference given, first positional is the full context
         const char* full_ctx = files_arg->filename[0];
-        int num_files = files_arg->count - 1;
+        int const num_files = files_arg->count - 1;
 
         chcon_errors = 0;
 
@@ -236,16 +237,16 @@ int chcon_command(int argc, char** argv) {
             const char* path = files_arg->filename[i + 1];
             // Set full context on this file
             int set_rc;
-            if (opts.no_dereference) {
+            if (opts.no_dereference != 0) {
                 set_rc = lsetfilecon(path, full_ctx);
             } else {
                 set_rc = setfilecon(path, full_ctx);
             }
             if (set_rc < 0) {
-                fprintf(stderr, "chcon: failed to change context of '%s': %s\n",
+                (void)fprintf(stderr, "chcon: failed to change context of '%s': %s\n",
                         path, strerror(errno));
                 chcon_errors = 1;
-            } else if (opts.is_verbose) {
+            } else if (opts.is_verbose != 0) {
                 printf("changed context of '%s' to '%s'\n", path, full_ctx);
             }
         }
@@ -253,12 +254,12 @@ int chcon_command(int argc, char** argv) {
         return 0;
     }
 
-    if (opts.is_recursive) {
+    if (opts.is_recursive != 0) {
         chcon_glob_opts = &opts;
         for (int i = 0; i < files_arg->count; i++) {
             const char* path = files_arg->filename[i];
             if (nftw(path, recursive_callback, 20, FTW_PHYS) != 0) {
-                fprintf(stderr, "chcon: '%s': %s\n", path, strerror(errno));
+                (void)fprintf(stderr, "chcon: '%s': %s\n", path, strerror(errno));
                 chcon_errors = 1;
             }
         }

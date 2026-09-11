@@ -1,14 +1,16 @@
 #include "commands/dns_util.hpp"
-#include <resolv.h>
+#include <cstdint>
 #include <arpa/nameser.h>
 #include <arpa/nameser_compat.h>
 #include <cstdio>
 #include <cstring>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <netdb.h>
 #include <string>
 #include <vector>
 
@@ -31,23 +33,29 @@ std::string dns_parse_name(const uint8_t* ans, int anslen, int& pos) {
     std::string result;
     bool first = true;
     while (pos < anslen) {
-        uint8_t len = ans[pos++];
-        if (len == 0) break;
+        uint8_t const len = ans[pos++];
+        if (len == 0) { break;
+}
         if ((len & 0xc0) == 0xc0) {
-            if (pos + 1 > anslen) break;
-            int offset = (((len & 0x3f) << 8) | ans[pos]);
+            if (pos + 1 > anslen) { break;
+}
+            int const offset = (((len & 0x3f) << 8) | ans[pos]);
             pos += 1;
-            if (offset < 0 || offset >= anslen) break;
-            int saved = pos;
+            if (offset < 0 || offset >= anslen) { break;
+}
+            int const saved = pos;
             pos = offset;
-            std::string pointed = dns_parse_name(ans, anslen, pos);
+            std::string const pointed = dns_parse_name(ans, anslen, pos);
             pos = saved;
-            if (!first && !pointed.empty()) result += '.';
+            if (!first && !pointed.empty()) { result += '.';
+}
             result += pointed;
             break;
         }
-        if (pos + len > anslen) break;
-        if (!first) result += '.';
+        if (pos + len > anslen) { break;
+}
+        if (!first) { result += '.';
+}
         result.append(reinterpret_cast<const char*>(ans + pos), len);
         pos += len;
         first = false;
@@ -59,19 +67,20 @@ std::string dns_build_domain_labels(const std::string& domain) {
     std::string labels;
     std::string d = domain;
     // Strip trailing dot - the root label is implicit
-    if (!d.empty() && d.back() == '.') d.pop_back();
+    if (!d.empty() && d.back() == '.') { d.pop_back();
+}
 
     size_t prev = 0;
     size_t dot;
     while ((dot = d.find('.', prev)) != std::string::npos) {
-        size_t len = dot - prev;
+        size_t const len = dot - prev;
         if (len > 0) {
             labels += static_cast<char>(static_cast<uint8_t>(len));
             labels.append(d, prev, len);
         }
         prev = dot + 1;
     }
-    size_t len = d.size() - prev;
+    size_t const len = d.size() - prev;
     if (len > 0) {
         labels += static_cast<char>(static_cast<uint8_t>(len));
         labels.append(d, prev, len);
@@ -133,41 +142,43 @@ int dns_send_query(const std::string& server, const std::string& domain,
         if (inet_pton(AF_INET6, server.c_str(), &addr6.sin6_addr) != 1) {
             return -1;
         }
-        int sock = socket(AF_INET6, SOCK_DGRAM, 0);
-        if (sock < 0) return -1;
+        int const sock = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (sock < 0) { return -1;
+}
 
         static uint16_t id_counter = 0;
-        uint16_t id = ++id_counter;
+        uint16_t const id = ++id_counter;
         std::vector<uint8_t> query = dns_build_query(id, domain, qtype);
 
-        ssize_t sent = sendto(sock, query.data(), query.size(), 0,
+        ssize_t const sent = sendto(sock, query.data(), query.size(), 0,
                               reinterpret_cast<struct sockaddr*>(&addr6), sizeof(addr6));
         if (sent < 0) { close(sock); return -1; }
 
         fd_set set;
         FD_ZERO(&set);
         FD_SET(sock, &set);
-        struct timeval tv{5, 0};
-        int ready = select(sock + 1, &set, nullptr, nullptr, &tv);
+        struct timeval tv{.tv_sec=5, .tv_usec=0};
+        int const ready = select(sock + 1, &set, nullptr, nullptr, &tv);
         if (ready <= 0) { close(sock); return -1; }
 
         struct sockaddr_in6 from;
         socklen_t fromlen = sizeof(from);
-        ssize_t n = recvfrom(sock, resp, resp_size, 0,
+        ssize_t const n = recvfrom(sock, resp, resp_size, 0,
                              reinterpret_cast<struct sockaddr*>(&from), &fromlen);
         close(sock);
         return n > 0 ? static_cast<int>(n) : -1;
     }
 
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) return -1;
+    int const sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) { return -1;
+}
 
     static uint16_t id_counter = 0;
-    uint16_t id = ++id_counter;
+    uint16_t const id = ++id_counter;
 
     std::vector<uint8_t> query = dns_build_query(id, domain, qtype);
 
-    ssize_t sent = sendto(sock, query.data(), query.size(), 0,
+    ssize_t const sent = sendto(sock, query.data(), query.size(), 0,
                           reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
     if (sent < 0) {
         close(sock);
@@ -178,8 +189,8 @@ int dns_send_query(const std::string& server, const std::string& domain,
     fd_set set;
     FD_ZERO(&set);
     FD_SET(sock, &set);
-    struct timeval tv{5, 0};
-    int ready = select(sock + 1, &set, nullptr, nullptr, &tv);
+    struct timeval tv{.tv_sec=5, .tv_usec=0};
+    int const ready = select(sock + 1, &set, nullptr, nullptr, &tv);
     if (ready <= 0) {
         close(sock);
         return -1;
@@ -187,29 +198,30 @@ int dns_send_query(const std::string& server, const std::string& domain,
 
     struct sockaddr_in from;
     socklen_t fromlen = sizeof(from);
-    ssize_t n = recvfrom(sock, resp, resp_size, 0,
+    ssize_t const n = recvfrom(sock, resp, resp_size, 0,
                          reinterpret_cast<struct sockaddr*>(&from), &fromlen);
     close(sock);
     return n > 0 ? static_cast<int>(n) : -1;
 }
 
 std::string dns_resolve_server(const std::string& server) {
-    if (!server.empty()) return server;
+    if (!server.empty()) { return server;
+}
     FILE* fp = fopen("/etc/resolv.conf", "r");
-    if (fp) {
+    if (fp != nullptr) {
         char line[256];
-        while (fgets(line, sizeof(line), fp)) {
+        while (fgets(line, sizeof(line), fp) != nullptr) {
             if (strncmp(line, "nameserver", 10) == 0) {
-                char* sep = strchr(line, ' ');
-                if (sep) {
+                char const * sep = strchr(line, ' ');
+                if (sep != nullptr) {
                     std::string ns(sep + 1);
                     ns.erase(ns.find_last_of(" \t\n\r"));
-                    fclose(fp);
+                    (void)fclose(fp);
                     return ns;
                 }
             }
         }
-        fclose(fp);
+        (void)fclose(fp);
     }
     return "127.0.0.53";
 }
@@ -227,10 +239,10 @@ std::string dns_ip_to_ptr_domain(const std::string& ip) {
 
 namespace {
 
-static std::string parse_rdata(const uint8_t* ans, int anslen, int& pos,
+std::string parse_rdata(const uint8_t* ans, int anslen, int& pos,
                                 int rdlen, int type) {
     std::string rdata;
-    int end = pos + rdlen;
+    int const end = pos + rdlen;
 
     if (type == T_A && rdlen == 4) {
         char ip[INET_ADDRSTRLEN];
@@ -241,41 +253,43 @@ static std::string parse_rdata(const uint8_t* ans, int anslen, int& pos,
         inet_ntop(AF_INET6, ans + pos, ip, sizeof(ip));
         rdata = ip;
     } else if (type == T_NS || type == T_CNAME || type == T_PTR) {
-        int saved = pos;
+        int const saved = pos;
         rdata = dns_parse_name(ans, anslen, pos);
         pos = saved + rdlen;
     } else if (type == T_MX && rdlen >= 2) {
-        uint16_t pref = (ans[pos] << 8) | ans[pos + 1];
+        uint16_t const pref = (ans[pos] << 8) | ans[pos + 1];
         pos += 2;
-        int saved = pos;
-        std::string target = dns_parse_name(ans, anslen, pos);
+        int const saved = pos;
+        std::string const target = dns_parse_name(ans, anslen, pos);
         pos = saved + rdlen;
         rdata = std::to_string(pref) + " " + target;
     } else if (type == T_TXT && rdlen > 0) {
-        int saved = pos;
+        int const saved = pos;
         while (pos < end) {
-            uint8_t txtlen = ans[pos++];
-            if (pos + txtlen > end) break;
-            if (!rdata.empty()) rdata += " ";
+            uint8_t const txtlen = ans[pos++];
+            if (pos + txtlen > end) { break;
+}
+            if (!rdata.empty()) { rdata += " ";
+}
             rdata.append(reinterpret_cast<const char*>(ans + pos), txtlen);
             pos += txtlen;
         }
         pos = saved + rdlen;
     } else if (type == T_SOA) {
-        int saved = pos;
-        std::string mname = dns_parse_name(ans, anslen, pos);
-        std::string rname = dns_parse_name(ans, anslen, pos);
+        int const saved = pos;
+        std::string const mname = dns_parse_name(ans, anslen, pos);
+        std::string const rname = dns_parse_name(ans, anslen, pos);
         if (pos + 20 <= end) {
-            uint32_t serial = ((uint32_t)ans[pos] << 24) | ((uint32_t)ans[pos + 1] << 16) |
-                              ((uint32_t)ans[pos + 2] << 8) | ans[pos + 3];
-            uint32_t refresh = ((uint32_t)ans[pos + 4] << 24) | ((uint32_t)ans[pos + 5] << 16) |
-                               ((uint32_t)ans[pos + 6] << 8) | ans[pos + 7];
-            uint32_t retry = ((uint32_t)ans[pos + 8] << 24) | ((uint32_t)ans[pos + 9] << 16) |
-                             ((uint32_t)ans[pos + 10] << 8) | ans[pos + 11];
-            uint32_t expire = ((uint32_t)ans[pos + 12] << 24) | ((uint32_t)ans[pos + 13] << 16) |
-                              ((uint32_t)ans[pos + 14] << 8) | ans[pos + 15];
-            uint32_t minimum = ((uint32_t)ans[pos + 16] << 24) | ((uint32_t)ans[pos + 17] << 16) |
-                               ((uint32_t)ans[pos + 18] << 8) | ans[pos + 19];
+            uint32_t const serial = (static_cast<uint32_t>(ans[pos]) << 24) | (static_cast<uint32_t>(ans[pos + 1]) << 16) |
+                              (static_cast<uint32_t>(ans[pos + 2]) << 8) | ans[pos + 3];
+            uint32_t const refresh = (static_cast<uint32_t>(ans[pos + 4]) << 24) | (static_cast<uint32_t>(ans[pos + 5]) << 16) |
+                               (static_cast<uint32_t>(ans[pos + 6]) << 8) | ans[pos + 7];
+            uint32_t const retry = (static_cast<uint32_t>(ans[pos + 8]) << 24) | (static_cast<uint32_t>(ans[pos + 9]) << 16) |
+                             (static_cast<uint32_t>(ans[pos + 10]) << 8) | ans[pos + 11];
+            uint32_t const expire = (static_cast<uint32_t>(ans[pos + 12]) << 24) | (static_cast<uint32_t>(ans[pos + 13]) << 16) |
+                              (static_cast<uint32_t>(ans[pos + 14]) << 8) | ans[pos + 15];
+            uint32_t const minimum = (static_cast<uint32_t>(ans[pos + 16]) << 24) | (static_cast<uint32_t>(ans[pos + 17]) << 16) |
+                               (static_cast<uint32_t>(ans[pos + 18]) << 8) | ans[pos + 19];
             rdata = mname + " " + rname + " " +
                     std::to_string(serial) + " " +
                     std::to_string(refresh) + " " +
@@ -285,12 +299,12 @@ static std::string parse_rdata(const uint8_t* ans, int anslen, int& pos,
         }
         pos = saved + rdlen;
     } else if (type == T_SRV && rdlen >= 6) {
-        uint16_t prio = (ans[pos] << 8) | ans[pos + 1];
-        uint16_t weight = (ans[pos + 2] << 8) | ans[pos + 3];
-        uint16_t port = (ans[pos + 4] << 8) | ans[pos + 5];
+        uint16_t const prio = (ans[pos] << 8) | ans[pos + 1];
+        uint16_t const weight = (ans[pos + 2] << 8) | ans[pos + 3];
+        uint16_t const port = (ans[pos + 4] << 8) | ans[pos + 5];
         pos += 6;
-        int saved = pos;
-        std::string target = dns_parse_name(ans, anslen, pos);
+        int const saved = pos;
+        std::string const target = dns_parse_name(ans, anslen, pos);
         pos = saved + rdlen;
         rdata = std::to_string(prio) + " " +
                 std::to_string(weight) + " " +
@@ -325,7 +339,7 @@ int dns_parse_response(const uint8_t* ans, int anslen, DnsResponse& out) {
     // Parse question section
     int pos = 12;
     for (uint16_t i = 0; i < out.qdcount && pos < anslen; ++i) {
-        std::string qname = dns_parse_name(ans, anslen, pos);
+        std::string const qname = dns_parse_name(ans, anslen, pos);
         pos += 4;  // QTYPE + QCLASS
         out.question_names.push_back(qname);
     }
@@ -334,18 +348,20 @@ int dns_parse_response(const uint8_t* ans, int anslen, DnsResponse& out) {
         for (uint16_t i = 0; i < out.ancount && pos < anslen; ++i) {
             DnsRecord rec;
             rec.name = dns_parse_name(ans, anslen, pos);
-            if (pos + 10 > anslen) break;
+            if (pos + 10 > anslen) { break;
+}
 
-            int type = (ans[pos] << 8) | ans[pos + 1];
+            int const type = (ans[pos] << 8) | ans[pos + 1];
             pos += 2;
             pos += 2;  // CLASS
-            rec.ttl = ((uint32_t)ans[pos] << 24) | ((uint32_t)ans[pos + 1] << 16) |
-                      ((uint32_t)ans[pos + 2] << 8) | ans[pos + 3];
+            rec.ttl = (static_cast<uint32_t>(ans[pos]) << 24) | (static_cast<uint32_t>(ans[pos + 1]) << 16) |
+                      (static_cast<uint32_t>(ans[pos + 2]) << 8) | ans[pos + 3];
             pos += 4;
-            uint16_t rdlen = (ans[pos] << 8) | ans[pos + 1];
+            uint16_t const rdlen = (ans[pos] << 8) | ans[pos + 1];
             pos += 2;
 
-            if (pos + rdlen > anslen) break;
+            if (pos + rdlen > anslen) { break;
+}
 
             rec.type = type;
             rec.rdata = parse_rdata(ans, anslen, pos, rdlen, type);
@@ -357,18 +373,20 @@ int dns_parse_response(const uint8_t* ans, int anslen, DnsResponse& out) {
         for (uint16_t i = 0; i < out.nscount && pos < anslen; ++i) {
             DnsRecord rec;
             rec.name = dns_parse_name(ans, anslen, pos);
-            if (pos + 10 > anslen) break;
+            if (pos + 10 > anslen) { break;
+}
 
-            int type = (ans[pos] << 8) | ans[pos + 1];
+            int const type = (ans[pos] << 8) | ans[pos + 1];
             pos += 2;
             pos += 2;  // CLASS
-            rec.ttl = ((uint32_t)ans[pos] << 24) | ((uint32_t)ans[pos + 1] << 16) |
-                      ((uint32_t)ans[pos + 2] << 8) | ans[pos + 3];
+            rec.ttl = (static_cast<uint32_t>(ans[pos]) << 24) | (static_cast<uint32_t>(ans[pos + 1]) << 16) |
+                      (static_cast<uint32_t>(ans[pos + 2]) << 8) | ans[pos + 3];
             pos += 4;
-            uint16_t rdlen = (ans[pos] << 8) | ans[pos + 1];
+            uint16_t const rdlen = (ans[pos] << 8) | ans[pos + 1];
             pos += 2;
 
-            if (pos + rdlen > anslen) break;
+            if (pos + rdlen > anslen) { break;
+}
 
             rec.type = type;
             rec.rdata = parse_rdata(ans, anslen, pos, rdlen, type);
@@ -380,18 +398,20 @@ int dns_parse_response(const uint8_t* ans, int anslen, DnsResponse& out) {
         for (uint16_t i = 0; i < out.arcount && pos < anslen; ++i) {
             DnsRecord rec;
             rec.name = dns_parse_name(ans, anslen, pos);
-            if (pos + 10 > anslen) break;
+            if (pos + 10 > anslen) { break;
+}
 
-            int type = (ans[pos] << 8) | ans[pos + 1];
+            int const type = (ans[pos] << 8) | ans[pos + 1];
             pos += 2;
             pos += 2;  // CLASS
-            rec.ttl = ((uint32_t)ans[pos] << 24) | ((uint32_t)ans[pos + 1] << 16) |
-                      ((uint32_t)ans[pos + 2] << 8) | ans[pos + 3];
+            rec.ttl = (static_cast<uint32_t>(ans[pos]) << 24) | (static_cast<uint32_t>(ans[pos + 1]) << 16) |
+                      (static_cast<uint32_t>(ans[pos + 2]) << 8) | ans[pos + 3];
             pos += 4;
-            uint16_t rdlen = (ans[pos] << 8) | ans[pos + 1];
+            uint16_t const rdlen = (ans[pos] << 8) | ans[pos + 1];
             pos += 2;
 
-            if (pos + rdlen > anslen) break;
+            if (pos + rdlen > anslen) { break;
+}
 
             rec.type = type;
             rec.rdata = parse_rdata(ans, anslen, pos, rdlen, type);

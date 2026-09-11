@@ -16,14 +16,16 @@
 
 /* Returns -1 if a < b, 0 if a == b, 1 if a > b */
 static int compare_lines(const char* a, const char* b, const CommOptions* opts) {
-    if (opts->ignore_case) {
-        while (*a && *b) {
-            int ca = std::tolower((unsigned char)*a);
-            int cb = std::tolower((unsigned char)*b);
-            if (ca != cb) return (ca < cb) ? -1 : 1;
+    if (opts->ignore_case != 0) {
+        while (((*a) != 0) && ((*b) != 0)) {
+            int const ca = std::tolower(static_cast<unsigned char>(*a));
+            int const cb = std::tolower(static_cast<unsigned char>(*b));
+            if (ca != cb) { return (ca < cb) ? -1 : 1;
+}
             a++; b++;
         }
-        if (*a == *b) return 0;
+        if (*a == *b) { return 0;
+}
         return (*a == '\0') ? -1 : 1;
     }
     return strcmp(a, b);
@@ -37,7 +39,7 @@ struct FileLines {
 };
 
 static FileLines read_file(const char* filename) {
-    FileLines result = {NULL, 0};
+    FileLines result = {.lines=NULL, .count=0};
 
     FILE* fp = (strcmp(filename, "-") == 0) ? stdin : fopen(filename, "r");
     if (fp == NULL) {
@@ -46,26 +48,30 @@ static FileLines read_file(const char* filename) {
 
     int cap = 1024;
     int n = 0;
-    char** lines = (char**)malloc((size_t)cap * sizeof(char*));
-    if (!lines) { if (fp != stdin) fclose(fp); return result; }
+    char** lines = static_cast<char**>(malloc(static_cast<size_t>(cap) * sizeof(char*)));
+    if (lines == nullptr) { if (fp != stdin) { (void)fclose(fp); 
+}return result; }
 
     char buf[COMM_MAX_LINE];
-    while (fgets(buf, COMM_MAX_LINE, fp)) {
-        size_t len = strlen(buf);
+    while (fgets(buf, COMM_MAX_LINE, fp) != nullptr) {
+        size_t const len = strlen(buf);
         if (len > 0 && buf[len - 1] == '\n') {
             buf[len - 1] = '\0';
         }
         if (n >= cap) {
             cap *= 2;
-            lines = (char**)realloc(lines, (size_t)cap * sizeof(char*));
-            if (!lines) { if (fp != stdin) fclose(fp); return result; }
+            lines = static_cast<char**>(realloc(lines, static_cast<size_t>(cap) * sizeof(char*)));
+            if (lines == nullptr) { if (fp != stdin) { (void)fclose(fp); 
+}return result; }
         }
         lines[n] = strdup(buf);
-        if (!lines[n]) { if (fp != stdin) fclose(fp); return result; }
+        if (lines[n] == nullptr) { if (fp != stdin) { (void)fclose(fp); 
+}return result; }
         n++;
     }
 
-    if (fp != stdin) fclose(fp);
+    if (fp != stdin) { (void)fclose(fp);
+}
 
     result.lines = lines;
     result.count = n;
@@ -73,8 +79,9 @@ static FileLines read_file(const char* filename) {
 }
 
 static void free_file_lines(FileLines fl) {
-    if (fl.lines) {
-        for (int i = 0; i < fl.count; i++) free(fl.lines[i]);
+    if (fl.lines != nullptr) {
+        for (int i = 0; i < fl.count; i++) { free(fl.lines[i]);
+}
         free(fl.lines);
     }
 }
@@ -93,7 +100,7 @@ static int check_sorted(const char** lines, int count, const CommOptions* opts) 
 /* ── Main command ───────────────────────────────────────────────────────── */
 
 int comm_command(int argc, char** argv) {
-    CommOptions opts = {0};
+    CommOptions opts = {.suppress_col1=0};
     opts.check_order = 1;
     opts.output_delimiter = "\t";
 
@@ -117,7 +124,7 @@ int comm_command(int argc, char** argv) {
         file1_arg, file2_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE1 FILE2\n", argv[0]);
@@ -145,10 +152,10 @@ int comm_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    opts.suppress_col1 = (suppress_1_opt->count > 0);
-    opts.suppress_col2 = (suppress_2_opt->count > 0);
-    opts.suppress_col3 = (suppress_3_opt->count > 0);
-    opts.ignore_case = (ignore_case_opt->count > 0);
+    opts.suppress_col1 = static_cast<int>(suppress_1_opt->count > 0);
+    opts.suppress_col2 = static_cast<int>(suppress_2_opt->count > 0);
+    opts.suppress_col3 = static_cast<int>(suppress_3_opt->count > 0);
+    opts.ignore_case = static_cast<int>(ignore_case_opt->count > 0);
 
     if (nocheck_order_opt->count > 0) {
         opts.check_order = 0;
@@ -164,32 +171,32 @@ int comm_command(int argc, char** argv) {
     const char* file1 = file1_arg->filename[0];
     const char* file2 = file2_arg->filename[0];
 
-    int file1_is_stdin = (strcmp(file1, "-") == 0);
-    int file2_is_stdin = (strcmp(file2, "-") == 0);
+    int const file1_is_stdin = static_cast<int>(strcmp(file1, "-") == 0);
+    int const file2_is_stdin = static_cast<int>(strcmp(file2, "-") == 0);
 
-    FileLines f1 = read_file(file1);
-    if (f1.lines == NULL && !file1_is_stdin) {
-        fprintf(stderr, "comm: %s: No such file or directory\n", file1);
+    FileLines const f1 = read_file(file1);
+    if (f1.lines == NULL && (file1_is_stdin == 0)) {
+        (void)fprintf(stderr, "comm: %s: No such file or directory\n", file1);
         return 0;
     }
 
-    FileLines f2 = read_file(file2);
-    if (f2.lines == NULL && !file2_is_stdin) {
-        fprintf(stderr, "comm: %s: No such file or directory\n", file2);
+    FileLines const f2 = read_file(file2);
+    if (f2.lines == NULL && (file2_is_stdin == 0)) {
+        (void)fprintf(stderr, "comm: %s: No such file or directory\n", file2);
         free_file_lines(f1);
         return 0;
     }
 
     /* Check order if requested */
-    if (opts.check_order) {
-        if (!check_sorted((const char**)f1.lines, f1.count, &opts)) {
-            fprintf(stderr, "comm: file 1 is not in sorted order\n");
+    if (opts.check_order != 0) {
+        if (check_sorted((const char**)f1.lines, f1.count, &opts) == 0) {
+            (void)fprintf(stderr, "comm: file 1 is not in sorted order\n");
             free_file_lines(f1);
             free_file_lines(f2);
             return 0;
         }
-        if (!check_sorted((const char**)f2.lines, f2.count, &opts)) {
-            fprintf(stderr, "comm: file 2 is not in sorted order\n");
+        if (check_sorted((const char**)f2.lines, f2.count, &opts) == 0) {
+            (void)fprintf(stderr, "comm: file 2 is not in sorted order\n");
             free_file_lines(f1);
             free_file_lines(f2);
             return 0;
@@ -218,7 +225,8 @@ int comm_command(int argc, char** argv) {
      */
 
     const char* delim = opts.output_delimiter;
-    int i = 0, j = 0;
+    int i = 0;
+    int j = 0;
 
     while (i < f1.count || j < f2.count) {
         int cmp;
@@ -233,17 +241,18 @@ int comm_command(int argc, char** argv) {
 
         if (cmp < 0) {
             /* Line unique to FILE1 → column 1 */
-            if (!opts.suppress_col1) {
+            if (opts.suppress_col1 == 0) {
                 /* Column 1 is first — no leading delimiter needed */
                 printf("%s\n", f1.lines[i]);
             }
             i++;
         } else if (cmp > 0) {
             /* Line unique to FILE2 → column 2 */
-            if (!opts.suppress_col2) {
+            if (opts.suppress_col2 == 0) {
                 /* Need delimiter(s) before column 2 for any active earlier column */
                 int cols_before = 0;
-                if (!opts.suppress_col1) cols_before++;
+                if (opts.suppress_col1 == 0) { cols_before++;
+}
                 for (int k = 0; k < cols_before; k++) {
                     printf("%s", delim);
                 }
@@ -252,10 +261,12 @@ int comm_command(int argc, char** argv) {
             j++;
         } else {
             /* Line in both → column 3 */
-            if (!opts.suppress_col3) {
+            if (opts.suppress_col3 == 0) {
                 int cols_before = 0;
-                if (!opts.suppress_col1) cols_before++;
-                if (!opts.suppress_col2) cols_before++;
+                if (opts.suppress_col1 == 0) { cols_before++;
+}
+                if (opts.suppress_col2 == 0) { cols_before++;
+}
                 for (int k = 0; k < cols_before; k++) {
                     printf("%s", delim);
                 }

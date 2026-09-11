@@ -1,10 +1,13 @@
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
 #include <string>
+#include <vector>
+#include <utility>
 
 #include "commands/lsusb.hpp"
 #include "commands/command_macros.hpp"
@@ -27,7 +30,8 @@ static void print_help(const char* prog) {
 // Read a single sysfs attribute file, returning the trimmed content.
 static bool read_attr(const std::string& path, std::string& out) {
     std::ifstream f(path);
-    if (!f) return false;
+    if (!f) { return false;
+}
     std::getline(f, out);
     while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) {
         out.pop_back();
@@ -48,17 +52,18 @@ static bool parse_usb_device(const std::string& sysfs_root,
     read_attr(base + "/idProduct", dev.product_id);
     read_attr(base + "/bDeviceClass", dev.class_code);
     read_attr(base + "/speed", dev.speed);
-    std::string busnum_str, devnum_str;
+    std::string busnum_str;
+    std::string devnum_str;
     read_attr(base + "/busnum", busnum_str);
     read_attr(base + "/devnum", devnum_str);
     dev.busnum = busnum_str.empty() ? 0 : std::atoi(busnum_str.c_str());
     dev.devnum = devnum_str.empty() ? 0 : std::atoi(devnum_str.c_str());
 
-    uint8_t bclass = static_cast<uint8_t>(hex_to_uint16(dev.class_code) & 0xFF);
+    uint8_t const bclass = static_cast<uint8_t>(hex_to_uint16(dev.class_code) & 0xFF);
     dev.class_name = usb_class_name(bclass);
 
-    uint16_t vid = hex_to_uint16(dev.vendor_id);
-    uint16_t pid = hex_to_uint16(dev.product_id);
+    uint16_t const vid = hex_to_uint16(dev.vendor_id);
+    uint16_t const pid = hex_to_uint16(dev.product_id);
 
     dev.vendor_name = "0x" + dev.vendor_id;
     dev.product_name = "0x" + dev.product_id;
@@ -72,8 +77,10 @@ static bool parse_usb_device(const std::string& sysfs_root,
         }
         const std::string* vname = db.vendor_name(vid);
         const std::string* pname = db.device_name(vid, pid);
-        if (vname) dev.vendor_name = *vname;
-        if (pname) dev.product_name = *pname;
+        if (vname != nullptr) { dev.vendor_name = *vname;
+}
+        if (pname != nullptr) { dev.product_name = *pname;
+}
     }
 
     return !dev.vendor_id.empty();
@@ -81,13 +88,16 @@ static bool parse_usb_device(const std::string& sysfs_root,
 
 // Scan /sys/bus/usb/devices/ for device directories (no ':' in the name).
 static void scan_usb_devices(const std::string& sysfs_root, std::vector<std::string>& out) {
-    std::string path = sysfs_root + "/bus/usb/devices/";
+    std::string const path = sysfs_root + "/bus/usb/devices/";
     DIR* dir = opendir(path.c_str());
-    if (!dir) return;
+    if (dir == nullptr) { return;
+}
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_name[0] == '.') continue;
-        if (std::string(entry->d_name).find(':') != std::string::npos) continue;
+        if (entry->d_name[0] == '.') { continue;
+}
+        if (std::string(entry->d_name).find(':') != std::string::npos) { continue;
+}
         out.emplace_back(entry->d_name);
     }
     closedir(dir);
@@ -100,13 +110,15 @@ static void print_device(const UsbDevice& dev, bool use_names, bool json_mode,
     if (!parse_fields.empty()) {
         for (size_t j = 0; j < parse_fields.size(); ++j) {
             const std::string& fld = parse_fields[j];
-            if (fld == "address") printf("%s", dev.address.c_str());
-            else if (fld == "vendor") printf("%s", use_names ? dev.vendor_name.c_str() : dev.vendor_id.c_str());
-            else if (fld == "product") printf("%s", use_names ? dev.product_name.c_str() : dev.product_id.c_str());
-            else if (fld == "class") printf("%s", dev.class_name.c_str());
-            else if (fld == "speed") printf("%s", dev.speed.c_str());
-            else printf("<unknown>");
-            if (j + 1 < parse_fields.size()) printf(" ");
+            if (fld == "address") { printf("%s", dev.address.c_str());
+            } else if (fld == "vendor") { printf("%s", use_names ? dev.vendor_name.c_str() : dev.vendor_id.c_str());
+            } else if (fld == "product") { printf("%s", use_names ? dev.product_name.c_str() : dev.product_id.c_str());
+            } else if (fld == "class") { printf("%s", dev.class_name.c_str());
+            } else if (fld == "speed") { printf("%s", dev.speed.c_str());
+            } else { printf("<unknown>");
+}
+            if (j + 1 < parse_fields.size()) { printf(" ");
+}
         }
         printf("\n");
         return;
@@ -130,7 +142,8 @@ static void print_device(const UsbDevice& dev, bool use_names, bool json_mode,
             printf("\"0x%s\"", dev.product_id.c_str());   // hex-only, safe
         }
         printf("}");
-        if (needs_comma) printf(",");
+        if (needs_comma) { printf(",");
+}
         printf("\n");
         return;
     }
@@ -173,30 +186,33 @@ int lsusb_command(int argc, char** argv) {
             continue;
         }
         if (strncmp(a, "--parse=", 8) == 0) {
-            std::string fields = a + 8;
+            std::string const fields = a + 8;
             size_t pos = 0;
             while (pos <= fields.size()) {
                 size_t comma = fields.find(',', pos);
-                if (comma == std::string::npos) comma = fields.size();
+                if (comma == std::string::npos) { comma = fields.size();
+}
                 std::string field = fields.substr(pos, comma - pos);
-                size_t s = field.find_first_not_of(" \t");
-                size_t e = field.find_last_not_of(" \t");
-                if (s != std::string::npos) field = field.substr(s, e - s + 1);
-                if (!field.empty()) parse_fields.push_back(field);
+                size_t const s = field.find_first_not_of(" \t");
+                size_t const e = field.find_last_not_of(" \t");
+                if (s != std::string::npos) { field = field.substr(s, e - s + 1);
+}
+                if (!field.empty()) { parse_fields.push_back(field);
+}
                 pos = comma + 1;
             }
             continue;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 1;
         }
     }
 
-    std::string sysfs_root = get_sysfs_root();
-    std::string ids_dir = get_ids_dir();
-    bool use_names = !no_name;
+    std::string const sysfs_root = get_sysfs_root();
+    std::string const ids_dir = get_ids_dir();
+    bool const use_names = !no_name;
 
     std::vector<std::string> addresses;
     scan_usb_devices(sysfs_root, addresses);
@@ -212,12 +228,12 @@ int lsusb_command(int argc, char** argv) {
         }
     }
 
-    bool json_list = (parse_fields.empty() && json_mode);
+    bool const json_list = (parse_fields.empty() && json_mode);
     if (json_list) {
         printf("{\n  \"devices\": [\n");
     }
     for (size_t i = 0; i < devices.size(); ++i) {
-        bool needs_comma = (i + 1 < devices.size());
+        bool const needs_comma = (i + 1 < devices.size());
         print_device(devices[i], use_names, json_mode, parse_fields, needs_comma);
     }
     if (json_list) {

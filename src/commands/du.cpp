@@ -1,10 +1,12 @@
+#include <cstdint>
+#include <sys/stat.h>
+#include <linux/limits.h>
 #define _GNU_SOURCE
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
 #include <ctime>
-#include <climits>
 #include <unistd.h>
 #include <ftw.h>
 #include <fnmatch.h>
@@ -46,23 +48,29 @@ static int du_progress_tty;
 static const char *clean_path(const char *fpath, const char *base) {
     const char *p = fpath;
     /* If fpath starts with base, skip it */
-    size_t blen = strlen(base);
+    size_t const blen = strlen(base);
     if (strncmp(p, base, blen) == 0) {
         p += blen;
-        while (*p == '/') p++;
-        if (*p == '\0') p = ".";
+        while (*p == '/')
+        {
+            p++;
+        }
+        if (*p == '\0')
+        {
+            p = ".";
+        }
     }
     return p;
 }
 
 /* Check if path matches any exclude pattern */
 static int is_excluded(const char *fpath) {
-    if (!du_glob_opts->exclude || du_glob_opts->exclude_count == 0) {
+    if ((du_glob_opts->exclude == nullptr) || du_glob_opts->exclude_count == 0) {
         return 0;
     }
     /* Get basename */
     const char *base = strrchr(fpath, '/');
-    base = base ? base + 1 : fpath;
+    base = (base != nullptr) ? base + 1 : fpath;
 
     for (int i = 0; i < du_glob_opts->exclude_count; i++) {
         if (fnmatch(du_glob_opts->exclude[i], fpath, FNM_PATHNAME) == 0) {
@@ -80,7 +88,7 @@ static int is_excluded(const char *fpath) {
 static int du_callback(const char *fpath, const struct stat *sb,
                         int typeflag, struct FTW *ftwbuf) {
     /* Skip excluded paths */
-    if (is_excluded(fpath)) {
+    if (is_excluded(fpath) != 0) {
         return 0;
     }
 
@@ -98,14 +106,14 @@ static int du_callback(const char *fpath, const struct stat *sb,
     DuEntry *e = new DuEntry{};
     e->path = strdup(fpath);
     e->depth = ftwbuf->level;
-    e->is_dir = (typeflag == FTW_D || typeflag == FTW_DP);
+    e->is_dir = static_cast<int>(typeflag == FTW_D || typeflag == FTW_DP);
     e->is_error = 0;
     e->mtime = sb->st_mtime;
 
-    if (du_glob_opts->apparent_size) {
-        e->size_bytes = (uint64_t)sb->st_size;
+    if (du_glob_opts->apparent_size != 0) {
+        e->size_bytes = static_cast<uint64_t>(sb->st_size);
     } else {
-        e->size_bytes = (uint64_t)sb->st_blocks * 512ULL;
+        e->size_bytes = static_cast<uint64_t>(sb->st_blocks) * 512ULL;
     }
 
     e->agg_size = e->size_bytes;
@@ -116,8 +124,11 @@ static int du_callback(const char *fpath, const struct stat *sb,
 
 /* ── Aggregate sizes upward ─────────────────────────────────────────────── */
 
-static void aggregate_sizes(void) {
-    if (du_entries.empty()) return;
+static void aggregate_sizes() {
+    if (du_entries.empty())
+    {
+        return;
+    }
 
     /* Hash: path → DuEntry* for O(1) parent lookup */
     std::unordered_map<std::string, DuEntry*> map;
@@ -126,16 +137,22 @@ static void aggregate_sizes(void) {
         map[e->path] = e;
     }
 
-    char *buf = (char*)malloc(PATH_MAX);
+    char *buf = static_cast<char*>(malloc(PATH_MAX));
 
     for (size_t i = 0; i < du_entries.size(); i++) {
-        DuEntry *e = du_entries[i];
-        size_t len = strlen(e->path);
-        if (len >= PATH_MAX) continue;
+        const DuEntry *e = du_entries[i];
+        size_t const len = strlen(e->path);
+        if (len >= PATH_MAX)
+        {
+            continue;
+        }
 
         memcpy(buf, e->path, len + 1);
         char *slash = strrchr(buf, '/');
-        if (slash == NULL) continue;
+        if (slash == NULL)
+        {
+            continue;
+        }
 
         *slash = '\0';
         auto it = map.find(buf);
@@ -163,11 +180,11 @@ static const char *suffix_1000[] = {"", "kB", "MB", "GB", "TB", "PB", "EB"};
 /* Scale size to display unit. Returns scaled value + writes suffix index.
    unit = 1024 or 1000 depending on --si */
 static double scale_size(uint64_t bytes, int si, int *suffix_idx) {
-    uint64_t unit = si ? 1000ULL : 1024ULL;
+    uint64_t const unit = (si != 0) ? 1000ULL : 1024ULL;
     int idx = 0;
-    double val = (double)bytes;
+    double val = static_cast<double>(bytes);
     while (val >= unit && idx < 6) {
-        val /= (double)unit;
+        val /= static_cast<double>(unit);
         idx++;
     }
     *suffix_idx = idx;
@@ -176,43 +193,43 @@ static double scale_size(uint64_t bytes, int si, int *suffix_idx) {
 
 /* Format size into a static buffer. Returns buf. */
 static char *format_size(uint64_t bytes, const DuOptions *opts, char *buf, size_t buf_size) {
-    if (opts->bytes) {
+    if (opts->bytes != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buf_size, "%llu", (unsigned long long)bytes);
+        (void)snprintf(buf, buf_size, "%llu", static_cast<unsigned long long>(bytes));
         return buf;
     }
 
     uint64_t display = bytes;
-    if (opts->block_size_k) {
+    if (opts->block_size_k != 0) {
         display = (bytes + 512) / 1024;  /* ceil, matching GNU du default */
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buf_size, "%llu", (unsigned long long)display);
+        (void)snprintf(buf, buf_size, "%llu", static_cast<unsigned long long>(display));
         return buf;
     }
-    if (opts->block_size_m) {
+    if (opts->block_size_m != 0) {
         display = (bytes + 512 * 1024) / (1024 * 1024);
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buf_size, "%llu", (unsigned long long)display);
+        (void)snprintf(buf, buf_size, "%llu", static_cast<unsigned long long>(display));
         return buf;
     }
 
     /* Default: 1024-byte blocks like GNU du */
-    if (!opts->human_readable) {
+    if (opts->human_readable == 0) {
         display = (bytes + 512) / 1024;
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buf_size, "%llu", (unsigned long long)display);
+        (void)snprintf(buf, buf_size, "%llu", static_cast<unsigned long long>(display));
         return buf;
     }
 
     /* Human-readable */
-    int si = opts->si;
-    const char **suffixes = si ? suffix_1000 : suffix_1024;
+    int const si = opts->si;
+    const char **suffixes = (si != 0) ? suffix_1000 : suffix_1024;
     int idx = 0;
-    double val = scale_size(bytes, si, &idx);
+    double const val = scale_size(bytes, si, &idx);
 
     if (idx == 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buf_size, "%llu%s", (unsigned long long)val, suffixes[idx]);
+        (void)snprintf(buf, buf_size, "%llu%s", static_cast<unsigned long long>(val), suffixes[idx]);
     } else if (val < 10.0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(buf, buf_size, "%.1f%s", val, suffixes[idx]);
@@ -228,27 +245,27 @@ static char *format_size(uint64_t bytes, const DuOptions *opts, char *buf, size_
 
 static void print_entry(const DuEntry *e, const DuOptions *opts,
                          uint64_t *total_acc) {
-    uint64_t size = e->agg_size;
+    uint64_t const size = e->agg_size;
 
     /* --threshold: skip if below threshold (in bytes) */
-    if (opts->threshold_set && size < opts->threshold) {
+    if ((opts->threshold_set != 0) && size < opts->threshold) {
         return;
     }
 
     char size_buf[64];
     format_size(size, opts, size_buf, sizeof(size_buf));
 
-    if (total_acc) {
+    if (total_acc != nullptr) {
         *total_acc += size;
     }
 
-    const char *term = opts->null_terminated ? "\0" : "\n";
+    const char *term = (opts->null_terminated != 0) ? "\0" : "\n";
 
-    if (opts->show_time) {
+    if (opts->show_time != 0) {
         char time_buf[64];
-        struct tm *tm = localtime(&e->mtime);
-        if (tm) {
-            strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", tm);
+        const struct tm *tm = localtime(&e->mtime);
+        if (tm != nullptr) {
+            (void)strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", tm);
         } else {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)snprintf(time_buf, sizeof(time_buf), "?");
@@ -265,7 +282,7 @@ static void print_entry(const DuEntry *e, const DuOptions *opts,
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int du_command(int argc, char **argv) {
-    DuOptions opts = {0};
+    DuOptions opts = {.bytes=0};
     du_entries.clear();
     du_glob_opts = &opts;
     du_had_error = 0;
@@ -303,7 +320,7 @@ int du_command(int argc, char **argv) {
                  help_opt,
                  file_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -339,34 +356,34 @@ int du_command(int argc, char **argv) {
     }
 
     /* Populate options */
-    opts.bytes = (bytes_opt->count > 0);
-    opts.block_size_k = (block_k_opt->count > 0);
-    opts.block_size_m = (block_m_opt->count > 0);
-    opts.human_readable = (human_opt->count > 0);
-    opts.summarize = (summarize_opt->count > 0);
-    opts.total = (total_opt->count > 0);
-    opts.all = (all_opt->count > 0);
+    opts.bytes = static_cast<int>(bytes_opt->count > 0);
+    opts.block_size_k = static_cast<int>(block_k_opt->count > 0);
+    opts.block_size_m = static_cast<int>(block_m_opt->count > 0);
+    opts.human_readable = static_cast<int>(human_opt->count > 0);
+    opts.summarize = static_cast<int>(summarize_opt->count > 0);
+    opts.total = static_cast<int>(total_opt->count > 0);
+    opts.all = static_cast<int>(all_opt->count > 0);
     opts.max_depth = (max_depth_opt->count > 0) ? max_depth_opt->ival[0] : -1;
-    opts.one_file_system = (one_fs_opt->count > 0);
-    opts.count_links = (count_links_opt->count > 0);
-    opts.si = (si_opt->count > 0);
-    opts.apparent_size = (apparent_opt->count > 0);
-    opts.show_time = (time_opt->count > 0);
-    opts.separate_dirs = (separate_opt->count > 0);
-    opts.null_terminated = (null_opt->count > 0);
-    bool json_mode = (json_opt->count > 0);
+    opts.one_file_system = static_cast<int>(one_fs_opt->count > 0);
+    opts.count_links = static_cast<int>(count_links_opt->count > 0);
+    opts.si = static_cast<int>(si_opt->count > 0);
+    opts.apparent_size = static_cast<int>(apparent_opt->count > 0);
+    opts.show_time = static_cast<int>(time_opt->count > 0);
+    opts.separate_dirs = static_cast<int>(separate_opt->count > 0);
+    opts.null_terminated = static_cast<int>(null_opt->count > 0);
+    bool const json_mode = (json_opt->count > 0);
 
     /* -b implies --apparent-size */
-    if (opts.bytes) {
+    if (opts.bytes != 0) {
         opts.apparent_size = 1;
     }
 
     /* Parse exclude patterns */
     if (exclude_opt->count > 0) {
-        opts.exclude = (char**)malloc((size_t)exclude_opt->count * sizeof(char *));
+        opts.exclude = static_cast<char**>(malloc(static_cast<size_t>(exclude_opt->count) * sizeof(char *)));
         opts.exclude_count = exclude_opt->count;
         for (int i = 0; i < exclude_opt->count; i++) {
-            opts.exclude[i] = (char *)exclude_opt->sval[i];
+            opts.exclude[i] = const_cast<char *>(exclude_opt->sval[i]);
         }
     }
 
@@ -375,8 +392,8 @@ int du_command(int argc, char **argv) {
         opts.threshold_set = 1;
         char *endp = NULL;
         // NOLINTNEXTLINE(cert-err34-c)
-        opts.threshold = (uint64_t)strtoull(threshold_opt->sval[0], &endp, 10);
-        if (endp && *endp) {
+        opts.threshold = static_cast<uint64_t>(strtoull(threshold_opt->sval[0], &endp, 10));
+        if ((endp != nullptr) && ((*endp) != 0)) {
             switch (*endp) {
                 case 'K': case 'k': opts.threshold *= 1024ULL; break;
                 case 'M': opts.threshold *= 1024ULL * 1024; break;
@@ -397,7 +414,7 @@ int du_command(int argc, char **argv) {
 
     /* Walk all paths */
     int nftw_flags = FTW_PHYS | FTW_DEPTH;
-    if (opts.one_file_system) {
+    if (opts.one_file_system != 0) {
         nftw_flags |= FTW_MOUNT;
     }
 
@@ -420,7 +437,7 @@ int du_command(int argc, char **argv) {
         }
 
         /* Clear progress line */
-        if (du_progress_tty) {
+        if (du_progress_tty != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "\r  scanned %d files\n", du_scan_count);
         }
@@ -431,21 +448,33 @@ int du_command(int argc, char **argv) {
             DuEntry *e = du_entries[i];
 
             /* -a: show all files. Default: only dirs */
-            if (!opts.all && !e->is_dir) continue;
+            if ((opts.all == 0) && (e->is_dir == 0))
+            {
+                continue;
+            }
 
             /* -s: only root-level entries (depth 0) */
-            if (opts.summarize && e->depth > 0) continue;
+            if ((opts.summarize != 0) && e->depth > 0)
+            {
+                continue;
+            }
 
             /* --max-depth: skip deeper entries */
-            if (opts.max_depth >= 0 && e->depth > opts.max_depth) continue;
+            if (opts.max_depth >= 0 && e->depth > opts.max_depth)
+            {
+                continue;
+            }
 
             /* -S (separate-dirs): use own size, not aggregated */
-            if (opts.separate_dirs && e->is_dir) {
+            if ((opts.separate_dirs != 0) && (e->is_dir != 0)) {
                 e->agg_size = e->size_bytes;
             }
 
             /* Skip if already printed (dedup overlapping paths) */
-            if (printed.find(e->path) != printed.end()) continue;
+            if (printed.find(e->path) != printed.end())
+            {
+                continue;
+            }
             printed[e->path] = 1;
 
             if (json_mode) {
@@ -458,7 +487,7 @@ int du_command(int argc, char **argv) {
         /* Cleanup this path's entries (skip in JSON mode, done at end) */
         if (!json_mode) {
             for (size_t i = 0; i < du_entries.size(); i++) {
-                DuEntry *e = du_entries[i];
+                const DuEntry *e = du_entries[i];
                 free(e->path);
                 delete e;
             }
@@ -467,34 +496,37 @@ int du_command(int argc, char **argv) {
     }
 
     if (json_mode) {
-        fprintf(stdout, "[\n");
+        (void)fprintf(stdout, "[\n");
         for (size_t i = 0; i < json_entries.size(); i++) {
             const DuEntry *e = json_entries[i];
-            fprintf(stdout, "  {\n");
-            fprintf(stdout, "    \"path\": ");
+            (void)fprintf(stdout, "  {\n");
+            (void)fprintf(stdout, "    \"path\": ");
             json_escape_string(stdout, e->path);
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"size_bytes\": %llu,\n", (unsigned long long)e->size_bytes);
-            fprintf(stdout, "    \"agg_size\": %llu,\n", (unsigned long long)e->agg_size);
-            fprintf(stdout, "    \"depth\": %d,\n", e->depth);
-            fprintf(stdout, "    \"is_dir\": %s,\n", e->is_dir ? "true" : "false");
-            fprintf(stdout, "    \"is_error\": %s,\n", e->is_error ? "true" : "false");
-            fprintf(stdout, "    \"mtime\": %ld\n", (long)e->mtime);
-            fprintf(stdout, "  }%s\n", (i + 1 < json_entries.size()) ? "," : "");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"size_bytes\": %llu,\n", static_cast<unsigned long long>(e->size_bytes));
+            (void)fprintf(stdout, "    \"agg_size\": %llu,\n", static_cast<unsigned long long>(e->agg_size));
+            (void)fprintf(stdout, "    \"depth\": %d,\n", e->depth);
+            (void)fprintf(stdout, "    \"is_dir\": %s,\n", (e->is_dir != 0) ? "true" : "false");
+            (void)fprintf(stdout, "    \"is_error\": %s,\n", (e->is_error != 0) ? "true" : "false");
+            (void)fprintf(stdout, "    \"mtime\": %ld\n", static_cast<long>(e->mtime));
+            (void)fprintf(stdout, "  }%s\n", (i + 1 < json_entries.size()) ? "," : "");
         }
-        if (opts.total) {
-            if (!json_entries.empty()) fprintf(stdout, "  ,\n");
-            fprintf(stdout, "  {\n");
-            fprintf(stdout, "    \"path\": ");
+        if (opts.total != 0) {
+            if (!json_entries.empty())
+            {
+                (void)fprintf(stdout, "  ,\n");
+            }
+            (void)fprintf(stdout, "  {\n");
+            (void)fprintf(stdout, "    \"path\": ");
             json_escape_string(stdout, "total");
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"total\": %llu\n", (unsigned long long)grand_total);
-            fprintf(stdout, "  }\n");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"total\": %llu\n", static_cast<unsigned long long>(grand_total));
+            (void)fprintf(stdout, "  }\n");
         }
-        fprintf(stdout, "]\n");
+        (void)fprintf(stdout, "]\n");
 
         for (size_t i = 0; i < json_entries.size(); i++) {
-            DuEntry *e = json_entries[i];
+            const DuEntry *e = json_entries[i];
             free(e->path);
             delete e;
         }
@@ -502,7 +534,7 @@ int du_command(int argc, char **argv) {
     } else {
         /* Cleanup this path's entries */
         for (size_t i = 0; i < du_entries.size(); i++) {
-            DuEntry *e = du_entries[i];
+            const DuEntry *e = du_entries[i];
             free(e->path);
             delete e;
         }
@@ -510,17 +542,17 @@ int du_command(int argc, char **argv) {
     }
 
     if (!json_mode) {
-        if (opts.total) {
+        if (opts.total != 0) {
             char total_buf[64];
             format_size(grand_total, &opts, total_buf, sizeof(total_buf));
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stdout, "%s\ttotal%s",
                           total_buf,
-                          opts.null_terminated ? "\0" : "\n");
+                          (opts.null_terminated != 0) ? "\0" : "\n");
         }
     }
 
-    if (opts.exclude) {
+    if (opts.exclude != nullptr) {
         free(opts.exclude);
     }
     return 0;

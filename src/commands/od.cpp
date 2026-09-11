@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cerrno>
-#include <string>
+#include <utility>
 #include <vector>
 #include <ctime>
 #include <argtable3.h>
@@ -40,15 +40,15 @@ struct OdOptions {
     int output_width = 16;
 };
 
-static uint16_t od_checksum16(const uint8_t* data, size_t len) {
+uint16_t od_checksum16(const uint8_t* data, size_t len) {
     uint32_t sum = 0;
     for (size_t i = 0; i < len; i++) {
         sum += data[i];
     }
-    return (uint16_t)(sum & 0xFFFF);
+    return static_cast<uint16_t>(sum & 0xFFFF);
 }
 
-static uint32_t od_checksum32(const uint8_t* data, size_t len) {
+uint32_t od_checksum32(const uint8_t* data, size_t len) {
     uint32_t sum = 0;
     for (size_t i = 0; i < len; i++) {
         sum += data[i];
@@ -56,7 +56,7 @@ static uint32_t od_checksum32(const uint8_t* data, size_t len) {
     return sum;
 }
 
-static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
+void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
                         OdOptions& opts) {
     if (opts.formats.empty()) {
         opts.formats.push_back({DumpFormat::octal_short, 2});
@@ -69,13 +69,13 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
             if (opts.address_base != AddressBase::none) {
                 switch (opts.address_base) {
                     case AddressBase::octal:
-                        printf("%07llu ", (unsigned long long)offset + i);
+                        printf("%07llu ", static_cast<unsigned long long>(offset) + i);
                         break;
                     case AddressBase::decimal:
-                        printf("%07llu ", (unsigned long long)offset + i);
+                        printf("%07llu ", static_cast<unsigned long long>(offset) + i);
                         break;
                     case AddressBase::hex:
-                        printf("%07x ", (unsigned long long)(offset + i));
+                        printf("%07x ", static_cast<unsigned long long>(offset + i));
                         break;
                     case AddressBase::none:
                         break;
@@ -83,7 +83,7 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
             }
 
             size_t chunk = len - i;
-            if (bytes_per_unit > 0 && (int)chunk > bytes_per_unit) {
+            if (bytes_per_unit > 0 && static_cast<int>(chunk) > bytes_per_unit) {
                 chunk = bytes_per_unit;
             }
 
@@ -99,7 +99,7 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
                 }
                 case DumpFormat::octal_short: {
                     if (chunk >= 2) {
-                        uint16_t val = (uint16_t)data[i] | ((uint16_t)data[i + 1] << 8);
+                        uint16_t const val = static_cast<uint16_t>(data[i]) | (static_cast<uint16_t>(data[i + 1]) << 8);
                         printf("%06o ", val);
                     } else if (chunk == 1) {
                         printf("%06o ", data[i]);
@@ -108,11 +108,11 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
                 }
                 case DumpFormat::octal_long: {
                     if (chunk >= 4) {
-                        uint32_t val = (uint32_t)data[i] | ((uint32_t)data[i + 1] << 8) |
-                                       ((uint32_t)data[i + 2] << 16) | ((uint32_t)data[i + 3] << 24);
+                        uint32_t const val = static_cast<uint32_t>(data[i]) | (static_cast<uint32_t>(data[i + 1]) << 8) |
+                                       (static_cast<uint32_t>(data[i + 2]) << 16) | (static_cast<uint32_t>(data[i + 3]) << 24);
                         printf("%011o ", val);
                     } else if (chunk >= 2) {
-                        uint16_t val = (uint16_t)data[i] | ((uint16_t)data[i + 1] << 8);
+                        uint16_t const val = static_cast<uint16_t>(data[i]) | (static_cast<uint16_t>(data[i + 1]) << 8);
                         printf("%06o ", val);
                     } else if (chunk == 1) {
                         printf("%03o ", data[i]);
@@ -136,7 +136,7 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
                 }
                 case DumpFormat::hex_short: {
                     if (chunk >= 2) {
-                        uint16_t val = (uint16_t)data[i] | ((uint16_t)data[i + 1] << 8);
+                        uint16_t const val = static_cast<uint16_t>(data[i]) | (static_cast<uint16_t>(data[i + 1]) << 8);
                         printf("%04x ", val);
                     } else if (chunk == 1) {
                         printf("%04x ", data[i]);
@@ -145,11 +145,11 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
                 }
                 case DumpFormat::hex_long: {
                     if (chunk >= 4) {
-                        uint32_t val = (uint32_t)data[i] | ((uint32_t)data[i + 1] << 8) |
-                                       ((uint32_t)data[i + 2] << 16) | ((uint32_t)data[i + 3] << 24);
+                        uint32_t const val = static_cast<uint32_t>(data[i]) | (static_cast<uint32_t>(data[i + 1]) << 8) |
+                                       (static_cast<uint32_t>(data[i + 2]) << 16) | (static_cast<uint32_t>(data[i + 3]) << 24);
                         printf("%08x ", val);
                     } else if (chunk >= 2) {
-                        uint16_t val = (uint16_t)data[i] | ((uint16_t)data[i + 1] << 8);
+                        uint16_t const val = static_cast<uint16_t>(data[i]) | (static_cast<uint16_t>(data[i + 1]) << 8);
                         printf("%04x ", val);
                     } else if (chunk == 1) {
                         printf("%02x ", data[i]);
@@ -158,7 +158,7 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
                 }
                 case DumpFormat::char_display: {
                     for (size_t j = 0; j < chunk; j++) {
-                        uint8_t c = data[i + j];
+                        uint8_t const c = data[i + j];
                         if (c >= 32 && c <= 126) {
                             printf(" %c ", c);
                         } else {
@@ -183,24 +183,25 @@ static void dump_buffer(const uint8_t* data, size_t len, uint64_t offset,
     printf("\n");
 }
 
-static void dump_file(FILE* fp, const char* filename, OdOptions& opts) {
+void dump_file(FILE* fp, const char* filename, OdOptions& opts) {
     const size_t buf_size = 8192;
     std::vector<uint8_t> buf(buf_size);
     uint64_t offset = 0;
 
     while (true) {
-        size_t n = fread(buf.data(), 1, buf_size, fp);
-        if (n == 0) break;
+        size_t const n = fread(buf.data(), 1, buf_size, fp);
+        if (n == 0) { break;
+}
         dump_buffer(buf.data(), n, offset, opts);
         offset += n;
     }
 
-    if (ferror(fp)) {
-        fprintf(stderr, "od: %s: read error: %s\n", filename ? filename : "-", strerror(errno));
+    if (ferror(fp) != 0) {
+        (void)fprintf(stderr, "od: %s: read error: %s\n", (filename != nullptr) ? filename : "-", strerror(errno));
     }
 }
 
-static DumpFormat parse_format_char(char c) {
+DumpFormat parse_format_char(char c) {
     switch (c) {
         case 'a': return DumpFormat::char_display;
         case 'c': return DumpFormat::char_display;
@@ -212,7 +213,7 @@ static DumpFormat parse_format_char(char c) {
     }
 }
 
-static int parse_format_size(char c) {
+int parse_format_size(char c) {
     switch (c) {
         case 'C': case 'B': return 1;
         case 'S': case 'H': return 2;
@@ -221,21 +222,22 @@ static int parse_format_size(char c) {
     }
 }
 
-static bool parse_format_string(const char* str, OdOptions& opts) {
-    if (!str || !*str) return false;
+bool parse_format_string(const char* str, OdOptions& opts) {
+    if ((str == nullptr) || ((*str) == 0)) { return false;
+}
 
-    size_t len = strlen(str);
+    size_t const len = strlen(str);
     for (size_t i = 0; i < len; ) {
         if (str[i] == '_') {
             i++;
             continue;
         }
 
-        DumpFormat fmt = parse_format_char(str[i]);
+        DumpFormat const fmt = parse_format_char(str[i]);
         int size = 0;
 
         if (i + 1 < len) {
-            int next_size = parse_format_size(str[i + 1]);
+            int const next_size = parse_format_size(str[i + 1]);
             if (next_size > 0) {
                 size = next_size;
                 i++;
@@ -244,11 +246,13 @@ static bool parse_format_string(const char* str, OdOptions& opts) {
 
         switch (fmt) {
             case DumpFormat::octal_byte:
-                if (size == 0) size = 1;
+                if (size == 0) { size = 1;
+}
                 opts.formats.push_back({fmt, size});
                 break;
             case DumpFormat::hex_byte:
-                if (size == 0) size = 1;
+                if (size == 0) { size = 1;
+}
                 opts.formats.push_back({fmt, size});
                 break;
             case DumpFormat::char_display:
@@ -280,7 +284,7 @@ int od_command(int argc, char** argv) {
 
     ArgTable at({address_opt, format_opt, skip_bytes_opt, width_opt, help_opt, files_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -314,10 +318,11 @@ int od_command(int argc, char** argv) {
 
     if (address_opt->count > 0) {
         const char* val = address_opt->sval[0];
-        if (strcmp(val, "d") == 0) opts.address_base = AddressBase::decimal;
-        else if (strcmp(val, "x") == 0) opts.address_base = AddressBase::hex;
-        else if (strcmp(val, "n") == 0) opts.address_base = AddressBase::none;
-        else if (strcmp(val, "o") == 0) opts.address_base = AddressBase::octal;
+        if (strcmp(val, "d") == 0) { opts.address_base = AddressBase::decimal;
+        } else if (strcmp(val, "x") == 0) { opts.address_base = AddressBase::hex;
+        } else if (strcmp(val, "n") == 0) { opts.address_base = AddressBase::none;
+        } else if (strcmp(val, "o") == 0) { opts.address_base = AddressBase::octal;
+}
     }
 
     if (format_opt->count > 0) {
@@ -335,12 +340,12 @@ int od_command(int argc, char** argv) {
                 dump_file(stdin, nullptr, opts);
             } else {
                 FILE* fp = fopen(filename, "rb");
-                if (!fp) {
-                    fprintf(stderr, "od: %s: %s\n", filename, strerror(errno));
+                if (fp == nullptr) {
+                    (void)fprintf(stderr, "od: %s: %s\n", filename, strerror(errno));
                     continue;
                 }
                 dump_file(fp, filename, opts);
-                fclose(fp);
+                (void)fclose(fp);
             }
         }
     }

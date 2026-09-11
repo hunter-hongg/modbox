@@ -2,18 +2,17 @@
 #include <array>
 #include <cctype>
 #include <cerrno>
-#include <csetjmp>
-#include <csignal>
-#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <memory>
 #include <string>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "commands/sh.hpp"
@@ -170,8 +169,8 @@ static void shell_init() {
     g_state.vars["IFS"] = " \t\n";
     g_state.vars["PS1"] = "$ ";
     g_state.vars["PS2"] = "> ";
-    char* home = getenv("HOME");
-    if (home) {
+    char const * home = getenv("HOME");
+    if (home != nullptr) {
         g_state.vars["HOME"] = home;
         g_state.vars["PWD"] = home;
     } else {
@@ -179,7 +178,7 @@ static void shell_init() {
         g_state.vars["PWD"] = "/";
     }
     g_state.vars["OLDPWD"] = g_state.vars["PWD"];
-    g_state.stdin_tty = isatty(STDIN_FILENO);
+    g_state.stdin_tty = (isatty(STDIN_FILENO) != 0);
     g_state.pos_args.push_back("sh");
 }
 
@@ -187,7 +186,8 @@ static void shell_init() {
 
 static std::string read_line_raw() {
     if (g_state.input_mode == ShellState::INPUT_STRING) {
-        if (g_state.input_str_done) return "";
+        if (g_state.input_str_done) { return "";
+}
         const char* s = g_state.input_str + g_state.input_str_pos;
         if (*s == '\0') {
             g_state.input_str_done = true;
@@ -195,7 +195,7 @@ static std::string read_line_raw() {
         }
         const char* nl = strchr(s, '\n');
         std::string line;
-        if (nl) {
+        if (nl != nullptr) {
             line.assign(s, nl - s);
             g_state.input_str_pos += (nl - s) + 1;
         } else {
@@ -206,11 +206,13 @@ static std::string read_line_raw() {
         return line;
     }
 
-    if (g_state.input_mode == ShellState::INPUT_FILE && g_state.input_file) {
+    if (g_state.input_mode == ShellState::INPUT_FILE && (g_state.input_file != nullptr)) {
         char buf[4096];
-        if (!fgets(buf, sizeof(buf), g_state.input_file)) return "";
-        size_t len = strlen(buf);
-        if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
+        if (fgets(buf, sizeof(buf), g_state.input_file) == nullptr) { return "";
+}
+        size_t const len = strlen(buf);
+        if (len > 0 && buf[len - 1] == '\n') { buf[len - 1] = '\0';
+}
         return buf;
     }
 
@@ -220,7 +222,8 @@ static std::string read_line_raw() {
     while ((c = getchar()) != EOF && c != '\n') {
         line += static_cast<char>(c);
     }
-    if (c == EOF && line.empty()) return "";
+    if (c == EOF && line.empty()) { return "";
+}
     return line;
 }
 
@@ -236,22 +239,25 @@ static std::vector<Token> tokenize(const std::string& input) {
     size_t len = input.size();
 
     auto skip_ws = [&]() {
-        while (i < len && (input[i] == ' ' || input[i] == '\t')) i++;
+        while (i < len && (input[i] == ' ' || input[i] == '\t')) { i++;
+}
     };
 
     while (i < len) {
         skip_ws();
-        if (i >= len) break;
+        if (i >= len) { break;
+}
 
-        char c = input[i];
+        char const c = input[i];
 
         // Comment
-        if (c == '#') break;
+        if (c == '#') { break;
+}
 
         // Newline
         if (c == '\n') {
             i++;
-            result.push_back({TokenType::NEWLINE, "\n", {}, false});
+            result.push_back({.type=TokenType::NEWLINE, .text="\n", .redirect={}, .literal=false});
             continue;
         }
 
@@ -260,9 +266,9 @@ static std::vector<Token> tokenize(const std::string& input) {
             i++;
             if (i < len && input[i] == ';') {
                 i++;
-                result.push_back({TokenType::DSEMI, ";;", {}, false});
+                result.push_back({.type=TokenType::DSEMI, .text=";;", .redirect={}, .literal=false});
             } else {
-                result.push_back({TokenType::SEMI, ";", {}, false});
+                result.push_back({.type=TokenType::SEMI, .text=";", .redirect={}, .literal=false});
             }
             continue;
         }
@@ -271,11 +277,11 @@ static std::vector<Token> tokenize(const std::string& input) {
         if (c == '|') {
             if (i + 1 < len && input[i + 1] == '|') {
                 i += 2;
-                result.push_back({TokenType::OR_IF, "||", {}, false});
+                result.push_back({.type=TokenType::OR_IF, .text="||", .redirect={}, .literal=false});
                 continue;
             }
             i++;
-            result.push_back({TokenType::PIPE, "|", {}, false});
+            result.push_back({.type=TokenType::PIPE, .text="|", .redirect={}, .literal=false});
             continue;
         }
 
@@ -283,7 +289,7 @@ static std::vector<Token> tokenize(const std::string& input) {
         if (c == '&') {
             if (i + 1 < len && input[i + 1] == '&') {
                 i += 2;
-                result.push_back({TokenType::AND_IF, "&&", {}, false});
+                result.push_back({.type=TokenType::AND_IF, .text="&&", .redirect={}, .literal=false});
                 continue;
             }
             i++;
@@ -295,12 +301,12 @@ static std::vector<Token> tokenize(const std::string& input) {
         // Parentheses
         if (c == '(') {
             i++;
-            result.push_back({TokenType::LPAREN, "(", {}, false});
+            result.push_back({.type=TokenType::LPAREN, .text="(", .redirect={}, .literal=false});
             continue;
         }
         if (c == ')') {
             i++;
-            result.push_back({TokenType::RPAREN, ")", {}, false});
+            result.push_back({.type=TokenType::RPAREN, .text=")", .redirect={}, .literal=false});
             continue;
         }
 
@@ -315,7 +321,7 @@ static std::vector<Token> tokenize(const std::string& input) {
                 fd = (c == '>') ? 1 : 0;
             }
 
-            char op_char = c;
+            char const op_char = c;
             i++;
 
             std::string op_text;
@@ -370,7 +376,7 @@ static std::vector<Token> tokenize(const std::string& input) {
             // have a WORD token that's just a number:
             if (!result.empty() && result.back().type == TokenType::WORD) {
                 const std::string& last = result.back().text;
-                bool all_digits = !last.empty() && last[0] >= '0' && last[0] <= '9' &&
+                bool const all_digits = !last.empty() && last[0] >= '0' && last[0] <= '9' &&
                                   std::all_of(last.begin(), last.end(),
                                               [](char ch) { return ch >= '0' && ch <= '9'; });
                 if (all_digits && last.size() < 3) {
@@ -398,8 +404,8 @@ static std::vector<Token> tokenize(const std::string& input) {
                 bool in_q = false;
                 char qchar = 0;
                 while (i < len && input[i] != '\n' && input[i] != '#' &&
-                       !(input[i] == ' ' || input[i] == '\t')) {
-                    char ch = input[i];
+                       input[i] != ' ' && input[i] != '\t') {
+                    char const ch = input[i];
                     if (!in_q && (ch == '\'' || ch == '"')) {
                         qchar = ch;
                         in_q = true;
@@ -423,11 +429,12 @@ static std::vector<Token> tokenize(const std::string& input) {
                 // Regular redirect: read filename
                 skip_ws();
                 std::string target;
-                bool in_sq = false, in_dq = false;
+                bool in_sq = false;
+                bool in_dq = false;
                 while (i < len && input[i] != '\n' && input[i] != ' ' && input[i] != '\t' &&
                        input[i] != '#' && !is_redirect_char(input[i]) && input[i] != '|' &&
                        input[i] != ';' && input[i] != '&' && input[i] != '(' && input[i] != ')') {
-                    char ch = input[i];
+                    char const ch = input[i];
                     if (!in_dq && !in_sq && ch == '\'') {
                         in_sq = true;
                         i++;
@@ -471,13 +478,15 @@ static std::vector<Token> tokenize(const std::string& input) {
         // Word token
         std::string word;
         bool literal = true; // becomes false if any non-single-quoted part
-        bool in_sq = false, in_dq = false;
+        bool in_sq = false;
+        bool in_dq = false;
 
         while (i < len) {
-            char ch = input[i];
+            char const ch = input[i];
 
             // Whitespace ends word (outside quotes)
-            if (!in_sq && !in_dq && (ch == ' ' || ch == '\t')) break;
+            if (!in_sq && !in_dq && (ch == ' ' || ch == '\t')) { break;
+}
 
             // Metacharacters end word (outside quotes)
             if (!in_sq && !in_dq &&
@@ -516,7 +525,7 @@ static std::vector<Token> tokenize(const std::string& input) {
                 continue;
             }
             if (in_dq && ch == '\\' && i + 1 < len) {
-                char next = input[i + 1];
+                char const next = input[i + 1];
                 if (next == '"' || next == '\\' || next == '`' || next == '$') {
                     i++;
                     word += next;
@@ -525,7 +534,8 @@ static std::vector<Token> tokenize(const std::string& input) {
                 }
             }
 
-            if (!in_sq) literal = false;
+            if (!in_sq) { literal = false;
+}
             word += ch;
             i++;
         }
@@ -547,24 +557,25 @@ static std::vector<Token> tokenize(const std::string& input) {
 // ── Variable Expansion ─────────────────────────────────────────────────────
 
 static std::string expand_string(const std::string& s, bool literal) {
-    if (literal) return s;
+    if (literal) { return s;
+}
 
     std::string result;
     size_t i = 0;
-    size_t len = s.size();
+    size_t const len = s.size();
 
     while (i < len) {
         if (s[i] == '$' && i + 1 < len) {
             if (s[i + 1] == '{') {
                 // ${VAR} or ${VAR:-default}
-                size_t end = s.find('}', i + 2);
+                size_t const end = s.find('}', i + 2);
                 if (end == std::string::npos) {
                     result += s.substr(i);
                     break;
                 }
                 std::string varname = s.substr(i + 2, end - i - 2);
                 std::string default_val;
-                size_t colon = varname.find(":-");
+                size_t const colon = varname.find(":-");
                 if (colon != std::string::npos) {
                     default_val = varname.substr(colon + 2);
                     varname = varname.substr(0, colon);
@@ -589,12 +600,14 @@ static std::string expand_string(const std::string& s, bool literal) {
                     result += std::to_string(g_state.pos_args.size() - 1);
                 } else if (s[i + 1] == '*') {
                     for (size_t a = 1; a < g_state.pos_args.size(); a++) {
-                        if (a > 1) result += ' ';
+                        if (a > 1) { result += ' ';
+}
                         result += g_state.pos_args[a];
                     }
                 } else if (s[i + 1] == '@') {
                     for (size_t a = 1; a < g_state.pos_args.size(); a++) {
-                        if (a > 1) result += ' ';
+                        if (a > 1) { result += ' ';
+}
                         result += g_state.pos_args[a];
                     }
                 } else if (s[i + 1] == '-') {
@@ -605,18 +618,18 @@ static std::string expand_string(const std::string& s, bool literal) {
                 // $NAME
                 i++;
                 std::string varname;
-                if (i < len && (isalpha(s[i]) || s[i] == '_')) {
+                if (i < len && ((isalpha(s[i]) != 0) || s[i] == '_')) {
                     varname += s[i];
                     i++;
-                    while (i < len && (isalnum(s[i]) || s[i] == '_')) {
+                    while (i < len && ((isalnum(s[i]) != 0) || s[i] == '_')) {
                         varname += s[i];
                         i++;
                     }
                 }
                 // Check positional parameters ($1, $2, ...)
                 if (!varname.empty() && varname[0] >= '0' && varname[0] <= '9') {
-                    int idx = std::stoi(varname);
-                    if (idx >= 0 && (size_t)idx < g_state.pos_args.size()) {
+                    int const idx = std::stoi(varname);
+                    if (idx >= 0 && static_cast<size_t>(idx) < g_state.pos_args.size()) {
                         result += g_state.pos_args[idx];
                     }
                 } else {
@@ -641,7 +654,7 @@ static std::string expand_string(const std::string& s, bool literal) {
 
 static void expand_simple(SimpleCommand& cmd) {
     for (size_t i = 0; i < cmd.args.size(); i++) {
-        bool lit = i < cmd.arg_literal.size() ? cmd.arg_literal[i] : false;
+        bool const lit = i < cmd.arg_literal.size() ? cmd.arg_literal[i] : false;
         cmd.args[i] = expand_string(cmd.args[i], lit);
     }
     for (auto& redir : cmd.redirects) {
@@ -663,15 +676,16 @@ static bool find_in_path(const std::string& name, std::string& out) {
     }
 
     auto it = g_state.vars.find("PATH");
-    std::string path_str = (it != g_state.vars.end()) ? it->second : "/usr/local/bin:/usr/bin:/bin";
+    std::string const path_str = (it != g_state.vars.end()) ? it->second : "/usr/local/bin:/usr/bin:/bin";
 
     size_t start = 0;
     while (start < path_str.size()) {
         size_t end = path_str.find(':', start);
-        if (end == std::string::npos) end = path_str.size();
-        std::string dir = path_str.substr(start, end - start);
+        if (end == std::string::npos) { end = path_str.size();
+}
+        std::string const dir = path_str.substr(start, end - start);
         if (!dir.empty()) {
-            std::string full = dir + "/" + name;
+            std::string const full = dir + "/" + name;
             if (access(full.c_str(), X_OK) == 0) {
                 out = full;
                 return true;
@@ -773,7 +787,8 @@ static std::unique_ptr<Node> parse_simple_command(const std::vector<Token>& toke
 }
 
 static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, size_t& pos) {
-    if (pos >= tokens.size()) return nullptr;
+    if (pos >= tokens.size()) { return nullptr;
+}
 
     // Check for compound commands
     if (tokens[pos].type == TokenType::WORD) {
@@ -807,7 +822,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
                 return fallback;
             }
             // newline after then
-            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
 
             // then body
             node->then_body = parse_list(tokens, pos);
@@ -821,8 +837,10 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
                                             tokens[pos].type == TokenType::SEMI)) {
                     pos++;
                 }
-                if (pos >= tokens.size() || !match_word(tokens, pos, "then")) break;
-                if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+                if (pos >= tokens.size() || !match_word(tokens, pos, "then")) { break;
+}
+                if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
                 auto elif_body = parse_list(tokens, pos);
                 node->elifs.emplace_back(std::move(elif_cond), std::move(elif_body));
             }
@@ -830,7 +848,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
             if (pos < tokens.size() && tokens[pos].type == TokenType::WORD &&
                 tokens[pos].text == "else") {
                 pos++;
-                if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+                if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
                 node->else_body = parse_list(tokens, pos);
             }
 
@@ -869,7 +888,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
             if (pos >= tokens.size() || !match_word(tokens, pos, "do")) {
                 return nullptr;
             }
-            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
 
             node->for_body = parse_list(tokens, pos);
 
@@ -886,14 +906,17 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
             auto node = std::make_unique<Node>();
             node->type = NodeType::WHILE;
             node->loop_cond = parse_and_or(tokens, pos);
-            if (!node->loop_cond) return nullptr;
+            if (!node->loop_cond) { return nullptr;
+}
 
             if (pos < tokens.size() && (tokens[pos].type == TokenType::NEWLINE ||
                                         tokens[pos].type == TokenType::SEMI)) {
                 pos++;
             }
-            if (pos >= tokens.size() || !match_word(tokens, pos, "do")) return nullptr;
-            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+            if (pos >= tokens.size() || !match_word(tokens, pos, "do")) { return nullptr;
+}
+            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
 
             node->loop_body = parse_list(tokens, pos);
             if (pos < tokens.size() && tokens[pos].type == TokenType::WORD &&
@@ -908,14 +931,17 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
             auto node = std::make_unique<Node>();
             node->type = NodeType::UNTIL;
             node->loop_cond = parse_and_or(tokens, pos);
-            if (!node->loop_cond) return nullptr;
+            if (!node->loop_cond) { return nullptr;
+}
 
             if (pos < tokens.size() && (tokens[pos].type == TokenType::NEWLINE ||
                                         tokens[pos].type == TokenType::SEMI)) {
                 pos++;
             }
-            if (pos >= tokens.size() || !match_word(tokens, pos, "do")) return nullptr;
-            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+            if (pos >= tokens.size() || !match_word(tokens, pos, "do")) { return nullptr;
+}
+            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
 
             node->loop_body = parse_list(tokens, pos);
             if (pos < tokens.size() && tokens[pos].type == TokenType::WORD &&
@@ -941,7 +967,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
             if (pos >= tokens.size() || !match_word(tokens, pos, "in")) {
                 return nullptr;
             }
-            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+            if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
 
             // Pattern cases: pattern) body ;;
             while (pos < tokens.size()) {
@@ -953,7 +980,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
                 // Pattern (one or more WORD tokens until ')')
                 std::string pattern;
                 while (pos < tokens.size() && tokens[pos].type == TokenType::WORD) {
-                    if (!pattern.empty()) pattern += ' ';
+                    if (!pattern.empty()) { pattern += ' ';
+}
                     pattern += tokens[pos].text;
                     pos++;
                 }
@@ -965,7 +993,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
                     break;
                 }
 
-                if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) pos++;
+                if (pos < tokens.size() && tokens[pos].type == TokenType::NEWLINE) { pos++;
+}
 
                 // Body (until ;; or esac)
                 auto body = std::make_unique<Node>();
@@ -1008,7 +1037,8 @@ static std::unique_ptr<Node> parse_command(const std::vector<Token>& tokens, siz
 
 static std::unique_ptr<Node> parse_pipeline_node(const std::vector<Token>& tokens, size_t& pos) {
     auto first = parse_command(tokens, pos);
-    if (!first) return nullptr;
+    if (!first) { return nullptr;
+}
 
     // Handle pipe: a pipeline is a command followed by | command
     if (pos < tokens.size() && tokens[pos].type == TokenType::PIPE) {
@@ -1034,7 +1064,8 @@ static std::unique_ptr<Node> parse_pipeline_node(const std::vector<Token>& token
         while (pos < tokens.size() && tokens[pos].type == TokenType::PIPE) {
             pos++;
             auto next = parse_command(tokens, pos);
-            if (!next) break;
+            if (!next) { break;
+}
             if (next->type == NodeType::SIMPLE && !next->pipeline.commands.empty()) {
                 pipe_node->pipeline.commands.push_back(
                     std::move(next->pipeline.commands[0]));
@@ -1055,13 +1086,15 @@ static std::unique_ptr<Node> parse_pipeline_node(const std::vector<Token>& token
 
 static std::unique_ptr<Node> parse_and_or(const std::vector<Token>& tokens, size_t& pos) {
     auto node = parse_pipeline_node(tokens, pos);
-    if (!node) return nullptr;
+    if (!node) { return nullptr;
+}
 
     while (pos < tokens.size()) {
         if (tokens[pos].type == TokenType::AND_IF) {
             pos++;
             auto right = parse_pipeline_node(tokens, pos);
-            if (!right) break;
+            if (!right) { break;
+}
             auto and_node = std::make_unique<Node>();
             and_node->type = NodeType::AND_OR;
             and_node->left = std::move(node);
@@ -1071,7 +1104,8 @@ static std::unique_ptr<Node> parse_and_or(const std::vector<Token>& tokens, size
         } else if (tokens[pos].type == TokenType::OR_IF) {
             pos++;
             auto right = parse_pipeline_node(tokens, pos);
-            if (!right) break;
+            if (!right) { break;
+}
             auto or_node = std::make_unique<Node>();
             or_node->type = NodeType::AND_OR;
             or_node->left = std::move(node);
@@ -1088,7 +1122,8 @@ static std::unique_ptr<Node> parse_and_or(const std::vector<Token>& tokens, size
 
 static std::unique_ptr<Node> parse_list(const std::vector<Token>& tokens, size_t& pos) {
     auto first = parse_and_or(tokens, pos);
-    if (!first) return nullptr;
+    if (!first) { return nullptr;
+}
 
     // Check for semicolons and newlines
     while (pos < tokens.size() &&
@@ -1164,7 +1199,7 @@ static void apply_redirects(const std::vector<Redirect>& redirects) {
         case Redirect::INPUT:
             new_fd = open(r.target.c_str(), O_RDONLY);
             if (new_fd < 0) {
-                fprintf(stderr, "sh: %s: cannot open: %s\n",
+                (void)fprintf(stderr, "sh: %s: cannot open: %s\n",
                         r.target.c_str(), strerror(errno));
                 _exit(1);
             }
@@ -1172,7 +1207,7 @@ static void apply_redirects(const std::vector<Redirect>& redirects) {
         case Redirect::OUTPUT:
             new_fd = open(r.target.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
             if (new_fd < 0) {
-                fprintf(stderr, "sh: %s: cannot create: %s\n",
+                (void)fprintf(stderr, "sh: %s: cannot create: %s\n",
                         r.target.c_str(), strerror(errno));
                 _exit(1);
             }
@@ -1180,7 +1215,7 @@ static void apply_redirects(const std::vector<Redirect>& redirects) {
         case Redirect::APPEND:
             new_fd = open(r.target.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
             if (new_fd < 0) {
-                fprintf(stderr, "sh: %s: cannot create: %s\n",
+                (void)fprintf(stderr, "sh: %s: cannot create: %s\n",
                         r.target.c_str(), strerror(errno));
                 _exit(1);
             }
@@ -1232,8 +1267,9 @@ static bool is_builtin(const std::string& name) {
     static const char* builtins[] = {
         "cd", "exit", "export", "echo", "exec", ".", "type", "unset", "read", "set"
     };
-    for (auto b : builtins) {
-        if (name == b) return true;
+    for (const auto *b : builtins) {
+        if (name == b) { return true;
+}
     }
     return false;
 }
@@ -1247,7 +1283,7 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
         } else if (args[0] == "-") {
             auto it = g_state.vars.find("OLDPWD");
             if (it == g_state.vars.end()) {
-                fprintf(stderr, "sh: cd: OLDPWD not set\n");
+                (void)fprintf(stderr, "sh: cd: OLDPWD not set\n");
                 return 1;
             }
             target = it->second;
@@ -1257,16 +1293,17 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
         }
 
         char old_cwd[4096];
-        if (!getcwd(old_cwd, sizeof(old_cwd))) old_cwd[0] = '\0';
+        if (getcwd(old_cwd, sizeof(old_cwd)) == nullptr) { old_cwd[0] = '\0';
+}
 
         if (chdir(target.c_str()) != 0) {
-            fprintf(stderr, "sh: cd: %s: %s\n", target.c_str(), strerror(errno));
+            (void)fprintf(stderr, "sh: cd: %s: %s\n", target.c_str(), strerror(errno));
             return 1;
         }
 
         g_state.vars["OLDPWD"] = old_cwd;
         char new_cwd[4096];
-        if (getcwd(new_cwd, sizeof(new_cwd))) {
+        if (getcwd(new_cwd, sizeof(new_cwd)) != nullptr) {
             g_state.vars["PWD"] = new_cwd;
         }
         return 0;
@@ -1288,10 +1325,10 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
             return 0;
         }
         for (const auto& arg : args) {
-            size_t eq = arg.find('=');
+            size_t const eq = arg.find('=');
             if (eq != std::string::npos) {
-                std::string k = arg.substr(0, eq);
-                std::string v = arg.substr(eq + 1);
+                std::string const k = arg.substr(0, eq);
+                std::string const v = arg.substr(eq + 1);
                 g_state.vars[k] = v;
                 setenv(k.c_str(), v.c_str(), 1);
             } else {
@@ -1306,7 +1343,8 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
 
     if (name == "echo") {
         for (size_t i = 0; i < args.size(); i++) {
-            if (i > 0) printf(" ");
+            if (i > 0) { printf(" ");
+}
             printf("%s", args[i].c_str());
         }
         printf("\n");
@@ -1314,7 +1352,8 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
     }
 
     if (name == "exec") {
-        if (args.empty()) return 0;
+        if (args.empty()) { return 0;
+}
         std::string fullpath;
         std::vector<const char*> exec_argv;
         exec_argv.push_back(args[0].c_str());
@@ -1328,24 +1367,25 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
         } else {
             execvp(args[0].c_str(), const_cast<char* const*>(exec_argv.data()));
         }
-        fprintf(stderr, "sh: exec: %s: %s\n", args[0].c_str(), strerror(errno));
+        (void)fprintf(stderr, "sh: exec: %s: %s\n", args[0].c_str(), strerror(errno));
         g_state.running = false;
         return 126;
     }
 
     if (name == ".") {
-        if (args.empty()) return 0;
+        if (args.empty()) { return 0;
+}
         const std::string& path = args[0];
         FILE* f = fopen(path.c_str(), "r");
-        if (!f) {
-            fprintf(stderr, "sh: %s: %s\n", path.c_str(), strerror(errno));
+        if (f == nullptr) {
+            (void)fprintf(stderr, "sh: %s: %s\n", path.c_str(), strerror(errno));
             return 127;
         }
 
         // Save input state
         auto saved_mode = g_state.input_mode;
-        auto saved_file = g_state.input_file;
-        auto saved_str = g_state.input_str;
+        auto *saved_file = g_state.input_file;
+        const auto *saved_str = g_state.input_str;
         auto saved_str_pos = g_state.input_str_pos;
         auto saved_str_done = g_state.input_str_done;
 
@@ -1353,29 +1393,33 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
         g_state.input_file = f;
 
         while (g_state.running) {
-            std::string line = read_line_raw();
-            if (line.empty() && feof(f)) break;
+            std::string const line = read_line_raw();
+            if (line.empty() && (feof(f) != 0)) { break;
+}
             g_state.line_number++;
-            if (line.empty()) continue;
+            if (line.empty()) { continue;
+}
 
             // Check for pure comment
             bool all_ws = true;
             for (char ch : line) {
                 if (ch != ' ' && ch != '\t') { all_ws = false; break; }
             }
-            if (all_ws) continue;
+            if (all_ws) { continue;
+}
 
             auto tokens = tokenize(line);
-            if (tokens.empty()) continue;
+            if (tokens.empty()) { continue;
+}
 
             auto ast = parse_program(tokens);
             if (ast) {
-                int ec = execute_node(*ast);
+                int const ec = execute_node(*ast);
                 g_state.last_exit_code = ec;
             }
         }
 
-        fclose(f);
+        (void)fclose(f);
 
         // Restore input state
         g_state.input_mode = saved_mode;
@@ -1397,7 +1441,7 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
                 if (find_in_path(arg, path)) {
                     printf("%s is %s\n", arg.c_str(), path.c_str());
                 } else {
-                    fprintf(stderr, "sh: type: %s: not found\n", arg.c_str());
+                    (void)fprintf(stderr, "sh: type: %s: not found\n", arg.c_str());
                     ret = 1;
                 }
             }
@@ -1426,9 +1470,11 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
 
         while ((c = getchar()) != EOF && c != '\n') {
             if (!raw && c == '\\') {
-                int next = getchar();
-                if (next == EOF) break;
-                if (next == '\n') continue;
+                int const next = getchar();
+                if (next == EOF) { break;
+}
+                if (next == '\n') { continue;
+}
                 line += static_cast<char>(c);
                 line += static_cast<char>(next);
                 continue;
@@ -1476,7 +1522,8 @@ static int run_builtin(const std::string& name, std::vector<std::string>& args) 
 // ── External Execution ─────────────────────────────────────────────────────
 
 static void execute_external(const SimpleCommand& cmd) {
-    if (cmd.args.empty()) _exit(0);
+    if (cmd.args.empty()) { _exit(0);
+}
 
     std::vector<const char*> argv;
     for (const auto& a : cmd.args) {
@@ -1493,10 +1540,10 @@ static void execute_external(const SimpleCommand& cmd) {
 
     // exec failed
     if (errno == ENOENT) {
-        fprintf(stderr, "sh: %s: not found\n", cmd.args[0].c_str());
+        (void)fprintf(stderr, "sh: %s: not found\n", cmd.args[0].c_str());
         _exit(127);
     } else {
-        fprintf(stderr, "sh: %s: %s\n", cmd.args[0].c_str(), strerror(errno));
+        (void)fprintf(stderr, "sh: %s: %s\n", cmd.args[0].c_str(), strerror(errno));
         _exit(126);
     }
 }
@@ -1504,21 +1551,24 @@ static void execute_external(const SimpleCommand& cmd) {
 // ── Pipeline Execution ─────────────────────────────────────────────────────
 
 static int execute_pipeline_internal(const Pipeline& pipeline) {
-    if (pipeline.commands.empty()) return 0;
+    if (pipeline.commands.empty()) { return 0;
+}
 
-    auto& first_cmd = pipeline.commands[0];
+    const auto& first_cmd = pipeline.commands[0];
 
     // Helper: split args into variable assignments and real args
     auto split_args = [](const std::vector<std::string>& args,
                          std::vector<std::pair<std::string, std::string>>& env_assign,
                          std::vector<std::string>& real_args) {
         for (const auto& arg : args) {
-            size_t eq = arg.find('=');
+            size_t const eq = arg.find('=');
             if (eq != std::string::npos && eq > 0) {
                 bool valid = true;
-                if (!isalpha(arg[0]) && arg[0] != '_') valid = false;
+                if (!isalpha(arg[0]) && arg[0] != '_') { valid = false;
+}
                 for (size_t k = 1; k < eq && valid; k++) {
-                    if (!isalnum(arg[k]) && arg[k] != '_') valid = false;
+                    if (!isalnum(arg[k]) && arg[k] != '_') { valid = false;
+}
                 }
                 if (valid) {
                     env_assign.push_back({arg.substr(0, eq), arg.substr(eq + 1)});
@@ -1551,16 +1601,16 @@ static int execute_pipeline_internal(const Pipeline& pipeline) {
             }
 
             if (!first_cmd.redirects.empty()) {
-                pid_t pid = fork();
+                pid_t const pid = fork();
                 if (pid == 0) {
                     setbuf(stdout, NULL);
                     setbuf(stderr, NULL);
                     apply_redirects(first_cmd.redirects);
                     if (real_args.size() == 1) { _exit(0); }
-                    std::string name = real_args[0];
+                    std::string const name = real_args[0];
                     std::vector<std::string> builtin_args(real_args.begin() + 1,
                                                           real_args.end());
-                    fflush(stdout); fflush(stderr);
+                    (void)fflush(stdout); (void)fflush(stderr);
                     _exit(run_builtin(name, builtin_args));
                 }
                 int status;
@@ -1569,13 +1619,13 @@ static int execute_pipeline_internal(const Pipeline& pipeline) {
             }
 
             // Run builtin directly in shell process
-            std::string name = real_args[0];
+            std::string const name = real_args[0];
             std::vector<std::string> builtin_args(real_args.begin() + 1, real_args.end());
             return run_builtin(name, builtin_args);
         }
 
         // External command (no pipe)
-        pid_t pid = fork();
+        pid_t const pid = fork();
         if (pid == 0) {
             // Set temp environment variables
             for (const auto& ea : env_assign) {
@@ -1595,7 +1645,7 @@ static int execute_pipeline_internal(const Pipeline& pipeline) {
     }
 
     // Pipeline with multiple commands
-    size_t n_cmds = pipeline.commands.size();
+    size_t const n_cmds = pipeline.commands.size();
     std::vector<std::array<int, 2>> pipes(n_cmds - 1);
 
     for (size_t i = 0; i < n_cmds - 1; i++) {
@@ -1608,7 +1658,7 @@ static int execute_pipeline_internal(const Pipeline& pipeline) {
     std::vector<pid_t> children;
 
     for (size_t i = 0; i < n_cmds; i++) {
-        pid_t pid = fork();
+        pid_t const pid = fork();
         if (pid == 0) {
             // Child process: unbuffer stdio for pipe correctness
             setbuf(stdout, NULL);
@@ -1638,16 +1688,16 @@ static int execute_pipeline_internal(const Pipeline& pipeline) {
             // Execute (including builtins - they run in child)
             const auto& cmd = pipeline.commands[i];
             if (!cmd.args.empty() && is_builtin(cmd.args[0])) {
-                std::string name = cmd.args[0];
+                std::string const name = cmd.args[0];
                 std::vector<std::string> bargs(cmd.args.begin() + 1, cmd.args.end());
-                fflush(stdout);
-                fflush(stderr);
+                (void)fflush(stdout);
+                (void)fflush(stderr);
                 _exit(run_builtin(name, bargs));
             } else if (!cmd.args.empty()) {
                 execute_external(cmd);
             }
-            fflush(stdout);
-            fflush(stderr);
+            (void)fflush(stdout);
+            (void)fflush(stderr);
             _exit(0);
         }
 
@@ -1697,13 +1747,13 @@ static int execute_node(const Node& node) {
 
         // Xtrace
         if (g_state.xtrace) {
-            fprintf(stderr, "+");
+            (void)fprintf(stderr, "+");
             for (const auto& cmd : p.commands) {
                 for (const auto& a : cmd.args) {
-                    fprintf(stderr, " %s", a.c_str());
+                    (void)fprintf(stderr, " %s", a.c_str());
                 }
             }
-            fprintf(stderr, "\n");
+            (void)fprintf(stderr, "\n");
         }
 
         ec = execute_pipeline_internal(p);
@@ -1713,13 +1763,15 @@ static int execute_node(const Node& node) {
     case NodeType::IF: {
         ec = execute_node(*node.condition);
         if (ec == 0) {
-            if (node.then_body) ec = execute_node(*node.then_body);
+            if (node.then_body) { ec = execute_node(*node.then_body);
+}
         } else {
             bool handled = false;
             for (const auto& elif : node.elifs) {
                 ec = execute_node(*elif.first);
                 if (ec == 0) {
-                    if (elif.second) ec = execute_node(*elif.second);
+                    if (elif.second) { ec = execute_node(*elif.second);
+}
                     handled = true;
                     break;
                 }
@@ -1736,12 +1788,14 @@ static int execute_node(const Node& node) {
             // Default to positional parameters
             for (size_t i = 1; i < g_state.pos_args.size(); i++) {
                 g_state.vars[node.for_var] = g_state.pos_args[i];
-                if (node.for_body) ec = execute_node(*node.for_body);
+                if (node.for_body) { ec = execute_node(*node.for_body);
+}
             }
         } else {
             for (const auto& w : node.for_words) {
                 g_state.vars[node.for_var] = expand_string(w, false);
-                if (node.for_body) ec = execute_node(*node.for_body);
+                if (node.for_body) { ec = execute_node(*node.for_body);
+}
             }
         }
         break;
@@ -1750,8 +1804,10 @@ static int execute_node(const Node& node) {
     case NodeType::WHILE: {
         while (true) {
             ec = execute_node(*node.loop_cond);
-            if (ec != 0) break;
-            if (node.loop_body) ec = execute_node(*node.loop_body);
+            if (ec != 0) { break;
+}
+            if (node.loop_body) { ec = execute_node(*node.loop_body);
+}
         }
         break;
     }
@@ -1759,8 +1815,10 @@ static int execute_node(const Node& node) {
     case NodeType::UNTIL: {
         while (true) {
             ec = execute_node(*node.loop_cond);
-            if (ec == 0) break;
-            if (node.loop_body) ec = execute_node(*node.loop_body);
+            if (ec == 0) { break;
+}
+            if (node.loop_body) { ec = execute_node(*node.loop_body);
+}
         }
         break;
     }
@@ -1774,7 +1832,8 @@ static int execute_node(const Node& node) {
             bool matched = false;
 
             // Simple glob matching
-            size_t pi = 0, wi = 0;
+            size_t pi = 0;
+            size_t wi = 0;
             while (pi < pattern.size() && wi < word.size()) {
                 if (pattern[pi] == '*') {
                     // Match remainder
@@ -1783,8 +1842,8 @@ static int execute_node(const Node& node) {
                         break;
                     }
                     // Try to match rest
-                    std::string rest = pattern.substr(pi + 1);
-                    size_t found = word.find(rest, wi);
+                    std::string const rest = pattern.substr(pi + 1);
+                    size_t const found = word.find(rest, wi);
                     if (found != std::string::npos) {
                         matched = true;
                         break;
@@ -1797,11 +1856,14 @@ static int execute_node(const Node& node) {
                     break;
                 }
             }
-            if (pi == pattern.size() && wi == word.size()) matched = true;
-            if (pattern == "*") matched = true;
+            if (pi == pattern.size() && wi == word.size()) { matched = true;
+}
+            if (pattern == "*") { matched = true;
+}
 
             if (matched) {
-                if (entry.second) ec = execute_node(*entry.second);
+                if (entry.second) { ec = execute_node(*entry.second);
+}
                 break;
             }
         }
@@ -1810,10 +1872,12 @@ static int execute_node(const Node& node) {
 
     case NodeType::SEQ: {
         for (const auto& child : node.seq_children) {
-            if (!g_state.running) break;
+            if (!g_state.running) { break;
+}
             ec = execute_node(*child);
             g_state.last_exit_code = ec;
-            if (g_state.errexit && ec != 0) break;
+            if (g_state.errexit && ec != 0) { break;
+}
         }
         break;
     }
@@ -1846,34 +1910,44 @@ static int execute_node(const Node& node) {
 
 static bool needs_continuation(const std::string& line) {
     // Check if compound constructs are balanced
-    int if_depth = 0, for_depth = 0, while_depth = 0, case_depth = 0;
+    int if_depth = 0;
+    int for_depth = 0;
+    int while_depth = 0;
+    int case_depth = 0;
 
     // Tokenize to check properly
     auto tokens = tokenize(line);
     for (const auto& tok : tokens) {
         if (tok.type == TokenType::WORD) {
-            if (tok.text == "if") if_depth++;
-            else if (tok.text == "fi") if_depth--;
-            else if (tok.text == "for") for_depth++;
-            else if (tok.text == "while" || tok.text == "until") while_depth++;
-            else if (tok.text == "do") {
-                if (for_depth > 0) for_depth--;
-                else if (while_depth > 0) while_depth--;
+            if (tok.text == "if") { { if_depth++;
+            } } else if (tok.text == "fi") { { if_depth--;
+            } } else if (tok.text == "for") { { for_depth++;
+            } } else if (tok.text == "while" || tok.text == "until") { { while_depth++;
+            } } else if (tok.text == "do") {
+                if (for_depth > 0) { for_depth--;
+                } else if (while_depth > 0) { while_depth--;
+}
             }
             else if (tok.text == "done") { /* already decremented above */ }
-            else if (tok.text == "case") case_depth++;
-            else if (tok.text == "esac") case_depth--;
+            else if (tok.text == "case") { { case_depth++;
+            } } else if (tok.text == "esac") { { case_depth--;
+}
+}
         }
     }
 
     // Also check for backslash continuation
-    if (!line.empty() && line.back() == '\\') return true;
+    if (!line.empty() && line.back() == '\\') { return true;
+}
 
     // Check for unclosed quotes
-    bool in_sq = false, in_dq = false;
+    bool in_sq = false;
+    bool in_dq = false;
     for (char c : line) {
-        if (c == '\'' && !in_dq) in_sq = !in_sq;
-        if (c == '"' && !in_sq) in_dq = !in_dq;
+        if (c == '\'' && !in_dq) { in_sq = !in_sq;
+}
+        if (c == '"' && !in_sq) { in_dq = !in_dq;
+}
     }
 
     return if_depth > 0 || for_depth > 0 || while_depth > 0 ||
@@ -1886,16 +1960,17 @@ static std::string read_whole_command() {
     while (true) {
         if (g_state.stdin_tty && g_state.input_mode == ShellState::INPUT_INTERACTIVE) {
             if (full.empty()) {
-                fprintf(stderr, "%s", g_state.ps1.c_str());
+                (void)fprintf(stderr, "%s", g_state.ps1.c_str());
             } else {
-                fprintf(stderr, "%s", g_state.ps2.c_str());
+                (void)fprintf(stderr, "%s", g_state.ps2.c_str());
             }
-            fflush(stderr);
+            (void)fflush(stderr);
         }
 
         std::string line = read_line_raw();
         if (line.empty()) {
-            if (full.empty()) return "";
+            if (full.empty()) { return "";
+}
             break;
         }
 
@@ -1908,7 +1983,8 @@ static std::string read_whole_command() {
 
         full += line;
 
-        if (!needs_continuation(full)) break;
+        if (!needs_continuation(full)) { break;
+}
         full += '\n';
     }
 
@@ -1921,12 +1997,13 @@ static std::vector<std::string> g_temp_files;
 
 static std::string make_temp_file(const std::string& content) {
     char path[] = "/tmp/sh_heredoc_XXXXXX";
-    int fd = mkstemp(path);
-    if (fd < 0) return "";
+    int const fd = mkstemp(path);
+    if (fd < 0) { return "";
+}
     FILE* f = fdopen(fd, "w");
-    if (!f) { close(fd); return ""; }
-    fwrite(content.data(), 1, content.size(), f);
-    fclose(f);
+    if (f == nullptr) { close(fd); return ""; }
+    (void)fwrite(content.data(), 1, content.size(), f);
+    (void)fclose(f);
     g_temp_files.push_back(path);
     return path;
 }
@@ -1943,11 +2020,12 @@ static void cleanup_temp_files() {
 static std::string preprocess_heredocs(const std::string& input) {
     std::string result;
     size_t i = 0;
-    size_t len = input.size();
-    bool in_sq = false, in_dq = false;
+    size_t const len = input.size();
+    bool in_sq = false;
+    bool in_dq = false;
 
     while (i < len) {
-        char c = input[i];
+        char const c = input[i];
 
         // Track quotes
         if (c == '\'' && !in_dq) { in_sq = !in_sq; result += c; i++; continue; }
@@ -1959,7 +2037,8 @@ static std::string preprocess_heredocs(const std::string& input) {
             i += 2;
 
             // Skip whitespace after <<
-            while (i < len && (input[i] == ' ' || input[i] == '\t')) i++;
+            while (i < len && (input[i] == ' ' || input[i] == '\t')) { i++;
+}
 
             // Collect delimiter
             std::string delim;
@@ -1974,7 +2053,8 @@ static std::string preprocess_heredocs(const std::string& input) {
                     delim += input[i];
                     i++;
                 }
-                if (i < len) i++; // skip closing quote
+                if (i < len) { i++; // skip closing quote
+}
             } else {
                 while (i < len && input[i] != ' ' && input[i] != '\t' &&
                        input[i] != '\n' && input[i] != '#' &&
@@ -1986,18 +2066,21 @@ static std::string preprocess_heredocs(const std::string& input) {
 
             // Find the delimiter line in the remaining input
             std::string body;
-            size_t search_start = i;
+            size_t const search_start = i;
 
             // Skip to end of current line first
-            while (i < len && input[i] != '\n') i++;
-            if (i < len) i++; // skip newline
+            while (i < len && input[i] != '\n') { i++;
+}
+            if (i < len) { i++; // skip newline
+}
 
             // Read lines until delimiter
             while (i < len) {
                 // Check for delimiter at start of line
-                size_t line_start = i;
-                while (i < len && input[i] != '\n') i++;
-                std::string line = input.substr(line_start, i - line_start);
+                size_t const line_start = i;
+                while (i < len && input[i] != '\n') { i++;
+}
+                std::string const line = input.substr(line_start, i - line_start);
 
                 // Trim trailing whitespace for delimiter comparison
                 std::string trimmed = line;
@@ -2007,18 +2090,21 @@ static std::string preprocess_heredocs(const std::string& input) {
 
                 if (trimmed == delim) {
                     // Found delimiter, skip the newline
-                    if (i < len) i++;
+                    if (i < len) { i++;
+}
                     break;
                 }
 
-                if (!body.empty()) body += '\n';
+                if (!body.empty()) { body += '\n';
+}
                 body += line;
                 // If not doing variable expansion (quoted delimiter), use as-is
-                if (i < len) i++; // skip newline
+                if (i < len) { i++; // skip newline
+}
             }
 
             // Create temp file and replace in output
-            std::string temp_path = make_temp_file(body);
+            std::string const temp_path = make_temp_file(body);
             if (!temp_path.empty()) {
                 result += "< " + temp_path;
             } else {
@@ -2036,35 +2122,40 @@ static std::string preprocess_heredocs(const std::string& input) {
 // ── Shell Runners ──────────────────────────────────────────────────────────
 
 static void process_and_execute(const std::string& raw_input) {
-    if (raw_input.empty()) return;
+    if (raw_input.empty()) { return;
+}
 
     // Check for pure comment or whitespace
     bool all_blank = true;
     for (char c : raw_input) {
         if (c != ' ' && c != '\t' && c != '\n') { all_blank = false; break; }
     }
-    if (all_blank) return;
+    if (all_blank) { return;
+}
 
     // Pre-process heredocs
-    std::string input = preprocess_heredocs(raw_input);
+    std::string const input = preprocess_heredocs(raw_input);
 
     auto tokens = tokenize(input);
-    if (tokens.empty()) return;
+    if (tokens.empty()) { return;
+}
 
     auto ast = parse_program(tokens);
-    if (!ast) return;
+    if (!ast) { return;
+}
 
-    int ec = execute_node(*ast);
+    int const ec = execute_node(*ast);
     g_state.last_exit_code = ec;
 }
 
 static void shell_run_interactive() {
     g_state.input_mode = ShellState::INPUT_INTERACTIVE;
     while (g_state.running) {
-        std::string input = read_whole_command();
+        std::string const input = read_whole_command();
         if (input.empty()) {
             // EOF
-            if (g_state.stdin_tty) printf("\n");
+            if (g_state.stdin_tty) { printf("\n");
+}
             break;
         }
         g_state.line_number++;
@@ -2079,15 +2170,15 @@ static void shell_run_string(const char* script) {
     g_state.input_str_done = false;
 
     // For -c mode, process the entire string as a single command
-    std::string input = script;
+    std::string const input = script;
     g_state.line_number++;
     process_and_execute(input);
 }
 
 static void shell_run_script(const char* path) {
     FILE* f = fopen(path, "r");
-    if (!f) {
-        fprintf(stderr, "sh: %s: cannot open: %s\n", path, strerror(errno));
+    if (f == nullptr) {
+        (void)fprintf(stderr, "sh: %s: cannot open: %s\n", path, strerror(errno));
         g_state.last_exit_code = 127;
         return;
     }
@@ -2096,13 +2187,14 @@ static void shell_run_script(const char* path) {
     g_state.input_file = f;
 
     while (g_state.running) {
-        std::string input = read_whole_command();
-        if (input.empty()) break;
+        std::string const input = read_whole_command();
+        if (input.empty()) { break;
+}
         g_state.line_number++;
         process_and_execute(input);
     }
 
-    fclose(f);
+    (void)fclose(f);
     g_state.input_file = nullptr;
 }
 
@@ -2138,7 +2230,7 @@ int sh_command(int argc, char** argv) {
                     extra_args.push_back(argv[j]);
                 }
             } else {
-                fprintf(stderr, "sh: -c: option requires an argument\n");
+                (void)fprintf(stderr, "sh: -c: option requires an argument\n");
                 g_state.last_exit_code = 2;
                 return 0;
             }
@@ -2155,7 +2247,7 @@ int sh_command(int argc, char** argv) {
         } else if (strcmp(argv[i], "--") == 0) {
             break;
         } else {
-            fprintf(stderr, "sh: %s: unknown option\n", argv[i]);
+            (void)fprintf(stderr, "sh: %s: unknown option\n", argv[i]);
             g_state.last_exit_code = 2;
             return 0;
         }
@@ -2166,9 +2258,9 @@ int sh_command(int argc, char** argv) {
         g_state.pos_args.push_back(a);
     }
 
-    if (c_mode && script_arg) {
+    if (c_mode && (script_arg != nullptr)) {
         shell_run_string(script_arg);
-    } else if (script_file_mode && script_path) {
+    } else if (script_file_mode && (script_path != nullptr)) {
         shell_run_script(script_path);
     } else {
         shell_run_interactive();

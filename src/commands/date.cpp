@@ -2,7 +2,7 @@
 #include <cstring>
 #include <ctime>
 #include <string>
-#include <vector>
+#include <time.h>
 #include <sys/stat.h>
 
 #include "commands/date.hpp"
@@ -74,7 +74,7 @@ static bool parse_date_string(const char* s, time_t* result, bool utc) {
         NULL
     };
     for (int i = 0; fmt[i] != NULL; i++) {
-        char* end = strptime(s, fmt[i], &tm);
+        char const * end = strptime(s, fmt[i], &tm);
         if (end != NULL && *end == '\0') {
             *result = utc ? timegm(&tm) : mktime(&tm);
             return true;
@@ -106,28 +106,32 @@ int date_command(int argc, char** argv) {
         } else if (strcmp(a, "-R") == 0 || strcmp(a, "--rfc-email") == 0) {
             rfc = true;
         } else if (strncmp(a, "-d", 2) == 0) {
-            if (a[2] == '=') date_str = a + 3;
-            else if (strcmp(a, "-d") == 0 && i + 1 < argc) date_str = argv[++i];
-            else if (a[1] == 'd') date_str = a + 2;
+            if (a[2] == '=') { date_str = a + 3;
+            } else if (strcmp(a, "-d") == 0 && i + 1 < argc) { date_str = argv[++i];
+            } else if (a[1] == 'd') { date_str = a + 2;
+}
         } else if (strncmp(a, "--date=", 7) == 0) {
             date_str = a + 7;
         } else if (strncmp(a, "-r", 2) == 0) {
-            if (a[2] == '=') ref_file = a + 3;
-            else if (strcmp(a, "-r") == 0 && i + 1 < argc) ref_file = argv[++i];
-            else if (a[1] == 'r') ref_file = a + 2;
+            if (a[2] == '=') { ref_file = a + 3;
+            } else if (strcmp(a, "-r") == 0 && i + 1 < argc) { ref_file = argv[++i];
+            } else if (a[1] == 'r') { ref_file = a + 2;
+}
         } else if (strncmp(a, "--reference=", 12) == 0) {
             ref_file = a + 12;
         } else if (strncmp(a, "-I", 2) == 0) {
             iso = true;
-            if (a[2] == '=') iso_spec = a + 3;
-            else if (a[2] != '\0') iso_spec = a + 2;
+            if (a[2] == '=') { iso_spec = a + 3;
+            } else if (a[2] != '\0') { iso_spec = a + 2;
+}
         } else if (strncmp(a, "--iso-8601", 11) == 0) {
             iso = true;
-            if (strncmp(a, "--iso-8601=", 12) == 0) iso_spec = a + 12;
+            if (strncmp(a, "--iso-8601=", 12) == 0) { iso_spec = a + 12;
+}
         } else if (a[0] == '+') {
             plus_format = a + 1;
         } else {
-            fprintf(stderr, "date: invalid argument '%s'\n", a);
+            (void)fprintf(stderr, "date: invalid argument '%s'\n", a);
             return 0;
         }
     }
@@ -139,13 +143,13 @@ int date_command(int argc, char** argv) {
     if (ref_file != NULL) {
         struct stat st;
         if (stat(ref_file, &st) != 0) {
-            fprintf(stderr, "date: %s: No such file or directory\n", ref_file);
+            (void)fprintf(stderr, "date: %s: No such file or directory\n", ref_file);
             return 0;
         }
         t = st.st_mtime;
     } else if (date_str != NULL) {
         if (!parse_date_string(date_str, &t, utc)) {
-            fprintf(stderr, "date: invalid date '%s'\n", date_str);
+            (void)fprintf(stderr, "date: invalid date '%s'\n", date_str);
             return 0;
         }
     } else {
@@ -153,7 +157,7 @@ int date_command(int argc, char** argv) {
     }
 
     struct tm tm_store;
-    struct tm* tm = utc ? gmtime_r(&t, &tm_store) : localtime_r(&t, &tm_store);
+    const struct tm* tm = utc ? gmtime_r(&t, &tm_store) : localtime_r(&t, &tm_store);
 
     if (rfc) {
         char buf[256];
@@ -165,10 +169,11 @@ int date_command(int argc, char** argv) {
     if (iso) {
         const char* fmt = "%Y-%m-%d";
         if (iso_spec != NULL) {
-            if (strcmp(iso_spec, "hours") == 0) fmt = "%Y-%m-%dT%H";
-            else if (strcmp(iso_spec, "minutes") == 0) fmt = "%Y-%m-%dT%H:%M";
-            else if (strcmp(iso_spec, "seconds") == 0) fmt = "%Y-%m-%dT%H:%M:%S";
-            else if (strcmp(iso_spec, "ns") == 0) fmt = "%Y-%m-%dT%H:%M:%S";
+            if (strcmp(iso_spec, "hours") == 0) { fmt = "%Y-%m-%dT%H";
+            } else if (strcmp(iso_spec, "minutes") == 0) { fmt = "%Y-%m-%dT%H:%M";
+            } else if (strcmp(iso_spec, "seconds") == 0) { fmt = "%Y-%m-%dT%H:%M:%S";
+            } else if (strcmp(iso_spec, "ns") == 0) { fmt = "%Y-%m-%dT%H:%M:%S";
+}
         }
         char buf[256];
         if (strftime(buf, sizeof(buf), fmt, tm) > 0) {

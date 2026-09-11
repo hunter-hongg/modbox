@@ -1,8 +1,11 @@
 #include "commands/ausearch.hpp"
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 
+#include <cctype>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -11,16 +14,14 @@
 #include <regex>
 #include <iostream>
 #include <fstream>
-#include <functional>
-#include <map>
-#include <sstream>
 #include <string>
+#include <time.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include <pwd.h>
 #include <grp.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 // ── Data structures ──────────────────────────────────────────────────────────
@@ -946,40 +947,44 @@ static const char* lookup_syscall(int64_t num, const std::string& arch) {
         n = sizeof(i386_syscalls) / sizeof(i386_syscalls[0]);
     }
     for (size_t i = 0; i < n; ++i) {
-        if (table[i].first == num) return table[i].second;
+        if (table[i].first == num) { return table[i].second;
+}
     }
     return nullptr;
 }
 
 static std::string resolve_syscall(const std::string& val, const std::string& arch) {
     char* end = nullptr;
-    long num = std::strtol(val.c_str(), &end, 0);
+    long const num = std::strtol(val.c_str(), &end, 0);
     if (end != val.c_str() && *end == '\0') {
         const char* name = lookup_syscall(num, arch);
-        if (name) return name;
+        if (name != nullptr) { return name;
+}
     }
     return val;
 }
 
 static std::string resolve_uid(uint32_t uid) {
     const struct passwd* pw = getpwuid(uid);
-    if (pw) return std::string(pw->pw_name);
+    if (pw != nullptr) { return std::string(pw->pw_name);
+}
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "%u", uid);
+    (void)std::snprintf(buf, sizeof(buf), "%u", uid);
     return std::string(buf);
 }
 
 static std::string resolve_gid(uint32_t gid) {
     const struct group* gr = getgrgid(gid);
-    if (gr) return std::string(gr->gr_name);
+    if (gr != nullptr) { return std::string(gr->gr_name);
+}
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "%u", gid);
+    (void)std::snprintf(buf, sizeof(buf), "%u", gid);
     return std::string(buf);
 }
 
 static std::string resolve_uid_str(const std::string& val) {
     char* end = nullptr;
-    long num = std::strtol(val.c_str(), &end, 10);
+    long const num = std::strtol(val.c_str(), &end, 10);
     if (end != val.c_str() && *end == '\0') {
         return resolve_uid(static_cast<uint32_t>(num));
     }
@@ -988,7 +993,7 @@ static std::string resolve_uid_str(const std::string& val) {
 
 static std::string resolve_gid_str(const std::string& val) {
     char* end = nullptr;
-    long num = std::strtol(val.c_str(), &end, 10);
+    long const num = std::strtol(val.c_str(), &end, 10);
     if (end != val.c_str() && *end == '\0') {
         return resolve_gid(static_cast<uint32_t>(num));
     }
@@ -998,13 +1003,13 @@ static std::string resolve_gid_str(const std::string& val) {
 // Filter values accept a number or a name resolved via getpwnam/getgrnam.
 static bool parse_uid_value(const std::string& val, int64_t* out) {
     char* end = nullptr;
-    long long num = std::strtoll(val.c_str(), &end, 10);
+    long long const num = std::strtoll(val.c_str(), &end, 10);
     if (end != val.c_str() && *end == '\0') {
         *out = num;
         return true;
     }
     const struct passwd* pw = getpwnam(val.c_str());
-    if (pw) {
+    if (pw != nullptr) {
         *out = static_cast<int64_t>(pw->pw_uid);
         return true;
     }
@@ -1013,13 +1018,13 @@ static bool parse_uid_value(const std::string& val, int64_t* out) {
 
 static bool parse_gid_value(const std::string& val, int64_t* out) {
     char* end = nullptr;
-    long long num = std::strtoll(val.c_str(), &end, 10);
+    long long const num = std::strtoll(val.c_str(), &end, 10);
     if (end != val.c_str() && *end == '\0') {
         *out = num;
         return true;
     }
     const struct group* gr = getgrnam(val.c_str());
-    if (gr) {
+    if (gr != nullptr) {
         *out = static_cast<int64_t>(gr->gr_gid);
         return true;
     }
@@ -1117,7 +1122,7 @@ static const char* MESSAGE_TYPES =
 
 static bool parse_msg_stamp(const std::string& line, uint64_t& epoch, uint32_t& msec,
                             uint32_t& serial) {
-    std::string key = "msg=audit(";
+    std::string const key = "msg=audit(";
     size_t pos = line.find(key);
     if (pos == std::string::npos) {
         epoch = 0;
@@ -1126,11 +1131,12 @@ static bool parse_msg_stamp(const std::string& line, uint64_t& epoch, uint32_t& 
         return false;
     }
     pos += key.size();
-    size_t close = line.find(')', pos);
-    if (close == std::string::npos) return false;
-    std::string stamp = line.substr(pos, close - pos);
-    size_t dot = stamp.find('.');
-    size_t colon = stamp.find(':');
+    size_t const close = line.find(')', pos);
+    if (close == std::string::npos) { return false;
+}
+    std::string const stamp = line.substr(pos, close - pos);
+    size_t const dot = stamp.find('.');
+    size_t const colon = stamp.find(':');
     if (dot == std::string::npos || colon == std::string::npos || dot > colon) {
         return false;
     }
@@ -1144,8 +1150,9 @@ static bool parse_msg_stamp(const std::string& line, uint64_t& epoch, uint32_t& 
 
 static void parse_record_fields(const std::string& line, AuditRecord& rec) {
     // Find the start of msg=audit(
-    size_t msg_start = line.find("msg=audit(");
-    if (msg_start == std::string::npos) return;
+    size_t const msg_start = line.find("msg=audit(");
+    if (msg_start == std::string::npos) { return;
+}
 
     // Find the matching closing parenthesis of msg=audit(...)
     size_t paren_depth = 0;
@@ -1161,18 +1168,20 @@ static void parse_record_fields(const std::string& line, AuditRecord& rec) {
             --paren_depth;
         }
     }
-    if (msg_end == msg_start + 10) return;
+    if (msg_end == msg_start + 10) { return;
+}
 
     // Find the colon after the closing parenthesis
-    size_t colon_pos = line.find(':', msg_end);
-    if (colon_pos == std::string::npos) return;
+    size_t const colon_pos = line.find(':', msg_end);
+    if (colon_pos == std::string::npos) { return;
+}
 
     // Extract type from before msg=
-    size_t type_start = 0;
-    size_t type_end = line.find(' ', type_start);
+    size_t const type_start = 0;
+    size_t const type_end = line.find(' ', type_start);
     if (type_end != std::string::npos && type_end < msg_start) {
-        std::string type_part = line.substr(type_start, type_end - type_start);
-        size_t eq = type_part.find('=');
+        std::string const type_part = line.substr(type_start, type_end - type_start);
+        size_t const eq = type_part.find('=');
         if (eq != std::string::npos && type_part.substr(0, eq) == "type") {
             rec.type = type_part.substr(eq + 1);
         }
@@ -1183,13 +1192,16 @@ static void parse_record_fields(const std::string& line, AuditRecord& rec) {
     // a valid key contains no spaces, otherwise resync one character ahead.
     size_t pos = colon_pos + 1;
     while (pos < line.size()) {
-        while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) ++pos;
-        if (pos >= line.size()) break;
+        while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) { ++pos;
+}
+        if (pos >= line.size()) { break;
+}
 
         size_t eq_pos = line.find('=', pos);
-        if (eq_pos == std::string::npos) break;
+        if (eq_pos == std::string::npos) { break;
+}
 
-        std::string key = line.substr(pos, eq_pos - pos);
+        std::string const key = line.substr(pos, eq_pos - pos);
         if (key.empty() || key.find(' ') != std::string::npos) {
             ++pos;
             continue;
@@ -1198,8 +1210,8 @@ static void parse_record_fields(const std::string& line, AuditRecord& rec) {
 
         std::string value;
         if (eq_pos < line.size() && (line[eq_pos] == '"' || line[eq_pos] == '\'')) {
-            char quote = line[eq_pos];
-            size_t open_pos = eq_pos;
+            char const quote = line[eq_pos];
+            size_t const open_pos = eq_pos;
             ++eq_pos;
             size_t val_end = eq_pos;
             while (val_end < line.size() && line[val_end] != quote) {
@@ -1238,11 +1250,13 @@ static void assemble_events(std::vector<std::string>& lines,
     bool has_current = false;
 
     for (const auto& line : lines) {
-        if (line.empty()) continue;
-        AuditRecord rec = parse_audit_line(line);
-        if (rec.epoch == 0 && rec.serial == 0 && rec.type.empty()) continue;
+        if (line.empty()) { continue;
+}
+        AuditRecord const rec = parse_audit_line(line);
+        if (rec.epoch == 0 && rec.serial == 0 && rec.type.empty()) { continue;
+}
 
-        bool same_stamp = has_current &&
+        bool const same_stamp = has_current &&
             rec.epoch == current.epoch && rec.serial == current.serial;
         if (!same_stamp) {
             if (has_current) {
@@ -1266,14 +1280,14 @@ static void assemble_events(std::vector<std::string>& lines,
 static int parse_time_value(const std::string& val, time_t* result) {
     // Try numeric
     char* end = nullptr;
-    long long num = std::strtoll(val.c_str(), &end, 10);
+    long long const num = std::strtoll(val.c_str(), &end, 10);
     if (end != val.c_str() && *end == '\0') {
         *result = static_cast<time_t>(num);
         return 0;
     }
 
     // Special keywords
-    time_t now = std::time(nullptr);
+    time_t const now = std::time(nullptr);
     struct tm tm_now;
     localtime_r(&now, &tm_now);
 
@@ -1314,8 +1328,8 @@ static int parse_time_value(const std::string& val, time_t* result) {
         tm_now.tm_min = 0;
         tm_now.tm_sec = 0;
         // Monday of this week
-        int dow = tm_now.tm_wday;
-        int days_since_monday = (dow == 0) ? 6 : dow - 1;
+        int const dow = tm_now.tm_wday;
+        int const days_since_monday = (dow == 0) ? 6 : dow - 1;
         *result = std::mktime(&tm_now) - days_since_monday * 86400;
         return 0;
     }
@@ -1339,14 +1353,14 @@ static int parse_time_value(const std::string& val, time_t* result) {
     if (val == "boot") {
         // Try to read from /proc/uptime
         FILE* f = std::fopen("/proc/uptime", "r");
-        if (f) {
+        if (f != nullptr) {
             double uptime;
             if (std::fscanf(f, "%lf", &uptime) == 1) {
                 *result = static_cast<time_t>(now - uptime);
-                std::fclose(f);
+                (void)std::fclose(f);
                 return 0;
             }
-            std::fclose(f);
+            (void)std::fclose(f);
         }
         // Fallback: 24 hours ago
         *result = now - 86400;
@@ -1369,11 +1383,11 @@ static int parse_time_value(const std::string& val, time_t* result) {
 // ── Format helpers ───────────────────────────────────────────────────────────
 
 static std::string format_timestamp(uint64_t epoch) {
-    time_t t = static_cast<time_t>(epoch);
+    time_t const t = static_cast<time_t>(epoch);
     struct tm tm_val;
     localtime_r(&t, &tm_val);
     char buf[64];
-    std::strftime(buf, sizeof(buf), "%a %b %d %H:%M:%S %Y", &tm_val);
+    (void)std::strftime(buf, sizeof(buf), "%a %b %d %H:%M:%S %Y", &tm_val);
     return std::string(buf);
 }
 
@@ -1411,15 +1425,18 @@ static std::string unquote(const std::string& v) {
 }
 
 static bool is_uint(const std::string& s) {
-    if (s.empty()) return false;
+    if (s.empty()) { return false;
+}
     for (char c : s) {
-        if (c < '0' || c > '9') return false;
+        if (c < '0' || c > '9') { return false;
+}
     }
     return true;
 }
 
 static bool is_known_message_type(const std::string& t) {
-    if (t == "ALL") return true;
+    if (t == "ALL") { return true;
+}
     static const std::unordered_set<std::string> known = {
         "AVC", "AVC_PATH", "CIPSOV4_IN", "CIPSOV4_MAP", "CIPSOV4_OUT", "CRYPTO",
         "CRED_ACQ", "CRED_DISP", "EXECVE", "IPC", "KERNEL", "LOGIN", "MAC_POLICYLOAD",
@@ -1444,12 +1461,13 @@ static bool is_known_message_type(const std::string& t) {
 
 static bool matches_word(const std::string& haystack, const std::string& needle,
                          bool word_match) {
-    if (needle.empty()) return true;
+    if (needle.empty()) { return true;
+}
     if (word_match) {
         // Whole word: use word boundaries
-        std::string pattern = "(?<![[:alnum:]_])" + escape_regex(needle) + "(?![[:alnum:]_])";
+        std::string const pattern = "(?<![[:alnum:]_])" + escape_regex(needle) + "(?![[:alnum:]_])";
         try {
-            std::regex re(pattern, std::regex::ECMAScript);
+            std::regex const re(pattern, std::regex::ECMAScript);
             return std::regex_search(haystack, re);
         } catch (...) {
             return haystack == needle;
@@ -1477,15 +1495,17 @@ static bool record_matches(const AuditRecord& rec, const AusearchOptions* opts) 
             if (mt == "ALL") { all = true; break; }
             if (rec.type == mt) { found = true; break; }
         }
-        if (!all && !found) return false;
+        if (!all && !found) { return false;
+}
     }
 
-    if (opts->node) {
+    if (opts->node != nullptr) {
         const std::string* v = field(rec, "node");
-        if (!v || unquote(*v) != opts->node) return false;
+        if ((v == nullptr) || unquote(*v) != opts->node) { return false;
+}
     }
 
-    if (opts->host) {
+    if (opts->host != nullptr) {
         bool found = false;
         for (const auto& [k, v] : rec.fields) {
             if ((k == "addr" || k == "host") &&
@@ -1493,10 +1513,11 @@ static bool record_matches(const AuditRecord& rec, const AusearchOptions* opts) 
                 found = true; break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
 
-    if (opts->terminal) {
+    if (opts->terminal != nullptr) {
         bool found = false;
         for (const auto& [k, v] : rec.fields) {
             if ((k == "tty" || k == "term") &&
@@ -1504,153 +1525,184 @@ static bool record_matches(const AuditRecord& rec, const AusearchOptions* opts) 
                 found = true; break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
 
     if (opts->uid >= 0) {
         const std::string* v = field(rec, "uid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->uid) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->uid) { return false;
+}
     }
     if (opts->uid_eff >= 0) {
         const std::string* v = field(rec, "euid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->uid_eff) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->uid_eff) { return false;
+}
     }
     if (opts->uid_all >= 0) {
         bool found = false;
         for (const char* k : {"uid", "euid", "auid", "suid"}) {
             const std::string* v = field(rec, k);
-            if (v && is_uint(unquote(*v)) &&
+            if ((v != nullptr) && is_uint(unquote(*v)) &&
                 std::strtoll(unquote(*v).c_str(), nullptr, 10) == opts->uid_all) {
                 found = true; break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
     if (opts->loginuid >= 0) {
         const std::string* v = field(rec, "auid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->loginuid) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->loginuid) { return false;
+}
     }
 
     if (opts->gid >= 0) {
         const std::string* v = field(rec, "gid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->gid) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->gid) { return false;
+}
     }
     if (opts->gid_eff >= 0) {
         const std::string* v = field(rec, "egid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->gid_eff) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->gid_eff) { return false;
+}
     }
     if (opts->gid_all >= 0) {
         bool found = false;
         for (const char* k : {"gid", "egid", "sgid"}) {
             const std::string* v = field(rec, k);
-            if (v && is_uint(unquote(*v)) &&
+            if ((v != nullptr) && is_uint(unquote(*v)) &&
                 std::strtoll(unquote(*v).c_str(), nullptr, 10) == opts->gid_all) {
                 found = true; break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
 
     if (opts->pid >= 0) {
         const std::string* v = field(rec, "pid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->pid) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->pid) { return false;
+}
     }
     if (opts->ppid >= 0) {
         const std::string* v = field(rec, "ppid");
-        if (!v || !is_uint(unquote(*v)) ||
-            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->ppid) return false;
+        if ((v == nullptr) || !is_uint(unquote(*v)) ||
+            std::strtoll(unquote(*v).c_str(), nullptr, 10) != opts->ppid) { return false;
+}
     }
-    if (opts->comm) {
+    if (opts->comm != nullptr) {
         const std::string* v = field(rec, "comm");
-        if (!v || !matches_word(unquote(*v), opts->comm, opts->word_match)) return false;
+        if ((v == nullptr) || !matches_word(unquote(*v), opts->comm, opts->word_match)) { return false;
+}
     }
-    if (opts->executable) {
+    if (opts->executable != nullptr) {
         const std::string* v = field(rec, "exe");
-        if (!v || !matches_word(unquote(*v), opts->executable, opts->word_match)) return false;
+        if ((v == nullptr) || !matches_word(unquote(*v), opts->executable, opts->word_match)) { return false;
+}
     }
 
-    if (opts->syscall) {
+    if (opts->syscall != nullptr) {
         const std::string* v = field(rec, "syscall");
-        if (!v) return false;
-        std::string raw = unquote(*v);
+        if (v == nullptr) { return false;
+}
+        std::string const raw = unquote(*v);
         const std::string* arch = field(rec, "arch");
-        std::string resolved = resolve_syscall(raw, arch ? *arch : "x86_64");
+        std::string const resolved = resolve_syscall(raw, (arch != nullptr) ? *arch : "x86_64");
         if (!matches_word(raw, opts->syscall, opts->word_match) &&
-            !matches_word(resolved, opts->syscall, opts->word_match)) return false;
+            !matches_word(resolved, opts->syscall, opts->word_match)) { return false;
+}
     }
 
     if (opts->exit_code >= 0) {
         const std::string* v = field(rec, "exit");
-        if (!v) return false;
+        if (v == nullptr) { return false;
+}
         std::string raw = unquote(*v);
-        if (!(is_uint(raw) || (!raw.empty() && raw[0] == '-' && is_uint(raw.substr(1))))) {
+        if (!is_uint(raw) && (raw.empty() || raw[0] != '-' || !is_uint(raw.substr(1)))) {
             return false;
         }
-        if (std::strtoll(raw.c_str(), nullptr, 10) != opts->exit_code) return false;
+        if (std::strtoll(raw.c_str(), nullptr, 10) != opts->exit_code) { return false;
+}
     }
 
-    if (opts->arch) {
+    if (opts->arch != nullptr) {
         const std::string* v = field(rec, "arch");
-        if (!v) return false;
+        if (v == nullptr) { return false;
+}
         std::string f = unquote(*v);
         std::string a = opts->arch;
-        if (f.size() > 2 && f[0] == '0' && (f[1] == 'x' || f[1] == 'X')) f = f.substr(2);
-        if (a.size() > 2 && a[0] == '0' && (a[1] == 'x' || a[1] == 'X')) a = a.substr(2);
-        for (auto& c : f) c = std::tolower(c);
-        for (auto& c : a) c = std::tolower(c);
-        if (f != a) return false;
+        if (f.size() > 2 && f[0] == '0' && (f[1] == 'x' || f[1] == 'X')) { f = f.substr(2);
+}
+        if (a.size() > 2 && a[0] == '0' && (a[1] == 'x' || a[1] == 'X')) { a = a.substr(2);
+}
+        for (auto& c : f) { c = std::tolower(c);
+}
+        for (auto& c : a) { c = std::tolower(c);
+}
+        if (f != a) { return false;
+}
     }
 
-    if (opts->success) {
+    if (opts->success != nullptr) {
         const std::string* v = field(rec, "success");
-        if (!v) return false;
+        if (v == nullptr) { return false;
+}
         std::string sv = unquote(*v);
-        for (auto& c : sv) c = std::tolower(c);
+        for (auto& c : sv) { c = std::tolower(c);
+}
         std::string expected = opts->success;
-        for (auto& c : expected) c = std::tolower(c);
-        if (sv != expected) return false;
+        for (auto& c : expected) { c = std::tolower(c);
+}
+        if (sv != expected) { return false;
+}
     }
 
-    if (opts->file) {
+    if (opts->file != nullptr) {
         bool found = false;
         for (const auto& [k, v] : rec.fields) {
             if (k == "name" && matches_word(unquote(v), opts->file, opts->word_match)) {
                 found = true; break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
 
-    if (opts->key) {
+    if (opts->key != nullptr) {
         const std::string* v = field(rec, "key");
-        if (!v || !matches_word(unquote(*v), opts->key, opts->word_match)) return false;
+        if ((v == nullptr) || !matches_word(unquote(*v), opts->key, opts->word_match)) { return false;
+}
     }
 
-    if (opts->subject) {
+    if (opts->subject != nullptr) {
         const std::string* v = field(rec, "scontext");
-        if (!v || !matches_word(unquote(*v), opts->subject, opts->word_match)) return false;
+        if ((v == nullptr) || !matches_word(unquote(*v), opts->subject, opts->word_match)) { return false;
+}
     }
 
-    if (opts->object) {
+    if (opts->object != nullptr) {
         const std::string* v = field(rec, "tcontext");
-        if (!v || !matches_word(unquote(*v), opts->object, opts->word_match)) return false;
+        if ((v == nullptr) || !matches_word(unquote(*v), opts->object, opts->word_match)) { return false;
+}
     }
 
-    if (opts->context) {
+    if (opts->context != nullptr) {
         bool found = false;
         for (const char* k : {"scontext", "tcontext"}) {
             const std::string* v = field(rec, k);
-            if (v && matches_word(unquote(*v), opts->context, opts->word_match)) {
+            if ((v != nullptr) && matches_word(unquote(*v), opts->context, opts->word_match)) {
                 found = true; break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
 
     return true;
@@ -1663,9 +1715,11 @@ static bool event_matches(const AuditEvent& event, const AusearchOptions* opts) 
     if (opts->end_time >= 0 && event.epoch > static_cast<uint64_t>(opts->end_time)) {
         return false;
     }
-    if (!has_record_filters(opts)) return true;
+    if (!has_record_filters(opts)) { return true;
+}
     for (const auto& rec : event.records) {
-        if (record_matches(rec, opts)) return true;
+        if (record_matches(rec, opts)) { return true;
+}
     }
     return false;
 }
@@ -1673,34 +1727,37 @@ static bool event_matches(const AuditEvent& event, const AusearchOptions* opts) 
 // ── Output ───────────────────────────────────────────────────────────────────
 
 static void emit_default_event(const AuditEvent& event, const AusearchOptions*) {
-    std::string ts = format_timestamp(event.epoch);
-    fprintf(stdout, "---- time->%s\n", ts.c_str());
+    std::string const ts = format_timestamp(event.epoch);
+    (void)fprintf(stdout, "---- time->%s\n", ts.c_str());
     for (const auto& rec : event.records) {
         char stamp[64];
-        std::snprintf(stamp, sizeof(stamp), "msg=audit(%llu.%03u:%u): ",
-                      (unsigned long long)event.epoch, event.msec, event.serial);
-        fprintf(stdout, "type=%s %s", rec.type.c_str(), stamp);
+        (void)std::snprintf(stamp, sizeof(stamp), "msg=audit(%llu.%03u:%u): ",
+                      static_cast<unsigned long long>(event.epoch), event.msec, event.serial);
+        (void)fprintf(stdout, "type=%s %s", rec.type.c_str(), stamp);
         bool first = true;
         for (const auto& [k, v] : rec.fields) {
-            if (k == "type") continue;
-            if (!first) fprintf(stdout, " ");
-            fprintf(stdout, "%s=%s", k.c_str(), v.c_str());
+            if (k == "type") { continue;
+}
+            if (!first) { (void)fprintf(stdout, " ");
+}
+            (void)fprintf(stdout, "%s=%s", k.c_str(), v.c_str());
             first = false;
         }
-        fprintf(stdout, "\n");
+        (void)fprintf(stdout, "\n");
     }
 }
 
 static void emit_raw_event(const AuditEvent& event, const AusearchOptions*) {
     for (const auto& rec : event.records) {
-        fprintf(stdout, "%s\n", rec.raw_line.c_str());
+        (void)fprintf(stdout, "%s\n", rec.raw_line.c_str());
     }
 }
 
 static std::string interpret_field(const std::string& k, const std::string& v,
                                    const AuditRecord& rec) {
-    if (!is_uint(v)) return v;
-    long long n = std::strtoll(v.c_str(), nullptr, 10);
+    if (!is_uint(v)) { return v;
+}
+    long long const n = std::strtoll(v.c_str(), nullptr, 10);
     if (k == "uid" || k == "euid" || k == "suid" || k == "fsuid" || k == "auid") {
         return resolve_uid(static_cast<uint32_t>(n));
     }
@@ -1710,34 +1767,37 @@ static std::string interpret_field(const std::string& k, const std::string& v,
     if (k == "syscall") {
         const std::string* arch = field(rec, "arch");
         const char* name = lookup_syscall(static_cast<int64_t>(n),
-                                          arch ? *arch : std::string("x86_64"));
-        if (name) return name;
+                                          (arch != nullptr) ? *arch : std::string("x86_64"));
+        if (name != nullptr) { return name;
+}
     }
     return v;
 }
 
 static void emit_interpret_event(const AuditEvent& event, const AusearchOptions*) {
-    std::string ts = format_timestamp(event.epoch);
-    fprintf(stdout, "---- time->%s\n", ts.c_str());
+    std::string const ts = format_timestamp(event.epoch);
+    (void)fprintf(stdout, "---- time->%s\n", ts.c_str());
     for (const auto& rec : event.records) {
         char stamp[64];
-        std::snprintf(stamp, sizeof(stamp), "msg=audit(%llu.%03u:%u): ",
-                      (unsigned long long)event.epoch, event.msec, event.serial);
-        fprintf(stdout, "type=%s %s", rec.type.c_str(), stamp);
+        (void)std::snprintf(stamp, sizeof(stamp), "msg=audit(%llu.%03u:%u): ",
+                      static_cast<unsigned long long>(event.epoch), event.msec, event.serial);
+        (void)fprintf(stdout, "type=%s %s", rec.type.c_str(), stamp);
         bool first = true;
         for (const auto& [k, v] : rec.fields) {
-            if (k == "type") continue;
-            if (!first) fprintf(stdout, " ");
-            fprintf(stdout, "%s=%s", k.c_str(), interpret_field(k, v, rec).c_str());
+            if (k == "type") { continue;
+}
+            if (!first) { (void)fprintf(stdout, " ");
+}
+            (void)fprintf(stdout, "%s=%s", k.c_str(), interpret_field(k, v, rec).c_str());
             first = false;
         }
-        fprintf(stdout, "\n");
+        (void)fprintf(stdout, "\n");
     }
 }
 
 static void flush_output(const AusearchOptions* opts) {
     if (opts->line_buffered) {
-        std::fflush(stdout);
+        (void)std::fflush(stdout);
     }
 }
 
@@ -1745,21 +1805,23 @@ static void flush_output(const AusearchOptions* opts) {
 
 static std::vector<std::string> read_input(const char* input_path) {
     std::vector<std::string> lines;
-    if (input_path) {
+    if (input_path != nullptr) {
         std::ifstream file(input_path);
         if (!file.is_open()) {
-            fprintf(stderr, "ausearch: cannot open '%s': %s\n",
+            (void)fprintf(stderr, "ausearch: cannot open '%s': %s\n",
                     input_path, strerror(errno));
             return lines;
         }
         std::string line;
         while (std::getline(file, line)) {
-            if (!line.empty()) lines.push_back(line);
+            if (!line.empty()) { lines.push_back(line);
+}
         }
     } else {
         std::string line;
         while (std::getline(std::cin, line)) {
-            if (!line.empty()) lines.push_back(line);
+            if (!line.empty()) { lines.push_back(line);
+}
         }
     }
     return lines;
@@ -1858,7 +1920,7 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
         }
     }
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("%s", AUSEARCH_HELP);
@@ -1878,7 +1940,7 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
     for (int i = 0; i < message_opt->count; ++i) {
         const std::string mt = message_opt->sval[i];
         if (!is_known_message_type(mt)) {
-            fprintf(stderr, "ausearch: unknown message type '%s'\n", mt.c_str());
+            (void)fprintf(stderr, "ausearch: unknown message type '%s'\n", mt.c_str());
             return 1;
         }
     }
@@ -1888,15 +1950,15 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
 
     // Unsupported libaudit flags
     if (event_opt->count > 0) {
-        fprintf(stderr, "ausearch: libaudit not available\n");
+        (void)fprintf(stderr, "ausearch: libaudit not available\n");
         return 1;
     }
     if (boot_opt->count > 0) {
-        fprintf(stderr, "ausearch: libaudit not available\n");
+        (void)fprintf(stderr, "ausearch: libaudit not available\n");
         return 1;
     }
     if (lastreload_opt->count > 0) {
-        fprintf(stderr, "ausearch: libaudit not available\n");
+        (void)fprintf(stderr, "ausearch: libaudit not available\n");
         return 1;
     }
 
@@ -1909,34 +1971,39 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
     opts.node = (node_opt->count > 0) ? node_opt->sval[0] : nullptr;
 
     if (uid_opt->count > 0 && !parse_uid_value(uid_opt->sval[0], &opts.uid)) {
-        fprintf(stderr, "ausearch: cannot resolve uid '%s'\n", uid_opt->sval[0]);
+        (void)fprintf(stderr, "ausearch: cannot resolve uid '%s'\n", uid_opt->sval[0]);
         return 1;
     }
     if (uid_eff_opt->count > 0 && !parse_uid_value(uid_eff_opt->sval[0], &opts.uid_eff)) {
-        fprintf(stderr, "ausearch: cannot resolve uid '%s'\n", uid_eff_opt->sval[0]);
+        (void)fprintf(stderr, "ausearch: cannot resolve uid '%s'\n", uid_eff_opt->sval[0]);
         return 1;
     }
-    if (uid_all_opt->count > 0) opts.uid_all = uid_all_opt->ival[0];
+    if (uid_all_opt->count > 0) { opts.uid_all = uid_all_opt->ival[0];
+}
     if (loginuid_opt->count > 0 && !parse_uid_value(loginuid_opt->sval[0], &opts.loginuid)) {
-        fprintf(stderr, "ausearch: cannot resolve loginuid '%s'\n", loginuid_opt->sval[0]);
+        (void)fprintf(stderr, "ausearch: cannot resolve loginuid '%s'\n", loginuid_opt->sval[0]);
         return 1;
     }
     if (gid_opt->count > 0 && !parse_gid_value(gid_opt->sval[0], &opts.gid)) {
-        fprintf(stderr, "ausearch: cannot resolve gid '%s'\n", gid_opt->sval[0]);
+        (void)fprintf(stderr, "ausearch: cannot resolve gid '%s'\n", gid_opt->sval[0]);
         return 1;
     }
     if (gid_eff_opt->count > 0 && !parse_gid_value(gid_eff_opt->sval[0], &opts.gid_eff)) {
-        fprintf(stderr, "ausearch: cannot resolve gid '%s'\n", gid_eff_opt->sval[0]);
+        (void)fprintf(stderr, "ausearch: cannot resolve gid '%s'\n", gid_eff_opt->sval[0]);
         return 1;
     }
-    if (gid_all_opt->count > 0) opts.gid_all = gid_all_opt->ival[0];
-    if (pid_opt->count > 0) opts.pid = pid_opt->ival[0];
-    if (ppid_opt->count > 0) opts.ppid = ppid_opt->ival[0];
+    if (gid_all_opt->count > 0) { opts.gid_all = gid_all_opt->ival[0];
+}
+    if (pid_opt->count > 0) { opts.pid = pid_opt->ival[0];
+}
+    if (ppid_opt->count > 0) { opts.ppid = ppid_opt->ival[0];
+}
     opts.comm = (comm_opt->count > 0) ? comm_opt->sval[0] : nullptr;
     opts.executable = (executable_opt->count > 0) ? executable_opt->sval[0] : nullptr;
 
     opts.syscall = (syscall_opt->count > 0) ? syscall_opt->sval[0] : nullptr;
-    if (exit_opt->count > 0) opts.exit_code = exit_opt->ival[0];
+    if (exit_opt->count > 0) { opts.exit_code = exit_opt->ival[0];
+}
     opts.arch = (arch_opt->count > 0) ? arch_opt->sval[0] : nullptr;
 
     opts.file = (file_opt->count > 0) ? file_opt->sval[0] : nullptr;
@@ -1966,7 +2033,8 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
     // Determine output format (--format takes priority)
     if (format_opt->count > 0) {
         std::string fmt = format_opt->sval[0];
-        for (auto& c : fmt) c = std::tolower(c);
+        for (auto& c : fmt) { c = std::tolower(c);
+}
         if (fmt == "raw") {
             opts.output_format = OUTPUT_RAW;
         } else if (fmt == "interpret") {
@@ -1974,10 +2042,10 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
         } else if (fmt == "default") {
             opts.output_format = OUTPUT_DEFAULT;
         } else if (fmt == "csv" || fmt == "text") {
-            fprintf(stderr, "ausearch: --format %s is not supported\n", format_opt->sval[0]);
+            (void)fprintf(stderr, "ausearch: --format %s is not supported\n", format_opt->sval[0]);
             return 1;
         } else {
-            fprintf(stderr, "ausearch: unknown format '%s'\n", format_opt->sval[0]);
+            (void)fprintf(stderr, "ausearch: unknown format '%s'\n", format_opt->sval[0]);
             return 1;
         }
     } else {
@@ -1995,9 +2063,9 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
     opts.word_match = (word_opt->count > 0);
 
     // Check input
-    bool has_input = (opts.input_file != nullptr) || opts.input_logs;
-    if (!has_input && isatty(STDIN_FILENO)) {
-        fprintf(stderr, "ausearch: no input specified\n");
+    bool const has_input = (opts.input_file != nullptr) || opts.input_logs;
+    if (!has_input && (isatty(STDIN_FILENO) != 0)) {
+        (void)fprintf(stderr, "ausearch: no input specified\n");
         return 1;
     }
 
@@ -2010,7 +2078,8 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
 
     // Filter and output
     for (const auto& event : events) {
-        if (!event_matches(event, &opts)) continue;
+        if (!event_matches(event, &opts)) { continue;
+}
         switch (opts.output_format) {
             case OUTPUT_DEFAULT:
                 emit_default_event(event, &opts);
@@ -2023,7 +2092,8 @@ struct arg_int* gid_all_opt = arg_int0(NULL, "gid-all", "NUM", "match NUM in any
                 break;
         }
         flush_output(&opts);
-        if (opts.just_one) break;
+        if (opts.just_one) { break;
+}
     }
 
     return 0;

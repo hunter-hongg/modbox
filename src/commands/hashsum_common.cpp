@@ -2,7 +2,10 @@
 
 #include <cstdio>
 #include <cstring>
+#include <openssl/evp.h>
+#include <ios>
 #include <string>
+#include <utility>
 #include <vector>
 #include <fstream>
 #include <argtable3.h>
@@ -28,12 +31,13 @@ struct HashSumOptions {
 static std::string compute_hash(const HashAlgoSpec& spec, const std::string& filepath,
                                 bool is_stdin, int bits) {
     const EVP_MD* md = spec.md();
-    int digest_bytes = (int)EVP_MD_size(md);
-    int actual_bits = (bits > 0 && bits <= digest_bytes * 8) ? bits : digest_bytes * 8;
-    int actual_bytes = (actual_bits + 7) / 8;
+    int const digest_bytes = (int)EVP_MD_size(md);
+    int const actual_bits = (bits > 0 && bits <= digest_bytes * 8) ? bits : digest_bytes * 8;
+    int const actual_bytes = (actual_bits + 7) / 8;
 
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) return "";
+    if (ctx == nullptr) { return "";
+}
     EVP_DigestInit_ex(ctx, md, nullptr);
 
     if (is_stdin) {
@@ -62,13 +66,13 @@ static std::string compute_hash(const HashAlgoSpec& spec, const std::string& fil
     EVP_DigestFinal_ex(ctx, hash, &hash_len);
     EVP_MD_CTX_free(ctx);
 
-    if (actual_bytes < (int)hash_len) {
+    if (actual_bytes < static_cast<int>(hash_len)) {
         hash_len = actual_bytes;
     }
 
     char hex_hash[EVP_MAX_MD_SIZE * 2 + 1];
     for (unsigned int i = 0; i < hash_len; i++) {
-        sprintf(hex_hash + (i * 2), "%02x", hash[i]);
+        (void)sprintf(hex_hash + (i * 2), "%02x", hash[i]);
     }
     hex_hash[hash_len * 2] = '\0';
 
@@ -79,12 +83,12 @@ static bool check_checksums(const HashAlgoSpec& spec, const std::string& checksu
                             const HashSumOptions& opts) {
     std::ifstream file(checksum_file);
     if (!file) {
-        fprintf(stderr, "%s: %s: No such file or directory\n", spec.prog,
+        (void)fprintf(stderr, "%s: %s: No such file or directory\n", spec.prog,
                 checksum_file.c_str());
         return false;
     }
 
-    size_t fixed_hex_len = (size_t)EVP_MD_size(spec.md()) * 2;
+    size_t const fixed_hex_len = static_cast<size_t>(EVP_MD_size(spec.md())) * 2;
 
     std::string line;
     int ok_count = 0;
@@ -93,33 +97,34 @@ static bool check_checksums(const HashAlgoSpec& spec, const std::string& checksu
     int format_error_count = 0;
 
     while (std::getline(file, line)) {
-        if (line.empty()) continue;
+        if (line.empty()) { continue;
+}
 
         // "HASH  filename" or "HASH *filename"; fixed-width hash for the
         // md5/sha family, variable width (>= 8 hex chars) for b2sum.
-        size_t space_pos = line.find(' ');
-        bool bad_width = spec.variable_length
+        size_t const space_pos = line.find(' ');
+        bool const bad_width = spec.variable_length
                              ? (space_pos == std::string::npos || space_pos < 8)
                              : (space_pos == std::string::npos || space_pos != fixed_hex_len);
         if (bad_width || space_pos + 2 >= line.length()) {
-            if (opts.warn || opts.strict) {
-                fprintf(stderr, "%s: %s: improperly formatted checksum line\n",
+            if ((opts.warn != 0) || (opts.strict != 0)) {
+                (void)fprintf(stderr, "%s: %s: improperly formatted checksum line\n",
                         spec.prog, checksum_file.c_str());
             }
-            if (opts.strict) {
+            if (opts.strict != 0) {
                 format_error_count++;
             }
             continue;
         }
 
-        std::string expected_hash = line.substr(0, space_pos);
+        std::string const expected_hash = line.substr(0, space_pos);
         std::string filename = line.substr(space_pos + 2);
 
         // Backslash escapes in filename
         size_t pos = 0;
         while ((pos = filename.find('\\', pos)) != std::string::npos) {
             if (pos + 1 < filename.length()) {
-                char next_char = filename[pos + 1];
+                char const next_char = filename[pos + 1];
                 if (next_char == '\\') {
                     filename.replace(pos, 2, "\\");
                 } else if (next_char == 'n') {
@@ -131,12 +136,12 @@ static bool check_checksums(const HashAlgoSpec& spec, const std::string& checksu
             }
         }
 
-        int bits = spec.variable_length ? (int)(expected_hash.length() * 4) : 0;
+        int const bits = spec.variable_length ? static_cast<int>(expected_hash.length() * 4) : 0;
 
-        std::string actual_hash = compute_hash(spec, filename, false, bits);
+        std::string const actual_hash = compute_hash(spec, filename, false, bits);
         if (actual_hash.empty()) {
-            if (!opts.ignore_missing) {
-                fprintf(stderr, "%s: %s: No such file or directory\n", spec.prog,
+            if (opts.ignore_missing == 0) {
+                (void)fprintf(stderr, "%s: %s: No such file or directory\n", spec.prog,
                         filename.c_str());
                 missing_count++;
             }
@@ -144,12 +149,12 @@ static bool check_checksums(const HashAlgoSpec& spec, const std::string& checksu
         }
 
         if (actual_hash == expected_hash) {
-            if (!opts.quiet && !opts.status) {
+            if ((opts.quiet == 0) && (opts.status == 0)) {
                 printf("%s: OK\n", filename.c_str());
             }
             ok_count++;
         } else {
-            if (!opts.status) {
+            if (opts.status == 0) {
                 printf("%s: FAILED\n", filename.c_str());
             }
             failed_count++;
@@ -158,21 +163,21 @@ static bool check_checksums(const HashAlgoSpec& spec, const std::string& checksu
 
     file.close();
 
-    if (opts.status) {
+    if (opts.status != 0) {
         return (failed_count == 0 && missing_count == 0 && format_error_count == 0);
     }
 
     if (failed_count > 0 || missing_count > 0 || format_error_count > 0) {
         if (failed_count > 0) {
-            fprintf(stderr, "%s: WARNING: %d computed checksum did NOT match\n",
+            (void)fprintf(stderr, "%s: WARNING: %d computed checksum did NOT match\n",
                     spec.prog, failed_count);
         }
         if (missing_count > 0) {
-            fprintf(stderr, "%s: WARNING: %d listed file could not be read\n",
+            (void)fprintf(stderr, "%s: WARNING: %d listed file could not be read\n",
                     spec.prog, missing_count);
         }
         if (format_error_count > 0) {
-            fprintf(stderr, "%s: WARNING: %d line is improperly formatted\n",
+            (void)fprintf(stderr, "%s: WARNING: %d line is improperly formatted\n",
                     spec.prog, format_error_count);
         }
         return false;
@@ -202,14 +207,15 @@ int hashsum_main(int argc, char** argv, const HashAlgoSpec& spec) {
     std::vector<void*> table = {binary_opt, text_opt, check_opt, tag_opt, zero_opt,
                                 quiet_opt, status_opt, strict_opt, warn_opt,
                                 ignore_missing_opt};
-    if (length_opt) table.push_back(length_opt);
+    if (length_opt != nullptr) { table.push_back(length_opt);
+}
     table.push_back(help_opt);
     table.push_back(files_arg);
     table.push_back(end);
 
     ArgTable at(std::move(table));
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -243,30 +249,30 @@ int hashsum_main(int argc, char** argv, const HashAlgoSpec& spec) {
     }
 
     HashSumOptions opts;
-    opts.binary = (binary_opt->count > 0);
-    opts.text = (text_opt->count > 0);
-    opts.check = (check_opt->count > 0);
-    opts.tag = (tag_opt->count > 0);
-    opts.zero = (zero_opt->count > 0);
-    opts.quiet = (quiet_opt->count > 0);
-    opts.status = (status_opt->count > 0);
-    opts.strict = (strict_opt->count > 0);
-    opts.warn = (warn_opt->count > 0);
-    opts.ignore_missing = (ignore_missing_opt->count > 0);
-    opts.length = (length_opt && length_opt->count > 0) ? length_opt->ival[0] : 0;
+    opts.binary = static_cast<int>(binary_opt->count > 0);
+    opts.text = static_cast<int>(text_opt->count > 0);
+    opts.check = static_cast<int>(check_opt->count > 0);
+    opts.tag = static_cast<int>(tag_opt->count > 0);
+    opts.zero = static_cast<int>(zero_opt->count > 0);
+    opts.quiet = static_cast<int>(quiet_opt->count > 0);
+    opts.status = static_cast<int>(status_opt->count > 0);
+    opts.strict = static_cast<int>(strict_opt->count > 0);
+    opts.warn = static_cast<int>(warn_opt->count > 0);
+    opts.ignore_missing = static_cast<int>(ignore_missing_opt->count > 0);
+    opts.length = ((length_opt != nullptr) && length_opt->count > 0) ? length_opt->ival[0] : 0;
 
     if (opts.length > 0 && (opts.length < 8 || opts.length > 512)) {
-        fprintf(stderr, "%s: invalid length: %d (must be 8-512)\n", spec.prog, opts.length);
+        (void)fprintf(stderr, "%s: invalid length: %d (must be 8-512)\n", spec.prog, opts.length);
         return 1;
     }
 
-    if (!opts.binary && !opts.text) {
+    if ((opts.binary == 0) && (opts.text == 0)) {
         opts.text = 1;
     }
 
-    if (opts.check) {
+    if (opts.check != 0) {
         if (files_arg->count == 0) {
-            fprintf(stderr, "%s: no files specified for check mode\n", spec.prog);
+            (void)fprintf(stderr, "%s: no files specified for check mode\n", spec.prog);
             return 1;
         }
 
@@ -279,7 +285,7 @@ int hashsum_main(int argc, char** argv, const HashAlgoSpec& spec) {
         return all_ok ? 0 : 1;
     }
 
-    bool use_stdin = (files_arg->count == 0);
+    bool const use_stdin = (files_arg->count == 0);
     std::vector<std::string> files_to_hash;
 
     if (use_stdin) {
@@ -292,26 +298,26 @@ int hashsum_main(int argc, char** argv, const HashAlgoSpec& spec) {
 
     int status = 0;
     for (const auto& file : files_to_hash) {
-        bool is_stdin = (file == "-");
-        std::string hash = compute_hash(spec, is_stdin ? "" : file, is_stdin, opts.length);
+        bool const is_stdin = (file == "-");
+        std::string const hash = compute_hash(spec, is_stdin ? "" : file, is_stdin, opts.length);
 
         if (hash.empty() && !is_stdin) {
-            fprintf(stderr, "%s: %s: No such file or directory\n", spec.prog, file.c_str());
+            (void)fprintf(stderr, "%s: %s: No such file or directory\n", spec.prog, file.c_str());
             status = 1;
             continue;
         }
 
-        char mode_char = opts.binary ? '*' : ' ';
-        std::string filename = is_stdin ? "-" : file;
+        char const mode_char = (opts.binary != 0) ? '*' : ' ';
+        std::string const filename = is_stdin ? "-" : file;
 
-        if (opts.tag) {
+        if (opts.tag != 0) {
             printf("%s (%s) = %s", spec.tag, filename.c_str(), hash.c_str());
         } else {
             printf("%s %c%s", hash.c_str(), mode_char, filename.c_str());
         }
 
-        if (opts.zero) {
-            fputc('\0', stdout);
+        if (opts.zero != 0) {
+            (void)fputc('\0', stdout);
         } else {
             printf("\n");
         }

@@ -12,7 +12,7 @@ struct PipelineLine {
 };
 
 std::vector<PipelineLine*> read_file_to_lines(const char* path);
-std::vector<PipelineLine*> read_stdin_to_lines(void);
+std::vector<PipelineLine*> read_stdin_to_lines();
 void free_pipeline_lines(std::vector<PipelineLine*>* lines);
 std::vector<PipelineLine*>* slice_range(std::vector<PipelineLine*>* lines, int start, int end);
 std::vector<PipelineLine*>* slice_head(std::vector<PipelineLine*>* lines, int n);

@@ -1,11 +1,11 @@
 #include <argtable3.h>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
-#include <time.h>
+#include <ctime>
 #include <unistd.h>
 
 #include "commands/touch.hpp"
@@ -35,7 +35,7 @@ int touch_command(int argc, char **argv) {
   ArgTable at({only_atime_opt, only_mtime_opt, no_create_opt,
                reference_opt, date_opt, help_opt, files_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -55,13 +55,13 @@ int touch_command(int argc, char **argv) {
   }
 
   TouchOptions opts = {};
-  opts.only_atime = (only_atime_opt->count > 0);
-  opts.only_mtime = (only_mtime_opt->count > 0);
-  opts.no_create = (no_create_opt->count > 0);
+  opts.only_atime = static_cast<int>(only_atime_opt->count > 0);
+  opts.only_mtime = static_cast<int>(only_mtime_opt->count > 0);
+  opts.no_create = static_cast<int>(no_create_opt->count > 0);
   opts.reference = (reference_opt->count > 0) ? reference_opt->sval[0] : NULL;
   opts.timestamp = (date_opt->count > 0) ? date_opt->sval[0] : NULL;
 
-  int num_files = files_arg->count;
+  int const num_files = files_arg->count;
   if (num_files < 1) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "touch: missing file operand\n");
@@ -71,10 +71,10 @@ int touch_command(int argc, char **argv) {
   /* If neither -a nor -m specified, change both */
   int change_atime = 1;
   int change_mtime = 1;
-  if (opts.only_atime && !opts.only_mtime) {
+  if ((opts.only_atime != 0) && (opts.only_mtime == 0)) {
     change_mtime = 0;
   }
-  if (opts.only_mtime && !opts.only_atime) {
+  if ((opts.only_mtime != 0) && (opts.only_atime == 0)) {
     change_atime = 0;
   }
 
@@ -99,10 +99,10 @@ int touch_command(int argc, char **argv) {
 
     int fd = -1;
     struct stat st;
-    int exists = (stat(path, &st) == 0);
+    int const exists = static_cast<int>(stat(path, &st) == 0);
 
-    if (!exists) {
-      if (opts.no_create) {
+    if (exists == 0) {
+      if (opts.no_create != 0) {
         continue;
       }
       /* Create empty file */
@@ -128,7 +128,7 @@ int touch_command(int argc, char **argv) {
     /* Build times array */
     struct timespec times[2];
 
-    if (use_ref) {
+    if (use_ref != 0) {
       times[0] = ref_times[0];
       times[1] = ref_times[1];
     } else {
@@ -141,10 +141,10 @@ int touch_command(int argc, char **argv) {
     }
 
     /* Preserve the time we're NOT changing */
-    if (!change_atime) {
+    if (change_atime == 0) {
       times[0] = st.st_atim;
     }
-    if (!change_mtime) {
+    if (change_mtime == 0) {
       times[1] = st.st_mtim;
     }
 

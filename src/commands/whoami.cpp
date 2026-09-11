@@ -12,7 +12,7 @@ int whoami_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({help_opt, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -26,10 +26,10 @@ int whoami_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    uid_t uid = geteuid();
-    struct passwd* pw = getpwuid(uid);
+    uid_t const uid = geteuid();
+    const struct passwd* pw = getpwuid(uid);
     if (pw == NULL) {
-        fprintf(stderr, "whoami: cannot find name for user ID %u\n", (unsigned)uid);
+        (void)fprintf(stderr, "whoami: cannot find name for user ID %u\n", static_cast<unsigned>(uid));
         return 0;
     }
 

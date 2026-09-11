@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
-#include <sys/stat.h>
 
 #include "commands/sed.hpp"
 #include "commands/arg_util.hpp"
@@ -69,8 +68,9 @@ static std::string escape_for_regex(const std::string& s) {
         if (c == '\\' || c == '.' || c == '*' || c == '+' ||
             c == '^' || c == '$' || c == '[' || c == ']' ||
             c == '{' || c == '}' || c == '(' || c == ')' ||
-            c == '|' || c == '?' || c == '/')
+            c == '|' || c == '?' || c == '/') {
             out += '\\';
+}
         out += c;
     }
     return out;
@@ -97,7 +97,7 @@ static std::string bre_to_ecma(const std::string& bre) {
             continue;
         }
         if (bre[i] == '\\' && i + 1 < bre.size()) {
-            char n = bre[i + 1];
+            char const n = bre[i + 1];
             if (n == '(' || n == ')' || n == '{' || n == '}') {
                 out += n; // strip backslash: \( → (
                 i++;
@@ -126,7 +126,7 @@ static std::string convert_replacement(const std::string& s, bool extended) {
         if (s[i] == '&') {
             out += "$&";
         } else if (s[i] == '\\' && i + 1 < s.size()) {
-            char n = s[i + 1];
+            char const n = s[i + 1];
             if (n >= '1' && n <= '9') {
                 out += '$';
                 out += n;
@@ -181,9 +181,12 @@ static bool addr_matches_line(const SedAddr& addr, const std::string& line,
     case SedAddr::REGEX:
         return std::regex_search(line, addr.re);
     case SedAddr::STEP: {
-        if (addr.line_num <= 0) return false;
-        if (line_num < addr.line_num) return false;
-        if (addr.step <= 0) return false;
+        if (addr.line_num <= 0) { return false;
+}
+        if (line_num < addr.line_num) { return false;
+}
+        if (addr.step <= 0) { return false;
+}
         return (line_num - addr.line_num) % addr.step == 0;
     }
     default:
@@ -245,10 +248,11 @@ static bool should_execute(const SedCmd& cmd, const std::string& pattern_space,
 static bool read_script_line(const std::string& script, size_t& pos,
                               std::string& line) {
     line.clear();
-    if (pos >= script.size()) return false;
+    if (pos >= script.size()) { return false;
+}
 
     while (pos < script.size()) {
-        char c = script[pos];
+        char const c = script[pos];
         if (c == '\n') {
             pos++;
             if (!line.empty() && line.back() == '\\') {
@@ -281,20 +285,23 @@ static bool read_script_line(const std::string& script, size_t& pos,
 // Get the next "segment" of script, respecting that text commands (a/i/c)
 // consume lines differently
 static void skip_spaces(const std::string& s, size_t& pos) {
-    while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\t'))
+    while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\t')) {
         pos++;
+}
 }
 
 static char next_char(const std::string& s, size_t& pos) {
-    if (pos < s.size()) return s[pos];
+    if (pos < s.size()) { return s[pos];
+}
     return '\0';
 }
 
 static bool has_more(const std::string& s, size_t pos) {
     while (pos < s.size()) {
-        char c = s[pos];
-        if (c != ' ' && c != '\t' && c != '\n' && c != ';' && c != '\r')
+        char const c = s[pos];
+        if (c != ' ' && c != '\t' && c != '\n' && c != ';' && c != '\r') {
             return true;
+}
         pos++;
     }
     return false;
@@ -303,23 +310,26 @@ static bool has_more(const std::string& s, size_t pos) {
 // Skip over a sed address starting at pos, update pos
 static void skip_one_addr(const std::string& s, size_t& pos) {
     skip_spaces(s, pos);
-    if (pos >= s.size()) return;
+    if (pos >= s.size()) { return;
+}
     if (s[pos] == '$') {
         pos++;
     } else if (s[pos] == '/' || s[pos] == '\\') {
-        char delim = s[pos];
+        char const delim = s[pos];
         pos++;
         while (pos < s.size() && s[pos] != delim) {
             if (s[pos] == '\\') { pos += 2; continue; }
             pos++;
         }
-        if (pos < s.size()) pos++; // skip closing delimiter
+        if (pos < s.size()) { pos++; // skip closing delimiter
+}
         // Skip optional address flags (I only)
-        while (pos < s.size() && s[pos] == 'I') pos++;
-    } else if (std::isdigit((unsigned char)s[pos])) {
+        while (pos < s.size() && s[pos] == 'I') { pos++;
+}
+    } else if (std::isdigit(static_cast<unsigned char>(s[pos])) != 0) {
         char* end = nullptr;
-        std::strtol(s.c_str() + pos, &end, 10);
-        pos = (size_t)(end - s.c_str());
+        (void)std::strtol(s.c_str() + pos, &end, 10);
+        pos = static_cast<size_t>(end - s.c_str());
     } else if (s[pos] == '~') {
         pos++;
     }
@@ -338,10 +348,12 @@ static char find_cmd_char(const std::string& s, size_t start) {
         skip_spaces(s, pos);
     }
     // Skip '!' negation
-    if (pos < s.size() && s[pos] == '!') pos++;
+    if (pos < s.size() && s[pos] == '!') { pos++;
+}
     skip_spaces(s, pos);
     // Now we should be at the command character
-    if (pos < s.size()) return s[pos];
+    if (pos < s.size()) { return s[pos];
+}
     return 0;
 }
 
@@ -349,7 +361,7 @@ static char find_cmd_char(const std::string& s, size_t start) {
 static size_t find_cmd_end(const std::string& s, size_t start) {
     size_t i = start;
     // Find the actual command character (skipping addresses)
-    char cmd_char = find_cmd_char(s, start);
+    char const cmd_char = find_cmd_char(s, start);
 
     // For a, i, c: scan to end of line (do not stop at ;);
     // also skip the command char itself in the scan
@@ -359,12 +371,15 @@ static size_t find_cmd_end(const std::string& s, size_t start) {
         skip_one_addr(s, tmp);
         skip_spaces(s, tmp);
         if (tmp < s.size() && s[tmp] == ',') { tmp++; skip_spaces(s, tmp); skip_one_addr(s, tmp); skip_spaces(s, tmp); }
-        if (tmp < s.size() && s[tmp] == '!') tmp++;
+        if (tmp < s.size() && s[tmp] == '!') { tmp++;
+}
         skip_spaces(s, tmp);
         // Skip the command char itself
-        if (tmp < s.size()) tmp++;
+        if (tmp < s.size()) { tmp++;
+}
         // Skip backslash if present
-        if (tmp < s.size() && s[tmp] == '\\') tmp++;
+        if (tmp < s.size() && s[tmp] == '\\') { tmp++;
+}
         // Scan to end of line
         while (i < s.size()) {
             if (s[i] == '\n') {
@@ -385,7 +400,8 @@ static size_t find_cmd_end(const std::string& s, size_t start) {
         if (cmd_pos < s.size() && s[cmd_pos] == ',') {
             cmd_pos++; skip_spaces(s, cmd_pos); skip_one_addr(s, cmd_pos); skip_spaces(s, cmd_pos);
         }
-        if (cmd_pos < s.size() && s[cmd_pos] == '!') cmd_pos++;
+        if (cmd_pos < s.size() && s[cmd_pos] == '!') { cmd_pos++;
+}
         skip_spaces(s, cmd_pos);
         // Now cmd_pos should be at the command char
         if (cmd_pos < s.size() && (s[cmd_pos] == 's' || s[cmd_pos] == 'y')) {
@@ -393,11 +409,11 @@ static size_t find_cmd_end(const std::string& s, size_t start) {
             skip_spaces(s, cmd_pos);
         }
         if (cmd_pos < s.size()) {
-            char delim = s[cmd_pos];
+            char const delim = s[cmd_pos];
             // Skip the delimiter
             i = cmd_pos + 1;
             int delim_count = 0;
-            int max_delim = (cmd_char == 's') ? 3 : 2;
+            int const max_delim = (cmd_char == 's') ? 3 : 2;
             while (i < s.size() && delim_count < max_delim) {
                 if (s[i] == '\\') {
                     i += 2; // skip escaped char
@@ -421,7 +437,8 @@ static size_t find_cmd_end(const std::string& s, size_t start) {
                 while (i < s.size() && s[i] != '\n') {
                     if (s[i] == ';') {
                         size_t check = cmd_pos;
-                        if (check > 0) check -= 1; // start from before cmd char
+                        if (check > 0) { check -= 1; // start from before cmd char
+}
                         int dc = 0;
                         bool has_w = false;
                         while (check < i && dc < 3) {
@@ -432,12 +449,14 @@ static size_t find_cmd_end(const std::string& s, size_t start) {
                             }
                             check++;
                         }
-                        if (!has_w) break;
+                        if (!has_w) { break;
+}
                     }
                     i++;
                 }
             }
-            if (i < s.size() && s[i] == '\n') i++;
+            if (i < s.size() && s[i] == '\n') { i++;
+}
             return i;
         }
     }
@@ -463,14 +482,15 @@ static SedAddr parse_addr(const std::string& script, size_t& pos,
                            bool extended) {
     SedAddr addr;
     skip_spaces(script, pos);
-    if (pos >= script.size()) return addr;
+    if (pos >= script.size()) { return addr;
+}
 
     if (script[pos] == '$') {
         addr.type = SedAddr::LAST_LINE;
         pos++;
     } else if (script[pos] == '/' || script[pos] == '\\') {
         // Regex address: /pattern/ or \XpatternX
-        char delim = script[pos];
+        char const delim = script[pos];
         pos++;
         std::string pattern;
         bool case_insensitive = false;
@@ -499,28 +519,29 @@ static SedAddr parse_addr(const std::string& script, size_t& pos,
         addr.type = SedAddr::REGEX;
         addr.regex_str = pattern;
         auto flags = std::regex::ECMAScript | std::regex::optimize;
-        if (case_insensitive) flags |= std::regex::icase;
+        if (case_insensitive) { flags |= std::regex::icase;
+}
         try {
-            std::string re_pattern = extended ? pattern : bre_to_ecma(pattern);
+            std::string const re_pattern = extended ? pattern : bre_to_ecma(pattern);
             addr.re = std::regex(re_pattern, flags);
         } catch (...) {
             // If regex fails, keep a placeholder
             addr.re = std::regex(".*");
         }
-    } else if (std::isdigit(static_cast<unsigned char>(script[pos]))) {
+    } else if (std::isdigit(static_cast<unsigned char>(script[pos])) != 0) {
         char* end = nullptr;
-        long n = std::strtol(script.c_str() + pos, &end, 10);
-        if (end && *end == '~') {
+        long const n = std::strtol(script.c_str() + pos, &end, 10);
+        if ((end != nullptr) && *end == '~') {
             addr.type = SedAddr::STEP;
             addr.line_num = static_cast<int>(n);
             pos = static_cast<size_t>(end - script.c_str()) + 1;
-            if (pos < script.size() && std::isdigit(static_cast<unsigned char>(script[pos]))) {
+            if (pos < script.size() && (std::isdigit(static_cast<unsigned char>(script[pos])) != 0)) {
                 char* e2 = nullptr;
-                long s = std::strtol(script.c_str() + pos, &e2, 10);
+                long const s = std::strtol(script.c_str() + pos, &e2, 10);
                 addr.step = static_cast<int>(s);
                 pos = static_cast<size_t>(e2 - script.c_str());
             }
-        } else if (end) {
+        } else if (end != nullptr) {
             addr.type = SedAddr::LINE_NUM;
             addr.line_num = static_cast<int>(n);
             pos = static_cast<size_t>(end - script.c_str());
@@ -543,17 +564,19 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
     SedCmd cmd;
 
     skip_spaces(script, pos);
-    if (pos >= script.size()) return cmd;
+    if (pos >= script.size()) { return cmd;
+}
 
     // Grab the first segment up to ; or \n for parsing
-    size_t seg_end = find_cmd_end(script, pos);
+    size_t const seg_end = find_cmd_end(script, pos);
     std::string seg = script.substr(pos, seg_end - pos);
     size_t seg_pos = 0;
 
     // Trim trailing whitespace but not newlines
     size_t real_end = seg.size();
-    while (real_end > 0 && (seg[real_end - 1] == ' ' || seg[real_end - 1] == '\t'))
+    while (real_end > 0 && (seg[real_end - 1] == ' ' || seg[real_end - 1] == '\t')) {
         real_end--;
+}
     seg = seg.substr(0, real_end);
 
     // Skip leading whitespace
@@ -565,7 +588,7 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
     }
 
     // Save start for address parsing
-    size_t saved_pos = seg_pos;
+    size_t const saved_pos = seg_pos;
 
     // ---- Address parsing ----
     // First, try to parse up to 2 addresses followed by a command character
@@ -573,7 +596,7 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
     // We need to distinguish address from command '1' vs '1d'
 
     // Read the whole "token" to determine structure
-    std::string raw = seg.substr(seg_pos);
+    std::string const raw = seg.substr(seg_pos);
 
     // Parse addresses manually
     cmd.addr1 = parse_addr(seg, seg_pos, extended);
@@ -604,7 +627,7 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
         return cmd;
     }
 
-    char c = seg[seg_pos];
+    char const c = seg[seg_pos];
     seg_pos++;
 
     // Skip spaces between command and its arguments
@@ -613,9 +636,10 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
     switch (c) {
     case 's': {
         cmd.type = SedCmd::CMD_SUBST;
-        if (seg_pos >= seg.size()) break;
+        if (seg_pos >= seg.size()) { break;
+}
 
-        char delim = seg[seg_pos];
+        char const delim = seg[seg_pos];
         seg_pos++;
 
         // Parse regex pattern — preserve escape sequences for std::regex
@@ -654,7 +678,7 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
 
         // Parse flags
         while (seg_pos < seg.size() && seg[seg_pos] != ' ' && seg[seg_pos] != '\t') {
-            char f = seg[seg_pos];
+            char const f = seg[seg_pos];
             if (f == 'g') {
                 cmd.subst.global = true;
                 seg_pos++;
@@ -670,9 +694,9 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
                 cmd.subst.write_file = seg.substr(seg_pos);
                 // w flag consumes rest of line
                 seg_pos = seg.size();
-            } else if (std::isdigit(static_cast<unsigned char>(f))) {
+            } else if (std::isdigit(static_cast<unsigned char>(f)) != 0) {
                 char* e = nullptr;
-                long n = std::strtol(seg.c_str() + seg_pos, &e, 10);
+                long const n = std::strtol(seg.c_str() + seg_pos, &e, 10);
                 if (n > 0) {
                     cmd.subst.nth = static_cast<int>(n - 1); // 0-based
                     seg_pos = static_cast<size_t>(e - seg.c_str());
@@ -686,12 +710,13 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
 
         cmd.subst.regex_str = pattern;
         auto re_flags = std::regex::ECMAScript | std::regex::optimize;
-        if (cmd.subst.case_insensitive) re_flags |= std::regex::icase;
+        if (cmd.subst.case_insensitive) { re_flags |= std::regex::icase;
+}
         try {
-            std::string subst_pattern = extended ? pattern : bre_to_ecma(pattern);
+            std::string const subst_pattern = extended ? pattern : bre_to_ecma(pattern);
             cmd.subst.re = std::regex(subst_pattern, re_flags);
         } catch (const std::regex_error& e) {
-            fprintf(stderr, "sed: invalid regex '%s': %s\n",
+            (void)fprintf(stderr, "sed: invalid regex '%s': %s\n",
                     pattern.c_str(), e.what());
             cmd.type = SedCmd::CMD_NOP;
         }
@@ -726,29 +751,36 @@ static SedCmd parse_cmd(const std::string& script, size_t& pos,
     case 'a':
         cmd.type = SedCmd::CMD_APPEND;
         // Text after 'a\' is everything else
-        if (seg_pos < seg.size() && seg[seg_pos] == '\\') seg_pos++;
-        if (seg_pos < seg.size() && seg[seg_pos] == '\n') seg_pos++;
+        if (seg_pos < seg.size() && seg[seg_pos] == '\\') { seg_pos++;
+}
+        if (seg_pos < seg.size() && seg[seg_pos] == '\n') { seg_pos++;
+}
         cmd.text = seg.substr(seg_pos);
         break;
 
     case 'i':
         cmd.type = SedCmd::CMD_INSERT;
-        if (seg_pos < seg.size() && seg[seg_pos] == '\\') seg_pos++;
-        if (seg_pos < seg.size() && seg[seg_pos] == '\n') seg_pos++;
+        if (seg_pos < seg.size() && seg[seg_pos] == '\\') { seg_pos++;
+}
+        if (seg_pos < seg.size() && seg[seg_pos] == '\n') { seg_pos++;
+}
         cmd.text = seg.substr(seg_pos);
         break;
 
     case 'c':
         cmd.type = SedCmd::CMD_CHANGE;
-        if (seg_pos < seg.size() && seg[seg_pos] == '\\') seg_pos++;
-        if (seg_pos < seg.size() && seg[seg_pos] == '\n') seg_pos++;
+        if (seg_pos < seg.size() && seg[seg_pos] == '\\') { seg_pos++;
+}
+        if (seg_pos < seg.size() && seg[seg_pos] == '\n') { seg_pos++;
+}
         cmd.text = seg.substr(seg_pos);
         break;
 
     case 'y': {
         cmd.type = SedCmd::CMD_TRANSLIT;
-        if (seg_pos >= seg.size()) break;
-        char delim = seg[seg_pos];
+        if (seg_pos >= seg.size()) { break;
+}
+        char const delim = seg[seg_pos];
         seg_pos++;
 
         // Parse src
@@ -794,7 +826,7 @@ static std::vector<SedCmd> parse_script(const std::string& script,
     size_t pos = 0;
 
     while (pos < script.size()) {
-        SedCmd cmd = parse_cmd(script, pos, extended);
+        SedCmd const cmd = parse_cmd(script, pos, extended);
         if (cmd.type != SedCmd::CMD_NOP) {
             cmds.push_back(cmd);
         } else {
@@ -802,8 +834,9 @@ static std::vector<SedCmd> parse_script(const std::string& script,
             while (pos < script.size() &&
                    (script[pos] == ' ' || script[pos] == '\t' ||
                     script[pos] == '\n' || script[pos] == ';' ||
-                    script[pos] == '\r'))
+                    script[pos] == '\r')) {
                 pos++;
+}
         }
     }
 
@@ -837,10 +870,11 @@ static std::string do_translit(const std::string& input,
                                 const std::string& src,
                                 const std::string& dst) {
     unsigned char tbl[256];
-    for (int i = 0; i < 256; i++)
+    for (int i = 0; i < 256; i++) {
         tbl[i] = static_cast<unsigned char>(i);
+}
 
-    size_t n = src.size() < dst.size() ? src.size() : dst.size();
+    size_t const n = src.size() < dst.size() ? src.size() : dst.size();
     for (size_t i = 0; i < n; i++) {
         tbl[static_cast<unsigned char>(src[i])] = static_cast<unsigned char>(dst[i]);
     }
@@ -864,14 +898,15 @@ static void execute_command(const SedCmd& cmd, SedContext& ctx) {
     case SedCmd::CMD_SUBST: {
         std::string result;
         int count = 0;
-        int nth = cmd.subst.nth;
-        bool global = cmd.subst.global;
+        int const nth = cmd.subst.nth;
+        bool const global = cmd.subst.global;
 
         if (global) {
             result = std::regex_replace(ctx.pattern_space, cmd.subst.re,
                                         cmd.subst.replacement,
                                         std::regex_constants::format_default);
-            if (result != ctx.pattern_space) count = 1; // at least one replacement
+            if (result != ctx.pattern_space) { count = 1; // at least one replacement
+}
         } else if (nth > 0) {
             // Replace nth occurrence
             std::string input = ctx.pattern_space;
@@ -897,7 +932,8 @@ static void execute_command(const SedCmd& cmd, SedContext& ctx) {
             result = std::regex_replace(ctx.pattern_space, cmd.subst.re,
                                         cmd.subst.replacement,
                                         std::regex_constants::format_first_only);
-            if (result != ctx.pattern_space) count = 1;
+            if (result != ctx.pattern_space) { count = 1;
+}
         }
 
         if (count > 0) {
@@ -909,11 +945,11 @@ static void execute_command(const SedCmd& cmd, SedContext& ctx) {
 
             if (!cmd.subst.write_file.empty()) {
                 FILE* wf = fopen(cmd.subst.write_file.c_str(), "a");
-                if (wf) {
-                    fprintf(wf, "%s\n", ctx.pattern_space.c_str());
-                    fclose(wf);
+                if (wf != nullptr) {
+                    (void)fprintf(wf, "%s\n", ctx.pattern_space.c_str());
+                    (void)fclose(wf);
                 } else {
-                    fprintf(stderr, "sed: couldn't open file '%s': %s\n",
+                    (void)fprintf(stderr, "sed: couldn't open file '%s': %s\n",
                             cmd.subst.write_file.c_str(), strerror(errno));
                 }
             }
@@ -978,11 +1014,11 @@ static void execute_command(const SedCmd& cmd, SedContext& ctx) {
 
     case SedCmd::CMD_WRITE: {
         FILE* wf = fopen(cmd.file_path.c_str(), "a");
-        if (wf) {
-            fprintf(wf, "%s\n", ctx.pattern_space.c_str());
-            fclose(wf);
+        if (wf != nullptr) {
+            (void)fprintf(wf, "%s\n", ctx.pattern_space.c_str());
+            (void)fclose(wf);
         } else {
-            fprintf(stderr, "sed: couldn't open file '%s': %s\n",
+            (void)fprintf(stderr, "sed: couldn't open file '%s': %s\n",
                     cmd.file_path.c_str(), strerror(errno));
         }
         break;
@@ -990,17 +1026,17 @@ static void execute_command(const SedCmd& cmd, SedContext& ctx) {
 
     case SedCmd::CMD_READ: {
         FILE* rf = fopen(cmd.file_path.c_str(), "r");
-        if (rf) {
+        if (rf != nullptr) {
             char buf[4096];
             std::string content;
             size_t n;
             while ((n = fread(buf, 1, sizeof(buf), rf)) > 0) {
                 content.append(buf, n);
             }
-            fclose(rf);
+            (void)fclose(rf);
             ctx.read_queue.push_back(content);
         } else {
-            fprintf(stderr, "sed: couldn't open file '%s': %s\n",
+            (void)fprintf(stderr, "sed: couldn't open file '%s': %s\n",
                     cmd.file_path.c_str(), strerror(errno));
         }
         break;
@@ -1031,7 +1067,8 @@ static void process_file(FILE* fp, const std::string& filename,
 
     while (true) {
         ssize_t n = getline(&line_buf, &line_cap, fp);
-        if (n < 0) break;
+        if (n < 0) { break;
+}
 
         // Remove trailing newline
         if (n > 0 && line_buf[n - 1] == '\n') {
@@ -1044,9 +1081,10 @@ static void process_file(FILE* fp, const std::string& filename,
 
         // Peek ahead to check if this is the last line (for $ address)
         {
-            int peek = fgetc(fp);
+            int const peek = fgetc(fp);
             ctx.last_line = (peek == EOF) ? 1 : 0;
-            if (peek != EOF) ungetc(peek, fp);
+            if (peek != EOF) { (void)ungetc(peek, fp);
+}
         }
 
         ctx.deleted = false;
@@ -1056,11 +1094,12 @@ static void process_file(FILE* fp, const std::string& filename,
 
         // Execute commands for this line
         for (size_t ci = 0; ci < cmds.size(); ci++) {
-            if (ctx.quit) break;
+            if (ctx.quit) { break;
+}
 
             const SedCmd& cmd = cmds[ci];
             bool active_range = false;
-            bool exec = should_execute(cmd, ctx.pattern_space,
+            bool const exec = should_execute(cmd, ctx.pattern_space,
                                         ctx.line_num, ctx.last_line,
                                         ctx.range_active[ci], &active_range);
             ctx.range_active[ci] = active_range;
@@ -1096,9 +1135,10 @@ static void process_file(FILE* fp, const std::string& filename,
                     ctx.pattern_space = std::string(line_buf, static_cast<size_t>(n));
                     ctx.line_num++;
                     {
-                        int peek = fgetc(fp);
+                        int const peek = fgetc(fp);
                         ctx.last_line = (peek == EOF) ? 1 : 0;
-                        if (peek != EOF) ungetc(peek, fp);
+                        if (peek != EOF) { (void)ungetc(peek, fp);
+}
                     }
                     continue;
                 }
@@ -1124,17 +1164,20 @@ static void process_file(FILE* fp, const std::string& filename,
                     ctx.pattern_space += '\n';
                     ctx.pattern_space += append_buf;
                     {
-                        int peek = fgetc(fp);
+                        int const peek = fgetc(fp);
                         ctx.last_line = (peek == EOF) ? 1 : 0;
-                        if (peek != EOF) ungetc(peek, fp);
+                        if (peek != EOF) { (void)ungetc(peek, fp);
+}
                     }
                     continue;
                 }
 
                 execute_command(cmd, ctx);
 
-                if (ctx.deleted) break;
-                if (ctx.quit) break;
+                if (ctx.deleted) { break;
+}
+                if (ctx.quit) { break;
+}
             }
         }
 
@@ -1154,11 +1197,13 @@ static void process_file(FILE* fp, const std::string& filename,
         // Print read queue (for 'r' command — file content printed after each cycle)
         for (const auto& t : ctx.read_queue) {
             printf("%s", t.c_str());
-            if (!t.empty() && t.back() != '\n') printf("\n");
+            if (!t.empty() && t.back() != '\n') { printf("\n");
+}
         }
         ctx.read_queue.clear();
 
-        if (ctx.quit) break;
+        if (ctx.quit) { break;
+}
     }
 
     free(line_buf);
@@ -1178,16 +1223,18 @@ int sed_command(int argc, char** argv) {
             // No suffix
             opts.in_place = "";
             // Remove -i from argv for argtable
-            for (int j = i; j < argc - 1; j++)
+            for (int j = i; j < argc - 1; j++) {
                 argv[j] = argv[j + 1];
+}
             argc--;
             break;
         }
         if (strncmp(argv[i], "-i", 2) == 0 && strlen(argv[i]) > 2) {
             opts.in_place = argv[i] + 2;
             // Remove the -iSUFFIX from argv
-            for (int j = i; j < argc - 1; j++)
+            for (int j = i; j < argc - 1; j++) {
                 argv[j] = argv[j + 1];
+}
             argc--;
             break;
         }
@@ -1220,7 +1267,7 @@ int sed_command(int argc, char** argv) {
         help_opt, file_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... {script-only-if-no-other-script} [file]...\n", argv[0]);
@@ -1271,37 +1318,42 @@ int sed_command(int argc, char** argv) {
     }
 
     // ---- Parse options ----
-    if (suppress_opt->count > 0 || suppress2_opt->count > 0)
+    if (suppress_opt->count > 0 || suppress2_opt->count > 0) {
         opts.suppress_print = 1;
-    if (extended_opt->count > 0 || extended2_opt->count > 0)
+}
+    if (extended_opt->count > 0 || extended2_opt->count > 0) {
         opts.extended_regex = 1;
-    if (separate_opt->count > 0)
+}
+    if (separate_opt->count > 0) {
         opts.separate_files = 1;
+}
 
     // ---- Collect script ----
     std::string script;
 
     // Add -e scripts
     for (int i = 0; i < expr_opt->count; i++) {
-        if (!script.empty()) script += '\n';
+        if (!script.empty()) { script += '\n';
+}
         script += expr_opt->sval[i];
     }
 
     // Add -f scripts
     for (int i = 0; i < script_file_opt->count; i++) {
         FILE* sf = fopen(script_file_opt->filename[i], "r");
-        if (!sf) {
-            fprintf(stderr, "sed: can't read %s: %s\n",
+        if (sf == nullptr) {
+            (void)fprintf(stderr, "sed: can't read %s: %s\n",
                     script_file_opt->filename[i], strerror(errno));
             return 0;
         }
         char buf[4096];
         size_t n;
         while ((n = fread(buf, 1, sizeof(buf), sf)) > 0) {
-            if (!script.empty() && script.back() != '\n') script += '\n';
+            if (!script.empty() && script.back() != '\n') { script += '\n';
+}
             script.append(buf, n);
         }
-        fclose(sf);
+        (void)fclose(sf);
     }
 
     // If no -e or -f, first positional arg is the script
@@ -1317,15 +1369,15 @@ int sed_command(int argc, char** argv) {
     }
 
     if (script.empty()) {
-        fprintf(stderr, "sed: no script specified\n");
+        (void)fprintf(stderr, "sed: no script specified\n");
         return 0;
     }
 
     // ---- Parse script into commands ----
-    std::vector<SedCmd> cmds = parse_script(script, opts.extended_regex != 0);
+    std::vector<SedCmd> const cmds = parse_script(script, opts.extended_regex != 0);
 
     if (cmds.empty()) {
-        fprintf(stderr, "sed: no valid commands in script\n");
+        (void)fprintf(stderr, "sed: no valid commands in script\n");
         return 0;
     }
 
@@ -1338,53 +1390,53 @@ int sed_command(int argc, char** argv) {
         for (int i = 0; i < file_arg->count; i++) {
             const char* fname = file_arg->filename[i];
             FILE* fp = fopen(fname, "r");
-            if (!fp) {
-                fprintf(stderr, "sed: can't read %s: %s\n", fname, strerror(errno));
+            if (fp == nullptr) {
+                (void)fprintf(stderr, "sed: can't read %s: %s\n", fname, strerror(errno));
                 continue;
             }
 
             // Process to a temp file
             char tmpname[] = "/tmp/sed_XXXXXX";
-            int tmpfd = mkstemp(tmpname);
+            int const tmpfd = mkstemp(tmpname);
             if (tmpfd < 0) {
-                fprintf(stderr, "sed: can't create temp file: %s\n", strerror(errno));
-                fclose(fp);
+                (void)fprintf(stderr, "sed: can't create temp file: %s\n", strerror(errno));
+                (void)fclose(fp);
                 continue;
             }
 
             // Redirect stdout to temp file
-            fflush(stdout);
-            int saved_stdout = dup(STDOUT_FILENO);
+            (void)fflush(stdout);
+            int const saved_stdout = dup(STDOUT_FILENO);
             dup2(tmpfd, STDOUT_FILENO);
             close(tmpfd);
 
             process_file(fp, fname, cmds, opts);
 
-            fflush(stdout);
+            (void)fflush(stdout);
             dup2(saved_stdout, STDOUT_FILENO);
             close(saved_stdout);
-            fclose(fp);
+            (void)fclose(fp);
 
             // Handle backup suffix
             if (opts.in_place[0] != '\0') {
-                std::string backup = std::string(fname) + opts.in_place;
-                rename(fname, backup.c_str());
+                std::string const backup = std::string(fname) + opts.in_place;
+                (void)rename(fname, backup.c_str());
             }
 
             // Move temp file to original
-            rename(tmpname, fname);
+            (void)rename(tmpname, fname);
         }
     } else {
         // Normal output — process each file
         for (int i = 0; i < file_arg->count; i++) {
             const char* fname = file_arg->filename[i];
             FILE* fp = fopen(fname, "r");
-            if (!fp) {
-                fprintf(stderr, "sed: can't read %s: %s\n", fname, strerror(errno));
+            if (fp == nullptr) {
+                (void)fprintf(stderr, "sed: can't read %s: %s\n", fname, strerror(errno));
                 continue;
             }
             process_file(fp, fname, cmds, opts);
-            fclose(fp);
+            (void)fclose(fp);
         }
     }
 

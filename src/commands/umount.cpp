@@ -3,12 +3,10 @@
 #endif
 
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <cerrno>
 #include <string>
 #include <sys/mount.h>
-#include <unistd.h>
 
 #include "commands/umount.hpp"
 #include "commands/command_macros.hpp"
@@ -56,35 +54,37 @@ int umount_command(int argc, char** argv) {
         } else if (a[0] != '-') {
             target = a;
         } else {
-            fprintf(stderr, "umount: invalid option '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "umount: invalid option '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 1;
         }
     }
 
     if (target.empty()) {
-        fprintf(stderr, "umount: missing device or directory operand\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "umount: missing device or directory operand\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
     int flags = 0;
-    if (lazy) flags |= MNT_DETACH;
-    if (force) flags |= MNT_FORCE;
+    if (lazy) { flags |= MNT_DETACH;
+}
+    if (force) { flags |= MNT_FORCE;
+}
 
     if (fake) {
         printf("umount %s\n", target.c_str());
         return 0;
     }
 
-    int ret = umount2(target.c_str(), flags);
+    int const ret = umount2(target.c_str(), flags);
     if (ret != 0) {
         if (errno == EINVAL) {
-            fprintf(stderr, "umount: %s: not mounted\n", target.c_str());
+            (void)fprintf(stderr, "umount: %s: not mounted\n", target.c_str());
         } else if (errno == EPERM || errno == EACCES) {
-            fprintf(stderr, "umount: operation not permitted\n");
+            (void)fprintf(stderr, "umount: operation not permitted\n");
         } else {
-            fprintf(stderr, "umount: %s: %s\n", target.c_str(), strerror(errno));
+            (void)fprintf(stderr, "umount: %s: %s\n", target.c_str(), strerror(errno));
         }
         return 1;
     }

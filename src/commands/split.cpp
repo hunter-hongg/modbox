@@ -1,8 +1,8 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
-#include <cctype>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -15,41 +15,46 @@
 /* ── Size parsing ─────────────────────────────────────────────────────────── */
 
 static int64_t parse_size(const char *s) {
-    if (s == NULL || *s == '\0') return 0;
+    if (s == NULL || *s == '\0') { return 0;
+}
 
     // NOLINTNEXTLINE(cert-err34-c)
-    int64_t val = (int64_t)strtoll(s, NULL, 10);
-    if (val < 0) val = 0;
+    int64_t val = static_cast<int64_t>(strtoll(s, NULL, 10));
+    val = std::max<int64_t>(val, 0);
 
     const char *p = s;
-    while (*p && (*p == '-' || (*p >= '0' && *p <= '9') || *p == '+')) p++;
-    if (*p == '\0') return val;
+    while (((*p) != 0) && (*p == '-' || (*p >= '0' && *p <= '9') || *p == '+')) { p++;
+}
+    if (*p == '\0') { return val;
+}
 
     int64_t mult = 0;
-    if (strcmp(p, "K") == 0) mult = 1024LL;
-    else if (strcmp(p, "M") == 0) mult = 1024LL * 1024;
-    else if (strcmp(p, "G") == 0) mult = 1024LL * 1024 * 1024;
-    else if (strcmp(p, "T") == 0) mult = 1024LL * 1024 * 1024 * 1024;
-    else if (strcmp(p, "P") == 0) mult = 1024LL * 1024 * 1024 * 1024 * 1024;
-    else if (strcmp(p, "E") == 0) mult = 1024LL * 1024 * 1024 * 1024 * 1024 * 1024;
-    else if (strcmp(p, "Z") == 0) mult = INT64_MAX;  /* exceeds 64-bit */
-    else if (strcmp(p, "Y") == 0) mult = INT64_MAX;  /* exceeds 64-bit */
-    else if (strcmp(p, "KiB") == 0) mult = 1024LL;
-    else if (strcmp(p, "MiB") == 0) mult = 1024LL * 1024;
-    else if (strcmp(p, "GiB") == 0) mult = 1024LL * 1024 * 1024;
-    else if (strcmp(p, "TiB") == 0) mult = 1024LL * 1024 * 1024 * 1024;
-    else if (strcmp(p, "PiB") == 0) mult = 1024LL * 1024 * 1024 * 1024 * 1024;
-    else if (strcmp(p, "EiB") == 0) mult = 1024LL * 1024 * 1024 * 1024 * 1024 * 1024;
-    else if (strcmp(p, "ZiB") == 0) mult = INT64_MAX;  /* exceeds 64-bit */
-    else if (strcmp(p, "YiB") == 0) mult = INT64_MAX;  /* exceeds 64-bit */
-    else if (strcmp(p, "KB") == 0) mult = 1000LL;
-    else if (strcmp(p, "MB") == 0) mult = 1000LL * 1000;
-    else if (strcmp(p, "GB") == 0) mult = 1000LL * 1000 * 1000;
-    else if (strcmp(p, "TB") == 0) mult = 1000LL * 1000 * 1000 * 1000;
-    else if (strcmp(p, "PB") == 0) mult = 1000LL * 1000 * 1000 * 1000 * 1000;
-    else if (strcmp(p, "EB") == 0) mult = 1000LL * 1000 * 1000 * 1000 * 1000 * 1000;
+    if (strcmp(p, "K") == 0) { mult = 1024LL;
+    } else if (strcmp(p, "M") == 0) { mult = 1024LL * 1024;
+    } else if (strcmp(p, "G") == 0) { mult = 1024LL * 1024 * 1024;
+    } else if (strcmp(p, "T") == 0) { mult = 1024LL * 1024 * 1024 * 1024;
+    } else if (strcmp(p, "P") == 0) { mult = 1024LL * 1024 * 1024 * 1024 * 1024;
+    } else if (strcmp(p, "E") == 0) { mult = 1024LL * 1024 * 1024 * 1024 * 1024 * 1024;
+    } else if (strcmp(p, "Z") == 0) { mult = INT64_MAX;  /* exceeds 64-bit */
+    } else if (strcmp(p, "Y") == 0) { mult = INT64_MAX;  /* exceeds 64-bit */
+    } else if (strcmp(p, "KiB") == 0) { mult = 1024LL;
+    } else if (strcmp(p, "MiB") == 0) { mult = 1024LL * 1024;
+    } else if (strcmp(p, "GiB") == 0) { mult = 1024LL * 1024 * 1024;
+    } else if (strcmp(p, "TiB") == 0) { mult = 1024LL * 1024 * 1024 * 1024;
+    } else if (strcmp(p, "PiB") == 0) { mult = 1024LL * 1024 * 1024 * 1024 * 1024;
+    } else if (strcmp(p, "EiB") == 0) { mult = 1024LL * 1024 * 1024 * 1024 * 1024 * 1024;
+    } else if (strcmp(p, "ZiB") == 0) { mult = INT64_MAX;  /* exceeds 64-bit */
+    } else if (strcmp(p, "YiB") == 0) { mult = INT64_MAX;  /* exceeds 64-bit */
+    } else if (strcmp(p, "KB") == 0) { mult = 1000LL;
+    } else if (strcmp(p, "MB") == 0) { mult = 1000LL * 1000;
+    } else if (strcmp(p, "GB") == 0) { mult = 1000LL * 1000 * 1000;
+    } else if (strcmp(p, "TB") == 0) { mult = 1000LL * 1000 * 1000 * 1000;
+    } else if (strcmp(p, "PB") == 0) { mult = 1000LL * 1000 * 1000 * 1000 * 1000;
+    } else if (strcmp(p, "EB") == 0) { mult = 1000LL * 1000 * 1000 * 1000 * 1000 * 1000;
+}
 
-    if (mult > 0) return val * mult;
+    if (mult > 0) { return val * mult;
+}
 
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "split: invalid size suffix: %s\n", p);
@@ -62,7 +67,7 @@ static void make_alpha_suffix(char *buf, int len, int64_t index) {
     int64_t count = index;
     int pos = len - 1;
     while (pos >= 0) {
-        buf[pos] = (char)('a' + (count % 26));
+        buf[pos] = static_cast<char>('a' + (count % 26));
         count /= 26;
         pos--;
     }
@@ -71,29 +76,31 @@ static void make_alpha_suffix(char *buf, int len, int64_t index) {
 
 static void make_numeric_suffix(char *buf, int len, int64_t index) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)snprintf(buf, (size_t)(len + 1), "%0*ld", len, (long)index);
+    (void)snprintf(buf, static_cast<size_t>(len + 1), "%0*ld", len, static_cast<long>(index));
 }
 
 static void make_hex_suffix(char *buf, int len, int64_t index) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    (void)snprintf(buf, (size_t)(len + 1), "%0*lx", len, (unsigned long)index);
+    (void)snprintf(buf, static_cast<size_t>(len + 1), "%0*lx", len, static_cast<unsigned long>(index));
 }
 
 /* ── Open output file ─────────────────────────────────────────────────────── */
 
 static FILE *open_output_file(const SplitOptions *opts, const char *prefix,
                               int64_t file_index, char *suffix_buf) {
-    if (opts->hex_suffixes)
+    if (opts->hex_suffixes != 0) {
         make_hex_suffix(suffix_buf, opts->suffix_length, file_index);
-    else if (opts->numeric_suffixes)
+    } else if (opts->numeric_suffixes != 0) {
         make_numeric_suffix(suffix_buf, opts->suffix_length, file_index);
-    else
+    } else {
         make_alpha_suffix(suffix_buf, opts->suffix_length, file_index);
+}
 
     std::string fname = prefix;
     fname += suffix_buf;
-    if (opts->additional_suffix)
+    if (opts->additional_suffix != nullptr) {
         fname += opts->additional_suffix;
+}
 
     FILE *fp = fopen(fname.c_str(), "w");
     if (fp == NULL) {
@@ -103,7 +110,7 @@ static FILE *open_output_file(const SplitOptions *opts, const char *prefix,
         return NULL;
     }
 
-    if (opts->verbose) {
+    if (opts->verbose != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "creating file '%s'\n", fname.c_str());
     }
@@ -116,11 +123,12 @@ static void split_by_lines(FILE *in, const SplitOptions *opts,
                            const char *prefix) {
     char suffix_buf[64];
     int64_t file_index = 0;
-    int delim = (opts->separator && opts->separator[0])
+    int const delim = ((opts->separator != nullptr) && (opts->separator[0] != 0))
                     ? opts->separator[0] : '\n';
 
     FILE *out = open_output_file(opts, prefix, file_index, suffix_buf);
-    if (out == NULL) return;
+    if (out == NULL) { return;
+}
 
     int64_t line_count = 0;
     int c;
@@ -130,15 +138,18 @@ static void split_by_lines(FILE *in, const SplitOptions *opts,
             line_count++;
             if (line_count >= opts->lines) {
                 /* Peek ahead to see if there's more input */
-                int next = fgetc(in);
-                if (next == EOF) break; /* no more data; last file is done */
+                int const next = fgetc(in);
+                if (next == EOF) { break; /* no more data; last file is done */
+}
                 (void)fclose(out);
                 file_index++;
                 out = open_output_file(opts, prefix, file_index, suffix_buf);
-                if (out == NULL) return;
+                if (out == NULL) { return;
+}
                 (void)fputc(next, out);
-                if (next == delim) line_count = 1;
-                else line_count = 0;
+                if (next == delim) { line_count = 1;
+                } else { line_count = 0;
+}
             }
         }
     }
@@ -153,7 +164,8 @@ static void split_by_bytes(FILE *in, const SplitOptions *opts,
     int64_t file_index = 0;
 
     FILE *out = open_output_file(opts, prefix, file_index, suffix_buf);
-    if (out == NULL) return;
+    if (out == NULL) { return;
+}
 
     int64_t byte_count = 0;
     int c;
@@ -161,12 +173,14 @@ static void split_by_bytes(FILE *in, const SplitOptions *opts,
         (void)fputc(c, out);
         byte_count++;
         if (byte_count >= opts->bytes) {
-            int next = fgetc(in);
-            if (next == EOF) break;
+            int const next = fgetc(in);
+            if (next == EOF) { break;
+}
             (void)fclose(out);
             file_index++;
             out = open_output_file(opts, prefix, file_index, suffix_buf);
-            if (out == NULL) return;
+            if (out == NULL) { return;
+}
             (void)fputc(next, out);
             byte_count = 1;
         }
@@ -180,11 +194,12 @@ static void split_by_line_bytes(FILE *in, const SplitOptions *opts,
                                 const char *prefix) {
     char suffix_buf[64];
     int64_t file_index = 0;
-    int delim = (opts->separator && opts->separator[0])
+    int const delim = ((opts->separator != nullptr) && (opts->separator[0] != 0))
                     ? opts->separator[0] : '\n';
 
     FILE *out = open_output_file(opts, prefix, file_index, suffix_buf);
-    if (out == NULL) return;
+    if (out == NULL) { return;
+}
 
     int64_t byte_count = 0;
     int c;
@@ -192,12 +207,14 @@ static void split_by_line_bytes(FILE *in, const SplitOptions *opts,
         (void)fputc(c, out);
         byte_count++;
         if (c == delim && byte_count >= opts->line_bytes) {
-            int next = fgetc(in);
-            if (next == EOF) break;
+            int const next = fgetc(in);
+            if (next == EOF) { break;
+}
             (void)fclose(out);
             file_index++;
             out = open_output_file(opts, prefix, file_index, suffix_buf);
-            if (out == NULL) return;
+            if (out == NULL) { return;
+}
             (void)fputc(next, out);
             byte_count = 1;
         }
@@ -210,8 +227,9 @@ static void split_by_line_bytes(FILE *in, const SplitOptions *opts,
 static int64_t count_bytes_file(FILE *in) {
     int64_t total = 0;
     int c;
-    while ((c = fgetc(in)) != EOF) total++;
-    (void)clearerr(in);
+    while ((c = fgetc(in)) != EOF) { total++;
+}
+    clearerr(in);
     (void)fseek(in, 0, SEEK_SET);
     return total;
 }
@@ -220,9 +238,10 @@ static int64_t count_lines_file(FILE *in) {
     int64_t total = 0;
     int c;
     while ((c = fgetc(in)) != EOF) {
-        if (c == '\n') total++;
+        if (c == '\n') { total++;
+}
     }
-    (void)clearerr(in);
+    clearerr(in);
     (void)fseek(in, 0, SEEK_SET);
     return total;
 }
@@ -230,16 +249,18 @@ static int64_t count_lines_file(FILE *in) {
 static void split_n_chunks(FILE *in, int64_t total_bytes,
                            const SplitOptions *opts,
                            const char *prefix, int nchunks) {
-    if (nchunks < 1) return;
+    if (nchunks < 1) { return;
+}
 
-    int64_t chunk_size = total_bytes / nchunks;
-    int64_t remainder = total_bytes % nchunks;
+    int64_t const chunk_size = total_bytes / nchunks;
+    int64_t const remainder = total_bytes % nchunks;
 
     char suffix_buf[64];
     for (int i = 0; i < nchunks; i++) {
-        int64_t this_size = chunk_size + (i < remainder ? 1 : 0);
+        int64_t const this_size = chunk_size + (i < remainder ? 1 : 0);
         FILE *out = open_output_file(opts, prefix, i, suffix_buf);
-        if (out == NULL) return;
+        if (out == NULL) { return;
+}
 
         int64_t written = 0;
         int c;
@@ -249,10 +270,11 @@ static void split_n_chunks(FILE *in, int64_t total_bytes,
         }
         (void)fclose(out);
 
-        if (opts->elide_empty && this_size == 0) {
+        if ((opts->elide_empty != 0) && this_size == 0) {
             std::string fname = prefix;
             fname += suffix_buf;
-            if (opts->additional_suffix) fname += opts->additional_suffix;
+            if (opts->additional_suffix != nullptr) { fname += opts->additional_suffix;
+}
             (void)remove(fname.c_str());
         }
     }
@@ -261,25 +283,30 @@ static void split_n_chunks(FILE *in, int64_t total_bytes,
 static void split_n_lines(FILE *in, int64_t total_lines,
                           const SplitOptions *opts,
                           const char *prefix, int nchunks) {
-    if (nchunks < 1) return;
+    if (nchunks < 1) { return;
+}
 
     int64_t per_file = total_lines / nchunks;
-    int64_t remainder = total_lines % nchunks;
-    if (per_file == 0 && remainder > 0) per_file = 1;
+    int64_t const remainder = total_lines % nchunks;
+    if (per_file == 0 && remainder > 0) { per_file = 1;
+}
 
     char suffix_buf[64];
     for (int i = 0; i < nchunks; i++) {
-        int64_t this_lines = per_file + (i < remainder ? 1 : 0);
-        if (this_lines == 0 && opts->elide_empty) continue;
+        int64_t const this_lines = per_file + (i < remainder ? 1 : 0);
+        if (this_lines == 0 && (opts->elide_empty != 0)) { continue;
+}
 
         FILE *out = open_output_file(opts, prefix, i, suffix_buf);
-        if (out == NULL) return;
+        if (out == NULL) { return;
+}
 
         int64_t written = 0;
         int c;
         while (written < this_lines && (c = fgetc(in)) != EOF) {
             (void)fputc(c, out);
-            if (c == '\n') written++;
+            if (c == '\n') { written++;
+}
         }
         (void)fclose(out);
     }
@@ -287,16 +314,18 @@ static void split_n_lines(FILE *in, int64_t total_lines,
 
 static void split_round_robin(FILE *in, const SplitOptions *opts,
                               const char *prefix, int nchunks) {
-    if (nchunks < 1) return;
+    if (nchunks < 1) { return;
+}
 
     char suffix_buf[64];
     std::vector<FILE *> files;
-    files.reserve((size_t)nchunks);
+    files.reserve(static_cast<size_t>(nchunks));
 
     for (int i = 0; i < nchunks; i++) {
         FILE *out = open_output_file(opts, prefix, i, suffix_buf);
         if (out == NULL) {
-            for (auto fp : files) (void)fclose(fp);
+            for (auto *fp : files) { (void)fclose(fp);
+}
             return;
         }
         files.push_back(out);
@@ -305,18 +334,20 @@ static void split_round_robin(FILE *in, const SplitOptions *opts,
     int idx = 0;
     int c;
     while ((c = fgetc(in)) != EOF) {
-        (void)fputc(c, files[(size_t)idx]);
-        if (c == '\n') idx = (idx + 1) % nchunks;
+        (void)fputc(c, files[static_cast<size_t>(idx)]);
+        if (c == '\n') { idx = (idx + 1) % nchunks;
+}
     }
 
-    for (auto fp : files) (void)fclose(fp);
+    for (auto *fp : files) { (void)fclose(fp);
+}
 }
 
 /* ── Main command ─────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int split_command(int argc, char **argv) {
-    SplitOptions opts = {0};
+    SplitOptions opts = {.lines=0};
 
     struct arg_lit *numeric_opt = arg_lit0("d", "numeric-suffixes",
                                            "use numeric suffixes (00, 01, ...)");
@@ -359,7 +390,7 @@ int split_command(int argc, char **argv) {
         help_opt, file_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE [PREFIX]]\n", argv[0]);
@@ -401,46 +432,57 @@ int split_command(int argc, char **argv) {
     }
 
     /* Collect options */
-    opts.numeric_suffixes = (numeric_opt->count > 0);
-    opts.hex_suffixes = (hex_opt->count > 0);
-    opts.verbose = (verbose_opt->count > 0);
-    opts.elide_empty = (elide_opt->count > 0);
-    opts.unbuffered = (unbuffered_opt->count > 0);
+    opts.numeric_suffixes = static_cast<int>(numeric_opt->count > 0);
+    opts.hex_suffixes = static_cast<int>(hex_opt->count > 0);
+    opts.verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.elide_empty = static_cast<int>(elide_opt->count > 0);
+    opts.unbuffered = static_cast<int>(unbuffered_opt->count > 0);
 
     if (suffix_len_opt->count > 0) {
         opts.suffix_length = suffix_len_opt->ival[0];
-        if (opts.suffix_length < 1) opts.suffix_length = 1;
+        opts.suffix_length = std::max(opts.suffix_length, 1);
     }
 
-    if (additional_suffix_opt->count > 0)
+    if (additional_suffix_opt->count > 0) {
         opts.additional_suffix = additional_suffix_opt->sval[0];
-    if (filter_opt->count > 0)
+}
+    if (filter_opt->count > 0) {
         opts.filter = filter_opt->sval[0];
-    if (separator_opt->count > 0)
+}
+    if (separator_opt->count > 0) {
         opts.separator = separator_opt->sval[0];
-    if (chunks_opt->count > 0)
+}
+    if (chunks_opt->count > 0) {
         opts.chunks = chunks_opt->sval[0];
+}
 
     /* Parse SIZE options */
-    int use_lines = 0, use_bytes = 0, use_line_bytes = 0, use_chunks = 0;
+    int use_lines = 0;
+    int use_bytes = 0;
+    int use_line_bytes = 0;
+    int use_chunks = 0;
 
     if (bytes_opt->count > 0) {
         opts.bytes = parse_size(bytes_opt->sval[0]);
-        if (opts.bytes > 0) use_bytes = 1;
+        if (opts.bytes > 0) { use_bytes = 1;
+}
     }
     if (line_bytes_opt->count > 0) {
         opts.line_bytes = parse_size(line_bytes_opt->sval[0]);
-        if (opts.line_bytes > 0) use_line_bytes = 1;
+        if (opts.line_bytes > 0) { use_line_bytes = 1;
+}
     }
     if (lines_opt->count > 0) {
         // NOLINTNEXTLINE(cert-err34-c)
-        opts.lines = (int64_t)strtoll(lines_opt->sval[0], NULL, 10);
-        if (opts.lines > 0) use_lines = 1;
+        opts.lines = static_cast<int64_t>(strtoll(lines_opt->sval[0], NULL, 10));
+        if (opts.lines > 0) { use_lines = 1;
+}
     }
-    if (opts.chunks != NULL) use_chunks = 1;
+    if (opts.chunks != NULL) { use_chunks = 1;
+}
 
     /* Default: 1000 lines */
-    if (!use_bytes && !use_line_bytes && !use_chunks && !use_lines) {
+    if ((use_bytes == 0) && (use_line_bytes == 0) && (use_chunks == 0) && (use_lines == 0)) {
         use_lines = 1;
         opts.lines = 1000;
     }
@@ -466,52 +508,59 @@ int split_command(int argc, char **argv) {
     }
 
     /* Second positional is the prefix */
-    if (file_arg->count >= 2)
+    if (file_arg->count >= 2) {
         prefix = file_arg->filename[1];
+}
 
     /* --filter not implemented */
     if (opts.filter != NULL) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "split: --filter is not yet implemented\n");
-        if (opened) (void)fclose(in);
+        if (opened != 0) { (void)fclose(in);
+}
         
         return 0;
     }
 
     /* Dispatch */
-    if (use_chunks) {
+    if (use_chunks != 0) {
         const char *cs = opts.chunks;
         int n = 0;
         // NOLINTNEXTLINE(cert-err34-c)
         if (cs[0] == 'l' && cs[1] == '/') {
-            n = (int)strtol(cs + 2, NULL, 10);
-            if (n < 1) goto bad_chunks;
+            n = static_cast<int>(strtol(cs + 2, NULL, 10));
+            if (n < 1) { goto bad_chunks;
+}
             split_n_lines(in, count_lines_file(in), &opts, prefix, n);
         } else if (cs[0] == 'r' && cs[1] == '/') {
-            n = (int)strtol(cs + 2, NULL, 10);
-            if (n < 1) goto bad_chunks;
+            n = static_cast<int>(strtol(cs + 2, NULL, 10));
+            if (n < 1) { goto bad_chunks;
+}
             split_round_robin(in, &opts, prefix, n);
         } else {
-            n = (int)strtol(cs, NULL, 10);
-            if (n < 1) goto bad_chunks;
+            n = static_cast<int>(strtol(cs, NULL, 10));
+            if (n < 1) { goto bad_chunks;
+}
             split_n_chunks(in, count_bytes_file(in), &opts, prefix, n);
         }
-    } else if (use_bytes) {
+    } else if (use_bytes != 0) {
         split_by_bytes(in, &opts, prefix);
-    } else if (use_line_bytes) {
+    } else if (use_line_bytes != 0) {
         split_by_line_bytes(in, &opts, prefix);
     } else {
         split_by_lines(in, &opts, prefix);
     }
 
-    if (opened) (void)fclose(in);
+    if (opened != 0) { (void)fclose(in);
+}
     
     return 0;
 
 bad_chunks:
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "split: invalid number of chunks: %s\n", opts.chunks);
-    if (opened) (void)fclose(in);
+    if (opened != 0) { (void)fclose(in);
+}
     
     return 0;
 }

@@ -6,11 +6,12 @@
 #include "commands/command_macros.hpp"
 
 static void reverse_string(char* s, size_t len) {
-    if (len == 0) return;
+    if (len == 0) { return;
+}
     size_t start = 0;
     size_t end = len - 1;
     while (start < end) {
-        char tmp = s[start];
+        char const tmp = s[start];
         s[start] = s[end];
         s[end] = tmp;
         start++;
@@ -20,15 +21,15 @@ static void reverse_string(char* s, size_t len) {
 
 static void rev_file(FILE* fp) {
     char buf[8192];
-    while (fgets(buf, (int)sizeof(buf), fp)) {
+    while (fgets(buf, static_cast<int>(sizeof(buf)), fp) != nullptr) {
         size_t len = strlen(buf);
-        int had_newline = (len > 0 && buf[len - 1] == '\n');
-        if (had_newline) {
+        int const had_newline = static_cast<int>(len > 0 && buf[len - 1] == '\n');
+        if (had_newline != 0) {
             buf[len - 1] = '\0';
             len--;
         }
         reverse_string(buf, len);
-        fprintf(stdout, "%s\n", buf);
+        (void)fprintf(stdout, "%s\n", buf);
     }
 }
 
@@ -38,7 +39,7 @@ int rev_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -62,11 +63,11 @@ int rev_command(int argc, char** argv) {
             } else {
                 FILE* fp = fopen(fname, "r");
                 if (fp == NULL) {
-                    fprintf(stderr, "rev: %s: No such file or directory\n", fname);
+                    (void)fprintf(stderr, "rev: %s: No such file or directory\n", fname);
                     continue;
                 }
                 rev_file(fp);
-                fclose(fp);
+                (void)fclose(fp);
             }
         }
     }

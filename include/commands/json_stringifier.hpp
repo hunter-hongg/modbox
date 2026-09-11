@@ -6,7 +6,7 @@
 
 static inline void json_escape_string(FILE* out, const char* s) {
     (void)fputc('"', out);
-    for (const char* p = s; *p; ++p) {
+    for (const char* p = s; (*p) != 0; ++p) {
         switch (*p) {
             case '"':  (void)fputs("\\\"", out); break;
             case '\\': (void)fputs("\\\\", out); break;
@@ -28,37 +28,44 @@ static inline void json_escape_string(FILE* out, const char* s) {
 }
 
 static inline void json_emit_int(FILE* out, const char* key, int val, bool last) {
-    if (key) (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+    if (key != nullptr) { (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+}
     (void)fprintf(out, "%d", val);
 }
 
 static inline void json_emit_uint64(FILE* out, const char* key, uint64_t val, bool last) {
-    if (key) (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
-    (void)fprintf(out, "%llu", (unsigned long long)val);
+    if (key != nullptr) { (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+}
+    (void)fprintf(out, "%llu", static_cast<unsigned long long>(val));
 }
 
 static inline void json_emit_long(FILE* out, const char* key, long val, bool last) {
-    if (key) (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+    if (key != nullptr) { (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+}
     (void)fprintf(out, "%ld", val);
 }
 
 static inline void json_emit_bool(FILE* out, const char* key, bool val, bool last) {
-    if (key) (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+    if (key != nullptr) { (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+}
     (void)fprintf(out, "%s", val ? "true" : "false");
 }
 
 static inline void json_emit_null(FILE* out, const char* key, bool last) {
-    if (key) (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+    if (key != nullptr) { (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+}
     (void)fprintf(out, "null");
 }
 
 static inline void json_emit_str(FILE* out, const char* key, const char* val, bool last) {
-    if (key) (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+    if (key != nullptr) { (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
+}
     json_escape_string(out, val);
 }
 
 static inline void json_emit_str_optional(FILE* out, const char* key, const char* val, bool has_val, bool last) {
-    if (!has_val) return;
+    if (!has_val) { return;
+}
     (void)fprintf(out, "%s\"%s\": ", last ? "" : ", ", key);
     json_escape_string(out, val);
 }

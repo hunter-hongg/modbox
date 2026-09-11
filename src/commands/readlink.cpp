@@ -2,12 +2,13 @@
 #include <cstring>
 #include <cstdlib>
 #include <cerrno>
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string>
+#include <utility>
 #include <vector>
-#include <algorithm>
-#include <limits.h>
+#include <climits>
 
 #include "commands/readlink.hpp"
 #include "commands/command_macros.hpp"
@@ -31,19 +32,22 @@ std::string resolve_canonical(const char* path, int& error_code, bool& has_error
 
         if (!S_ISLNK(st.st_mode)) {
             std::string normalized;
-            bool leading = (result[0] == '/');
-            if (leading) normalized += '/';
+            bool const leading = (result[0] == '/');
+            if (leading) { normalized += '/';
+}
 
             size_t pos = leading ? 1 : 0;
             while (pos < result.size()) {
                 size_t next = result.find_first_of('/', pos);
-                if (next == std::string::npos) next = result.size();
-                std::string comp = result.substr(pos, next - pos);
+                if (next == std::string::npos) { next = result.size();
+}
+                std::string const comp = result.substr(pos, next - pos);
                 pos = next + 1;
 
-                if (comp.empty() || comp == ".") continue;
+                if (comp.empty() || comp == ".") { continue;
+}
                 if (comp == "..") {
-                    size_t last = normalized.rfind('/');
+                    size_t const last = normalized.rfind('/');
                     if (last == std::string::npos) {
                         normalized = "/";
                     } else if (last == 0) {
@@ -55,7 +59,8 @@ std::string resolve_canonical(const char* path, int& error_code, bool& has_error
                 }
                 normalized += comp + '/';
             }
-            if (normalized.length() > 1) normalized.pop_back();
+            if (normalized.length() > 1) { normalized.pop_back();
+}
             result = normalized;
             break;
         }
@@ -72,7 +77,7 @@ std::string resolve_canonical(const char* path, int& error_code, bool& has_error
         }
 
         char buffer[READLINK_BUFFER];
-        ssize_t n = readlink(result.c_str(), buffer, sizeof(buffer) - 1);
+        ssize_t const n = readlink(result.c_str(), buffer, sizeof(buffer) - 1);
         if (n < 0) {
             error_code = errno;
             has_error = true;
@@ -90,8 +95,8 @@ std::string resolve_canonical(const char* path, int& error_code, bool& has_error
         if (target[0] == '/') {
             result = target;
         } else {
-            size_t last_slash = result.rfind('/');
-            std::string dir = (last_slash == std::string::npos) ? "." : result.substr(0, last_slash + 1);
+            size_t const last_slash = result.rfind('/');
+            std::string const dir = (last_slash == std::string::npos) ? "." : result.substr(0, last_slash + 1);
             result = dir + target;
         }
     }
@@ -115,7 +120,7 @@ std::string resolve_canonical(const char* path, int& error_code, bool& has_error
 static void strip_trailing_whitespace(std::string& s) {
     size_t i = s.size();
     while (i > 0) {
-        char c = s[i-1];
+        char const c = s[i-1];
         if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
             i--;
         } else {
@@ -138,7 +143,8 @@ int readlink_command(int argc, char** argv) {
     bool quiet = false;
     bool strip = false;
     bool no_newline = false;
-    int help = 0, version = 0;
+    int help = 0;
+    int version = 0;
 
     // Simple option parsing: scan all arguments first
     std::vector<std::string> files;
@@ -172,7 +178,7 @@ int readlink_command(int argc, char** argv) {
         files.push_back(opt);
     }
 
-    if (help) {
+    if (help != 0) {
         printf("Usage: readlink [OPTION]... FILE\n");
         printf("Write the contents of SYMBOLIC LINK to standard output.\n");
         printf("\n");
@@ -184,7 +190,7 @@ int readlink_command(int argc, char** argv) {
         return 0;
     }
 
-    if (version) {
+    if (version != 0) {
         print_version("readlink");
         printf("Copyright (C) 2026 modbox\n");
         printf("License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\n");
@@ -194,16 +200,18 @@ int readlink_command(int argc, char** argv) {
     if (files.empty()) {
         // Try to read from stdin
         char buffer[READLINK_BUFFER];
-        if (fgets(buffer, sizeof(buffer), stdin)) {
-            size_t len = strlen(buffer);
-            if (len > 0 && buffer[len-1] == '\n') buffer[len-1] = '\0';
-            if ((int)strlen(buffer) > 0) files.push_back(buffer);
+        if (fgets(buffer, sizeof(buffer), stdin) != nullptr) {
+            size_t const len = strlen(buffer);
+            if (len > 0 && buffer[len-1] == '\n') { buffer[len-1] = '\0';
+}
+            if (static_cast<int>(strlen(buffer)) > 0) { files.push_back(buffer);
+}
         }
     }
 
     if (files.empty()) {
         if (!quiet) {
-            fprintf(stderr, "readlink: missing operand\nTry '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "readlink: missing operand\nTry '%s --help' for more information.\n", argv[0]);
         }
         return 0;
     }
@@ -212,23 +220,23 @@ int readlink_command(int argc, char** argv) {
         struct stat st;
         if (lstat(file.c_str(), &st) == -1) {
             if (!quiet) {
-                fprintf(stderr, "readlink: %s: %s\n", file.c_str(), strerror(errno));
+                (void)fprintf(stderr, "readlink: %s: %s\n", file.c_str(), strerror(errno));
             }
             continue;
         }
 
         if (!S_ISLNK(st.st_mode)) {
             if (!quiet) {
-                fprintf(stderr, "readlink: %s: not a symbolic link\n", file.c_str());
+                (void)fprintf(stderr, "readlink: %s: not a symbolic link\n", file.c_str());
             }
             continue;
         }
 
         char buffer[READLINK_BUFFER];
-        ssize_t n = readlink(file.c_str(), buffer, sizeof(buffer) - 1);
+        ssize_t const n = readlink(file.c_str(), buffer, sizeof(buffer) - 1);
         if (n < 0) {
             if (!quiet) {
-                fprintf(stderr, "readlink: %s: %s\n", file.c_str(), strerror(errno));
+                (void)fprintf(stderr, "readlink: %s: %s\n", file.c_str(), strerror(errno));
             }
             continue;
         }
@@ -243,9 +251,9 @@ int readlink_command(int argc, char** argv) {
             if (err_flag) {
                 if (!quiet) {
                     if (err == ELOOP) {
-                        fprintf(stderr, "readlink: %s: Too many levels of symbolic links\n", file.c_str());
+                        (void)fprintf(stderr, "readlink: %s: Too many levels of symbolic links\n", file.c_str());
                     } else {
-                        fprintf(stderr, "readlink: %s: %s\n", file.c_str(), strerror(err));
+                        (void)fprintf(stderr, "readlink: %s: %s\n", file.c_str(), strerror(err));
                     }
                 }
             }

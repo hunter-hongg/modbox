@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -11,11 +12,19 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "commands/awk.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
+
+// Implementation types live in an anonymous namespace for internal linkage.
+// Without it, Value/Token/Node/Parser/etc. have external linkage and collide
+// with identically-named global types in other commands (bc's Parser, sh/
+// tcpdump's Node, expr's Value) — the linker then mixes the definitions and
+// awk crashes in Parser::peek.
+namespace {
 
 // ---------------------------------------------------------------------------
 // Value
@@ -42,49 +51,61 @@ static bool is_numstr(const std::string& s) {
 }
 
 static double val_to_num(const Value& v) {
-    if (v.numeric) return v.num;
-    if (v.str.empty()) return 0;
+    if (v.numeric) { return v.num;
+}
+    if (v.str.empty()) { return 0;
+}
     return std::strtod(v.str.c_str(), nullptr);
 }
 
 static std::string val_to_str(const Value& v, const std::string& fmt) {
-    if (!v.numeric) return v.str;
+    if (!v.numeric) { return v.str;
+}
     char buf[512];
-    std::snprintf(buf, sizeof(buf), fmt.c_str(), v.num);
+    (void)std::snprintf(buf, sizeof(buf), fmt.c_str(), v.num);
     return std::string(buf);
 }
 
 static bool val_is_numeric(const Value& v) {
-    if (v.numeric) return true;
+    if (v.numeric) { return true;
+}
     return is_numstr(v.str);
 }
 
 static bool val_truthy(const Value& v, const std::string& record) {
     if (v.regex) {
         try {
-            if (v.str.empty()) return true;
-            std::regex re(v.str);
+            if (v.str.empty()) { return true;
+}
+            std::regex const re(v.str);
             return std::regex_search(record, re);
         } catch (...) {
             return false;
         }
     }
-    if (v.numeric) return v.num != 0;
+    if (v.numeric) { return v.num != 0;
+}
     return !v.str.empty();
 }
 
 static int compare_values(const Value& a, const Value& b) {
-    bool an = val_is_numeric(a), bn = val_is_numeric(b);
+    bool const an = val_is_numeric(a);
+    bool const bn = val_is_numeric(b);
     if (an && bn) {
-        double x = val_to_num(a), y = val_to_num(b);
-        if (x < y) return -1;
-        if (x > y) return 1;
+        double const x = val_to_num(a);
+        double const y = val_to_num(b);
+        if (x < y) { return -1;
+}
+        if (x > y) { return 1;
+}
         return 0;
     }
-    std::string xs = val_to_str(a, awk_convfmt());
-    std::string ys = val_to_str(b, awk_convfmt());
-    if (xs < ys) return -1;
-    if (xs > ys) return 1;
+    std::string const xs = val_to_str(a, awk_convfmt());
+    std::string const ys = val_to_str(b, awk_convfmt());
+    if (xs < ys) { return -1;
+}
+    if (xs > ys) { return 1;
+}
     return 0;
 }
 
@@ -117,10 +138,10 @@ struct Token {
 };
 
 static bool is_ident_start(char c) {
-    return std::isalpha((unsigned char)c) || c == '_';
+    return (std::isalpha(static_cast<unsigned char>(c)) != 0) || c == '_';
 }
 static bool is_ident_char(char c) {
-    return std::isalnum((unsigned char)c) || c == '_';
+    return (std::isalnum(static_cast<unsigned char>(c)) != 0) || c == '_';
 }
 
 class Lexer {
@@ -139,8 +160,9 @@ private:
     size_t pos_ = 0;
 
     bool operand_follows() {
-        if (toks_.empty()) return true;
-        int t = toks_.back().type;
+        if (toks_.empty()) { return true;
+}
+        int const t = toks_.back().type;
         switch (t) {
             case T_NUM: case T_STR: case T_REGEX: case T_IDENT:
             case T_RP: case T_RS: case T_INCR: case T_DECR:
@@ -152,11 +174,12 @@ private:
 
     void skip_ws() {
         while (i_ < s_.size()) {
-            char c = s_[i_];
+            char const c = s_[i_];
             if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f') {
                 i_++;
             } else if (c == '#') {
-                while (i_ < s_.size() && s_[i_] != '\n') i_++;
+                while (i_ < s_.size() && s_[i_] != '\n') { i_++;
+}
             } else {
                 break;
             }
@@ -168,10 +191,10 @@ private:
             skip_ws();
             if (i_ >= s_.size()) { emit(T_EOF, ""); break; }
 
-            char c = s_[i_];
+            char const c = s_[i_];
 
-            if (std::isdigit((unsigned char)c) ||
-                (c == '.' && i_ + 1 < s_.size() && std::isdigit((unsigned char)s_[i_ + 1]))) {
+            if ((std::isdigit(static_cast<unsigned char>(c)) != 0) ||
+                (c == '.' && i_ + 1 < s_.size() && (std::isdigit(static_cast<unsigned char>(s_[i_ + 1])) != 0))) {
                 scan_number();
                 continue;
             }
@@ -195,24 +218,25 @@ private:
     }
 
     void scan_number() {
-        size_t start = i_;
-        while (i_ < s_.size() && (std::isdigit((unsigned char)s_[i_]) || s_[i_] == '.' ||
+        size_t const start = i_;
+        while (i_ < s_.size() && ((std::isdigit(static_cast<unsigned char>(s_[i_])) != 0) || s_[i_] == '.' ||
                s_[i_] == 'e' || s_[i_] == 'E' || s_[i_] == '+' || s_[i_] == '-')) {
             if ((s_[i_] == '+' || s_[i_] == '-') &&
-                !(i_ > 0 && (s_[i_-1] == 'e' || s_[i_-1] == 'E'))) break;
+                (i_ <= 0 || (s_[i_-1] != 'e' && s_[i_-1] != 'E'))) { break;
+}
             i_++;
         }
-        std::string txt = s_.substr(start, i_ - start);
+        std::string const txt = s_.substr(start, i_ - start);
         emit(T_NUM, txt, std::strtod(txt.c_str(), nullptr));
     }
 
     void scan_string() {
-        char quote = s_[i_++];
+        char const quote = s_[i_++];
         std::string out;
         while (i_ < s_.size() && s_[i_] != quote) {
-            char c = s_[i_++];
+            char const c = s_[i_++];
             if (c == '\\' && i_ < s_.size()) {
-                char e = s_[i_++];
+                char const e = s_[i_++];
                 switch (e) {
                     case 'n': out += '\n'; break;
                     case 't': out += '\t'; break;
@@ -228,7 +252,8 @@ private:
                 out += c;
             }
         }
-        if (i_ < s_.size()) i_++;
+        if (i_ < s_.size()) { i_++;
+}
         emit(T_STR, out);
     }
 
@@ -236,7 +261,7 @@ private:
         i_++; // consume /
         std::string out;
         while (i_ < s_.size() && s_[i_] != '/') {
-            char c = s_[i_++];
+            char const c = s_[i_++];
             if (c == '\\' && i_ < s_.size()) {
                 out += c;
                 out += s_[i_++];
@@ -244,21 +269,24 @@ private:
                 out += c;
             }
         }
-        if (i_ < s_.size()) i_++;
+        if (i_ < s_.size()) { i_++;
+}
         emit(T_REGEX, out);
     }
 
     void scan_ident() {
-        size_t start = i_;
-        while (i_ < s_.size() && is_ident_char(s_[i_])) i_++;
-        std::string txt = s_.substr(start, i_ - start);
-        if (txt == "in") emit(T_IN, txt);
-        else emit(T_IDENT, txt);
+        size_t const start = i_;
+        while (i_ < s_.size() && is_ident_char(s_[i_])) { i_++;
+}
+        std::string const txt = s_.substr(start, i_ - start);
+        if (txt == "in") { emit(T_IN, txt);
+        } else { emit(T_IDENT, txt);
+}
     }
 
     void scan_punct() {
         char c = s_[i_];
-        char n = (i_ + 1 < s_.size()) ? s_[i_ + 1] : 0;
+        char const n = (i_ + 1 < s_.size()) ? s_[i_ + 1] : 0;
         auto two = [&](int t, const std::string& str) {
             i_ += 2;
             emit(t, str);
@@ -266,19 +294,30 @@ private:
         auto one = [&](int t) { i_++; emit(t, std::string(1, c)); };
 
         switch (c) {
-            case '=': if (n == '=') two(T_EQ, "=="); else one(T_ASSIGN); break;
-            case '!': if (n == '=') two(T_NE, "!="); else one(T_NOT); break;
-            case '<': if (n == '=') two(T_LE, "<="); else one(T_LT); break;
-            case '>': if (n == '=') two(T_GE, ">="); else one(T_GT); break;
+            case '=': if (n == '=') { two(T_EQ, "=="); } else { one(T_ASSIGN); 
+}break;
+            case '!': if (n == '=') { two(T_NE, "!="); } else { one(T_NOT); 
+}break;
+            case '<': if (n == '=') { two(T_LE, "<="); } else { one(T_LT); 
+}break;
+            case '>': if (n == '=') { two(T_GE, ">="); } else { one(T_GT); 
+}break;
             case '~': one(T_TILDE); break;
-            case '&': if (n == '&') two(T_AND, "&&"); else one(T_TILDE == 0 ? T_AND : T_TILDE); break;
-            case '|': if (n == '|') two(T_OR, "||"); else one(T_OR); break;
-            case '+': if (n == '=') two(T_ADD_A, "+="); else if (n == '+') two(T_INCR, "++"); else one(T_PLUS); break;
-            case '-': if (n == '=') two(T_SUB_A, "-="); else if (n == '-') two(T_DECR, "--"); else one(T_MINUS); break;
-            case '*': if (n == '=') two(T_MUL_A, "*="); else one(T_MUL); break;
+            case '&': if (n == '&') { two(T_AND, "&&"); } else { one(T_TILDE == 0 ? T_AND : T_TILDE); 
+}break;
+            case '|': if (n == '|') { two(T_OR, "||"); } else { one(T_OR); 
+}break;
+            case '+': if (n == '=') { two(T_ADD_A, "+="); } else if (n == '+') { two(T_INCR, "++"); } else { one(T_PLUS); 
+}break;
+            case '-': if (n == '=') { two(T_SUB_A, "-="); } else if (n == '-') { two(T_DECR, "--"); } else { one(T_MINUS); 
+}break;
+            case '*': if (n == '=') { two(T_MUL_A, "*="); } else { one(T_MUL); 
+}break;
             case '/': one(T_DIV); break;
-            case '%': if (n == '=') two(T_MOD_A, "%="); else one(T_MOD); break;
-            case '^': if (n == '=') two(T_POW_A, "^="); else one(T_POW); break;
+            case '%': if (n == '=') { two(T_MOD_A, "%="); } else { one(T_MOD); 
+}break;
+            case '^': if (n == '=') { two(T_POW_A, "^="); } else { one(T_POW); 
+}break;
             case '(': one(T_LP); break;
             case ')': one(T_RP); break;
             case '{': one(T_LB); break;
@@ -366,14 +405,15 @@ public:
                 continue;
             }
             if (t.type == T_LB) {
-                Node* act = parse_block();
+                Node *act = parse_block();
                 rules.push_back(act);
                 rule_patterns.push_back(nullptr);
                 continue;
             }
             Node* pat = parse_pattern();
-            Node* act = nullptr;
-            if (lex_.peek().type == T_LB) act = parse_block();
+            Node *act = nullptr;
+            if (lex_.peek().type == T_LB) { act = parse_block();
+}
         rules.push_back(act);
         rule_patterns.push_back(pat);
     }
@@ -394,13 +434,14 @@ private:
     }
 
     bool is_primary_start() {
-        int t = lex_.peek().type;
+        int const t = lex_.peek().type;
         return t == T_NUM || t == T_STR || t == T_REGEX || t == T_IDENT ||
                t == T_LP || t == T_DOLLAR;
     }
 
     Node* parse_pattern() {
-        if (lex_.at_end() || lex_.peek().type == T_LB) return nullptr;
+        if (lex_.at_end() || lex_.peek().type == T_LB) { return nullptr;
+}
         Node* e = parse_expr();
         if (lex_.peek().type == T_COMMA) {
             lex_.next();
@@ -420,7 +461,8 @@ private:
         while (lex_.peek().type != T_RB && !lex_.at_end()) {
             if (lex_.peek().type == T_SEMI) { lex_.next(); continue; }
             blk->kids.push_back(parse_statement());
-            if (lex_.peek().type == T_SEMI) lex_.next();
+            if (lex_.peek().type == T_SEMI) { lex_.next();
+}
         }
         expect(T_RB);
         return blk;
@@ -428,10 +470,13 @@ private:
 
     Node* parse_statement() {
         const Token& t = lex_.peek();
-        if (t.type == T_LB) return parse_block();
+        if (t.type == T_LB) { return parse_block();
+}
         if (t.type == T_IDENT) {
-            if (t.text == "print") return parse_print(false);
-            if (t.text == "printf") return parse_print(true);
+            if (t.text == "print") { return parse_print(false);
+}
+            if (t.text == "printf") { return parse_print(true);
+}
             if (t.text == "if") {
                 lex_.next();
                 expect(T_LP);
@@ -457,7 +502,8 @@ private:
                 n->a = cond; n->b = body;
                 return n;
             }
-            if (t.text == "for") return parse_for();
+            if (t.text == "for") { return parse_for();
+}
             if (t.text == "break") { lex_.next(); return mk(S_BREAK); }
             if (t.text == "continue") { lex_.next(); return mk(S_CONTINUE); }
             if (t.text == "next") { lex_.next(); return mk(S_NEXT); }
@@ -470,7 +516,8 @@ private:
                 }
                 return n;
             }
-            if (t.text == "delete") return parse_delete();
+            if (t.text == "delete") { return parse_delete();
+}
             if (t.text == "return") {
                 lex_.next();
                 Node* n = mk(S_RETURN);
@@ -480,7 +527,8 @@ private:
                 }
                 return n;
             }
-            if (t.text == "getline") return parse_getline();
+            if (t.text == "getline") { return parse_getline();
+}
         }
         Node* n = mk(S_EXPR);
         n->a = parse_expr();
@@ -509,7 +557,9 @@ private:
         if (lex_.peek().type == T_GT) {
             lex_.next();
             if (lex_.peek().type == T_GT) { n->redir = 2; lex_.next(); }
-            else n->redir = 1;
+            else { { n->redir = 1;
+}
+}
             n->d = parse_expr();
         }
         return n;
@@ -519,9 +569,9 @@ private:
         lex_.next();
         expect(T_LP);
         if (lex_.peek().type == T_IDENT && lex_.peek2().type == T_IN) {
-            std::string var = lex_.next().text;
+            std::string const var = lex_.next().text;
             lex_.next(); // in
-            std::string arr = lex_.next().text;
+            std::string const arr = lex_.next().text;
             expect(T_RP);
             Node* body = parse_statement();
             Node* n = mk(S_FOR_IN);
@@ -530,14 +580,19 @@ private:
             n->a = body;
             return n;
         }
-        Node *init = nullptr, *cond = nullptr, *incr = nullptr;
-        if (lex_.peek().type != T_SEMI) init = parse_expr();
+        Node *init = nullptr;
+        Node *cond = nullptr;
+        Node *incr = nullptr;
+        if (lex_.peek().type != T_SEMI) { init = parse_expr();
+}
         expect(T_SEMI);
-        if (lex_.peek().type != T_SEMI) cond = parse_expr();
+        if (lex_.peek().type != T_SEMI) { cond = parse_expr();
+}
         expect(T_SEMI);
-        if (lex_.peek().type != T_RP) incr = parse_expr();
+        if (lex_.peek().type != T_RP) { incr = parse_expr();
+}
         expect(T_RP);
-        Node* body = parse_statement();
+        Node *const body = parse_statement();
         Node* n = mk(S_FOR);
         n->a = init; n->b = cond; n->c = incr; n->kids.push_back(body);
         return n;
@@ -545,7 +600,7 @@ private:
 
     Node* parse_delete() {
         lex_.next();
-        std::string name = expect(T_IDENT).text;
+        std::string const name = expect(T_IDENT).text;
         Node* n = mk(S_DELETE);
         n->str = name;
         if (lex_.peek().type == T_LS) {
@@ -574,7 +629,7 @@ private:
 
     Node* parse_assign() {
         Node* left = parse_cond();
-        int t = lex_.peek().type;
+        int const t = lex_.peek().type;
         if (t == T_ASSIGN || t == T_ADD_A || t == T_SUB_A || t == T_MUL_A ||
             t == T_DIV_A || t == T_MOD_A || t == T_POW_A) {
             lex_.next();
@@ -635,7 +690,7 @@ private:
 
     Node* parse_match() {
         Node* left = parse_compare();
-        int t = lex_.peek().type;
+        int const t = lex_.peek().type;
         if (t == T_TILDE) {
             lex_.next();
             Node* right = parse_compare();
@@ -655,7 +710,7 @@ private:
         }
         if (t == T_IN) {
             lex_.next();
-            std::string arr = expect(T_IDENT).text;
+            std::string const arr = expect(T_IDENT).text;
             Node* n = mk(E_IN);
             n->a = left; n->str = arr;
             return n;
@@ -665,8 +720,9 @@ private:
 
     Node* parse_compare() {
         Node* left = parse_concat();
-        if (in_print_ && lex_.peek().type == T_GT) return left;
-        int t = lex_.peek().type;
+        if (in_print_ && lex_.peek().type == T_GT) { return left;
+}
+        int const t = lex_.peek().type;
         if (t == T_EQ || t == T_NE || t == T_LT || t == T_LE || t == T_GT || t == T_GE) {
             lex_.next();
             Node* right = parse_concat();
@@ -699,7 +755,7 @@ private:
     Node* parse_add() {
         Node* left = parse_mul();
         while (lex_.peek().type == T_PLUS || lex_.peek().type == T_MINUS) {
-            int t = lex_.next().type;
+            int const t = lex_.next().type;
             Node* right = parse_mul();
             Node* n = mk(E_BINARY);
             n->op = (t == T_PLUS) ? OP_ADD : OP_SUB;
@@ -713,7 +769,7 @@ private:
         Node* left = parse_unary();
         while (lex_.peek().type == T_MUL || lex_.peek().type == T_DIV ||
                lex_.peek().type == T_MOD) {
-            int t = lex_.next().type;
+            int const t = lex_.next().type;
             Node* right = parse_unary();
             Node* n = mk(E_BINARY);
             n->op = (t == T_MUL) ? OP_MUL : (t == T_DIV) ? OP_DIV : OP_MOD;
@@ -736,7 +792,7 @@ private:
     }
 
     Node* parse_unary() {
-        int t = lex_.peek().type;
+        int const t = lex_.peek().type;
         if (t == T_MINUS) {
             lex_.next();
             Node* n = mk(E_UNARY);
@@ -769,7 +825,7 @@ private:
     Node* parse_postfix() {
         Node* n = parse_primary();
         while (true) {
-            int t = lex_.peek().type;
+            int const t = lex_.peek().type;
             if (t == T_LS) {
                 lex_.next();
                 n->kids.push_back(parse_expr());
@@ -831,7 +887,8 @@ private:
             return e;
         }
         if (t.type == T_IDENT) {
-            if (t.text == "getline") return parse_getline();
+            if (t.text == "getline") { return parse_getline();
+}
             lex_.next();
             Node* n = mk(E_VAR);
             n->str = t.text;
@@ -844,7 +901,7 @@ private:
 
     Node* parse_function() {
         lex_.next(); // function
-        std::string name = expect(T_IDENT).text;
+        std::string const name = expect(T_IDENT).text;
         expect(T_LP);
         Node* fn = mk(S_BLOCK);
         fn->kind = S_BLOCK;
@@ -856,7 +913,7 @@ private:
             }
         }
         expect(T_RP);
-        Node* body = parse_block();
+        Node *const body = parse_block();
         fn->kids = body->kids;
         funcs_[name] = fn;
         return fn;
@@ -884,30 +941,36 @@ class Awk {
 public:
     void run(Parser& p, const std::vector<std::string>& files,
              const std::vector<std::pair<std::string, std::string>>& assigns) {
-        for (const auto& kv : assigns) set_var(kv.first, Value(kv.second));
+        for (const auto& kv : assigns) { set_var(kv.first, Value(kv.second));
+}
 
         parser_ = &p;
         setup_argv(files);
 
-        for (Node* b : p.begin_blocks) exec_stmt(b);
+        for (Node* b : p.begin_blocks) { exec_stmt(b);
+}
 
-        rng_active_.assign(p.rules.size(), false);
+        rng_active_.assign(p.rules.size(), 0);
         int rule_idx = 0;
-        for (Node* blk : p.rules) { (void)blk; rng_active_[rule_idx++] = false; }
+        for (Node* blk : p.rules) { (void)blk; rng_active_[rule_idx++] = 0; }
 
         bool exited = false;
         if (arg_files_.empty()) {
-            if (open_stream("-")) exited = process_current();
+            if (open_stream("-")) { exited = process_current();
+}
         } else {
             for (const std::string& f : arg_files_) {
-                if (f.empty()) continue;
-                if (!open_stream(f)) continue;
-                bool e = process_current();
+                if (f.empty()) { continue;
+}
+                if (!open_stream(f)) { continue;
+}
+                bool const e = process_current();
                 if (e) { exited = true; break; }
             }
         }
 
-        for (Node* e : p.end_blocks) exec_stmt(e);
+        for (Node* e : p.end_blocks) { exec_stmt(e);
+}
         close_streams();
     }
 
@@ -947,31 +1010,49 @@ private:
     bool is_special(const std::string& n) {
         static const char* sp[] = {"NF","NR","FNR","FS","OFS","ORS","RS","FILENAME",
             "OFMT","CONVFMT","SUBSEP","RSTART","RLENGTH","ARGC","ARGV",nullptr};
-        for (int i = 0; sp[i]; i++) if (n == sp[i]) return true;
+        for (int i = 0; sp[i] != nullptr; i++) { if (n == sp[i]) { return true;
+}
+}
         return false;
     }
 
     Value get_var(const std::string& n) {
         for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
             auto f = it->find(n);
-            if (f != it->end()) return f->second;
+            if (f != it->end()) { return f->second;
+}
         }
-        if (n == "NF") return Value((double)g_fields.size());
-        if (n == "NR") return Value((double)nr_);
-        if (n == "FNR") return Value((double)fnr_);
-        if (n == "FS") return Value(fs_);
-        if (n == "OFS") return Value(ofs_);
-        if (n == "ORS") return Value(ors_);
-        if (n == "RS") return Value(rs_);
-        if (n == "FILENAME") return Value(filename_);
-        if (n == "OFMT") return Value(ofmt_);
-        if (n == "CONVFMT") return Value(convfmt_);
-        if (n == "SUBSEP") return Value(subsep_);
-        if (n == "RSTART") return Value((double)rstart_);
-        if (n == "RLENGTH") return Value((double)rlength_);
-        if (n == "ARGC") return Value((double)argc_);
+        if (n == "NF") { return Value(static_cast<double>(g_fields.size()));
+}
+        if (n == "NR") { return Value(static_cast<double>(nr_));
+}
+        if (n == "FNR") { return Value(static_cast<double>(fnr_));
+}
+        if (n == "FS") { return Value(fs_);
+}
+        if (n == "OFS") { return Value(ofs_);
+}
+        if (n == "ORS") { return Value(ors_);
+}
+        if (n == "RS") { return Value(rs_);
+}
+        if (n == "FILENAME") { return Value(filename_);
+}
+        if (n == "OFMT") { return Value(ofmt_);
+}
+        if (n == "CONVFMT") { return Value(convfmt_);
+}
+        if (n == "SUBSEP") { return Value(subsep_);
+}
+        if (n == "RSTART") { return Value(static_cast<double>(rstart_));
+}
+        if (n == "RLENGTH") { return Value(static_cast<double>(rlength_));
+}
+        if (n == "ARGC") { return Value(static_cast<double>(argc_));
+}
         auto f = vars_.find(n);
-        if (f != vars_.end()) return f->second;
+        if (f != vars_.end()) { return f->second;
+}
         return Value(0.0);
     }
 
@@ -987,9 +1068,10 @@ private:
         if (n == "OFMT") { ofmt_ = val_to_str(v, convfmt_); return; }
         if (n == "CONVFMT") { convfmt_ = val_to_str(v, convfmt_); return; }
         if (n == "SUBSEP") { subsep_ = val_to_str(v, convfmt_); return; }
-        if (n == "NF") { set_nf((long)val_to_num(v)); return; }
+        if (n == "NF") { set_nf(static_cast<long>(val_to_num(v))); return; }
         if (n == "NR" || n == "FNR" || n == "FILENAME" || n == "RSTART" ||
-            n == "RLENGTH" || n == "ARGC") return;
+            n == "RLENGTH" || n == "ARGC") { return;
+}
         vars_[n] = v;
     }
 
@@ -1000,7 +1082,8 @@ private:
     std::string array_key(Node* idxnode) {
         std::string k;
         for (size_t i = 0; i < idxnode->kids.size(); i++) {
-            if (i) k += subsep_;
+            if (i != 0u) { k += subsep_;
+}
             k += val_to_str(eval(idxnode->kids[i]), convfmt_);
         }
         return k;
@@ -1009,7 +1092,8 @@ private:
     Value get_array_elem(const std::string& name, Node* idxnode) {
         auto& arr = get_array(name);
         auto f = arr.find(array_key(idxnode));
-        if (f != arr.end()) return f->second;
+        if (f != arr.end()) { return f->second;
+}
         return Value(0.0);
     }
 
@@ -1022,17 +1106,22 @@ private:
                       std::vector<std::string>& out) {
         out.clear();
         if (fs.empty()) {
-            for (char c : rec) out.push_back(std::string(1, c));
+            for (char c : rec) { out.push_back(std::string(1, c));
+}
             return;
         }
         if (fs == " ") {
-            size_t i = 0, n = rec.size();
-            while (i < n && std::isspace((unsigned char)rec[i])) i++;
+            size_t i = 0;
+            size_t const n = rec.size();
+            while (i < n && (std::isspace(static_cast<unsigned char>(rec[i])) != 0)) { i++;
+}
             while (i < n) {
                 size_t j = i;
-                while (j < n && !std::isspace((unsigned char)rec[j])) j++;
+                while (j < n && (std::isspace(static_cast<unsigned char>(rec[j])) == 0)) { j++;
+}
                 out.push_back(rec.substr(i, j - i));
-                while (j < n && std::isspace((unsigned char)rec[j])) j++;
+                while (j < n && (std::isspace(static_cast<unsigned char>(rec[j])) != 0)) { j++;
+}
                 i = j;
             }
             return;
@@ -1040,7 +1129,7 @@ private:
         if (fs.size() == 1) {
             size_t i = 0;
             while (true) {
-                size_t j = rec.find(fs[0], i);
+                size_t const j = rec.find(fs[0], i);
                 if (j == std::string::npos) { out.push_back(rec.substr(i)); break; }
                 out.push_back(rec.substr(i, j - i));
                 i = j + 1;
@@ -1048,9 +1137,9 @@ private:
             return;
         }
         try {
-            std::regex re(fs);
+            std::regex const re(fs);
             std::sregex_iterator it(rec.begin(), rec.end(), re);
-            std::sregex_iterator end;
+            std::sregex_iterator const end;
             size_t pos = 0;
             for (; it != end; ++it) {
                 out.push_back(rec.substr(pos, it->position() - pos));
@@ -1066,7 +1155,8 @@ private:
     void rebuild_record() {
         std::string r;
         for (size_t i = 0; i < g_fields.size(); i++) {
-            if (i) r += ofs_;
+            if (i != 0u) { r += ofs_;
+}
             r += g_fields[i];
         }
         g_record = r;
@@ -1078,8 +1168,10 @@ private:
     }
 
     Value get_field(long n) {
-        if (n <= 0) return Value(g_record);
-        if ((size_t)n > g_fields.size()) return Value("");
+        if (n <= 0) { return Value(g_record);
+}
+        if (static_cast<size_t>(n) > g_fields.size()) { return Value("");
+}
         return Value(g_fields[n - 1]);
     }
 
@@ -1088,15 +1180,18 @@ private:
             set_record(val_to_str(v, ofmt_));
             return;
         }
-        while ((long)g_fields.size() < n) g_fields.push_back("");
+        while (static_cast<long>(g_fields.size()) < n) { g_fields.push_back("");
+}
         g_fields[n - 1] = val_to_str(v, ofmt_);
         rebuild_record();
     }
 
     void set_nf(long k) {
-        if (k < 0) return;
-        if ((long)g_fields.size() < k) {
-            while ((long)g_fields.size() < k) g_fields.push_back("");
+        if (k < 0) { return;
+}
+        if (static_cast<long>(g_fields.size()) < k) {
+            while (static_cast<long>(g_fields.size()) < k) { g_fields.push_back("");
+}
         } else {
             g_fields.resize(k);
         }
@@ -1106,10 +1201,11 @@ private:
     // ----- lvalue helpers -----
     std::string lvalue_str(Node* n) {
         if (n->kind == E_FIELD) {
-            return val_to_str(get_field((long)val_to_num(eval(n->a))), convfmt_);
+            return val_to_str(get_field(static_cast<long>(val_to_num(eval(n->a)))), convfmt_);
         }
         if (n->kind == E_VAR) {
-            if (n->kids.empty()) return val_to_str(get_var(n->str), convfmt_);
+            if (n->kids.empty()) { return val_to_str(get_var(n->str), convfmt_);
+}
             return val_to_str(get_array_elem(n->str, n), convfmt_);
         }
         return val_to_str(eval(n), convfmt_);
@@ -1117,12 +1213,13 @@ private:
 
     void assign_lvalue(Node* n, const Value& v) {
         if (n->kind == E_FIELD) {
-            set_field((long)val_to_num(eval(n->a)), v);
+            set_field(static_cast<long>(val_to_num(eval(n->a))), v);
             return;
         }
         if (n->kind == E_VAR) {
-            if (n->kids.empty()) set_var(n->str, v);
-            else set_array_elem(n->str, n, v);
+            if (n->kids.empty()) { set_var(n->str, v);
+            } else { set_array_elem(n->str, n, v);
+}
             return;
         }
         (void)v;
@@ -1130,7 +1227,8 @@ private:
 
     // ----- evaluation -----
     Value eval(Node* n) {
-        if (!n) return Value(0.0);
+        if (n == nullptr) { return Value(0.0);
+}
         switch (n->kind) {
             case E_NUM: return Value(n->num);
             case E_STR: return Value(n->str);
@@ -1139,16 +1237,17 @@ private:
                 return v;
             }
             case E_FIELD: {
-                Value idx = eval(n->a);
-                return get_field((long)val_to_num(idx));
+                Value const idx = eval(n->a);
+                return get_field(static_cast<long>(val_to_num(idx)));
             }
             case E_VAR: {
-                if (n->kids.empty()) return get_var(n->str);
+                if (n->kids.empty()) { return get_var(n->str);
+}
                 return get_array_elem(n->str, n);
             }
             case E_IN: {
                 auto& arr = get_array(n->str);
-                std::string k = val_to_str(eval(n->a), convfmt_);
+                std::string const k = val_to_str(eval(n->a), convfmt_);
                 return Value(arr.find(k) != arr.end() ? 1.0 : 0.0);
             }
             case E_BINARY: return eval_binary(n);
@@ -1162,8 +1261,8 @@ private:
     }
 
     Value eval_binary(Node* n) {
-        Value l = eval(n->a);
-        Value r = eval(n->b);
+        Value const l = eval(n->a);
+        Value const r = eval(n->b);
         switch (n->op) {
             case OP_ADD: return Value(val_to_num(l) + val_to_num(r));
             case OP_SUB: return Value(val_to_num(l) - val_to_num(r));
@@ -1199,15 +1298,15 @@ private:
     Value eval_assign(Node* n) {
         if (n->op == OP_PREINC || n->op == OP_PREDEC ||
             n->op == OP_POSTINC || n->op == OP_POSTDEC) {
-            double cur = val_to_num(eval(n->a));
-            double nv = (n->op == OP_PREINC || n->op == OP_POSTINC) ? cur + 1 : cur - 1;
+            double const cur = val_to_num(eval(n->a));
+            double const nv = (n->op == OP_PREINC || n->op == OP_POSTINC) ? cur + 1 : cur - 1;
             assign_lvalue(n->a, Value(nv));
             return Value((n->op == OP_PREINC || n->op == OP_PREDEC) ? nv : cur);
         }
         Value rhs = eval(n->b);
         if (n->op == OP_ADD_A || n->op == OP_SUB_A || n->op == OP_MUL_A ||
             n->op == OP_DIV_A || n->op == OP_MOD_A || n->op == OP_POW_A) {
-            double cur = val_to_num(eval(n->a));
+            double const cur = val_to_num(eval(n->a));
             double nv = cur;
             switch (n->op) {
                 case OP_ADD_A: nv = cur + val_to_num(rhs); break;
@@ -1226,7 +1325,7 @@ private:
 
     bool regex_search(const std::string& s, const std::string& pat) {
         try {
-            std::regex re(pat.empty() ? ".*" : pat);
+            std::regex const re(pat.empty() ? ".*" : pat);
             return std::regex_search(s, re);
         } catch (...) {
             return false;
@@ -1241,39 +1340,43 @@ private:
             return Value(0.0);
         }
         if (name == "length") {
-            if (n->kids.empty()) return Value((double)g_record.size());
-            Value a = eval(n->kids[0]);
+            if (n->kids.empty()) { return Value(static_cast<double>(g_record.size()));
+}
+            Value const a = eval(n->kids[0]);
             if (!a.numeric && n->kids[0]->kind == E_VAR && !n->kids[0]->kids.empty()) {
-                return Value((double)get_array(n->kids[0]->str).size());
+                return Value(static_cast<double>(get_array(n->kids[0]->str).size()));
             }
-            return Value((double)val_to_str(a, convfmt_).size());
+            return Value(static_cast<double>(val_to_str(a, convfmt_).size()));
         }
         if (name == "substr") {
-            std::string s = val_to_str(eval(n->kids[0]), convfmt_);
-            long m = (long)val_to_num(eval(n->kids[1]));
-            if (m < 1) m = 1;
-            if (m > (long)s.size()) return Value("");
-            long len = (n->kids.size() > 2) ? (long)val_to_num(eval(n->kids[2])) : (long)s.size();
-            if (len < 0) len = 0;
-            if (m + len > (long)s.size()) len = (long)s.size() - m + 1;
+            std::string const s = val_to_str(eval(n->kids[0]), convfmt_);
+            long m = static_cast<long>(val_to_num(eval(n->kids[1])));
+            m = std::max<long>(m, 1);
+            if (m > static_cast<long>(s.size())) { return Value("");
+}
+            long len = (n->kids.size() > 2) ? static_cast<long>(val_to_num(eval(n->kids[2]))) : static_cast<long>(s.size());
+            len = std::max<long>(len, 0);
+            if (m + len > static_cast<long>(s.size())) { len = static_cast<long>(s.size()) - m + 1;
+}
             return Value(s.substr(m - 1, len));
         }
         if (name == "index") {
-            std::string s = val_to_str(eval(n->kids[0]), convfmt_);
-            std::string t = val_to_str(eval(n->kids[1]), convfmt_);
-            size_t p = s.find(t);
-            return Value(p == std::string::npos ? 0.0 : (double)(p + 1));
+            std::string const s = val_to_str(eval(n->kids[0]), convfmt_);
+            std::string const t = val_to_str(eval(n->kids[1]), convfmt_);
+            size_t const p = s.find(t);
+            return Value(p == std::string::npos ? 0.0 : static_cast<double>(p + 1));
         }
         if (name == "split") {
-            std::string s = val_to_str(eval(n->kids[0]), convfmt_);
-            std::string sep = (n->kids.size() > 2) ? val_to_str(eval(n->kids[2]), convfmt_) : fs_;
+            std::string const s = val_to_str(eval(n->kids[0]), convfmt_);
+            std::string const sep = (n->kids.size() > 2) ? val_to_str(eval(n->kids[2]), convfmt_) : fs_;
             std::vector<std::string> parts;
             split_fields(s, sep, parts);
             auto& arr = get_array(n->kids[1]->str);
             arr.clear();
-            for (size_t i = 0; i < parts.size(); i++)
+            for (size_t i = 0; i < parts.size(); i++) {
                 arr[std::to_string(i + 1)] = Value(parts[i]);
-            return Value((double)parts.size());
+}
+            return Value(static_cast<double>(parts.size()));
         }
         if (name == "tolower") {
             std::string s = val_to_str(eval(n->kids[0]), convfmt_);
@@ -1286,31 +1389,39 @@ private:
             return Value(s);
         }
         if (name == "match") {
-            std::string s = val_to_str(eval(n->kids[0]), convfmt_);
-            std::string pat = val_to_str(eval(n->kids[1]), convfmt_);
+            std::string const s = val_to_str(eval(n->kids[0]), convfmt_);
+            std::string const pat = val_to_str(eval(n->kids[1]), convfmt_);
             try {
-                std::regex re(pat);
+                std::regex const re(pat);
                 std::smatch m;
                 if (std::regex_search(s, m, re)) {
                     rstart_ = m.position() + 1;
                     rlength_ = m.length();
-                    return Value((double)rstart_);
+                    return Value(static_cast<double>(rstart_));
                 }
             } catch (...) {}
             rstart_ = 0; rlength_ = -1;
             return Value(0.0);
         }
-        if (name == "int") return Value(std::floor(val_to_num(eval(n->kids[0]))));
-        if (name == "sqrt") return Value(std::sqrt(val_to_num(eval(n->kids[0]))));
-        if (name == "exp") return Value(std::exp(val_to_num(eval(n->kids[0]))));
-        if (name == "log") return Value(std::log(val_to_num(eval(n->kids[0]))));
-        if (name == "sin") return Value(std::sin(val_to_num(eval(n->kids[0]))));
-        if (name == "cos") return Value(std::cos(val_to_num(eval(n->kids[0]))));
-        if (name == "atan2") return Value(std::atan2(val_to_num(eval(n->kids[0])), val_to_num(eval(n->kids[1]))));
-        if (name == "rand") return Value(std::rand() / (double)RAND_MAX);
+        if (name == "int") { return Value(std::floor(val_to_num(eval(n->kids[0]))));
+}
+        if (name == "sqrt") { return Value(std::sqrt(val_to_num(eval(n->kids[0]))));
+}
+        if (name == "exp") { return Value(std::exp(val_to_num(eval(n->kids[0]))));
+}
+        if (name == "log") { return Value(std::log(val_to_num(eval(n->kids[0]))));
+}
+        if (name == "sin") { return Value(std::sin(val_to_num(eval(n->kids[0]))));
+}
+        if (name == "cos") { return Value(std::cos(val_to_num(eval(n->kids[0]))));
+}
+        if (name == "atan2") { return Value(std::atan2(val_to_num(eval(n->kids[0])), val_to_num(eval(n->kids[1]))));
+}
+        if (name == "rand") { return Value(std::rand() / static_cast<double>(RAND_MAX));
+}
         if (name == "srand") {
-            double seed = n->kids.empty() ? (double)std::time(nullptr) : val_to_num(eval(n->kids[0]));
-            std::srand((unsigned int)seed);
+            double const seed = n->kids.empty() ? static_cast<double>(std::time(nullptr)) : val_to_num(eval(n->kids[0]));
+            std::srand(static_cast<unsigned int>(seed));
             return Value(seed);
         }
         if (name == "sprintf") {
@@ -1320,8 +1431,8 @@ private:
             return Value(do_sub(name == "gsub", n));
         }
         if (name == "system") {
-            int rc = std::system(val_to_str(eval(n->kids[0]), convfmt_).c_str());
-            return Value((double)rc);
+            int const rc = std::system(val_to_str(eval(n->kids[0]), convfmt_).c_str());
+            return Value(static_cast<double>(rc));
         }
         if (name == "close") {
             return Value(0.0);
@@ -1337,16 +1448,19 @@ private:
 
     Value call_user(Node* fn, Node* call) {
         scopes_.push_back(std::unordered_map<std::string, Value>());
-        size_t nargs = call->kids.size();
+        size_t const nargs = call->kids.size();
         for (size_t i = 0; i < fn->argnames.size(); i++) {
-            if (i < nargs) scopes_.back()[fn->argnames[i]] = eval(call->kids[i]);
-            else scopes_.back()[fn->argnames[i]] = Value(0.0);
+            if (i < nargs) { scopes_.back()[fn->argnames[i]] = eval(call->kids[i]);
+            } else { scopes_.back()[fn->argnames[i]] = Value(0.0);
+}
         }
         Flow flow;
         for (Node* st : fn->kids) {
             flow = exec_stmt(st);
-            if (flow.kind == Flow::RETURN) break;
-            if (flow.kind == Flow::EXIT || flow.kind == Flow::NEXT) break;
+            if (flow.kind == Flow::RETURN) { break;
+}
+            if (flow.kind == Flow::EXIT || flow.kind == Flow::NEXT) { break;
+}
         }
         Value rv = (flow.kind == Flow::RETURN) ? flow.val : Value(0.0);
         scopes_.pop_back();
@@ -1354,14 +1468,14 @@ private:
     }
 
     long do_sub(bool global, Node* n) {
-        std::string pat = val_to_str(eval(n->kids[0]), convfmt_);
-        std::string repl = val_to_str(eval(n->kids[1]), convfmt_);
+        std::string const pat = val_to_str(eval(n->kids[0]), convfmt_);
+        std::string const repl = val_to_str(eval(n->kids[1]), convfmt_);
         Node* target = (n->kids.size() > 2) ? n->kids[2] : nullptr;
-        std::string text = target ? lvalue_str(target) : g_record;
+        std::string text = (target != nullptr) ? lvalue_str(target) : g_record;
         std::string result = text;
         long count = 0;
         try {
-            std::regex re(pat);
+            std::regex const re(pat);
             if (global) {
                 std::string out;
                 size_t pos = 0;
@@ -1384,25 +1498,29 @@ private:
                 }
             }
         } catch (...) {}
-        if (target) assign_lvalue(target, Value(result));
-        else set_record(result);
+        if (target != nullptr) { assign_lvalue(target, Value(result));
+        } else { set_record(result);
+}
         return count;
     }
 
     std::string expand_repl(const std::string& repl, const std::smatch& m) {
         std::string out;
         for (size_t i = 0; i < repl.size(); i++) {
-            char c = repl[i];
+            char const c = repl[i];
             if (c == '&') { out += m.str(); }
             else if (c == '\\' && i + 1 < repl.size()) {
-                char e = repl[++i];
+                char const e = repl[++i];
                 if (e >= '1' && e <= '9') {
-                    int idx = e - '0';
-                    if (idx < (int)m.size()) out += m[idx].str();
-                } else if (e == '&') out += '&';
-                else if (e == '\\') out += '\\';
-                else { out += '\\'; out += e; }
-            } else out += c;
+                    int const idx = e - '0';
+                    if (idx < static_cast<int>(m.size())) { out += m[idx].str();
+}
+                } else if (e == '&') { { out += '&';
+                } } else if (e == '\\') { { out += '\\';
+                } } else { out += '\\'; out += e; }
+            } else { { out += c;
+}
+}
         }
         return out;
     }
@@ -1414,24 +1532,24 @@ private:
             if (fmt[i] == '%') {
                 size_t j = i + 1;
                 std::string spec = "%";
-                while (j < fmt.size() && std::strchr("-+ #0", fmt[j])) { spec += fmt[j]; j++; }
+                while (j < fmt.size() && (std::strchr("-+ #0", fmt[j]) != nullptr)) { spec += fmt[j]; j++; }
                 if (j < fmt.size() && fmt[j] == '*') {
-                    spec += std::to_string((long)val_to_num(eval(kids[ai++])));
+                    spec += std::to_string(static_cast<long>(val_to_num(eval(kids[ai++]))));
                     j++;
                 } else {
-                    while (j < fmt.size() && std::isdigit((unsigned char)fmt[j])) { spec += fmt[j]; j++; }
+                    while (j < fmt.size() && (std::isdigit(static_cast<unsigned char>(fmt[j])) != 0)) { spec += fmt[j]; j++; }
                 }
                 if (j < fmt.size() && fmt[j] == '.') {
                     spec += '.'; j++;
                     if (j < fmt.size() && fmt[j] == '*') {
-                        spec += std::to_string((long)val_to_num(eval(kids[ai++])));
+                        spec += std::to_string(static_cast<long>(val_to_num(eval(kids[ai++]))));
                         j++;
                     } else {
-                        while (j < fmt.size() && std::isdigit((unsigned char)fmt[j])) { spec += fmt[j]; j++; }
+                        while (j < fmt.size() && (std::isdigit(static_cast<unsigned char>(fmt[j])) != 0)) { spec += fmt[j]; j++; }
                     }
                 }
-                while (j < fmt.size() && std::strchr("hlL", fmt[j])) { spec += fmt[j]; j++; }
-                char conv = (j < fmt.size()) ? fmt[j] : '%';
+                while (j < fmt.size() && (std::strchr("hlL", fmt[j]) != nullptr)) { spec += fmt[j]; j++; }
+                char const conv = (j < fmt.size()) ? fmt[j] : '%';
                 j++;
                 spec += conv;
                 out += apply_conv(spec, conv, kids, ai);
@@ -1447,46 +1565,51 @@ private:
     std::string apply_conv(const std::string& spec, char conv,
                            std::vector<Node*>& kids, size_t& ai) {
         char buf[1024];
-        if (conv == '%') return "%";
+        if (conv == '%') { return "%";
+}
         if (conv == 's') {
-            std::string s = (ai < kids.size()) ? val_to_str(eval(kids[ai++]), convfmt_) : std::string("");
-            std::snprintf(buf, sizeof(buf), spec.c_str(), s.c_str());
+            std::string const s = (ai < kids.size()) ? val_to_str(eval(kids[ai++]), convfmt_) : std::string("");
+            (void)std::snprintf(buf, sizeof(buf), spec.c_str(), s.c_str());
             return buf;
         }
         if (conv == 'c') {
-            int ch = (ai < kids.size()) ? (int)val_to_num(eval(kids[ai++])) : 0;
-            std::snprintf(buf, sizeof(buf), spec.c_str(), ch);
+            int const ch = (ai < kids.size()) ? static_cast<int>(val_to_num(eval(kids[ai++]))) : 0;
+            (void)std::snprintf(buf, sizeof(buf), spec.c_str(), ch);
             return buf;
         }
-        double d = (ai < kids.size()) ? val_to_num(eval(kids[ai++])) : 0.0;
+        double const d = (ai < kids.size()) ? val_to_num(eval(kids[ai++])) : 0.0;
         if (conv == 'd' || conv == 'i') {
-            std::snprintf(buf, sizeof(buf), spec.c_str(), (long long)d);
+            (void)std::snprintf(buf, sizeof(buf), spec.c_str(), static_cast<long long>(d));
             return buf;
         }
         if (conv == 'u' || conv == 'o' || conv == 'x' || conv == 'X') {
-            std::snprintf(buf, sizeof(buf), spec.c_str(), (unsigned long long)(long long)d);
+            (void)std::snprintf(buf, sizeof(buf), spec.c_str(), static_cast<unsigned long long>(static_cast<long long>(d)));
             return buf;
         }
-        std::snprintf(buf, sizeof(buf), spec.c_str(), d);
+        (void)std::snprintf(buf, sizeof(buf), spec.c_str(), d);
         return buf;
     }
 
     // ----- statements -----
     Flow exec_stmt(Node* n) {
         Flow f;
-        if (!n) return f;
+        if (n == nullptr) { return f;
+}
         switch (n->kind) {
             case S_BLOCK: {
                 for (Node* st : n->kids) {
                     f = exec_stmt(st);
-                    if (f.kind != Flow::NORMAL) return f;
+                    if (f.kind != Flow::NORMAL) { return f;
+}
                 }
                 return f;
             }
             case S_EXPR: eval(n->a); return f;
             case S_IF: {
-                if (val_truthy(eval(n->a), g_record)) return exec_stmt(n->b);
-                if (n->c) return exec_stmt(n->c);
+                if (val_truthy(eval(n->a), g_record)) { return exec_stmt(n->b);
+}
+                if (n->c != nullptr) { return exec_stmt(n->c);
+}
                 return f;
             }
             case S_WHILE: {
@@ -1495,19 +1618,23 @@ private:
                     if (f.kind == Flow::BREAK) { f.kind = Flow::NORMAL; break; }
                     if (f.kind == Flow::CONTINUE) { f.kind = Flow::NORMAL; continue; }
                     if (f.kind == Flow::NEXT || f.kind == Flow::EXIT ||
-                        f.kind == Flow::RETURN) return f;
+                        f.kind == Flow::RETURN) { return f;
+}
                 }
                 return f;
             }
             case S_FOR: {
-                if (n->a) eval(n->a);
-                while (!n->b || val_truthy(eval(n->b), g_record)) {
+                if (n->a != nullptr) { eval(n->a);
+}
+                while ((n->b == nullptr) || val_truthy(eval(n->b), g_record)) {
                     f = exec_stmt(n->kids[0]);
                     if (f.kind == Flow::BREAK) { f.kind = Flow::NORMAL; break; }
                     if (f.kind == Flow::CONTINUE) { f.kind = Flow::NORMAL; continue; }
                     if (f.kind == Flow::NEXT || f.kind == Flow::EXIT ||
-                        f.kind == Flow::RETURN) return f;
-                    if (n->c) eval(n->c);
+                        f.kind == Flow::RETURN) { return f;
+}
+                    if (n->c != nullptr) { eval(n->c);
+}
                 }
                 return f;
             }
@@ -1519,7 +1646,8 @@ private:
                     if (f.kind == Flow::BREAK) { f.kind = Flow::NORMAL; break; }
                     if (f.kind == Flow::CONTINUE) { f.kind = Flow::NORMAL; continue; }
                     if (f.kind == Flow::NEXT || f.kind == Flow::EXIT ||
-                        f.kind == Flow::RETURN) return f;
+                        f.kind == Flow::RETURN) { return f;
+}
                 }
                 return f;
             }
@@ -1529,18 +1657,21 @@ private:
                 return f;
             }
             case S_NEXT: f.kind = Flow::NEXT; return f;
-            case S_EXIT: f.kind = Flow::EXIT; if (n->a) f.val = eval(n->a); return f;
+            case S_EXIT: f.kind = Flow::EXIT; if (n->a != nullptr) { f.val = eval(n->a); 
+}return f;
             case S_BREAK: f.kind = Flow::BREAK; return f;
             case S_CONTINUE: f.kind = Flow::CONTINUE; return f;
-            case S_RETURN: f.kind = Flow::RETURN; if (n->a) f.val = eval(n->a); return f;
+            case S_RETURN: f.kind = Flow::RETURN; if (n->a != nullptr) { f.val = eval(n->a); 
+}return f;
             case S_DELETE: {
                 auto& arr = get_array(n->str);
-                if (!n->kids.empty()) arr.erase(array_key(n));
-                else arr.clear();
+                if (!n->kids.empty()) { arr.erase(array_key(n));
+                } else { arr.clear();
+}
                 return f;
             }
             case S_GETLINE: {
-                f.val = Value((double)do_getline(n) ? 1.0 : 0.0);
+                f.val = Value(((static_cast<double>(do_getline(n))) != 0.0) ? 1.0 : 0.0);
                 return f;
             }
             default: return f;
@@ -1551,7 +1682,7 @@ private:
         std::string out;
         if (n->kind == S_PRINTF) {
             if (!n->kids.empty()) {
-                std::string fmt = val_to_str(eval(n->kids[0]), convfmt_);
+                std::string const fmt = val_to_str(eval(n->kids[0]), convfmt_);
                 out = format_printf(fmt, n->kids, 1);
             }
         } else {
@@ -1560,7 +1691,8 @@ private:
             } else {
                 bool first = true;
                 for (Node* arg : n->kids) {
-                    if (!first) out += ofs_;
+                    if (!first) { out += ofs_;
+}
                     out += val_to_str(eval(arg), ofmt_);
                     first = false;
                 }
@@ -1568,8 +1700,8 @@ private:
             out += ors_;
         }
 
-        if (n->redir) {
-            std::string fname = val_to_str(eval(n->d), convfmt_);
+        if (n->redir != 0) {
+            std::string const fname = val_to_str(eval(n->d), convfmt_);
             auto& os = out_files_[fname];
             if (!os.is_open()) {
                 os.open(fname, (n->redir == 2) ? std::ios::app : std::ios::trunc);
@@ -1583,23 +1715,27 @@ private:
 
     bool do_getline(Node* n) {
         std::string rec;
-        if (n->d) {
-            std::string fname = val_to_str(eval(n->d), convfmt_);
+        if (n->d != nullptr) {
+            std::string const fname = val_to_str(eval(n->d), convfmt_);
             auto it = getline_files_.find(fname);
             std::ifstream* f = nullptr;
-            if (it != getline_files_.end()) f = it->second.get();
-            else {
+            if (it != getline_files_.end()) { { f = it->second.get();
+            } } else {
                 auto p = std::make_unique<std::ifstream>(fname);
-                if (!*p) return false;
+                if (!*p) { return false;
+}
                 f = p.get();
                 getline_files_[fname] = std::move(p);
             }
-            if (!std::getline(*f, rec)) return false;
+            if (!std::getline(*f, rec)) { return false;
+}
         } else {
-            if (!cur_in_ || !read_record(*cur_in_, rec)) return false;
+            if ((cur_in_ == nullptr) || !read_record(*cur_in_, rec)) { return false;
+}
         }
-        if (n->str.empty()) set_record(rec);
-        else set_var(n->str, Value(rec));
+        if (n->str.empty()) { set_record(rec);
+        } else { set_var(n->str, Value(rec));
+}
         return true;
     }
 
@@ -1614,12 +1750,13 @@ private:
             arg_files_.push_back(f);
             idx++;
         }
-        set_var("ARGC", Value((double)idx));
+        set_var("ARGC", Value(static_cast<double>(idx)));
         argc_ = idx;
     }
 
     bool open_stream(const std::string& name) {
-        if (cur_file_.is_open()) cur_file_.close();
+        if (cur_file_.is_open()) { cur_file_.close();
+}
         if (name == "-") {
             cur_in_ = &std::cin;
             cur_name_ = "-";
@@ -1628,7 +1765,8 @@ private:
             return true;
         }
         cur_file_.open(name);
-        if (!cur_file_) return false;
+        if (!cur_file_) { return false;
+}
         cur_in_ = &cur_file_;
         cur_name_ = name;
         filename_ = name;
@@ -1637,8 +1775,11 @@ private:
     }
 
     void close_streams() {
-        if (cur_file_.is_open()) cur_file_.close();
-        for (auto& p : out_files_) if (p.second.is_open()) p.second.close();
+        if (cur_file_.is_open()) { cur_file_.close();
+}
+        for (auto& p : out_files_) { if (p.second.is_open()) { p.second.close();
+}
+}
     }
 
     bool read_record(std::istream& in, std::string& out) {
@@ -1649,11 +1790,13 @@ private:
             bool got = false;
             while (std::getline(in, line)) {
                 if (line.empty()) {
-                    if (started) return got;
+                    if (started) { return got;
+}
                     continue;
                 }
                 started = true;
-                if (!out.empty()) out += "\n";
+                if (!out.empty()) { out += "\n";
+}
                 out += line;
                 got = true;
             }
@@ -1666,7 +1809,7 @@ private:
         std::string acc;
         size_t matchpos = 0;
         while ((c = in.get()) != EOF) {
-            char ch = (char)c;
+            char const ch = static_cast<char>(c);
             acc += ch;
             if (ch == rs_[matchpos]) {
                 matchpos++;
@@ -1690,15 +1833,18 @@ private:
             nr_++;
             fnr_++;
             for (size_t ri = 0; ri < parser_->rules.size(); ri++) {
-                if (!rule_matches(ri)) continue;
+                if (!rule_matches(ri)) { continue;
+}
                 Node* act = parser_->rules[ri];
-                if (!act) {
+                if (act == nullptr) {
                     do_default_print();
                     continue;
                 }
-                Flow f = exec_stmt(act);
-                if (f.kind == Flow::NEXT) break;
-                if (f.kind == Flow::EXIT) return true;
+                Flow const f = exec_stmt(act);
+                if (f.kind == Flow::NEXT) { break;
+}
+                if (f.kind == Flow::EXIT) { return true;
+}
             }
         }
         return false;
@@ -1710,35 +1856,38 @@ private:
 
     bool rule_matches(size_t ri) {
         Node* pat = parser_->rule_patterns[ri];
-        if (!pat) return true; // matches all
+        if (pat == nullptr) { return true; // matches all
+}
         if (pat->kind == E_CALL && pat->str == "@range") {
-            bool start = val_truthy(eval(pat->a), g_record);
-            bool end = val_truthy(eval(pat->b), g_record);
+            bool const start = val_truthy(eval(pat->a), g_record);
+            bool const end = val_truthy(eval(pat->b), g_record);
             char& active = rng_active_[ri];
-            if (!active) {
+            if (active == 0) {
                 if (start) {
-                    active = true;
-                    if (end) active = false;
+                    active = 1;
+                    if (end) { active = 0;
+}
                     return true;
                 }
                 return false;
-            } else {
-                if (end) { active = false; return true; }
+            }                 if (end) { active = static_cast<char>(static_cast<char>(false)); return true; }
                 return true;
-            }
+           
         }
         return val_truthy(eval(pat), g_record);
     }
 };
 
 static const std::string& awk_convfmt() {
-    static std::string s = "%.6g";
+    static std::string const s = "%.6g";
     return s;
 }
 static const std::string& awk_ofmt() {
-    static std::string s = "%.6g";
+    static std::string const s = "%.6g";
     return s;
 }
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Command
@@ -1756,8 +1905,9 @@ int awk_command(int argc, char** argv) {
     bool program_set = false;
 
     auto add_assign = [&](const std::string& av) {
-        size_t eq = av.find('=');
-        if (eq == std::string::npos) return;
+        size_t const eq = av.find('=');
+        if (eq == std::string::npos) { return;
+}
         assigns.push_back({av.substr(0, eq), av.substr(eq + 1)});
     };
 
@@ -1768,33 +1918,35 @@ int awk_command(int argc, char** argv) {
         if (a == "--") { end_opts = true; continue; }
         if (!end_opts && a.size() > 1 && a[0] == '-') {
             if (a == "-f" || a == "-e") {
-                if (i + 1 >= argc) { std::fprintf(stderr, "awk: option requires argument -- '%c'\n", a[1]); return 0; }
-                std::string p = read_prog(argv[++i]);
+                if (i + 1 >= argc) { (void)std::fprintf(stderr, "awk: option requires argument -- '%c'\n", a[1]); return 0; }
+                std::string const p = read_prog(argv[++i]);
                 program += p + "\n";
                 program_set = true;
-            } else if (a.rfind("-f", 0) == 0) {
+            } else if (a.starts_with("-f")) {
                 program += read_prog(a.substr(2).c_str()) + "\n";
                 program_set = true;
-            } else if (a.rfind("-e", 0) == 0) {
+            } else if (a.starts_with("-e")) {
                 program += a.substr(2) + "\n";
                 program_set = true;
             } else if (a == "-F") {
-                if (i + 1 >= argc) return 0;
+                if (i + 1 >= argc) { return 0;
+}
                 fs = argv[++i];
                 have_fs = true;
-            } else if (a.rfind("-F", 0) == 0) {
+            } else if (a.starts_with("-F")) {
                 fs = a.substr(2);
                 have_fs = true;
             } else if (a == "-v") {
-                if (i + 1 >= argc) return 0;
+                if (i + 1 >= argc) { return 0;
+}
                 add_assign(argv[++i]);
-            } else if (a.rfind("-v", 0) == 0) {
+            } else if (a.starts_with("-v")) {
                 add_assign(a.substr(2));
-            } else if (a.rfind("-W", 0) == 0) {
-                std::string w = a.substr(2);
-                if (w.rfind("assign=", 0) == 0) add_assign(w.substr(7));
-                else if (w == "version") { print_version("GNU Awk"); return 0; }
-            } else if (a == "-d" || a.rfind("-d", 0) == 0) {
+            } else if (a.starts_with("-W")) {
+                std::string const w = a.substr(2);
+                if (w.starts_with("assign=")) { { add_assign(w.substr(7));
+                } } else if (w == "version") { print_version("GNU Awk"); return 0; }
+            } else if (a == "-d" || a.starts_with("-d")) {
                 // dump: ignore, treated as no-op
             } else if (a == "-h" || a == "--help") {
                 print_help();

@@ -1,9 +1,11 @@
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "commands/lspci.hpp"
@@ -28,7 +30,8 @@ static void print_help(const char* prog) {
 // Read a single sysfs attribute file, returning the trimmed content.
 static bool read_attr(const std::string& path, std::string& out) {
     std::ifstream f(path);
-    if (!f) return false;
+    if (!f) { return false;
+}
     std::getline(f, out);
     while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) {
         out.pop_back();
@@ -48,7 +51,7 @@ static std::string strip_hex_prefix(const std::string& s) {
 // form (e.g. "00:1f.2"), matching the default real lspci display.
 static std::string shorten_pci_address(const std::string& addr) {
     static const std::string dom = "0000:";
-    if (addr.compare(0, dom.size(), dom) == 0) {
+    if (addr.starts_with(dom)) {
         return addr.substr(dom.size());
     }
     return addr;
@@ -92,12 +95,14 @@ static bool parse_pci_device(const std::string& sysfs_root,
             db.load((ids_dir + "/pci.ids").c_str());
             db_loaded = true;
         }
-        uint16_t vid = hex_to_uint16(dev.vendor_id);
-        uint16_t did = hex_to_uint16(dev.device_id);
+        uint16_t const vid = hex_to_uint16(dev.vendor_id);
+        uint16_t const did = hex_to_uint16(dev.device_id);
         const std::string* vname = db.vendor_name(vid);
         const std::string* dname = db.device_name(vid, did);
-        if (vname) dev.vendor_name = *vname;
-        if (dname) dev.device_name = *dname;
+        if (vname != nullptr) { dev.vendor_name = *vname;
+}
+        if (dname != nullptr) { dev.device_name = *dname;
+}
     }
 
     return !dev.vendor_id.empty();
@@ -105,12 +110,14 @@ static bool parse_pci_device(const std::string& sysfs_root,
 
 // Scan /sys/bus/pci/devices/ for PCI device addresses.
 static void scan_pci_devices(const std::string& sysfs_root, std::vector<std::string>& out) {
-    std::string path = sysfs_root + "/bus/pci/devices/";
+    std::string const path = sysfs_root + "/bus/pci/devices/";
     DIR* dir = opendir(path.c_str());
-    if (!dir) return;
+    if (dir == nullptr) { return;
+}
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_name[0] == '.') continue;
+        if (entry->d_name[0] == '.') { continue;
+}
         out.emplace_back(entry->d_name);
     }
     closedir(dir);
@@ -149,30 +156,33 @@ int lspci_command(int argc, char** argv) {
             continue;
         }
         if (strncmp(a, "--parse=", 8) == 0) {
-            std::string fields = a + 8;
+            std::string const fields = a + 8;
             size_t pos = 0;
             while (pos <= fields.size()) {
                 size_t comma = fields.find(',', pos);
-                if (comma == std::string::npos) comma = fields.size();
+                if (comma == std::string::npos) { comma = fields.size();
+}
                 std::string field = fields.substr(pos, comma - pos);
-                size_t s = field.find_first_not_of(" \t");
-                size_t e = field.find_last_not_of(" \t");
-                if (s != std::string::npos) field = field.substr(s, e - s + 1);
-                if (!field.empty()) parse_fields.push_back(field);
+                size_t const s = field.find_first_not_of(" \t");
+                size_t const e = field.find_last_not_of(" \t");
+                if (s != std::string::npos) { field = field.substr(s, e - s + 1);
+}
+                if (!field.empty()) { parse_fields.push_back(field);
+}
                 pos = comma + 1;
             }
             continue;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: unrecognized option '%s'\n", argv[0], a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 1;
         }
     }
 
-    std::string sysfs_root = get_sysfs_root();
-    std::string ids_dir = get_ids_dir();
-    bool use_names = !no_name;
+    std::string const sysfs_root = get_sysfs_root();
+    std::string const ids_dir = get_ids_dir();
+    bool const use_names = !no_name;
 
     std::vector<std::string> addresses;
     scan_pci_devices(sysfs_root, addresses);
@@ -188,13 +198,13 @@ int lspci_command(int argc, char** argv) {
         }
     }
 
-    bool json_list = (parse_fields.empty() && json_mode);
+    bool const json_list = (parse_fields.empty() && json_mode);
     if (json_list) {
         printf("{\n  \"devices\": [\n");
     }
     for (size_t i = 0; i < devices.size(); ++i) {
         const PciDevice& dev = devices[i];
-        bool needs_comma = (i + 1 < devices.size());
+        bool const needs_comma = (i + 1 < devices.size());
 
         if (json_list) {
             printf("    {\"address\": ");
@@ -214,20 +224,23 @@ int lspci_command(int argc, char** argv) {
                 printf("\"0x%s\"", dev.device_id.c_str());   // hex-only, safe
             }
             printf("}");
-            if (needs_comma) printf(",");
+            if (needs_comma) { printf(",");
+}
             printf("\n");
         } else if (!parse_fields.empty()) {
             // --parse mode: one line per device, fields space-separated.
             for (size_t j = 0; j < parse_fields.size(); ++j) {
                 const std::string& f = parse_fields[j];
-                if (f == "address") printf("%s", dev.address.c_str());
-                else if (f == "class") printf("%s", dev.class_name.c_str());
-                else if (f == "vendor") printf("%s", use_names ? dev.vendor_name.c_str() : dev.vendor_id.c_str());
-                else if (f == "device") printf("%s", use_names ? dev.device_name.c_str() : dev.device_id.c_str());
-                else if (f == "svendor") printf("%s", dev.subsystem_vendor_id.c_str());
-                else if (f == "sdevice") printf("%s", dev.subsystem_device_id.c_str());
-                else printf("<unknown>");
-                if (j + 1 < parse_fields.size()) printf(" ");
+                if (f == "address") { printf("%s", dev.address.c_str());
+                } else if (f == "class") { printf("%s", dev.class_name.c_str());
+                } else if (f == "vendor") { printf("%s", use_names ? dev.vendor_name.c_str() : dev.vendor_id.c_str());
+                } else if (f == "device") { printf("%s", use_names ? dev.device_name.c_str() : dev.device_id.c_str());
+                } else if (f == "svendor") { printf("%s", dev.subsystem_vendor_id.c_str());
+                } else if (f == "sdevice") { printf("%s", dev.subsystem_device_id.c_str());
+                } else { printf("<unknown>");
+}
+                if (j + 1 < parse_fields.size()) { printf(" ");
+}
             }
             printf("\n");
         } else if (extended) {

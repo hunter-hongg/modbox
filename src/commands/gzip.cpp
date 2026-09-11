@@ -1,3 +1,5 @@
+#include <utility>
+#include <cerrno>
 #include <zlib.h>
 
 #include <argtable3.h>
@@ -13,6 +15,7 @@
 #include "commands/command_macros.hpp"
 #include "commands/gzip.hpp"
 #include "commands/version_util.hpp"
+#include "zconf.h"
 
 namespace {
 
@@ -33,7 +36,7 @@ bool read_all(FILE* fp, std::vector<unsigned char>& out) {
     while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
         out.insert(out.end(), buf, buf + n);
     }
-    return !ferror(fp);
+    return ferror(fp) == 0;
 }
 
 // Build a complete gzip container from `in` into `out`.
@@ -41,21 +44,22 @@ bool gzip_compress(const std::vector<unsigned char>& in,
                    std::vector<unsigned char>& out, int level,
                    const std::string& fname, unsigned long mtime) {
     out.clear();
-    unsigned char xfl = (level == 9) ? 2 : (level == 1) ? 4 : 0;
-    unsigned char flg = fname.empty() ? 0 : GZ_FLG_FNAME;
+    unsigned char const xfl = (level == 9) ? 2 : (level == 1) ? 4 : 0;
+    unsigned char const flg = fname.empty() ? 0 : GZ_FLG_FNAME;
 
     out.push_back(GZ_ID1);
     out.push_back(GZ_ID2);
     out.push_back(GZ_CM_DEFLATE);
     out.push_back(flg);
-    out.push_back((unsigned char)(mtime & 0xff));
-    out.push_back((unsigned char)((mtime >> 8) & 0xff));
-    out.push_back((unsigned char)((mtime >> 16) & 0xff));
-    out.push_back((unsigned char)((mtime >> 24) & 0xff));
+    out.push_back(static_cast<unsigned char>(mtime & 0xff));
+    out.push_back(static_cast<unsigned char>((mtime >> 8) & 0xff));
+    out.push_back(static_cast<unsigned char>((mtime >> 16) & 0xff));
+    out.push_back(static_cast<unsigned char>((mtime >> 24) & 0xff));
     out.push_back(xfl);
     out.push_back(GZ_OS_UNIX);
-    if (flg & GZ_FLG_FNAME) {
-        for (char c : fname) out.push_back((unsigned char)c);
+    if ((flg & GZ_FLG_FNAME) != 0) {
+        for (char c : fname) { out.push_back(static_cast<unsigned char>(c));
+}
         out.push_back(0);
     }
 
@@ -69,8 +73,8 @@ bool gzip_compress(const std::vector<unsigned char>& in,
                      Z_DEFAULT_STRATEGY) != Z_OK) {
         return false;
     }
-    strm.next_in = (Bytef*)in.data();
-    strm.avail_in = (uInt)in.size();
+    strm.next_in = const_cast<Bytef*>(in.data());
+    strm.avail_in = static_cast<uInt>(in.size());
     unsigned char cbuf[65536];
     int rc;
     do {
@@ -81,18 +85,18 @@ bool gzip_compress(const std::vector<unsigned char>& in,
             deflateEnd(&strm);
             return false;
         }
-        size_t got = sizeof(cbuf) - strm.avail_out;
+        size_t const got = sizeof(cbuf) - strm.avail_out;
         out.insert(out.end(), cbuf, cbuf + got);
     } while (rc != Z_STREAM_END);
     deflateEnd(&strm);
 
-    uLong crc = crc32(0L, in.data(), (uInt)in.size());
-    unsigned long isize = (unsigned long)in.size();
+    uLong const crc = crc32(0L, in.data(), static_cast<uInt>(in.size()));
+    unsigned long const isize = static_cast<unsigned long>(in.size());
     auto put32 = [&](unsigned long v) {
-        out.push_back((unsigned char)(v & 0xff));
-        out.push_back((unsigned char)((v >> 8) & 0xff));
-        out.push_back((unsigned char)((v >> 16) & 0xff));
-        out.push_back((unsigned char)((v >> 24) & 0xff));
+        out.push_back(static_cast<unsigned char>(v & 0xff));
+        out.push_back(static_cast<unsigned char>((v >> 8) & 0xff));
+        out.push_back(static_cast<unsigned char>((v >> 16) & 0xff));
+        out.push_back(static_cast<unsigned char>((v >> 24) & 0xff));
     };
     put32(crc);
     put32(isize);
@@ -105,42 +109,53 @@ enum class GzErr { Ok, NotGzip, Truncated, Crc };
 // Inflate a gzip container `in` into `out`, verifying CRC + ISIZE.
 GzErr gzip_decompress(const std::vector<unsigned char>& in,
                       std::vector<unsigned char>& out) {
-    if (in.size() < 10) return GzErr::NotGzip;
+    if (in.size() < 10) { return GzErr::NotGzip;
+}
     if (in[0] != GZ_ID1 || in[1] != GZ_ID2 || in[2] != GZ_CM_DEFLATE) {
         return GzErr::NotGzip;
     }
-    if (in.size() < 18) return GzErr::Truncated;
+    if (in.size() < 18) { return GzErr::Truncated;
+}
 
-    unsigned char flg = in[3];
+    unsigned char const flg = in[3];
     size_t pos = 10;
-    if (flg & GZ_FLG_FEXTRA) {
-        if (in.size() < pos + 2) return GzErr::Truncated;
-        unsigned xlen = (unsigned)in[pos] | ((unsigned)in[pos + 1] << 8);
+    if ((flg & GZ_FLG_FEXTRA) != 0) {
+        if (in.size() < pos + 2) { return GzErr::Truncated;
+}
+        unsigned const xlen = static_cast<unsigned>(in[pos]) | (static_cast<unsigned>(in[pos + 1]) << 8);
         pos += 2 + xlen;
     }
-    if (flg & GZ_FLG_FNAME) {
-        while (pos < in.size() && in[pos] != 0) pos++;
-        if (pos >= in.size()) return GzErr::Truncated;
+    if ((flg & GZ_FLG_FNAME) != 0) {
+        while (pos < in.size() && in[pos] != 0) { pos++;
+}
+        if (pos >= in.size()) { return GzErr::Truncated;
+}
         pos++;
     }
-    if (flg & GZ_FLG_FCOMMENT) {
-        while (pos < in.size() && in[pos] != 0) pos++;
-        if (pos >= in.size()) return GzErr::Truncated;
+    if ((flg & GZ_FLG_FCOMMENT) != 0) {
+        while (pos < in.size() && in[pos] != 0) { pos++;
+}
+        if (pos >= in.size()) { return GzErr::Truncated;
+}
         pos++;
     }
-    if (flg & GZ_FLG_FHCRC) pos += 2;
-    if (in.size() < pos + 8) return GzErr::Truncated;
+    if ((flg & GZ_FLG_FHCRC) != 0) { pos += 2;
+}
+    if (in.size() < pos + 8) { return GzErr::Truncated;
+}
 
-    size_t trailer_pos = in.size() - 8;
-    if (trailer_pos < pos) return GzErr::Truncated;
+    size_t const trailer_pos = in.size() - 8;
+    if (trailer_pos < pos) { return GzErr::Truncated;
+}
 
     z_stream strm{};
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    if (inflateInit2(&strm, -MAX_WBITS) != Z_OK) return GzErr::Truncated;
-    strm.next_in = (Bytef*)in.data() + pos;
-    strm.avail_in = (uInt)(trailer_pos - pos);
+    if (inflateInit2(&strm, -MAX_WBITS) != Z_OK) { return GzErr::Truncated;
+}
+    strm.next_in = const_cast<Bytef*>(in.data()) + pos;
+    strm.avail_in = static_cast<uInt>(trailer_pos - pos);
     std::vector<unsigned char> dec;
     unsigned char dbuf[65536];
     int rc;
@@ -148,11 +163,12 @@ GzErr gzip_decompress(const std::vector<unsigned char>& in,
         strm.next_out = dbuf;
         strm.avail_out = sizeof(dbuf);
         rc = inflate(&strm, Z_FINISH);
-        size_t got = sizeof(dbuf) - strm.avail_out;
+        size_t const got = sizeof(dbuf) - strm.avail_out;
         // Copy this chunk (also covers the final chunk delivered on
         // Z_STREAM_END) before deciding whether we're done.
         dec.insert(dec.end(), dbuf, dbuf + got);
-        if (rc == Z_STREAM_END) break;
+        if (rc == Z_STREAM_END) { break;
+}
         if (rc != Z_OK && rc != Z_BUF_ERROR) {
             inflateEnd(&strm);
             return GzErr::Truncated;
@@ -170,17 +186,18 @@ GzErr gzip_decompress(const std::vector<unsigned char>& in,
 
     inflateEnd(&strm);
 
-    uLong crc = crc32(0L, dec.data(), (uInt)dec.size());
-    unsigned long isize = (unsigned long)dec.size();
-    unsigned long sc = (unsigned long)in[trailer_pos] |
-                       ((unsigned long)in[trailer_pos + 1] << 8) |
-                       ((unsigned long)in[trailer_pos + 2] << 16) |
-                       ((unsigned long)in[trailer_pos + 3] << 24);
-    unsigned long si = (unsigned long)in[trailer_pos + 4] |
-                       ((unsigned long)in[trailer_pos + 5] << 8) |
-                       ((unsigned long)in[trailer_pos + 6] << 16) |
-                       ((unsigned long)in[trailer_pos + 7] << 24);
-    if (crc != sc || isize != si) return GzErr::Crc;
+    uLong const crc = crc32(0L, dec.data(), static_cast<uInt>(dec.size()));
+    unsigned long const isize = static_cast<unsigned long>(dec.size());
+    unsigned long const sc = static_cast<unsigned long>(in[trailer_pos]) |
+                       (static_cast<unsigned long>(in[trailer_pos + 1]) << 8) |
+                       (static_cast<unsigned long>(in[trailer_pos + 2]) << 16) |
+                       (static_cast<unsigned long>(in[trailer_pos + 3]) << 24);
+    unsigned long const si = static_cast<unsigned long>(in[trailer_pos + 4]) |
+                       (static_cast<unsigned long>(in[trailer_pos + 5]) << 8) |
+                       (static_cast<unsigned long>(in[trailer_pos + 6]) << 16) |
+                       (static_cast<unsigned long>(in[trailer_pos + 7]) << 24);
+    if (crc != sc || isize != si) { return GzErr::Crc;
+}
 
     out = std::move(dec);
     return GzErr::Ok;
@@ -188,11 +205,11 @@ GzErr gzip_decompress(const std::vector<unsigned char>& in,
 
 bool ends_with(const std::string& s, const std::string& suffix) {
     return s.size() >= suffix.size() &&
-           s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+           s.ends_with(suffix);
 }
 
 std::string base_name(const std::string& p) {
-    size_t slash = p.find_last_of('/');
+    size_t const slash = p.find_last_of('/');
     return slash == std::string::npos ? p : p.substr(slash + 1);
 }
 
@@ -207,18 +224,18 @@ int write_output_file(const std::vector<unsigned char>& data,
     if (!force) {
         struct stat st;
         if (stat(outname.c_str(), &st) == 0) {
-            fprintf(stderr, "%s: %s already exists; not overwritten\n", prog,
+            (void)fprintf(stderr, "%s: %s already exists; not overwritten\n", prog,
                     outname.c_str());
             return 1;
         }
     }
     FILE* out = fopen(outname.c_str(), "wb");
-    if (!out) {
+    if (out == nullptr) {
         cmd_perror(prog, outname.c_str());
         return 1;
     }
     if (fwrite(data.data(), 1, data.size(), out) != data.size()) {
-        fclose(out);
+        (void)fclose(out);
         cmd_perror(prog, outname.c_str());
         return 1;
     }
@@ -231,8 +248,8 @@ int write_output_file(const std::vector<unsigned char>& data,
 
 void print_ratio(const char* prog, const std::string& name, size_t in_size,
                  size_t out_size, const char* replaced_with) {
-    double ratio = in_size == 0 ? 100.0 : (1.0 - (double)out_size / (double)in_size) * 100.0;
-    if (replaced_with) {
+    double const ratio = in_size == 0 ? 100.0 : (1.0 - static_cast<double>(out_size) / static_cast<double>(in_size)) * 100.0;
+    if (replaced_with != nullptr) {
         printf("%s: %5.1f%% -- replaced with %s\n", name.c_str(), ratio,
                replaced_with);
     } else {
@@ -243,73 +260,79 @@ void print_ratio(const char* prog, const std::string& name, size_t in_size,
 
 int process_path(const GzipOptions& opt, const std::string& path,
                  const char* prog) {
-    bool stdin_mode = (path == "-");
+    bool const stdin_mode = (path == "-");
 
     if (stdin_mode) {
         std::vector<unsigned char> in;
         if (!read_all(stdin, in)) {
-            fprintf(stderr, "%s: stdin: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: stdin: %s\n", prog, strerror(errno));
             return 1;
         }
         if (opt.decompress) {
             std::vector<unsigned char> out;
-            GzErr e = gzip_decompress(in, out);
+            GzErr const e = gzip_decompress(in, out);
             if (e != GzErr::Ok) {
                 const char* msg = e == GzErr::NotGzip ? "not in gzip format"
                                   : e == GzErr::Crc
                                       ? "invalid compressed data--crc error"
                                       : "unexpected end of file";
-                fprintf(stderr, "%s: stdin: %s\n", prog, msg);
+                (void)fprintf(stderr, "%s: stdin: %s\n", prog, msg);
                 return 1;
             }
-            fwrite(out.data(), 1, out.size(), stdout);
-            if (opt.verbose) print_ratio(prog, "-", in.size(), out.size(), nullptr);
+            (void)fwrite(out.data(), 1, out.size(), stdout);
+            if (opt.verbose) { print_ratio(prog, "-", in.size(), out.size(), nullptr);
+}
             return 0;
         }
         std::vector<unsigned char> out;
         if (!gzip_compress(in, out, opt.level, "", 0)) {
-            fprintf(stderr, "%s: stdin: compression failed\n", prog);
+            (void)fprintf(stderr, "%s: stdin: compression failed\n", prog);
             return 1;
         }
-        fwrite(out.data(), 1, out.size(), stdout);
-        if (opt.verbose) print_ratio(prog, "-", in.size(), out.size(), nullptr);
+        (void)fwrite(out.data(), 1, out.size(), stdout);
+        if (opt.verbose) { print_ratio(prog, "-", in.size(), out.size(), nullptr);
+}
         return 0;
     }
 
     FILE* fp = fopen(path.c_str(), "rb");
-    if (!fp) {
+    if (fp == nullptr) {
         cmd_perror(prog, path.c_str());
         return 1;
     }
     std::vector<unsigned char> in;
-    bool read_ok = read_all(fp, in);
-    int read_errno = errno;
-    fclose(fp);
+    bool const read_ok = read_all(fp, in);
+    int const read_errno = errno;
+    (void)fclose(fp);
     if (!read_ok) {
-        fprintf(stderr, "%s: %s: %s\n", prog, path.c_str(), strerror(read_errno));
+        (void)fprintf(stderr, "%s: %s: %s\n", prog, path.c_str(), strerror(read_errno));
         return 1;
     }
 
     if (opt.decompress) {
         std::vector<unsigned char> out;
-        GzErr e = gzip_decompress(in, out);
+        GzErr const e = gzip_decompress(in, out);
         if (e != GzErr::Ok) {
             const char* msg = e == GzErr::NotGzip ? "not in gzip format"
                               : e == GzErr::Crc
                                   ? "invalid compressed data--crc error"
                                   : "unexpected end of file";
-            fprintf(stderr, "%s: %s: %s\n", prog, path.c_str(), msg);
+            (void)fprintf(stderr, "%s: %s: %s\n", prog, path.c_str(), msg);
             return 1;
         }
         if (opt.to_stdout) {
-            fwrite(out.data(), 1, out.size(), stdout);
-            if (!opt.keep) std::remove(path.c_str());
-            if (opt.verbose) print_ratio(prog, path, in.size(), out.size(), nullptr);
+            (void)fwrite(out.data(), 1, out.size(), stdout);
+            if (!opt.keep) { (void)std::remove(path.c_str());
+}
+            if (opt.verbose) { print_ratio(prog, path, in.size(), out.size(), nullptr);
+}
             return 0;
         }
-        std::string outname = strip_gz(path);
-        if (write_output_file(out, outname, opt.force, prog) != 0) return 1;
-        if (!opt.keep) std::remove(path.c_str());
+        std::string const outname = strip_gz(path);
+        if (write_output_file(out, outname, opt.force, prog) != 0) { return 1;
+}
+        if (!opt.keep) { (void)std::remove(path.c_str());
+}
         if (opt.verbose) {
             print_ratio(prog, path, in.size(), out.size(), outname.c_str());
         }
@@ -319,37 +342,41 @@ int process_path(const GzipOptions& opt, const std::string& path,
     // compress
     if (ends_with(path, ".gz")) {
         if (!opt.quiet) {
-            fprintf(stderr, "%s: %s already has .gz suffix -- unchanged\n", prog,
+            (void)fprintf(stderr, "%s: %s already has .gz suffix -- unchanged\n", prog,
                     path.c_str());
         }
         return 0;
     }
     struct stat st;
-    unsigned long mtime = (stat(path.c_str(), &st) == 0)
-                              ? (unsigned long)st.st_mtime
+    unsigned long const mtime = (stat(path.c_str(), &st) == 0)
+                              ? static_cast<unsigned long>(st.st_mtime)
                               : 0;
     std::string fname = base_name(path);
-    if (ends_with(fname, ".gz")) fname = fname.substr(0, fname.size() - 3);
+    if (ends_with(fname, ".gz")) { fname = fname.substr(0, fname.size() - 3);
+}
 
     std::vector<unsigned char> out;
     if (!gzip_compress(in, out, opt.level, fname, mtime)) {
-        fprintf(stderr, "%s: %s: compression failed\n", prog, path.c_str());
+        (void)fprintf(stderr, "%s: %s: compression failed\n", prog, path.c_str());
         return 1;
     }
 
     if (opt.to_stdout) {
-        fwrite(out.data(), 1, out.size(), stdout);
+        (void)fwrite(out.data(), 1, out.size(), stdout);
         if (opt.verbose) {
-            std::string outname = path + ".gz";
+            std::string const outname = path + ".gz";
             print_ratio(prog, path, in.size(), out.size(), outname.c_str());
         }
         return 0;
     }
 
-    std::string outname = path + ".gz";
-    if (write_output_file(out, outname, opt.force, prog) != 0) return 1;
-    if (!opt.keep) std::remove(path.c_str());
-    if (opt.verbose) print_ratio(prog, path, in.size(), out.size(), outname.c_str());
+    std::string const outname = path + ".gz";
+    if (write_output_file(out, outname, opt.force, prog) != 0) { return 1;
+}
+    if (!opt.keep) { (void)std::remove(path.c_str());
+}
+    if (opt.verbose) { print_ratio(prog, path, in.size(), out.size(), outname.c_str());
+}
     return 0;
 }
 
@@ -389,7 +416,7 @@ int gzip_command(int argc, char** argv) {
     struct arg_file* files = arg_filen(NULL, NULL, "FILE...", 0, 1000, "files");
     struct arg_end* end = arg_end(20);
 
-    std::vector<void*> table = {opt_c,  opt_d,  opt_k,   opt_f,   opt_q,
+    std::vector<void*> const table = {opt_c,  opt_d,  opt_k,   opt_f,   opt_q,
                                 opt_v,  opt_fast, opt_best, opt_h,  opt_ver,
                                 files, end};
 
@@ -416,7 +443,7 @@ int gzip_command(int argc, char** argv) {
     }
 
     ArgTable at(table);
-    int nerrors = at.parse((int)cargv.size(), (char**)cargv.data());
+    int const nerrors = at.parse(static_cast<int>(cargv.size()), const_cast<char**>(cargv.data()));
 
     if (opt_h->count > 0) {
         print_help(argv[0]);
@@ -428,7 +455,7 @@ int gzip_command(int argc, char** argv) {
     }
     if (nerrors > 0) {
         at.print_errors(end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -440,19 +467,24 @@ int gzip_command(int argc, char** argv) {
     opt.quiet = opt_q->count > 0;
     opt.verbose = opt_v->count > 0;
     opt.level = 6;
-    if (opt_best->count > 0) opt.level = 9;
-    if (opt_fast->count > 0) opt.level = 1;
-    if (saw_level) opt.level = pre_level;
+    if (opt_best->count > 0) { opt.level = 9;
+}
+    if (opt_fast->count > 0) { opt.level = 1;
+}
+    if (saw_level) { opt.level = pre_level;
+}
 
     std::vector<std::string> paths;
     for (int i = 0; i < files->count; i++) {
         paths.push_back(files->filename[i]);
     }
-    if (paths.empty()) paths.push_back("-");
+    if (paths.empty()) { paths.push_back("-");
+}
 
     int status = 0;
     for (const auto& p : paths) {
-        if (process_path(opt, p, argv[0]) != 0) status = 1;
+        if (process_path(opt, p, argv[0]) != 0) { status = 1;
+}
     }
     return status;
 }

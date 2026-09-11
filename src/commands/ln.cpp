@@ -1,8 +1,8 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -21,7 +21,7 @@
  * Returns: 0 on success, -1 on error
  */
 static int do_link(const char* src, const char* dst, const LnOptions* opts) {
-    if (opts->is_force) {
+    if (opts->is_force != 0) {
         /* Attempt to remove any existing destination; ignore ENOENT */
         // NOLINTNEXTLINE(misc-include-cleaner)
         if (unlink(dst) != 0 && errno != ENOENT) {
@@ -37,7 +37,7 @@ static int do_link(const char* src, const char* dst, const LnOptions* opts) {
         }
     }
 
-    if (opts->is_sym) {
+    if (opts->is_sym != 0) {
         if (symlink(src, dst) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "ln: failed to create symbolic link '%s' -> '%s': %s\n",
@@ -71,7 +71,7 @@ static int interactive_confirm(const char *dest_path) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(tty, "replace '%s'? [y/N] ", dest_path);
     }
-    int c = fgetc(tty);
+    int const c = fgetc(tty);
     if (c != '\n' && c != EOF) {
         int ch;
         do { ch = fgetc(tty); } while (ch != '\n' && ch != EOF);
@@ -105,7 +105,7 @@ int ln_command(int argc, char** argv) {
 
     ArgTable at({verbose_opt, force_opt, symbolic_opt, interactive_opt, noderef_opt, logical_opt, src_arg, dst_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (nerrors > 0) {
         return at.print_errors(end, argv[0]);
@@ -113,17 +113,17 @@ int ln_command(int argc, char** argv) {
 
     LnOptions opts = {};
 
-    opts.is_verbose = (verbose_opt->count > 0);
-    opts.is_force = (force_opt->count > 0);
-    opts.is_sym = (symbolic_opt->count > 0);
-    opts.is_interactive = (interactive_opt->count > 0);
-    opts.is_no_deref = (noderef_opt->count > 0);
-    opts.is_logical = (logical_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.is_force = static_cast<int>(force_opt->count > 0);
+    opts.is_sym = static_cast<int>(symbolic_opt->count > 0);
+    opts.is_interactive = static_cast<int>(interactive_opt->count > 0);
+    opts.is_no_deref = static_cast<int>(noderef_opt->count > 0);
+    opts.is_logical = static_cast<int>(logical_opt->count > 0);
     const char* src = src_arg->filename[0];
     const char* dst = dst_arg->filename[0];
 
     /* For hard links, source must exist and be a regular file */
-    if (!opts.is_sym) {
+    if (opts.is_sym == 0) {
         struct stat src_stat;
         if (stat(src, &src_stat) != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -140,7 +140,7 @@ int ln_command(int argc, char** argv) {
     /* If -L (logical), resolve source symlinks before linking */
     const char* link_src = src;
     char src_resolved[MAX_PATH_LEN];
-    if (opts.is_logical && !opts.is_sym) {
+    if ((opts.is_logical != 0) && (opts.is_sym == 0)) {
         if (realpath(src, src_resolved) != NULL) {
             link_src = src_resolved;
         } else {
@@ -156,7 +156,7 @@ int ln_command(int argc, char** argv) {
     struct stat ldst_stat;
     int dst_is_dir = 0;
     if (lstat(dst, &ldst_stat) == 0) {
-        if (S_ISLNK(ldst_stat.st_mode) && opts.is_no_deref) {
+        if (S_ISLNK(ldst_stat.st_mode) && (opts.is_no_deref != 0)) {
             dst_is_dir = 0; /* respect -n: do not follow symlink */
         } else {
             /* follow symlink or normal file */
@@ -169,9 +169,9 @@ int ln_command(int argc, char** argv) {
         dst_is_dir = 0;
     }
 
-    if (dst_is_dir) {
+    if (dst_is_dir != 0) {
         const char* basename = strrchr(src, '/');
-        basename = basename ? basename + 1 : src;
+        basename = (basename != nullptr) ? basename + 1 : src;
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(dest_path, sizeof(dest_path), "%s/%s", dst, basename);
     } else {
@@ -179,12 +179,12 @@ int ln_command(int argc, char** argv) {
         (void)snprintf(dest_path, sizeof(dest_path), "%s", dst);
     }
 
-    if (opts.is_interactive && !interactive_confirm(dest_path)) {
+    if ((opts.is_interactive != 0) && (interactive_confirm(dest_path) == 0)) {
         return 0;
     }
 
     if (do_link(link_src, dest_path, &opts) == 0) {
-        if (opts.is_verbose) {
+        if (opts.is_verbose != 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)printf("'%s' -> '%s'\n", dest_path, src);
         }

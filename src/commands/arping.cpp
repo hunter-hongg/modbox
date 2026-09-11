@@ -2,6 +2,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <linux/if_ether.h>
+#include <linux/sockios.h>
+#include <net/if_arp.h>
 #include <string>
 
 #include <arpa/inet.h>
@@ -10,15 +13,15 @@
 #include <netpacket/packet.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <signal.h>
+#include <csignal>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <argtable3.h>
 
 #include "commands/arg_util.hpp"
-#include "commands/arping.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 
@@ -31,7 +34,7 @@ void on_sigint(int) { g_stop = 1; }
 // Printable MAC address from a 6-byte hardware address.
 std::string mac_to_string(const uint8_t* mac, size_t len) {
     char buf[18] = {0};
-    std::snprintf(buf, sizeof(buf),
+    (void)std::snprintf(buf, sizeof(buf),
                   "%02x:%02x:%02x:%02x:%02x:%02x",
                   len > 0 ? mac[0] : 0, len > 1 ? mac[1] : 0,
                   len > 2 ? mac[2] : 0, len > 3 ? mac[3] : 0,
@@ -51,7 +54,7 @@ int arping_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({help_opt, version_opt, iface_opt, count_opt, ip_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... <ip>\n", prog);
@@ -71,37 +74,37 @@ int arping_command(int argc, char** argv) {
 
     if (nerrors > 0) {
         at.print_errors(end, prog);
-        fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         return 2;
     }
 
     const char* ifname = iface_opt->sval[0];
     const char* ipstr = ip_arg->sval[0];
-    long count = count_opt->count > 0 ? count_opt->ival[0] : -1;  // -1 = unlimited
+    long const count = count_opt->count > 0 ? count_opt->ival[0] : -1;  // -1 = unlimited
 
     // Resolve the target IPv4 address.
     struct in_addr target {};
     if (inet_pton(AF_INET, ipstr, &target) != 1) {
-        fprintf(stderr, "%s: invalid IPv4 address: %s\n", prog, ipstr);
+        (void)fprintf(stderr, "%s: invalid IPv4 address: %s\n", prog, ipstr);
         return 1;
     }
 
     // Resolve the interface index.
-    unsigned int ifindex = if_nametoindex(ifname);
+    unsigned int const ifindex = if_nametoindex(ifname);
     if (ifindex == 0) {
-        fprintf(stderr, "%s: interface not found: %s\n", prog, ifname);
+        (void)fprintf(stderr, "%s: interface not found: %s\n", prog, ifname);
         return 1;
     }
 
     // Raw AF_PACKET socket — requires root or CAP_NET_RAW.
-    int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
+    int const sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
     if (sock < 0) {
         if (errno == EPERM || errno == EACCES) {
-            fprintf(stderr,
+            (void)fprintf(stderr,
                     "%s: raw packet socket: %s (need root or CAP_NET_RAW)\n",
                     prog, strerror(errno));
         } else {
-            fprintf(stderr, "%s: socket: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: socket: %s\n", prog, strerror(errno));
         }
         return 1;
     }
@@ -157,11 +160,11 @@ int arping_command(int argc, char** argv) {
     bool resolved = false;
     std::string resolved_mac;
 
-    for (long seq = 0; !g_stop && (count < 0 || seq < count); ++seq) {
-        ssize_t nsent = sendto(sock, frame.data(), frame.size(), 0,
+    for (long seq = 0; (g_stop == 0) && (count < 0 || seq < count); ++seq) {
+        ssize_t const nsent = sendto(sock, frame.data(), frame.size(), 0,
                                reinterpret_cast<struct sockaddr*>(&sll), sizeof(sll));
         if (nsent < 0) {
-            fprintf(stderr, "%s: sendto: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: sendto: %s\n", prog, strerror(errno));
             break;
         }
         requests++;
@@ -171,32 +174,56 @@ int arping_command(int argc, char** argv) {
         pfd.fd = sock;
         pfd.events = POLLIN;
         pfd.revents = 0;
-        int pr = poll(&pfd, 1, interval_ms);
+        int const pr = poll(&pfd, 1, interval_ms);
         if (pr < 0) {
-            if (errno == EINTR) break;
+            if (errno == EINTR)
+            {
+                break;
+            }
             break;
         }
-        if (pr == 0 || !(pfd.revents & POLLIN)) continue;
+        if (pr == 0 || ((pfd.revents & POLLIN) == 0))
+        {
+            continue;
+        }
 
         char rbuf[2048];
-        ssize_t n = recvfrom(sock, rbuf, sizeof(rbuf), 0, nullptr, nullptr);
-        if (n <= 0) continue;
-        if (static_cast<size_t>(n) < 14 + sizeof(struct ether_arp)) continue;
+        ssize_t const n = recvfrom(sock, rbuf, sizeof(rbuf), 0, nullptr, nullptr);
+        if (n <= 0)
+        {
+            continue;
+        }
+        if (static_cast<size_t>(n) < 14 + sizeof(struct ether_arp))
+        {
+            continue;
+        }
 
-        uint8_t* rf = reinterpret_cast<uint8_t*>(rbuf);
-        uint16_t ethertype = static_cast<uint16_t>(rf[12]) << 8 | rf[13];
-        if (ethertype != ETH_P_ARP) continue;
+        const uint8_t* rf = reinterpret_cast<uint8_t*>(rbuf);
+        uint16_t const ethertype = static_cast<uint16_t>(rf[12]) << 8 | rf[13];
+        if (ethertype != ETH_P_ARP)
+        {
+            continue;
+        }
 
         auto* ra = reinterpret_cast<struct ether_arp*>(rbuf + 14);
-        if (ntohs(ra->arp_op) != ARPOP_REPLY) continue;
+        if (ntohs(ra->arp_op) != ARPOP_REPLY)
+        {
+            continue;
+        }
 
         // Reply must come from the target and be addressed to our source IP.
         struct in_addr rsp;
         std::memcpy(&rsp, &ra->arp_spa, 4);
         struct in_addr rtp;
         std::memcpy(&rtp, &ra->arp_tpa, 4);
-        if (rsp.s_addr != target.s_addr) continue;
-        if (src_ip.s_addr != htonl(INADDR_ANY) && rtp.s_addr != src_ip.s_addr) continue;
+        if (rsp.s_addr != target.s_addr)
+        {
+            continue;
+        }
+        if (src_ip.s_addr != htonl(INADDR_ANY) && rtp.s_addr != src_ip.s_addr)
+        {
+            continue;
+        }
 
         resolved = true;
         resolved_mac = mac_to_string(ra->arp_sha, 6);
@@ -206,7 +233,10 @@ int arping_command(int argc, char** argv) {
 
     close(sock);
 
-    if (requests == 0) return 1;
+    if (requests == 0)
+    {
+        return 1;
+    }
     if (!resolved) {
         printf("No ARP reply from %s (%zu request%s sent)\n", ipstr, requests,
                requests == 1 ? "" : "s");
@@ -217,4 +247,4 @@ int arping_command(int argc, char** argv) {
 
 REGISTER_COMMAND("arping", arping_command, "Ping a host by ARP request to resolve its MAC address");
 
-}  // namespace
+}

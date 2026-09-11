@@ -3,14 +3,16 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
+#include <sys/stat.h>
 
 void walk_directory(const char* dirpath, WalkAction action,
                     ShouldRecurse should_recurse, int max_depth) {
-    if (max_depth == 0) return;
+    if (max_depth == 0) { return;
+}
 
     DIR* dir = opendir(dirpath);
     if (dir == NULL) {
-        fprintf(stderr, "%s: %s\n", dirpath, strerror(errno));
+        (void)fprintf(stderr, "%s: %s\n", dirpath, strerror(errno));
         return;
     }
 
@@ -24,7 +26,7 @@ void walk_directory(const char* dirpath, WalkAction action,
         Dirent d;
         d.name = entry->d_name;
         char full_path[4096];
-        snprintf(full_path, sizeof(full_path), "%s/%s", dirpath, entry->d_name);
+        (void)snprintf(full_path, sizeof(full_path), "%s/%s", dirpath, entry->d_name);
         d.full_path = full_path;
         d.valid = (lstat(full_path, &d.st) == 0);
         if (!d.valid) {

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -6,6 +7,7 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -28,33 +30,34 @@ struct Event {
     bool hw_event;         // true = requires perf_event_open, false = getrusage
 };
 
-static const Event kHardwareEvents[] = {
-    {"cycles",                  "Hardware event", true},
-    {"instructions",            "Hardware event", true},
-    {"cache-references",        "Hardware event", true},
-    {"cache-misses",            "Hardware event", true},
-    {"branch-instructions",     "Hardware event", true},
-    {"branch-misses",           "Hardware event", true},
-    {"stalled-cycles-frontend", "Hardware event", true},
-    {"stalled-cycles-backend",  "Hardware event", true},
-    {nullptr, nullptr, false},
+const Event kHardwareEvents[] = {
+    {.name="cycles",                  .category="Hardware event", .hw_event=true},
+    {.name="instructions",            .category="Hardware event", .hw_event=true},
+    {.name="cache-references",        .category="Hardware event", .hw_event=true},
+    {.name="cache-misses",            .category="Hardware event", .hw_event=true},
+    {.name="branch-instructions",     .category="Hardware event", .hw_event=true},
+    {.name="branch-misses",           .category="Hardware event", .hw_event=true},
+    {.name="stalled-cycles-frontend", .category="Hardware event", .hw_event=true},
+    {.name="stalled-cycles-backend",  .category="Hardware event", .hw_event=true},
+    {.name=nullptr, .category=nullptr, .hw_event=false},
 };
 
-static const Event kSoftwareEvents[] = {
-    {"task-clock",       "Software event", false},
-    {"cpu-clock",        "Software event", false},
-    {"page-faults",      "Software event", false},
-    {"minor-faults",     "Software event", false},
-    {"major-faults",     "Software event", false},
-    {"context-switches", "Software event", false},
-    {"cpu-migrations",   "Software event", false},
-    {"alignment-faults", "Software event", false},
-    {nullptr, nullptr, false},
+const Event kSoftwareEvents[] = {
+    {.name="task-clock",       .category="Software event", .hw_event=false},
+    {.name="cpu-clock",        .category="Software event", .hw_event=false},
+    {.name="page-faults",      .category="Software event", .hw_event=false},
+    {.name="minor-faults",     .category="Software event", .hw_event=false},
+    {.name="major-faults",     .category="Software event", .hw_event=false},
+    {.name="context-switches", .category="Software event", .hw_event=false},
+    {.name="cpu-migrations",   .category="Software event", .hw_event=false},
+    {.name="alignment-faults", .category="Software event", .hw_event=false},
+    {.name=nullptr, .category=nullptr, .hw_event=false},
 };
 
-static bool is_hw_event(const char* name) {
+bool is_hw_event(const char* name) {
     for (int i = 0; kHardwareEvents[i].name != nullptr; ++i) {
-        if (strcmp(kHardwareEvents[i].name, name) == 0) return true;
+        if (strcmp(kHardwareEvents[i].name, name) == 0) { return true;
+}
     }
     return false;
 }
@@ -76,54 +79,57 @@ struct PerfOptions {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-static std::string strip_suffix(std::string s) {
-    size_t colon = s.find(':');
-    if (colon != std::string::npos) s.erase(colon);
+std::string strip_suffix(std::string s) {
+    size_t const colon = s.find(':');
+    if (colon != std::string::npos) { s.erase(colon);
+}
     return s;
 }
 
-static void split_csv(const char* s, std::vector<std::string>& out) {
+void split_csv(const char* s, std::vector<std::string>& out) {
     out.clear();
     std::string cur;
-    for (const char* p = s; *p; ++p) {
+    for (const char* p = s; (*p) != 0; ++p) {
         if (*p == ',') {
-            if (!cur.empty()) out.push_back(cur);
+            if (!cur.empty()) { out.push_back(cur);
+}
             cur.clear();
         } else {
             cur.push_back(*p);
         }
     }
-    if (!cur.empty()) out.push_back(cur);
+    if (!cur.empty()) { out.push_back(cur);
+}
 }
 
-static std::string format_count(uint64_t v) {
+std::string format_count(uint64_t v) {
     if (v >= 1000000000000ULL) {
-        double d = static_cast<double>(v) / 1000000000000.0;
+        double const d = static_cast<double>(v) / 1000000000000.0;
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.2fT", d);
+        (void)std::snprintf(buf, sizeof(buf), "%.2fT", d);
         return std::string(buf);
     }
     if (v >= 1000000000ULL) {
-        double d = static_cast<double>(v) / 1000000000.0;
+        double const d = static_cast<double>(v) / 1000000000.0;
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.2fG", d);
+        (void)std::snprintf(buf, sizeof(buf), "%.2fG", d);
         return std::string(buf);
     }
     if (v >= 1000000ULL) {
-        double d = static_cast<double>(v) / 1000000.0;
+        double const d = static_cast<double>(v) / 1000000.0;
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.2fM", d);
+        (void)std::snprintf(buf, sizeof(buf), "%.2fM", d);
         return std::string(buf);
     }
     if (v >= 1000ULL) {
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%'llu", (unsigned long long)v);
+        (void)std::snprintf(buf, sizeof(buf), "%'llu", static_cast<unsigned long long>(v));
         return std::string(buf);
     }
     return std::to_string(v);
 }
 
-static void print_help(const char* prog) {
+void print_help(const char* prog) {
     printf("Usage: %s [OPTION]... <subcommand> [ARGS]...\n", prog);
     printf("\n");
     printf("Performance counter statistics tool.\n");
@@ -153,10 +159,11 @@ static void print_help(const char* prog) {
     printf("  --version         Output version information and exit\n");
 }
 
-static std::string build_cmd_string(const std::vector<const char*>& cmds) {
+std::string build_cmd_string(const std::vector<const char*>& cmds) {
     std::string s;
     for (size_t i = 0; i < cmds.size(); ++i) {
-        if (i > 0) s.push_back(' ');
+        if (i > 0) { s.push_back(' ');
+}
         s.append(cmds[i]);
     }
     return s;
@@ -185,7 +192,7 @@ struct StatResult {
     int exit_status = 0;
 };
 
-static void accumulate(StatResult& dst, const StatResult& src) {
+void accumulate(StatResult& dst, const StatResult& src) {
     dst.task_clock           += src.task_clock;
     dst.cpu_clock            += src.cpu_clock;
     dst.page_faults          += src.page_faults;
@@ -201,11 +208,11 @@ static void accumulate(StatResult& dst, const StatResult& src) {
     dst.branch_misses        += src.branch_misses;
     dst.stalled_frontend     += src.stalled_frontend;
     dst.stalled_backend      += src.stalled_backend;
-    if (src.elapsed > dst.elapsed) dst.elapsed = src.elapsed;
+    dst.elapsed = std::max(src.elapsed, dst.elapsed);
     dst.exit_status = src.exit_status;
 }
 
-static StatResult get_rusage_stats() {
+StatResult get_rusage_stats() {
     struct rusage ru;
     memset(&ru, 0, sizeof(ru));
     getrusage(RUSAGE_CHILDREN, &ru);
@@ -224,34 +231,37 @@ static StatResult get_rusage_stats() {
 
 // ── Run a single command, collect stats ──────────────────────────────────────
 
-static StatResult run_cmd(const std::vector<const char*>& cmds, double* elapsed_out) {
+StatResult run_cmd(const std::vector<const char*>& cmds, double* elapsed_out) {
     StatResult result{};
-    if (cmds.empty()) return result;
+    if (cmds.empty()) { return result;
+}
 
-    struct timeval start, finish;
+    struct timeval start;
+    struct timeval finish;
     gettimeofday(&start, nullptr);
 
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid < 0) {
-        fprintf(stderr, "perf: cannot fork: %s\n", strerror(errno));
+        (void)fprintf(stderr, "perf: cannot fork: %s\n", strerror(errno));
         return result;
     }
     if (pid == 0) {
         execvp(cmds[0], const_cast<char**>(cmds.data()));
-        int code = (errno == ENOENT) ? 127 : 126;
-        fprintf(stderr, "perf: cannot run '%s': %s\n", cmds[0], strerror(errno));
+        int const code = (errno == ENOENT) ? 127 : 126;
+        (void)fprintf(stderr, "perf: cannot run '%s': %s\n", cmds[0], strerror(errno));
         _exit(code);
     }
 
     int status = 0;
     while (waitpid(pid, &status, 0) < 0) {
-        if (errno != EINTR) break;
+        if (errno != EINTR) { break;
+}
     }
 
     gettimeofday(&finish, nullptr);
     double elapsed = (static_cast<double>(finish.tv_sec) + finish.tv_usec / 1e6)
                    - (static_cast<double>(start.tv_sec) + start.tv_usec / 1e6);
-    if (elapsed < 0) elapsed = 0;
+    elapsed = std::max<double>(elapsed, 0);
     *elapsed_out = elapsed;
 
     if (WIFEXITED(status)) {
@@ -261,7 +271,7 @@ static StatResult run_cmd(const std::vector<const char*>& cmds, double* elapsed_
     }
 
     // Get software event counts from getrusage
-    StatResult ru = get_rusage_stats();
+    StatResult const ru = get_rusage_stats();
     result.task_clock  = ru.task_clock;
     result.cpu_clock   = ru.cpu_clock;
     result.minor_faults = ru.minor_faults;
@@ -282,23 +292,23 @@ struct EventValue {
     bool has_ipc = false;
 };
 
-static void emit_event_value(FILE* fp, const EventValue& ev, bool csv_mode) {
+void emit_event_value(FILE* fp, const EventValue& ev, bool csv_mode) {
     if (csv_mode) {
-        fprintf(fp, "%s|%s\n", ev.name.c_str(), ev.display.c_str());
+        (void)fprintf(fp, "%s|%s\n", ev.name.c_str(), ev.display.c_str());
     } else {
-        fprintf(fp, "        %-40s %s", ev.name.c_str(), ev.display.c_str());
+        (void)fprintf(fp, "        %-40s %s", ev.name.c_str(), ev.display.c_str());
         if (ev.has_ipc) {
-            fprintf(fp, "              # %.3f IPC", ev.ipc);
+            (void)fprintf(fp, "              # %.3f IPC", ev.ipc);
         }
-        fprintf(fp, "\n");
+        (void)fprintf(fp, "\n");
     }
 }
 
-static void emit_stat_output(const PerfOptions* opts, const StatResult& result,
+void emit_stat_output(const PerfOptions* opts, const StatResult& result,
                               double elapsed, FILE* fp, bool csv_mode) {
     if (!csv_mode && !opts->null_mode) {
-        std::string cmd_str = build_cmd_string(opts->cmds);
-        fprintf(fp, " Performance counter stats for '%s':\n", cmd_str.c_str());
+        std::string const cmd_str = build_cmd_string(opts->cmds);
+        (void)fprintf(fp, " Performance counter stats for '%s':\n", cmd_str.c_str());
     }
 
     // Determine which events to show
@@ -316,11 +326,11 @@ static void emit_stat_output(const PerfOptions* opts, const StatResult& result,
     }
 
     // Collect raw values for IPC/CPI calculation
-    uint64_t total_cycles = result.cycles;
-    uint64_t total_instructions = result.instructions;
+    uint64_t const total_cycles = result.cycles;
+    uint64_t const total_instructions = result.instructions;
 
     for (const auto& ename : event_names) {
-        std::string ename_clean = strip_suffix(ename);
+        std::string const ename_clean = strip_suffix(ename);
         EventValue ev;
         ev.name = ename_clean;
 
@@ -328,7 +338,7 @@ static void emit_stat_output(const PerfOptions* opts, const StatResult& result,
         uint64_t val = 0;
         std::string unit;
         bool is_time = false;
-        bool is_unknown = false;
+        bool const is_unknown = false;
         bool is_hw_only = false;
 
         if (ename_clean == "task-clock") {
@@ -391,9 +401,9 @@ static void emit_stat_output(const PerfOptions* opts, const StatResult& result,
 
         if (is_time) {
             // Convert microseconds to milliseconds
-            double msec = static_cast<double>(val) / 1000.0;
+            double const msec = static_cast<double>(val) / 1000.0;
             char buf[64];
-            std::snprintf(buf, sizeof(buf), "%.3f%s", msec, unit.c_str());
+            (void)std::snprintf(buf, sizeof(buf), "%.3f%s", msec, unit.c_str());
             ev.display = std::string(buf);
         } else {
             ev.display = format_count(val);
@@ -411,32 +421,32 @@ static void emit_stat_output(const PerfOptions* opts, const StatResult& result,
     // Elapsed time line
     if (!csv_mode) {
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.6f seconds time elapsed", elapsed);
-        fprintf(fp, "  %s\n", buf);
+        (void)std::snprintf(buf, sizeof(buf), "%.6f seconds time elapsed", elapsed);
+        (void)fprintf(fp, "  %s\n", buf);
     } else {
-        fprintf(fp, "elapsed|%.\6f\n", elapsed);
+        (void)fprintf(fp, "elapsed|%.\6f\n", elapsed);
     }
 }
 
 // ── perf list ─────────────────────────────────────────────────────────────────
 
-static int list_command(const PerfOptions* opts) {
+int list_command(const PerfOptions* opts) {
     const char* filter = nullptr;
     if (opts->events.size() >= 1) {
         filter = opts->events[0].c_str();
     }
 
-    bool filter_hw = (filter && strcmp(filter, "hw") == 0);
-    bool filter_sw = (filter && strcmp(filter, "sw") == 0);
+    bool const filter_hw = ((filter != nullptr) && strcmp(filter, "hw") == 0);
+    bool const filter_sw = ((filter != nullptr) && strcmp(filter, "sw") == 0);
 
-    if (!filter || filter_hw) {
+    if ((filter == nullptr) || filter_hw) {
         printf("  Hardware events:\n");
         for (int i = 0; kHardwareEvents[i].name != nullptr; ++i) {
             printf("    %-35s %s\n", kHardwareEvents[i].name, kHardwareEvents[i].category);
         }
         printf("\n");
     }
-    if (!filter || filter_sw) {
+    if ((filter == nullptr) || filter_sw) {
         printf("  Software events:\n");
         for (int i = 0; kSoftwareEvents[i].name != nullptr; ++i) {
             printf("    %-35s %s\n", kSoftwareEvents[i].name, kSoftwareEvents[i].category);
@@ -448,10 +458,10 @@ static int list_command(const PerfOptions* opts) {
 
 // ── perf stat ─────────────────────────────────────────────────────────────────
 
-static int stat_command(const PerfOptions* opts) {
+int stat_command(const PerfOptions* opts) {
     if (opts->cmds.empty()) {
-        fprintf(stderr, "perf: missing command to run\n");
-        fprintf(stderr, "Try 'perf --help' for more information.\n");
+        (void)fprintf(stderr, "perf: missing command to run\n");
+        (void)fprintf(stderr, "Try 'perf --help' for more information.\n");
         return 2;
     }
 
@@ -461,22 +471,22 @@ static int stat_command(const PerfOptions* opts) {
     attr.type = 0; // PERF_TYPE_HARDWARE
     attr.size = sizeof(attr);
     attr.config = 0; // PERF_COUNT_HW_CPU_CYCLES
-    int fd = static_cast<int>(syscall(SYS_perf_event_open, &attr, 0, -1, -1, 0));
+    int const fd = static_cast<int>(syscall(SYS_perf_event_open, &attr, 0, -1, -1, 0));
     if (fd >= 0) {
         hw_available = true;
         close(fd);
     }
 
     if (!hw_available) {
-        fprintf(stderr, "Note: perf_event_open is not available; hardware events will be N/A\n");
+        (void)fprintf(stderr, "Note: perf_event_open is not available; hardware events will be N/A\n");
     }
 
     FILE* out_fp = stderr;
     FILE* file_fp = nullptr;
-    if (opts->output_file) {
+    if (opts->output_file != nullptr) {
         file_fp = fopen(opts->output_file, "w");
-        if (!file_fp) {
-            fprintf(stderr, "perf: cannot open '%s': %s\n", opts->output_file, strerror(errno));
+        if (file_fp == nullptr) {
+            (void)fprintf(stderr, "perf: cannot open '%s': %s\n", opts->output_file, strerror(errno));
             return 2;
         }
         out_fp = file_fp;
@@ -487,12 +497,12 @@ static int stat_command(const PerfOptions* opts) {
 
     for (int rep = 0; rep < opts->repeat; ++rep) {
         double elapsed = 0.0;
-        StatResult r = run_cmd(opts->cmds, &elapsed);
+        StatResult const r = run_cmd(opts->cmds, &elapsed);
         accumulate(total, r);
         per_run_elapsed.push_back(elapsed);
     }
 
-    double avg_elapsed = opts->repeat > 1
+    double const avg_elapsed = opts->repeat > 1
         ? (total.elapsed / opts->repeat)
         : total.elapsed;
 
@@ -500,20 +510,21 @@ static int stat_command(const PerfOptions* opts) {
 
     // Print repeat average if multiple repeats
     if (opts->repeat > 1 && !opts->csv_mode) {
-        fprintf(out_fp, "\n Command being timed: \"%s\"\n", build_cmd_string(opts->cmds).c_str());
-        fprintf(out_fp, "  Number of repeats: %d\n", opts->repeat);
-        fprintf(out_fp, "  Average elapsed time: %.6f seconds\n", avg_elapsed);
+        (void)fprintf(out_fp, "\n Command being timed: \"%s\"\n", build_cmd_string(opts->cmds).c_str());
+        (void)fprintf(out_fp, "  Number of repeats: %d\n", opts->repeat);
+        (void)fprintf(out_fp, "  Average elapsed time: %.6f seconds\n", avg_elapsed);
     }
 
-    if (file_fp) fclose(file_fp);
+    if (file_fp != nullptr) { (void)fclose(file_fp);
+}
 
     return total.exit_status;
 }
 
 // ── Stub for unimplemented subcommands ───────────────────────────────────────
 
-static int stub_command(const char* subcmd) {
-    fprintf(stderr, "modbox: perf %s: not implemented\n", subcmd);
+int stub_command(const char* subcmd) {
+    (void)fprintf(stderr, "modbox: perf %s: not implemented\n", subcmd);
     return 1;
 }
 
@@ -552,28 +563,28 @@ int perf_command(int argc, char** argv) {
             const char* s = argv[i];
             if (strcmp(s, "-e") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "%s: option requires an argument -- 'e'\n", prog);
+                    (void)fprintf(stderr, "%s: option requires an argument -- 'e'\n", prog);
                     return 2;
                 }
                 split_csv(argv[i + 1], opts.events);
                 i += 2;
             } else if (strcmp(s, "-I") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "%s: option requires an argument -- 'I'\n", prog);
+                    (void)fprintf(stderr, "%s: option requires an argument -- 'I'\n", prog);
                     return 2;
                 }
                 opts.interval_ms = atoi(argv[i + 1]);
                 i += 2;
             } else if (strcmp(s, "-o") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "%s: option requires an argument -- 'o'\n", prog);
+                    (void)fprintf(stderr, "%s: option requires an argument -- 'o'\n", prog);
                     return 2;
                 }
                 opts.output_file = argv[i + 1];
                 i += 2;
             } else if (strcmp(s, "--format") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "%s: option requires an argument -- 'format'\n", prog);
+                    (void)fprintf(stderr, "%s: option requires an argument -- 'format'\n", prog);
                     return 2;
                 }
                 split_csv(argv[i + 1], opts.format);
@@ -596,14 +607,14 @@ int perf_command(int argc, char** argv) {
                 i += 1;
             } else if (strcmp(s, "--repeat") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "%s: option requires an argument -- 'repeat'\n", prog);
+                    (void)fprintf(stderr, "%s: option requires an argument -- 'repeat'\n", prog);
                     return 2;
                 }
                 opts.repeat = atoi(argv[i + 1]);
                 i += 2;
             } else if (s[0] == '-') {
-                fprintf(stderr, "%s: unrecognized option '%s'\n", prog, s);
-                fprintf(stderr, "Try 'perf --help' for more information.\n");
+                (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, s);
+                (void)fprintf(stderr, "Try 'perf --help' for more information.\n");
                 return 2;
             } else {
                 // Remaining args are the command
@@ -616,7 +627,7 @@ int perf_command(int argc, char** argv) {
 
         return stat_command(&opts);
 
-    } else if (strcmp(subcmd, "list") == 0) {
+    } if (strcmp(subcmd, "list") == 0) {
         PerfOptions opts{};
         int i = 2;
         while (i < argc) {
@@ -641,8 +652,8 @@ int perf_command(int argc, char** argv) {
                strcmp(subcmd, "top") == 0) {
         return stub_command(subcmd);
     } else {
-        fprintf(stderr, "perf: '%s' is not a valid subcommand\n", subcmd);
-        fprintf(stderr, "Try 'perf --help' for available subcommands.\n");
+        (void)fprintf(stderr, "perf: '%s' is not a valid subcommand\n", subcmd);
+        (void)fprintf(stderr, "Try 'perf --help' for available subcommands.\n");
         return 2;
     }
 }

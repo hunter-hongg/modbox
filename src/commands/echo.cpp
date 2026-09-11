@@ -46,7 +46,8 @@ int echo_command(int argc, char** argv) {
 
     std::string out;
     for (size_t i = 0; i < args.size(); i++) {
-        if (i > 0) out += ' ';
+        if (i > 0) { out += ' ';
+}
         if (interpret) {
             const char* s = args[i];
             for (size_t j = 0; s[j] != '\0'; j++) {
@@ -55,7 +56,7 @@ int echo_command(int argc, char** argv) {
                     switch (s[j]) {
                         case 'a': out += '\a'; break;
                         case 'b': out += '\b'; break;
-                        case 'c': no_newline = true; fputs(out.c_str(), stdout); return 0; /* stop */
+                        case 'c': no_newline = true; (void)fputs(out.c_str(), stdout); return 0; /* stop */
                         case 'e': out += '\x1b'; break;
                         case 'f': out += '\f'; break;
                         case 'n': out += '\n'; break;
@@ -79,7 +80,7 @@ int echo_command(int argc, char** argv) {
                                 val = val * 8 + (s[j] - '0');
                                 k++;
                             }
-                            out += (char)val;
+                            out += static_cast<char>(val);
                             break;
                         }
                         default:
@@ -96,8 +97,9 @@ int echo_command(int argc, char** argv) {
         }
     }
 
-    fputs(out.c_str(), stdout);
-    if (!no_newline) fputc('\n', stdout);
+    (void)fputs(out.c_str(), stdout);
+    if (!no_newline) { (void)fputc('\n', stdout);
+}
     return 0;
 }
 

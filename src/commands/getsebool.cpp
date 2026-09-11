@@ -12,10 +12,10 @@
 // Print one boolean's active/pending state. Returns 0 on success, 1 if the
 // boolean is unknown or cannot be queried.
 static int print_one_boolean(const char* name, const char* prog) {
-    int active = security_get_boolean_active(name);
-    int pending = security_get_boolean_pending(name);
+    int const active = security_get_boolean_active(name);
+    int const pending = security_get_boolean_pending(name);
     if (active < 0 || pending < 0) {
-        fprintf(stderr, "%s: %s: no such boolean\n", prog, name);
+        (void)fprintf(stderr, "%s: %s: no such boolean\n", prog, name);
         return 1;
     }
     if (active == pending) {
@@ -36,7 +36,7 @@ int getsebool_command(int argc, char** argv) {
 
     ArgTable at({help_opt, version_opt, bools_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
     if (nerrors > 0) {
         return print_arg_errors(end, argv[0]);
     }
@@ -58,7 +58,7 @@ int getsebool_command(int argc, char** argv) {
     char** names = nullptr;
     int len = 0;
     if (security_get_boolean_names(&names, &len) < 0) {
-        fprintf(stderr, "%s: unable to read SELinux booleans (SELinux disabled or unsupported)\n",
+        (void)fprintf(stderr, "%s: unable to read SELinux booleans (SELinux disabled or unsupported)\n",
                 argv[0]);
         return 1;
     }

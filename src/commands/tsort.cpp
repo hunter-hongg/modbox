@@ -17,7 +17,7 @@ int tsort_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -38,8 +38,8 @@ int tsort_command(int argc, char** argv) {
     FILE* fp = stdin;
     if (file_arg->count > 0 && strcmp(file_arg->filename[0], "-") != 0) {
         fp = fopen(file_arg->filename[0], "r");
-        if (!fp) {
-            fprintf(stderr, "%s: cannot open '%s': %s\n",
+        if (fp == nullptr) {
+            (void)fprintf(stderr, "%s: cannot open '%s': %s\n",
                     argv[0], file_arg->filename[0], strerror(errno));
             return 0;
         }
@@ -49,20 +49,20 @@ int tsort_command(int argc, char** argv) {
     std::vector<std::string> tokens;
     char buf[65536];
 
-    while (fgets(buf, sizeof(buf), fp)) {
+    while (fgets(buf, sizeof(buf), fp) != nullptr) {
         char* p = buf;
-        while (*p) {
+        while ((*p) != 0) {
             // skip whitespace
             while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
                 p++;
             }
-            if (!*p) {
+            if ((*p) == 0) {
                 break;
             }
 
             // read token
             char* start = p;
-            while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
+            while (((*p) != 0) && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
                 p++;
             }
             tokens.emplace_back(start, p - start);
@@ -70,7 +70,7 @@ int tsort_command(int argc, char** argv) {
     }
 
     if (fp != stdin) {
-        fclose(fp);
+        (void)fclose(fp);
     }
 
     if (tokens.empty()) {
@@ -106,7 +106,7 @@ int tsort_command(int argc, char** argv) {
 
     std::vector<std::string> sorted;
     while (!q.empty()) {
-        std::string node = q.front();
+        std::string const node = q.front();
         q.pop();
         sorted.push_back(node);
 
@@ -124,10 +124,10 @@ int tsort_command(int argc, char** argv) {
         printf("%s\n", s.c_str());
     }
 
-    bool has_cycle = (sorted.size() != graph.size());
+    bool const has_cycle = (sorted.size() != graph.size());
 
     if (has_cycle) {
-        fprintf(stderr, "%s: input contains a cycle\n", argv[0]);
+        (void)fprintf(stderr, "%s: input contains a cycle\n", argv[0]);
         for (const auto& [node, _] : graph) {
             if (indegree[node] > 0) {
                 printf("%s\n", node.c_str());

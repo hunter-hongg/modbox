@@ -40,12 +40,12 @@ inline int print_arg_errors(struct arg_end* end, const char* prog) {
     for (int i = 0; i < end->count; i++) {
         const char* argval = end->argval[i] != nullptr ? end->argval[i] : "";
         if (end->error[i] == ARG_ELONGOPT) {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argval);
+            (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argval);
         } else {
-            fprintf(stderr, "%s: unexpected argument '%s'\n", prog, argval);
+            (void)fprintf(stderr, "%s: unexpected argument '%s'\n", prog, argval);
         }
     }
-    fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+    (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
     return 1;
 }
 

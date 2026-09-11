@@ -1,17 +1,16 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <ctime>
 #include <string>
+#include <utility>
 #include <vector>
-#include <sstream>
-#include <algorithm>
 #include <unordered_map>
 #include <cstdint>
 #include <cinttypes>
 #include <unistd.h>
 
 #include "commands/iostat.hpp"
-#include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 #include "commands/json_stringifier.hpp"
@@ -50,22 +49,24 @@ struct DiskStats {
 
 static uint64_t parse_u64(const char* s) {
     char* end = nullptr;
-    uint64_t v = std::strtoull(s, &end, 10);
-    if (end == s) return 0;
+    uint64_t const v = std::strtoull(s, &end, 10);
+    if (end == s) { return 0;
+}
     return v;
 }
 
 static CpuStats read_cpu_stats() {
     CpuStats s{};
     FILE* fp = fopen("/proc/stat", "r");
-    if (!fp) return s;
+    if (fp == nullptr) { return s;
+}
 
     char line[512];
-    while (fgets(line, sizeof(line), fp)) {
+    while (fgets(line, sizeof(line), fp) != nullptr) {
         // We only want the first "cpu " line (aggregate across all CPUs)
         if (strncmp(line, "cpu ", 4) == 0) {
             uint64_t vals[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-            int n = sscanf(line, "cpu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+            int const n = sscanf(line, "cpu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
                            &vals[0], &vals[1], &vals[2], &vals[3], &vals[4],
                            &vals[5], &vals[6], &vals[7], &vals[8], &vals[9]);
             if (n >= 8) {
@@ -78,28 +79,36 @@ static CpuStats read_cpu_stats() {
                 s.softirq = (n >= 7) ? vals[6] : 0;
                 s.steal = (n >= 8) ? vals[7] : 0;
             }
-            if (n >= 9) s.guest = vals[8];
-            if (n >= 10) s.guest_nice = vals[9];
+            if (n >= 9) { s.guest = vals[8];
+}
+            if (n >= 10) { s.guest_nice = vals[9];
+}
             break;
         }
     }
-    fclose(fp);
+    (void)fclose(fp);
     return s;
 }
 
 static std::vector<DiskStats> read_disk_stats() {
     std::vector<DiskStats> result;
     FILE* fp = fopen("/proc/diskstats", "r");
-    if (!fp) return result;
+    if (fp == nullptr) { return result;
+}
 
     char line[512];
-    while (fgets(line, sizeof(line), fp)) {
-        unsigned maj, min;
+    while (fgets(line, sizeof(line), fp) != nullptr) {
+        unsigned maj;
+        unsigned min;
         char name[64] = {0};
-        uint64_t rcl, rse, wcl, wse;
-        int n = sscanf(line, "%u %u %63s %" PRIu64 " %lu %" PRIu64 " %lu",
+        uint64_t rcl;
+        uint64_t rse;
+        uint64_t wcl;
+        uint64_t wse;
+        int const n = sscanf(line, "%u %u %63s %" PRIu64 " %lu %" PRIu64 " %lu",
                        &maj, &min, name, &rcl, &rse, &wcl, &wse);
-        if (n < 7 || name[0] == '\0') continue;
+        if (n < 7 || name[0] == '\0') { continue;
+}
         // Skip partitions — keep only whole disks (look at name for common suffixes like p1, p2, etc.)
         // We include everything for simplicity since /proc/diskstats already filters well.
         DiskStats d{};
@@ -110,17 +119,20 @@ static std::vector<DiskStats> read_disk_stats() {
         d.write_sectors = wse;
         result.push_back(std::move(d));
     }
-    fclose(fp);
+    (void)fclose(fp);
     return result;
 }
 
 static double get_uptime() {
     FILE* fp = fopen("/proc/uptime", "r");
-    if (!fp) return 1.0;
+    if (fp == nullptr) { return 1.0;
+}
     double u = 0.0;
-    if (fscanf(fp, "%lf", &u) != 1) u = 1.0;
-    fclose(fp);
-    if (u <= 0) u = 1.0;
+    if (fscanf(fp, "%lf", &u) != 1) { u = 1.0;
+}
+    (void)fclose(fp);
+    if (u <= 0) { u = 1.0;
+}
     return u;
 }
 
@@ -148,7 +160,8 @@ static std::vector<DiskStats> disk_delta(const std::vector<DiskStats>& old_s,
     std::vector<DiskStats> deltas;
     // Build a map of old stats by name
     std::unordered_map<std::string, const DiskStats*> old_map;
-    for (const auto& d : old_s) old_map[d.name] = &d;
+    for (const auto& d : old_s) { old_map[d.name] = &d;
+}
 
     for (const auto& new_d : new_s) {
         auto it = old_map.find(new_d.name);
@@ -160,10 +173,14 @@ static std::vector<DiskStats> disk_delta(const std::vector<DiskStats>& old_s,
             delta.writes_completed -= old_d.writes_completed;
             delta.write_sectors -= old_d.write_sectors;
             // Clamp negative values (can happen with hot-plug)
-            if (delta.reads_completed > new_d.reads_completed) delta.reads_completed = 0;
-            if (delta.read_sectors > new_d.read_sectors) delta.read_sectors = 0;
-            if (delta.writes_completed > new_d.writes_completed) delta.writes_completed = 0;
-            if (delta.write_sectors > new_d.write_sectors) delta.write_sectors = 0;
+            if (delta.reads_completed > new_d.reads_completed) { delta.reads_completed = 0;
+}
+            if (delta.read_sectors > new_d.read_sectors) { delta.read_sectors = 0;
+}
+            if (delta.writes_completed > new_d.writes_completed) { delta.writes_completed = 0;
+}
+            if (delta.write_sectors > new_d.write_sectors) { delta.write_sectors = 0;
+}
         }
         deltas.push_back(std::move(delta));
     }
@@ -171,16 +188,16 @@ static std::vector<DiskStats> disk_delta(const std::vector<DiskStats>& old_s,
 }
 
 static void emit_cpu_json(FILE* out, const CpuStats& delta, double dt) {
-    uint64_t total = delta.user + delta.nice + delta.system + delta.idle
+    uint64_t const total = delta.user + delta.nice + delta.system + delta.idle
                    + delta.iowait + delta.irq + delta.softirq + delta.steal;
-    double pct_user = dt > 0 ? 100.0 * (double)(delta.user) / total : 0.0;
-    double pct_nice = dt > 0 ? 100.0 * (double)(delta.nice) / total : 0.0;
-    double pct_system = dt > 0 ? 100.0 * (double)(delta.system) / total : 0.0;
-    double pct_idle = dt > 0 ? 100.0 * (double)(delta.idle) / total : 0.0;
-    double pct_iowait = dt > 0 ? 100.0 * (double)(delta.iowait) / total : 0.0;
-    double pct_irq = dt > 0 ? 100.0 * (double)(delta.irq) / total : 0.0;
-    double pct_softirq = dt > 0 ? 100.0 * (double)(delta.softirq) / total : 0.0;
-    double pct_steal = dt > 0 ? 100.0 * (double)(delta.steal) / total : 0.0;
+    double const pct_user = dt > 0 ? 100.0 * static_cast<double>(delta.user) / total : 0.0;
+    double const pct_nice = dt > 0 ? 100.0 * static_cast<double>(delta.nice) / total : 0.0;
+    double const pct_system = dt > 0 ? 100.0 * static_cast<double>(delta.system) / total : 0.0;
+    double const pct_idle = dt > 0 ? 100.0 * static_cast<double>(delta.idle) / total : 0.0;
+    double const pct_iowait = dt > 0 ? 100.0 * static_cast<double>(delta.iowait) / total : 0.0;
+    double const pct_irq = dt > 0 ? 100.0 * static_cast<double>(delta.irq) / total : 0.0;
+    double const pct_softirq = dt > 0 ? 100.0 * static_cast<double>(delta.softirq) / total : 0.0;
+    double const pct_steal = dt > 0 ? 100.0 * static_cast<double>(delta.steal) / total : 0.0;
 
     (void)fprintf(out, "  \"cpu_statistics\": {\n");
     (void)fprintf(out, "    \"user\": %.1f,\n", pct_user);
@@ -197,9 +214,9 @@ static void emit_cpu_json(FILE* out, const CpuStats& delta, double dt) {
 static void emit_table_header(FILE* out) {
     // "Linux 5.15.0 (hostname) \t %a %b %d %Y %H:%M:%S CST"
     char timestr[64];
-    time_t now = time(nullptr);
-    struct tm* tm_now = localtime(&now);
-    strftime(timestr, sizeof(timestr), "%a %b %d %Y %H:%M:%S %Z", tm_now);
+    time_t const now = time(nullptr);
+    const struct tm* tm_now = localtime(&now);
+    (void)strftime(timestr, sizeof(timestr), "%a %b %d %Y %H:%M:%S %Z", tm_now);
     printf("\nLinux %s \t %s\n", "unknown", timestr);
     printf("\n");
     printf("%-10s %8s %8s %8s %8s %8s\n",
@@ -207,34 +224,37 @@ static void emit_table_header(FILE* out) {
 }
 
 static void emit_table_row(FILE* out, const DiskStats& delta, const CpuStats& cpu_d, double dt) {
-    if (dt <= 0) dt = 1.0;
-    double tps = (double)(delta.reads_completed + delta.writes_completed) / dt;
-    double rkB = (double)delta.read_sectors * 512.0 / dt / 1024.0;
-    double wkB = (double)delta.write_sectors * 512.0 / dt / 1024.0;
-    uint64_t total_sectors = delta.read_sectors + delta.write_sectors;
-    uint64_t total_ops = delta.reads_completed + delta.writes_completed;
-    double areq_sz = total_ops > 0 ? (double)total_sectors * 512.0 / (double)total_ops / 1024.0 : 0.0;
-    double aqu_sz = tps > 0.001 ? (double)cpu_d.iowait / dt / 100.0 : 0.0;
+    if (dt <= 0) { dt = 1.0;
+}
+    double const tps = static_cast<double>(delta.reads_completed + delta.writes_completed) / dt;
+    double const rkB = static_cast<double>(delta.read_sectors) * 512.0 / dt / 1024.0;
+    double const wkB = static_cast<double>(delta.write_sectors) * 512.0 / dt / 1024.0;
+    uint64_t const total_sectors = delta.read_sectors + delta.write_sectors;
+    uint64_t const total_ops = delta.reads_completed + delta.writes_completed;
+    double const areq_sz = total_ops > 0 ? static_cast<double>(total_sectors) * 512.0 / static_cast<double>(total_ops) / 1024.0 : 0.0;
+    double const aqu_sz = tps > 0.001 ? static_cast<double>(cpu_d.iowait) / dt / 100.0 : 0.0;
 
     (void)fprintf(out, "%-10s %8.2f %8.2f %8.2f %8.2f %8.2f\n",
                   delta.name.c_str(), tps, rkB, wkB, areq_sz, aqu_sz);
 }
 
 static void emit_json_device(FILE* out, const DiskStats& delta, const CpuStats& cpu_d, double dt, bool last) {
-    if (dt <= 0) dt = 1.0;
-    double tps = (double)(delta.reads_completed + delta.writes_completed) / dt;
-    double rkB = (double)delta.read_sectors * 512.0 / dt / 1024.0;
-    double wkB = (double)delta.write_sectors * 512.0 / dt / 1024.0;
-    uint64_t total_sectors = delta.read_sectors + delta.write_sectors;
-    uint64_t total_ops = delta.reads_completed + delta.writes_completed;
-    double areq_sz = total_ops > 0 ? (double)total_sectors * 512.0 / (double)total_ops / 1024.0 : 0.0;
-    double aqu_sz = tps > 0.001 ? (double)cpu_d.iowait / dt / 100.0 : 0.0;
+    if (dt <= 0) { dt = 1.0;
+}
+    double const tps = static_cast<double>(delta.reads_completed + delta.writes_completed) / dt;
+    double const rkB = static_cast<double>(delta.read_sectors) * 512.0 / dt / 1024.0;
+    double const wkB = static_cast<double>(delta.write_sectors) * 512.0 / dt / 1024.0;
+    uint64_t const total_sectors = delta.read_sectors + delta.write_sectors;
+    uint64_t const total_ops = delta.reads_completed + delta.writes_completed;
+    double const areq_sz = total_ops > 0 ? static_cast<double>(total_sectors) * 512.0 / static_cast<double>(total_ops) / 1024.0 : 0.0;
+    double const aqu_sz = tps > 0.001 ? static_cast<double>(cpu_d.iowait) / dt / 100.0 : 0.0;
 
     (void)fprintf(out, "    {\"device\": ");
     json_escape_string(out, delta.name.c_str());
     (void)fprintf(out, ", \"tps\": %.2f, \"rkB/s\": %.2f, \"wkB/s\": %.2f, \"areq-sz\": %.2f, \"aqu-sz\": %.2f}",
                   tps, rkB, wkB, areq_sz, aqu_sz);
-    if (!last) (void)fputc(',', out);
+    if (!last) { (void)fputc(',', out);
+}
     (void)fputc('\n', out);
 }
 
@@ -269,20 +289,20 @@ int iostat_command(int argc, char** argv) {
             }
             continue;
         }
-        fprintf(stderr, "iostat: invalid option '%s'\n", argv[i]);
-        fprintf(stderr, "Try 'iostat --help' for more information.\n");
+        (void)fprintf(stderr, "iostat: invalid option '%s'\n", argv[i]);
+        (void)fprintf(stderr, "Try 'iostat --help' for more information.\n");
         return 1;
     }
 
     // Single-shot mode: take two samples ~100ms apart for meaningful deltas
-    CpuStats cpu0 = read_cpu_stats();
+    CpuStats const cpu0 = read_cpu_stats();
     auto disk0 = read_disk_stats();
     usleep(100000); // 100ms
-    CpuStats cpu1 = read_cpu_stats();
+    CpuStats const cpu1 = read_cpu_stats();
     auto disk1 = read_disk_stats();
-    double dt = 0.1;
+    double const dt = 0.1;
 
-    CpuStats cpu_d = cpu_delta(cpu0, cpu1);
+    CpuStats const cpu_d = cpu_delta(cpu0, cpu1);
     auto disk_d = disk_delta(disk0, disk1, dt);
 
     if (json_mode) {

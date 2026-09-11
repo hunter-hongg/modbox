@@ -1,16 +1,15 @@
-#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
 #include <algorithm>
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
 
 #include "commands/diff3.hpp"
 #include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
-#include "commands/diff.hpp"
 
 /* ── Constants ──────────────────────────────────────────────────────────── */
 
@@ -48,32 +47,37 @@ static char** read_lines(const char* filename, int* out_count) {
 
     int cap = 1024;
     int n = 0;
-    auto lines = (char**)malloc((size_t)cap * sizeof(char*));
-    if (!lines) { *out_count = -1; if (fp != stdin) fclose(fp); return NULL; }
+    auto *lines = static_cast<char**>(malloc(static_cast<size_t>(cap) * sizeof(char*)));
+    if (lines == nullptr) { *out_count = -1; if (fp != stdin) { (void)fclose(fp); 
+}return NULL; }
 
     char buf[DIFF3_MAX_LINE];
-    while (fgets(buf, DIFF3_MAX_LINE, fp)) {
-        size_t len = strlen(buf);
+    while (fgets(buf, DIFF3_MAX_LINE, fp) != nullptr) {
+        size_t const len = strlen(buf);
         if (len > 0 && buf[len - 1] == '\n') {
             buf[len - 1] = '\0';
         }
         if (n >= cap) {
             cap *= 2;
-            lines = (char**)realloc(lines, (size_t)cap * sizeof(char*));
-            if (!lines) { *out_count = -1; if (fp != stdin) fclose(fp); return NULL; }
+            lines = static_cast<char**>(realloc(lines, static_cast<size_t>(cap) * sizeof(char*)));
+            if (lines == nullptr) { *out_count = -1; if (fp != stdin) { (void)fclose(fp); 
+}return NULL; }
         }
         lines[n] = strdup(buf);
-        if (!lines[n]) { *out_count = -1; if (fp != stdin) fclose(fp); return NULL; }
+        if (lines[n] == nullptr) { *out_count = -1; if (fp != stdin) { (void)fclose(fp); 
+}return NULL; }
         n++;
     }
 
-    if (fp != stdin) fclose(fp);
+    if (fp != stdin) { (void)fclose(fp);
+}
     *out_count = n;
     return lines;
 }
 
 static void free_lines(char** lines, int count) {
-    for (int i = 0; i < count; i++) free(lines[i]);
+    for (int i = 0; i < count; i++) { free(lines[i]);
+}
     free(lines);
 }
 
@@ -96,7 +100,8 @@ static std::vector<EditOp> compute_edit_script(char** old_lines, int old_len,
                                                 char** new_lines, int new_len) {
     std::vector<EditOp> result;
 
-    if (old_len == 0 && new_len == 0) return result;
+    if (old_len == 0 && new_len == 0) { return result;
+}
 
     /* Build LCS table */
     std::vector<std::vector<int>> lcs(old_len + 1, std::vector<int>(new_len + 1, 0));
@@ -113,22 +118,23 @@ static std::vector<EditOp> compute_edit_script(char** old_lines, int old_len,
 
     /* Backtrack */
     std::vector<EditOp> rev;
-    int i = old_len, j = new_len;
+    int i = old_len;
+    int j = new_len;
     while (i > 0 || j > 0) {
         if (i > 0 && j > 0 && lines_equal(old_lines[i-1], new_lines[j-1])) {
-            rev.push_back({EditOp::KEEP, i - 1, j - 1});
+            rev.push_back({.type=EditOp::KEEP, .old_idx=i - 1, .new_idx=j - 1});
             i--; j--;
         } else if (j > 0 && (i == 0 || lcs[i][j-1] >= lcs[i-1][j])) {
-            rev.push_back({EditOp::INSERT, -1, j - 1});
+            rev.push_back({.type=EditOp::INSERT, .old_idx=-1, .new_idx=j - 1});
             j--;
         } else if (i > 0) {
-            rev.push_back({EditOp::DELETE, i - 1, -1});
+            rev.push_back({.type=EditOp::DELETE, .old_idx=i - 1, .new_idx=-1});
             i--;
         }
     }
 
     /* Reverse to chronological order */
-    for (int k = (int)rev.size() - 1; k >= 0; k--) {
+    for (int k = static_cast<int>(rev.size()) - 1; k >= 0; k--) {
         result.push_back(rev[k]);
     }
 
@@ -152,20 +158,21 @@ struct ChangeRange {
 static std::vector<ChangeRange> edit_script_to_changes(const std::vector<EditOp>& script,
                                                         int old_len, int new_len) {
     std::vector<ChangeRange> changes;
-    int oi = 0, ni = 0;
+    int oi = 0;
+    int ni = 0;
     int del_start = -1;
     int ins_start = -1;
     int ins_count = 0;
 
-    for (auto& op : script) {
+    for (const auto& op : script) {
         switch (op.type) {
         case EditOp::KEEP:
             /* Flush any pending changes */
             if (del_start >= 0 || ins_count > 0) {
                 if (del_start >= 0) {
-                    changes.push_back({del_start, oi, ins_start, ins_count});
+                    changes.push_back({.old_start=del_start, .old_end=oi, .new_start=ins_start, .new_count=ins_count});
                 } else {
-                    changes.push_back({oi, oi, ins_start, ins_count});
+                    changes.push_back({.old_start=oi, .old_end=oi, .new_start=ins_start, .new_count=ins_count});
                 }
                 del_start = -1;
                 ins_count = 0;
@@ -173,11 +180,13 @@ static std::vector<ChangeRange> edit_script_to_changes(const std::vector<EditOp>
             oi++; ni++;
             break;
         case EditOp::DELETE:
-            if (del_start < 0) del_start = oi;
+            if (del_start < 0) { del_start = oi;
+}
             oi++;
             break;
         case EditOp::INSERT:
-            if (ins_count == 0) ins_start = ni;
+            if (ins_count == 0) { ins_start = ni;
+}
             ins_count++;
             ni++;
             break;
@@ -187,9 +196,9 @@ static std::vector<ChangeRange> edit_script_to_changes(const std::vector<EditOp>
     /* Flush final changes */
     if (del_start >= 0 || ins_count > 0) {
         if (del_start >= 0) {
-            changes.push_back({del_start, oi, ins_start, ins_count});
+            changes.push_back({.old_start=del_start, .old_end=oi, .new_start=ins_start, .new_count=ins_count});
         } else {
-            changes.push_back({oi, oi, ins_start, ins_count});
+            changes.push_back({.old_start=oi, .old_end=oi, .new_start=ins_start, .new_count=ins_count});
         }
     }
 
@@ -198,8 +207,7 @@ static std::vector<ChangeRange> edit_script_to_changes(const std::vector<EditOp>
 
 /* Check if two change ranges overlap in the old file. */
 static bool ranges_overlap(const ChangeRange& a, const ChangeRange& b) {
-    if (a.old_start >= b.old_end || b.old_start >= a.old_end) return false;
-    return true;
+    return !(a.old_start >= b.old_end || b.old_start >= a.old_end);
 }
 
 /* ── Output: default human-readable ─────────────────────────────────────── */
@@ -217,11 +225,12 @@ static void output_default(int file1_n, char** file1_lines,
     auto your_changes = edit_script_to_changes(your_script, file2_n, file3_n);
 
     /* Walk through both change lists simultaneously */
-    int mi = 0, yi = 0;
+    int mi = 0;
+    int yi = 0;
 
-    while (mi < (int)mine_changes.size() || yi < (int)your_changes.size()) {
+    while (mi < static_cast<int>(mine_changes.size()) || yi < static_cast<int>(your_changes.size())) {
         /* If one side has no more changes, just show the remaining changes */
-        if (mi >= (int)mine_changes.size()) {
+        if (mi >= static_cast<int>(mine_changes.size())) {
             /* Only yours changed */
             auto& yc = your_changes[yi];
             printf("%d,%da%d,%d\n", yc.old_start + 1, yc.old_end,
@@ -232,7 +241,7 @@ static void output_default(int file1_n, char** file1_lines,
             yi++;
             continue;
         }
-        if (yi >= (int)your_changes.size()) {
+        if (yi >= static_cast<int>(your_changes.size())) {
             /* Only mine changed */
             auto& mc = mine_changes[mi];
             printf("%d,%da%d,%d\n", mc.old_start + 1, mc.old_end,
@@ -248,29 +257,31 @@ static void output_default(int file1_n, char** file1_lines,
         auto& yc = your_changes[yi];
 
         /* Order by position in old file */
-        int min_pos = std::min(mc.old_start, yc.old_start);
-        int max_pos = std::max(mc.old_end, yc.old_end);
+        int const min_pos = std::min(mc.old_start, yc.old_start);
+        int const max_pos = std::max(mc.old_end, yc.old_end);
 
         /* Find all changes within this range */
         std::vector<const ChangeRange*> relevant_mine;
         std::vector<const ChangeRange*> relevant_your;
 
-        for (int j = mi; j < (int)mine_changes.size() && j <= mi + 10; j++) {
+        for (int j = mi; j < static_cast<int>(mine_changes.size()) && j <= mi + 10; j++) {
             auto& c = mine_changes[j];
-            if (c.old_end > max_pos && c.old_start >= max_pos) break;
+            if (c.old_end > max_pos && c.old_start >= max_pos) { break;
+}
             if (c.old_end > min_pos && c.old_start < max_pos) {
                 relevant_mine.push_back(&c);
             }
         }
-        for (int j = yi; j < (int)your_changes.size() && j <= yi + 10; j++) {
+        for (int j = yi; j < static_cast<int>(your_changes.size()) && j <= yi + 10; j++) {
             auto& c = your_changes[j];
-            if (c.old_end > max_pos && c.old_start >= max_pos) break;
+            if (c.old_end > max_pos && c.old_start >= max_pos) { break;
+}
             if (c.old_end > min_pos && c.old_start < max_pos) {
                 relevant_your.push_back(&c);
             }
         }
 
-        bool overlap = !relevant_mine.empty() && !relevant_your.empty();
+        bool const overlap = !relevant_mine.empty() && !relevant_your.empty();
 
         if (overlap && ranges_overlap(*relevant_mine[0], *relevant_your[0])) {
             /* Conflict: both changed the same region */
@@ -291,7 +302,7 @@ static void output_default(int file1_n, char** file1_lines,
         } else {
             /* No conflict — show whichever comes first */
             if (!relevant_mine.empty()) {
-                auto& rc = *relevant_mine[0];
+                const auto& rc = *relevant_mine[0];
                 printf("%d,%da%d,%d\n", rc.old_start + 1, rc.old_end,
                        rc.new_start + 1, rc.new_start + rc.new_count);
                 for (int k = 0; k < rc.new_count; k++) {
@@ -300,7 +311,7 @@ static void output_default(int file1_n, char** file1_lines,
                 mi++;
             }
             if (!relevant_your.empty()) {
-                auto& rc = *relevant_your[0];
+                const auto& rc = *relevant_your[0];
                 printf("%d,%da%d,%d\n", rc.old_start + 1, rc.old_end,
                        rc.new_start + 1, rc.new_start + rc.new_count);
                 for (int k = 0; k < rc.new_count; k++) {
@@ -325,15 +336,16 @@ static void output_ed(int file1_n, char** file1_lines,
     auto your_changes = edit_script_to_changes(your_script, file2_n, file3_n);
 
     /* Walk through old file line by line, outputting ed commands */
-    int mi = 0, yi = 0;
+    int mi = 0;
+    int yi = 0;
     int old_pos = 0;
 
-    while (old_pos < file2_n || mi < (int)mine_changes.size() || yi < (int)your_changes.size()) {
+    while (old_pos < file2_n || mi < static_cast<int>(mine_changes.size()) || yi < static_cast<int>(your_changes.size())) {
         /* Determine what happens at this position */
-        bool mine_here = (mi < (int)mine_changes.size() &&
+        bool const mine_here = (mi < static_cast<int>(mine_changes.size()) &&
                           mine_changes[mi].old_start <= old_pos &&
                           mine_changes[mi].old_end >= old_pos);
-        bool your_here = (yi < (int)your_changes.size() &&
+        bool const your_here = (yi < static_cast<int>(your_changes.size()) &&
                           your_changes[yi].old_start <= old_pos &&
                           your_changes[yi].old_end >= old_pos);
 
@@ -389,20 +401,22 @@ static void output_merge(int file1_n, char** file1_lines,
     auto your_changes = edit_script_to_changes(your_script, file2_n, file3_n);
 
     /* Rebuild the merged output by walking through old file + changes */
-    int mi = 0, yi = 0;
+    int mi = 0;
+    int yi = 0;
     int old_pos = 0;
 
-    while (old_pos < file2_n || mi < (int)mine_changes.size() || yi < (int)your_changes.size()) {
-        bool mine_here = (mi < (int)mine_changes.size() &&
+    while (old_pos < file2_n || mi < static_cast<int>(mine_changes.size()) || yi < static_cast<int>(your_changes.size())) {
+        bool const mine_here = (mi < static_cast<int>(mine_changes.size()) &&
                           mine_changes[mi].old_start <= old_pos &&
                           mine_changes[mi].old_end > old_pos);
-        bool your_here = (yi < (int)your_changes.size() &&
+        bool const your_here = (yi < static_cast<int>(your_changes.size()) &&
                           your_changes[yi].old_start <= old_pos &&
                           your_changes[yi].old_end > old_pos);
 
         if (!mine_here && !your_here) {
             /* Unchanged line */
-            if (opts.initial_tab) printf("\t");
+            if (opts.initial_tab != 0) { printf("\t");
+}
             printf("%s\n", file2_lines[old_pos]);
             old_pos++;
         } else if (mine_here && your_here && ranges_overlap(mine_changes[mi], your_changes[yi])) {
@@ -463,7 +477,7 @@ int diff3_command(int argc, char** argv) {
                  overlap_x_opt, merge_opt, text_opt, strip_cr_opt, initial_tab_opt,
                  help_opt, label_opt, file1_arg, file2_arg, file3_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... MYFILE BASEFILE YOURFILE\n", argv[0]);
@@ -491,8 +505,8 @@ int diff3_command(int argc, char** argv) {
     }
 
     Diff3Options opts;
-    opts.strip_cr = (strip_cr_opt->count > 0);
-    opts.initial_tab = (initial_tab_opt->count > 0);
+    opts.strip_cr = static_cast<int>(strip_cr_opt->count > 0);
+    opts.initial_tab = static_cast<int>(initial_tab_opt->count > 0);
 
     for (int i = 0; i < label_opt->count; i++) {
         opts.label[i] = label_opt->sval[i];
@@ -517,7 +531,9 @@ int diff3_command(int argc, char** argv) {
     const char* file2 = file2_arg->filename[0];
     const char* file3 = file3_arg->filename[0];
 
-    int f1_n, f2_n, f3_n;
+    int f1_n;
+    int f2_n;
+    int f3_n;
     char** f1_lines = read_lines(file1, &f1_n);
     if (f1_lines == NULL && f1_n == -1) {
         cmd_perror("diff3", file1);
@@ -543,9 +559,12 @@ int diff3_command(int argc, char** argv) {
     }
 
     /* Set defaults for labels */
-    if (opts.label[0].empty()) opts.label[0] = file1;
-    if (opts.label[1].empty()) opts.label[1] = file2;
-    if (opts.label[2].empty()) opts.label[2] = file3;
+    if (opts.label[0].empty()) { opts.label[0] = file1;
+}
+    if (opts.label[1].empty()) { opts.label[1] = file2;
+}
+    if (opts.label[2].empty()) { opts.label[2] = file3;
+}
 
     /* Check if all three files are identical */
     bool all_same = (f1_n == f2_n && f2_n == f3_n);

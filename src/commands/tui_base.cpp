@@ -1,27 +1,30 @@
 #include "commands/tui_base.hpp"
+#include "ftxui/dom/elements.hpp"
 
+#include <algorithm>
 #include <ftxui/component/app.hpp>
 
  void TuiBase::update_scroll_math() {
      if (auto* app = ftxui::App::Active()) {
-         int h = app->dimy();
+         int const h = app->dimy();
          max_rows_ = h - header_rows() - 2;
-         if (max_rows_ < 1) max_rows_ = 1;
+         max_rows_ = std::max(max_rows_, 1);
      }
 
-    int total = entries_size();
+    int const total = entries_size();
     int scroll_max = total - max_rows_;
-    if (scroll_max < 0) scroll_max = 0;
+    scroll_max = std::max(scroll_max, 0);
 
-    if (selected_ < scroll_offset_)
-        scroll_offset_ = selected_;
-    if (selected_ >= scroll_offset_ + max_rows_)
+    scroll_offset_ = std::min(selected_, scroll_offset_);
+    if (selected_ >= scroll_offset_ + max_rows_) {
         scroll_offset_ = selected_ - max_rows_ + 1;
+}
 
-    if (scroll_offset_ > scroll_max) scroll_offset_ = scroll_max;
-    if (scroll_offset_ < 0) scroll_offset_ = 0;
-    if (selected_ >= total) selected_ = total - 1;
-    if (selected_ < 0) selected_ = 0;
+    scroll_offset_ = std::min(scroll_offset_, scroll_max);
+    scroll_offset_ = std::max(scroll_offset_, 0);
+    if (selected_ >= total) { selected_ = total - 1;
+}
+    selected_ = std::max(selected_, 0);
 }
 
 ftxui::Element TuiBase::render_list() const {
@@ -29,12 +32,13 @@ ftxui::Element TuiBase::render_list() const {
 
     Elements rows;
     int display_count = entries_size();
-    int avail = max_rows_;
-    if (display_count > avail) display_count = avail;
+    int const avail = max_rows_;
+    display_count = std::min(display_count, avail);
 
     for (int i = 0; i < display_count; i++) {
-        int idx = i + scroll_offset_;
-        if (idx >= entries_size()) break;
+        int const idx = i + scroll_offset_;
+        if (idx >= entries_size()) { break;
+}
 
         auto el = render_row(idx);
         if (i == selected_ - scroll_offset_) {
@@ -59,7 +63,7 @@ ftxui::Element TuiBase::render_search_bar() const {
             text(search_input_) | color(Color::White),
             text("_") | blink | color(Color::White),
         }) | frame;
-    } else if (!search_query_.empty()) {
+    } if (!search_query_.empty()) {
         return hbox({
             text("Filter: ") | bold | color(Color::Yellow),
             text(search_query_) | color(Color::Cyan),
@@ -73,24 +77,27 @@ bool TuiBase::handle_nav(ftxui::Event event) {
     using namespace ftxui;
 
     if (event == Event::ArrowUp || event == Event::Character('k')) {
-        if (selected_ > 0) selected_--;
+        if (selected_ > 0) { selected_--;
+}
         update_scroll_math();
         return true;
     }
     if (event == Event::ArrowDown || event == Event::Character('j')) {
-        if (selected_ < entries_size() - 1) selected_++;
+        if (selected_ < entries_size() - 1) { selected_++;
+}
         update_scroll_math();
         return true;
     }
     if (event == Event::PageDown) {
         selected_ += max_rows_ / 2;
-        if (selected_ >= entries_size()) selected_ = entries_size() - 1;
+        if (selected_ >= entries_size()) { selected_ = entries_size() - 1;
+}
         update_scroll_math();
         return true;
     }
     if (event == Event::PageUp) {
         selected_ -= max_rows_ / 2;
-        if (selected_ < 0) selected_ = 0;
+        selected_ = std::max(selected_, 0);
         update_scroll_math();
         return true;
     }
@@ -101,7 +108,7 @@ bool TuiBase::handle_nav(ftxui::Event event) {
     }
     if (event == Event::End) {
         selected_ = entries_size() - 1;
-        if (selected_ < 0) selected_ = 0;
+        selected_ = std::max(selected_, 0);
         update_scroll_math();
         return true;
     }
@@ -111,7 +118,8 @@ bool TuiBase::handle_nav(ftxui::Event event) {
 bool TuiBase::handle_search(ftxui::Event event) {
     using namespace ftxui;
 
-    if (!search_mode_) return false;
+    if (!search_mode_) { return false;
+}
 
     if (event == Event::Backspace) {
         if (!search_input_.empty()) {
@@ -122,7 +130,7 @@ bool TuiBase::handle_search(ftxui::Event event) {
     }
     if (event.is_character()) {
         std::string ch = event.character();
-        if (!ch.empty() && (unsigned char)ch[0] >= 32 && (unsigned char)ch[0] < 127) {
+        if (!ch.empty() && static_cast<unsigned char>(ch[0]) >= 32 && static_cast<unsigned char>(ch[0]) < 127) {
             search_input_ += ch[0];
         }
         on_search_input_changed();

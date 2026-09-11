@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -12,20 +13,26 @@ static int next_tab_col(int col, const std::vector<int>& stops, bool interval_mo
 {
     if (interval_mode)
     {
-        int n = stops[0];
+        int const n = stops[0];
         return (col / n + 1) * n;
     }
-    for (int s : stops)
-        if (s > col) return s;
+    for (int s : stops) {
+        if (s > col) { return s;
+}
+}
     return col + 1;
 }
 
 static bool at_tab_stop(int col, const std::vector<int>& stops, bool interval_mode)
 {
-    if (col <= 0) return false;
-    if (interval_mode) return (col % stops[0] == 0);
-    for (int s : stops)
-        if (s == col) return true;
+    if (col <= 0) { return false;
+}
+    if (interval_mode) { return (col % stops[0] == 0);
+}
+    for (int s : stops) {
+        if (s == col) { return true;
+}
+}
     return false;
 }
 
@@ -36,8 +43,8 @@ static void convert_spaces(int* pos, int* col, int nspaces,
     int s = 0;
     while (s < nspaces)
     {
-        int next = next_tab_col(p, stops, interval_mode);
-        int need = next - p;
+        int const next = next_tab_col(p, stops, interval_mode);
+        int const need = next - p;
 
         if (s + need <= nspaces && at_tab_stop(next, stops, interval_mode))
         {
@@ -48,13 +55,13 @@ static void convert_spaces(int* pos, int* col, int nspaces,
         }
         else
         {
-            int remain = nspaces - s;
+            int const remain = nspaces - s;
             int fill = remain;
-            int aligned = next_tab_col(p, stops, interval_mode);
-            if (fill >= aligned - p)
-                fill = aligned - p;
-            for (int k = 0; k < fill; k++)
+            int const aligned = next_tab_col(p, stops, interval_mode);
+            fill = std::min(fill, aligned - p);
+            for (int k = 0; k < fill; k++) {
                 putchar(' ');
+}
             *col += fill;
             p += fill;
             s += fill;
@@ -76,14 +83,14 @@ static void unexpand_file(FILE* fp, bool all, const std::vector<int>& stops, boo
 
         if (!all)
         {
-            while (i < (size_t)n)
+            while (i < static_cast<size_t>(n))
             {
-                unsigned char ch = (unsigned char)buf[i];
+                unsigned char const ch = static_cast<unsigned char>(buf[i]);
                 if (ch == ' ')
                 {
                     int start_col = col;
                     int scount = 0;
-                    while (i < (size_t)n && (unsigned char)buf[i] == ' ')
+                    while (i < static_cast<size_t>(n) && static_cast<unsigned char>(buf[i]) == ' ')
                     {
                         i++;
                         scount++;
@@ -107,9 +114,9 @@ static void unexpand_file(FILE* fp, bool all, const std::vector<int>& stops, boo
                     putchar(ch);
                     col++;
                     i++;
-                    while (i < (size_t)n)
+                    while (i < static_cast<size_t>(n))
                     {
-                        unsigned char c2 = (unsigned char)buf[i];
+                        unsigned char const c2 = static_cast<unsigned char>(buf[i]);
                         putchar(c2);
                         if (c2 == '\n') { col = 0; }
                         else { col++; }
@@ -121,14 +128,14 @@ static void unexpand_file(FILE* fp, bool all, const std::vector<int>& stops, boo
         }
         else
         {
-            while (i < (size_t)n)
+            while (i < static_cast<size_t>(n))
             {
-                unsigned char ch = (unsigned char)buf[i];
+                unsigned char const ch = static_cast<unsigned char>(buf[i]);
                 if (ch == ' ')
                 {
                     int start_col = col;
                     int scount = 0;
-                    while (i < (size_t)n && (unsigned char)buf[i] == ' ')
+                    while (i < static_cast<size_t>(n) && static_cast<unsigned char>(buf[i]) == ' ')
                     {
                         i++;
                         scount++;
@@ -156,8 +163,9 @@ static void unexpand_file(FILE* fp, bool all, const std::vector<int>& stops, boo
             }
         }
 
-        if (n > 0 && buf[n - 1] != '\n')
+        if (n > 0 && buf[n - 1] != '\n') {
             putchar('\n');
+}
     }
 
     free(buf);
@@ -169,29 +177,36 @@ static bool parse_tab_stops(const char* s, std::vector<int>& stops, bool& interv
     interval_mode = false;
 
     const char* p = s;
-    while (*p)
+    while ((*p) != 0)
     {
-        if (!isdigit((unsigned char)*p))
+        if (isdigit(static_cast<unsigned char>(*p)) == 0) {
             return false;
-        long v = strtol(p, (char**)&p, 10);
-        if (v < 1 || v > 10000)
+}
+        long v = strtol(p, const_cast<char**>(&p), 10);
+        if (v < 1 || v > 10000) {
             return false;
-        stops.push_back((int)v);
-        if (*p == ',')
+}
+        stops.push_back(static_cast<int>(v));
+        if (*p == ',') {
             p++;
-        else if (*p != '\0')
+        } else if (*p != '\0') {
             return false;
+}
     }
 
-    if (stops.empty())
+    if (stops.empty()) {
         return false;
+}
 
-    if (stops.size() == 1)
+    if (stops.size() == 1) {
         interval_mode = true;
-    else
-        for (size_t i = 1; i < stops.size(); i++)
-            if (stops[i] <= stops[i - 1])
+    } else {
+        for (size_t i = 1; i < stops.size(); i++) {
+            if (stops[i] <= stops[i - 1]) {
                 return false;
+}
+}
+}
 
     return true;
 }
@@ -206,7 +221,7 @@ int unexpand_command(int argc, char** argv)
     struct arg_end* end = arg_end(20);
 
     ArgTable at({all_opt, first_only_opt, tabs_opt, help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0)
     {
@@ -229,11 +244,13 @@ int unexpand_command(int argc, char** argv)
 
     bool all = (all_opt->count > 0);
 
-    if (tabs_opt->count > 0)
+    if (tabs_opt->count > 0) {
         all = true;
+}
 
-    if (first_only_opt->count > 0)
+    if (first_only_opt->count > 0) {
         all = false;
+}
 
     std::vector<int> tab_stops;
     bool interval_mode = true;
@@ -243,7 +260,7 @@ int unexpand_command(int argc, char** argv)
     {
         if (!parse_tab_stops(tabs_opt->sval[0], tab_stops, interval_mode))
         {
-            fprintf(stderr, "unexpand: invalid tab stop list: %s\n", tabs_opt->sval[0]);
+            (void)fprintf(stderr, "unexpand: invalid tab stop list: %s\n", tabs_opt->sval[0]);
             return 0;
         }
     }
@@ -264,13 +281,13 @@ int unexpand_command(int argc, char** argv)
             else
             {
                 FILE* fp = fopen(fname, "r");
-                if (!fp)
+                if (fp == nullptr)
                 {
-                    fprintf(stderr, "unexpand: %s: No such file or directory\n", fname);
+                    (void)fprintf(stderr, "unexpand: %s: No such file or directory\n", fname);
                     continue;
                 }
                 unexpand_file(fp, all, tab_stops, interval_mode);
-                fclose(fp);
+                (void)fclose(fp);
             }
         }
     }

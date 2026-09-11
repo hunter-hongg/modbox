@@ -1,3 +1,4 @@
+#include <bits/types/struct_timeval.h>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
@@ -11,9 +12,11 @@
 #include <netinet/in.h>
 #include <netinet/ip_icmp.h>
 #include <poll.h>
-#include <signal.h>
+#include <csignal>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <argtable3.h>
@@ -54,19 +57,22 @@ struct RttStats {
     size_t n_ = 0;
 
     void add(double ms) {
-        if (n_ == 0 || ms < min_) min_ = ms;
-        if (n_ == 0 || ms > max_) max_ = ms;
+        if (n_ == 0 || ms < min_) { min_ = ms;
+}
+        if (n_ == 0 || ms > max_) { max_ = ms;
+}
         sum_ += ms;
         sumsq_ += ms * ms;
         n_++;
     }
 
-    double mean() const { return n_ ? sum_ / n_ : 0; }
+    [[nodiscard]] double mean() const { return (n_ != 0u) ? sum_ / n_ : 0; }
     // Standard deviation (population) of the samples.
-    double mdev() const {
-        if (n_ == 0) return 0;
-        double m = mean();
-        double v = sumsq_ / n_ - m * m;
+    [[nodiscard]] double mdev() const {
+        if (n_ == 0) { return 0;
+}
+        double const m = mean();
+        double const v = sumsq_ / n_ - m * m;
         return v > 0 ? std::sqrt(v) : 0;
     }
 };
@@ -82,7 +88,7 @@ int ping_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({help_opt, version_opt, count_opt, host_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... <destination>\n", prog);
@@ -101,12 +107,12 @@ int ping_command(int argc, char** argv) {
 
     if (nerrors > 0) {
         at.print_errors(end, prog);
-        fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         return 2;
     }
 
     const char* host = host_arg->sval[0];
-    long count = count_opt->count > 0 ? count_opt->ival[0] : -1;  // -1 = unlimited
+    long const count = count_opt->count > 0 ? count_opt->ival[0] : -1;  // -1 = unlimited
 
     // Resolve the destination to an IPv4 address. Accept a literal address via
     // inet_pton; otherwise resolve a hostname (no socktype/protocol hints, as
@@ -117,9 +123,9 @@ int ping_command(int argc, char** argv) {
     if (inet_pton(AF_INET, host, &saddr.sin_addr) != 1) {
         struct addrinfo hints {};
         hints.ai_family = AF_INET;
-        int gai = getaddrinfo(host, nullptr, &hints, &res);
+        int const gai = getaddrinfo(host, nullptr, &hints, &res);
         if (gai != 0) {
-            fprintf(stderr, "%s: %s: %s\n", prog, host, gai_strerror(gai));
+            (void)fprintf(stderr, "%s: %s: %s\n", prog, host, gai_strerror(gai));
             return 1;
         }
         saddr = *reinterpret_cast<struct sockaddr_in*>(res->ai_addr);
@@ -133,15 +139,15 @@ int ping_command(int argc, char** argv) {
     // net.ipv4.ping_group_range. The kernel fills in/validates the ICMP header,
     // but the caller must still send the full ICMP header (type 8, id, seq)
     // plus the payload — a bare payload send returns EINVAL.
-    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+    int const sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
     if (sock < 0) {
         if (errno == EPERM || errno == EACCES) {
-            fprintf(stderr,
+            (void)fprintf(stderr,
                     "%s: ping socket: %s (need root, CAP_NET_RAW, or a GID in "
                     "net.ipv4.ping_group_range)\n",
                     prog, strerror(errno));
         } else {
-            fprintf(stderr, "%s: socket: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: socket: %s\n", prog, strerror(errno));
         }
         freeaddrinfo(res);
         return 1;
@@ -165,7 +171,7 @@ int ping_command(int argc, char** argv) {
     src.sin_port = htons(ident);
     src.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(sock, reinterpret_cast<struct sockaddr*>(&src), sizeof(src)) < 0) {
-        fprintf(stderr, "%s: bind: %s\n", prog, strerror(errno));
+        (void)fprintf(stderr, "%s: bind: %s\n", prog, strerror(errno));
         close(sock);
         freeaddrinfo(res);
         return 1;
@@ -177,7 +183,7 @@ int ping_command(int argc, char** argv) {
 
     printf("PING %s (%s): %d data bytes\n", host, ipstr, payload_size);
 
-    for (long seq = 0; !g_stop && (count < 0 || seq < count); ++seq) {
+    for (long seq = 0; (g_stop == 0) && (count < 0 || seq < count); ++seq) {
         struct timeval t_send;
         gettimeofday(&t_send, nullptr);
 
@@ -196,34 +202,38 @@ int ping_command(int argc, char** argv) {
         icmp.checksum = in_cksum(packet.data(), packet.size());
         memcpy(packet.data(), &icmp, sizeof(icmp));
 
-        ssize_t nsent = sendto(sock, packet.data(), packet.size(), 0,
+        ssize_t const nsent = sendto(sock, packet.data(), packet.size(), 0,
                                reinterpret_cast<struct sockaddr*>(&saddr), sizeof(saddr));
         if (nsent < 0) {
-            fprintf(stderr, "%s: sendto: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: sendto: %s\n", prog, strerror(errno));
             break;
         }
         transmitted++;
 
         // Wait the interval for a matching reply.
-        struct pollfd pfd {sock, POLLIN, 0};
-        int pr = poll(&pfd, 1, interval_ms);
+        struct pollfd pfd {.fd=sock, .events=POLLIN, .revents=0};
+        int const pr = poll(&pfd, 1, interval_ms);
         if (pr < 0) {
-            if (errno == EINTR) break;  // user hit Ctrl+C
+            if (errno == EINTR) { break;  // user hit Ctrl+C
+}
             break;
         }
-        if (pr == 0 || !(pfd.revents & POLLIN)) {
+        if (pr == 0 || ((pfd.revents & POLLIN) == 0)) {
             continue;  // timed out: reported as loss in the summary
         }
 
         char rbuf[65536];
-        ssize_t n = recvfrom(sock, rbuf, sizeof(rbuf), 0, nullptr, nullptr);
-        if (n <= 0) continue;
+        ssize_t const n = recvfrom(sock, rbuf, sizeof(rbuf), 0, nullptr, nullptr);
+        if (n <= 0) { continue;
+}
 
         // Ping sockets deliver the datagram payload: the ICMP header followed
         // by the echo data. Validate id + type, then extract the timestamp.
-        if (static_cast<size_t>(n) < sizeof(struct icmphdr)) continue;
+        if (static_cast<size_t>(n) < sizeof(struct icmphdr)) { continue;
+}
         auto* rc = reinterpret_cast<struct icmphdr*>(rbuf);
-        if (rc->type != ICMP_ECHOREPLY || ntohs(rc->un.echo.id) != ident) continue;
+        if (rc->type != ICMP_ECHOREPLY || ntohs(rc->un.echo.id) != ident) { continue;
+}
 
         struct timeval t_recv;
         gettimeofday(&t_recv, nullptr);
@@ -232,9 +242,9 @@ int ping_command(int argc, char** argv) {
         if (static_cast<size_t>(n) >= sizeof(struct icmphdr) + sizeof(t_sent)) {
             memcpy(&t_sent, rbuf + sizeof(struct icmphdr), sizeof(t_sent));
         }
-        double ms = (t_recv.tv_sec - t_sent.tv_sec) * 1000.0 +
+        double const ms = (t_recv.tv_sec - t_sent.tv_sec) * 1000.0 +
                     (t_recv.tv_usec - t_sent.tv_usec) / 1000.0;
-        double ms_show = ms < 0 ? 0.0 : ms;
+        double const ms_show = ms < 0 ? 0.0 : ms;
         rtt.add(ms_show);
         received++;
 
@@ -248,7 +258,7 @@ int ping_command(int argc, char** argv) {
 
     // Summary.
     printf("\n--- %s ping statistics ---\n", host);
-    size_t loss = transmitted ? (transmitted - received) * 100 / transmitted : 0;
+    size_t const loss = (transmitted != 0u) ? (transmitted - received) * 100 / transmitted : 0;
     printf("%zu packets transmitted, %zu packets received, %zu%% packet loss\n",
            transmitted, received, loss);
     if (rtt.n_ > 0) {

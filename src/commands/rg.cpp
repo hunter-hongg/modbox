@@ -10,7 +10,8 @@
 #include <regex>
 #include <string>
 #include <sys/stat.h>
-#include <unistd.h>
+#include <system_error>
+#include <vector>
 
 #include "commands/rg.hpp"
 #include "commands/arg_util.hpp"
@@ -40,9 +41,9 @@ static int match_glob(const char* filename,
             actual_pat = actual_pat + 1;
         }
 
-        int matched = (fnmatch(actual_pat, filename, FNM_PATHNAME) == 0);
+        int const matched = static_cast<int>(fnmatch(actual_pat, filename, FNM_PATHNAME) == 0);
 
-        if (matched) {
+        if (matched != 0) {
             return exclude ? 0 : 1;
         }
     }
@@ -55,18 +56,18 @@ static int match_glob(const char* filename,
             break;
         }
     }
-    return has_include ? 0 : 1;
+    return (has_include != 0) ? 0 : 1;
 }
 
 /** Check if a file/directory should be considered hidden. */
 static int is_hidden(const char* name) {
-    return name[0] == '.';
+    return static_cast<int>(name[0] == '.');
 }
 
 /** Determine if pattern is all-lowercase (for smart-case). */
 static int is_pattern_lowercase(const char* pattern) {
-    for (const char* p = pattern; *p; p++) {
-        if (std::isupper((unsigned char)*p)) {
+    for (const char* p = pattern; (*p) != 0; p++) {
+        if (std::isupper(static_cast<unsigned char>(*p)) != 0) {
             return 0;
         }
     }
@@ -75,20 +76,20 @@ static int is_pattern_lowercase(const char* pattern) {
 
 /** Determine if case-insensitive match should be used. */
 static bool rg_should_ci(const RgOptions* opts) {
-    if (opts->case_sensitive) {
+    if (opts->case_sensitive != 0) {
         return false;
     }
-    if (opts->ignore_case) {
+    if (opts->ignore_case != 0) {
         return true;
     }
-    if (opts->smart_case) {
+    if (opts->smart_case != 0) {
         return is_pattern_lowercase(opts->pattern.c_str()) != 0;
     }
     return false;
 }
 
 /** Print context separator. */
-static void rg_print_context_sep(void) {
+static void rg_print_context_sep() {
     printf("--\n");
 }
 
@@ -121,14 +122,14 @@ static int rg_search_file(const char* path, bool is_stdin,
         }
     }
 
-    int use_color = search_should_color((SearchColorMode)(int)opts->color_mode);
-    int show_ln = opts->line_number && !opts->no_line_number;
+    int const use_color = search_should_color(static_cast<SearchColorMode>(static_cast<int>(opts->color_mode)));
+    int const show_ln = static_cast<int>((opts->line_number != 0) && (opts->no_line_number) == 0);
 
     /* Determine if we need a filename prefix:
      * - Always if -H was passed
      * - If more than one file/dir was searched (determined by caller)
      * We receive prefix info through display_name being set. */
-    int use_prefix = (display_name != nullptr);
+    int const use_prefix = static_cast<int>(display_name != nullptr);
     // Context tracking
     int match_count = 0;
     int line_count = 0;
@@ -137,8 +138,8 @@ static int rg_search_file(const char* path, bool is_stdin,
 
     // Context output buffer: we need to track matches for -C/-A/-B
     // Simple approach: store recent lines for before-context
-    int context_before = resolve_context(opts->context_before, opts->context);
-    int context_after = resolve_context(opts->context_after, opts->context);
+    int const context_before = resolve_context(opts->context_before, opts->context);
+    int const context_after = resolve_context(opts->context_after, opts->context);
 
     // Ring buffer for before-context lines
     std::vector<std::string> before_lines_vec;
@@ -146,8 +147,8 @@ static int rg_search_file(const char* path, bool is_stdin,
     int before_head = 0;
     int before_count = 0;
     if (context_before > 0) {
-        before_lines_vec.resize((std::size_t)context_before);
-        before_line_nums_vec.resize((std::size_t)context_before);
+        before_lines_vec.resize(static_cast<std::size_t>(context_before));
+        before_line_nums_vec.resize(static_cast<std::size_t>(context_before));
     }
 
     int pending_after = 0; // lines of after-context remaining to print
@@ -166,28 +167,29 @@ static int rg_search_file(const char* path, bool is_stdin,
         bool matched = false;
         if (is_fixed) {
             matched = search_match_fixed(opts->pattern.c_str(), line, len,
-                                          is_ci,
+                                          static_cast<int>(is_ci),
                                           opts->word_regexp,
                                           opts->line_regexp);
-        } else if (opts->word_regexp) {
+        } else if (opts->word_regexp != 0) {
             // Manually check word boundaries
-            std::string s(line, len);
+            std::string const s(line, len);
             std::smatch m;
             auto search_start = s.cbegin();
             while (std::regex_search(search_start, s.cend(), m, *re)) {
-                std::size_t abs_pos = (std::size_t)(m.position(0) + (search_start - s.cbegin()));
+                std::size_t const abs_pos = static_cast<std::size_t>(m.position(0) + (search_start - s.cbegin()));
                 if (search_check_word_boundary(line, abs_pos, abs_pos + m.length(0), len)) {
                     matched = true;
                     break;
                 }
                 search_start = m.suffix().first;
-                if (search_start == s.cend()) break;
+                if (search_start == s.cend()) { break;
+}
             }
         } else {
             matched = std::regex_search(line, *re);
         }
 
-        if (opts->invert_match) {
+        if (opts->invert_match != 0) {
             matched = !matched;
         }
 
@@ -195,13 +197,13 @@ static int rg_search_file(const char* path, bool is_stdin,
             match_count++;
 
             // In count-only, files-with-matches, or only-matching mode, skip separator
-            int skip_output = opts->count_only || opts->files_with_matches
-                              || opts->only_matching;
+            int const skip_output = static_cast<int>((opts->count_only != 0) || (opts->files_with_matches != 0)
+                              || (opts->only_matching) != 0);
 
             // Flush before-context buffer (if any)
             if (context_before > 0 && before_count > 0) {
-                if (!skip_output) {
-                    bool first_group = (had_match_before == 0);
+                if (skip_output == 0) {
+                    bool const first_group = (had_match_before == 0);
                     if (!first_group && !in_match) {
                         rg_print_context_sep();
                     }
@@ -212,19 +214,19 @@ static int rg_search_file(const char* path, bool is_stdin,
                         if (idx < 0) {
                             idx += (context_before > 0 ? context_before : 1);
                         }
-                        if (!before_lines_vec[(std::size_t)idx].empty()) {
-                            if (use_prefix) {
+                        if (!before_lines_vec[static_cast<std::size_t>(idx)].empty()) {
+                            if (use_prefix != 0) {
                                 printf("%s:", display_name);
                             }
-                            if (show_ln) {
-                                printf("%d-", before_line_nums_vec[(std::size_t)idx]);
+                            if (show_ln != 0) {
+                                printf("%d-", before_line_nums_vec[static_cast<std::size_t>(idx)]);
                             }
-                            printf("%s\n", before_lines_vec[(std::size_t)idx].c_str());
+                            printf("%s\n", before_lines_vec[static_cast<std::size_t>(idx)].c_str());
                         }
                     }
                 }
                 before_count = 0;
-            } else if (had_match_before && !in_match && !skip_output) {
+            } else if ((had_match_before != 0) && !in_match && (skip_output == 0)) {
                 // Separator between match groups
                 rg_print_context_sep();
             }
@@ -232,23 +234,23 @@ static int rg_search_file(const char* path, bool is_stdin,
             in_match = true;
             had_match_before = 1;
 
-            if (opts->count_only) {
+            if (opts->count_only != 0) {
                 // In count mode, just increment and continue
                 if (opts->max_count > 0 && match_count >= opts->max_count) {
                     goto cleanup;
                 }
                 continue;
             }
-            if (opts->files_with_matches) {
-                printf("%s\n", display_name ? display_name : "(standard input)");
+            if (opts->files_with_matches != 0) {
+                printf("%s\n", (display_name != nullptr) ? display_name : "(standard input)");
                 match_count = 1;
                 goto cleanup;
             }
 
             search_print_match(line, len, show_ln, line_count,
-                               use_prefix ? display_name : nullptr,
+                               (use_prefix != 0) ? display_name : nullptr,
                                use_color, re, opts->pattern,
-                               opts->only_matching, is_fixed);
+                               opts->only_matching, static_cast<int>(is_fixed));
 
             pending_after = context_after;
 
@@ -256,10 +258,10 @@ static int rg_search_file(const char* path, bool is_stdin,
                 goto cleanup;
             }
         } else if (pending_after > 0) {
-            if (use_prefix) {
+            if (use_prefix != 0) {
                 printf("%s:", display_name);
             }
-            if (show_ln) {
+            if (show_ln != 0) {
                 printf("%d-", line_count);
             }
             printf("%s\n", line);
@@ -273,8 +275,8 @@ static int rg_search_file(const char* path, bool is_stdin,
             in_match = false;
             // Store in before-context buffer (if tracking)
             if (context_before > 0) {
-                before_lines_vec[(std::size_t)before_head] = line;
-                before_line_nums_vec[(std::size_t)before_head] = line_count;
+                before_lines_vec[static_cast<std::size_t>(before_head)] = line;
+                before_line_nums_vec[static_cast<std::size_t>(before_head)] = line_count;
                 before_head = (before_head + 1) % context_before;
                 if (before_count < context_before) {
                     before_count++;
@@ -284,8 +286,8 @@ static int rg_search_file(const char* path, bool is_stdin,
     }
 
 cleanup:
-    if (opts->count_only && !opts->files_with_matches) {
-        if (display_name) {
+    if ((opts->count_only != 0) && (opts->files_with_matches == 0)) {
+        if (display_name != nullptr) {
             printf("%s:", display_name);
         }
         printf("%d\n", match_count);
@@ -309,7 +311,7 @@ static int rg_search_directory(const char* dirpath, const RgOptions* opts,
     }
 
     std::error_code ec;
-    std::filesystem::path dir(dirpath);
+    std::filesystem::path const dir(dirpath);
 
     int total_matches = 0;
 
@@ -320,21 +322,21 @@ static int rg_search_directory(const char* dirpath, const RgOptions* opts,
             return total_matches;
         }
 
-        std::string filename = entry.path().filename().string();
+        std::string const filename = entry.path().filename().string();
         if (filename == "." || filename == "..") {
             continue;
         }
 
         // Hidden file handling
-        if (!opts->hidden && is_hidden(filename.c_str())) {
+        if ((opts->hidden == 0) && (is_hidden(filename.c_str()) != 0)) {
             continue;
         }
 
-        std::string full_path = entry.path().string();
+        std::string const full_path = entry.path().string();
         struct stat st;
         if (stat(full_path.c_str(), &st) == 0) {
             // Glob filter
-            if (!match_glob(filename.c_str(), opts->glob_patterns)) {
+            if (match_glob(filename.c_str(), opts->glob_patterns) == 0) {
                 continue;
             }
 
@@ -354,7 +356,7 @@ static int rg_search_directory(const char* dirpath, const RgOptions* opts,
 /** Check if a path is a directory. */
 static int rg_is_directory(const char* path) {
     struct stat st;
-    return (stat(path, &st) == 0 && S_ISDIR(st.st_mode));
+    return static_cast<int>(stat(path, &st) == 0 && S_ISDIR(st.st_mode));
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size)
@@ -450,7 +452,7 @@ int rg_command(int argc, char** argv) {
         help_opt,           file_arg,          end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTIONS] PATTERN [PATH...]\n", argv[0]);
@@ -509,24 +511,24 @@ int rg_command(int argc, char** argv) {
         opts.fixed_strings = 1;
     }
 
-    opts.ignore_case = (ignore_case_opt->count > 0);
+    opts.ignore_case = static_cast<int>(ignore_case_opt->count > 0);
     if (smart_case_opt->count > 0) {
         opts.smart_case = 1;
     }
-    opts.case_sensitive = (case_sensitive_opt->count > 0);
-    opts.invert_match = (invert_opt->count > 0);
+    opts.case_sensitive = static_cast<int>(case_sensitive_opt->count > 0);
+    opts.invert_match = static_cast<int>(invert_opt->count > 0);
     if (line_number_opt->count > 0) {
         opts.line_number = 1;
     }
     if (no_line_number_opt->count > 0) {
         opts.no_line_number = 1;
     }
-    opts.count_only = (count_opt->count > 0);
-    opts.word_regexp = (word_regexp_opt->count > 0);
-    opts.line_regexp = (line_regexp_opt->count > 0);
-    opts.only_matching = (only_matching_opt->count > 0);
-    opts.files_with_matches = (files_opt->count > 0);
-    opts.hidden = (hidden_opt->count > 0);
+    opts.count_only = static_cast<int>(count_opt->count > 0);
+    opts.word_regexp = static_cast<int>(word_regexp_opt->count > 0);
+    opts.line_regexp = static_cast<int>(line_regexp_opt->count > 0);
+    opts.only_matching = static_cast<int>(only_matching_opt->count > 0);
+    opts.files_with_matches = static_cast<int>(files_opt->count > 0);
+    opts.hidden = static_cast<int>(hidden_opt->count > 0);
 
     if (max_count_opt->count > 0) {
         opts.max_count = max_count_opt->ival[0];
@@ -568,7 +570,7 @@ int rg_command(int argc, char** argv) {
     }
 
     // Override smart_case if -i or -s was explicit
-    if (opts.ignore_case || opts.case_sensitive) {
+    if ((opts.ignore_case != 0) || (opts.case_sensitive != 0)) {
         opts.smart_case = 0;
     }
 
@@ -594,18 +596,18 @@ int rg_command(int argc, char** argv) {
 
     opts.pattern = pattern;
 
-    bool is_ci = rg_should_ci(&opts);
-    bool is_fixed = (opts.mode == RgMode::FIXED);
+    bool const is_ci = rg_should_ci(&opts);
+    bool const is_fixed = (opts.mode == RgMode::FIXED);
 
     // --- Compile regex (if not fixed mode) ---
     std::optional<std::regex> re_opt;
     const std::regex* re = nullptr;
     if (!is_fixed) {
         auto re_flags = std::regex::optimize;
-        if (opts.case_sensitive) {
+        if (opts.case_sensitive != 0) {
             // force case-sensitive: use default flags only
-        } else if (opts.ignore_case ||
-                   (opts.smart_case && is_pattern_lowercase(opts.pattern.c_str()))) {
+        } else if ((opts.ignore_case != 0) ||
+                   ((opts.smart_case != 0) && (is_pattern_lowercase(opts.pattern.c_str()) != 0))) {
             re_flags |= std::regex::icase;
         }
         try {
@@ -622,22 +624,22 @@ int rg_command(int argc, char** argv) {
 
     // --- Process files/directories ---
     int total_matches = 0;
-    bool has_paths = (file_arg->count > 0);
+    bool const has_paths = (file_arg->count > 0);
     int has_dirs = 0;
 
     // First pass: classify arguments
     if (has_paths) {
         for (int i = 0; i < file_arg->count; i++) {
             if (strcmp(file_arg->filename[i], "-") == 0 ||
-                rg_is_directory(file_arg->filename[i])) {
+                (rg_is_directory(file_arg->filename[i]) != 0)) {
                 has_dirs = 1;
             }
         }
     }
 
-    int force_prefix = (has_paths && (file_arg->count > 1 || has_dirs));
+    int force_prefix = static_cast<int>(has_paths && (file_arg->count > 1 || (has_dirs != 0)));
     // In auto-recursive mode, always show prefix for files under directories
-    if (has_dirs) {
+    if (has_dirs != 0) {
         force_prefix = 1;
     }
 
@@ -672,7 +674,7 @@ int rg_command(int argc, char** argv) {
             } else if (S_ISREG(st.st_mode)) {
                 total_matches += rg_search_file(
                     fname, false,
-                    force_prefix ? fname : nullptr,
+                    (force_prefix != 0) ? fname : nullptr,
                     &opts, re, is_fixed, is_ci);
             } else {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)

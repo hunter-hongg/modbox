@@ -14,15 +14,15 @@
 static int remove_dir(const char* path) {
   struct stat st;
   if (stat(path, &st) == -1) {
-    fprintf(stderr, "rmdir: %s: %s\n", path, strerror(errno));
+    (void)fprintf(stderr, "rmdir: %s: %s\n", path, strerror(errno));
     return -1;
   }
   if (!S_ISDIR(st.st_mode)) {
-    fprintf(stderr, "rmdir: %s: Not a directory\n", path);
+    (void)fprintf(stderr, "rmdir: %s: Not a directory\n", path);
     return -1;
   }
   if (rmdir(path) == -1) {
-    fprintf(stderr, "rmdir: %s: %s\n", path, strerror(errno));
+    (void)fprintf(stderr, "rmdir: %s: %s\n", path, strerror(errno));
     return -1;
   }
   return 0;
@@ -38,7 +38,7 @@ static int rmdir_parents(const char* path) {
       break;
     }
     if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "rmdir: %s: Not a directory\n", current.c_str());
+      (void)fprintf(stderr, "rmdir: %s: Not a directory\n", current.c_str());
       return -1;
     }
     stack.push_back(current);
@@ -53,7 +53,7 @@ static int rmdir_parents(const char* path) {
     if (len == 0) {
       break;
     }
-    size_t last_slash = current.rfind('/', len - 1);
+    size_t const last_slash = current.rfind('/', len - 1);
     if (last_slash == std::string::npos || last_slash == 0) {
       break;
     }
@@ -70,7 +70,7 @@ static int rmdir_parents(const char* path) {
       if (errno == ENOTEMPTY || errno == EEXIST) {
         return 0;
       }
-      fprintf(stderr, "rmdir: %s: %s\n", it->c_str(), strerror(errno));
+      (void)fprintf(stderr, "rmdir: %s: %s\n", it->c_str(), strerror(errno));
       return -1;
     }
   }
@@ -87,7 +87,7 @@ int rmdir_command(int argc, char** argv) {
   struct arg_end* end = arg_end(20);
 
   ArgTable at({parents_opt, help_opt, dirs_arg, end});
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... DIRECTORY...\n", argv[0]);
@@ -104,11 +104,11 @@ int rmdir_command(int argc, char** argv) {
   }
 
   RmdirOptions opts;
-  opts.is_parents = (parents_opt->count > 0);
+  opts.is_parents = static_cast<int>(parents_opt->count > 0);
 
   for (int i = 0; i < dirs_arg->count; i++) {
     const char* dirpath = dirs_arg->filename[i];
-    if (opts.is_parents) {
+    if (opts.is_parents != 0) {
       rmdir_parents(dirpath);
     } else {
       remove_dir(dirpath);

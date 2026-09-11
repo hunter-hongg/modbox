@@ -1,11 +1,11 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
-#include <unistd.h>
+#include <sys/types.h>
 
 #include "commands/mknod.hpp"
 #include "commands/arg_util.hpp"
@@ -32,7 +32,7 @@ int mknod_command(int argc, char **argv) {
   ArgTable at({mode_opt, help_opt, name_arg, type_arg,
                major_arg, minor_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... NAME TYPE [MAJOR MINOR]\n", argv[0]);
@@ -58,12 +58,12 @@ int mknod_command(int argc, char **argv) {
 
   if (mode_opt->count > 0) {
     char *endptr = NULL;
-    long m = strtol(mode_opt->sval[0], &endptr, 8);
+    long const m = strtol(mode_opt->sval[0], &endptr, 8);
     if (*endptr != '\0' || m < 0 || m > 07777) {
       (void)fprintf(stderr, "mknod: invalid mode '%s'\n", mode_opt->sval[0]);
       return 0;
     }
-    opts.mode = (mode_t)(m & 07777);
+    opts.mode = static_cast<mode_t>(m & 07777);
   }
 
   const char *name = name_arg->sval[0];
@@ -91,22 +91,22 @@ int mknod_command(int argc, char **argv) {
     }
 
     char *endptr = NULL;
-    long major_num = strtol(major_arg->sval[0], &endptr, 0);
+    long const major_num = strtol(major_arg->sval[0], &endptr, 0);
     if (*endptr != '\0' || major_num < 0) {
       (void)fprintf(stderr, "mknod: invalid major device number '%s'\n",
                     major_arg->sval[0]);
       return 0;
     }
 
-    long minor_num = strtol(minor_arg->sval[0], &endptr, 0);
+    long const minor_num = strtol(minor_arg->sval[0], &endptr, 0);
     if (*endptr != '\0' || minor_num < 0) {
       (void)fprintf(stderr, "mknod: invalid minor device number '%s'\n",
                     minor_arg->sval[0]);
       return 0;
     }
 
-    mode_t file_type = (type[0] == 'b') ? S_IFBLK : S_IFCHR;
-    dev_t dev = makedev((unsigned int)major_num, (unsigned int)minor_num);
+    mode_t const file_type = (type[0] == 'b') ? S_IFBLK : S_IFCHR;
+    dev_t const dev = makedev((unsigned int)major_num, (unsigned int)minor_num);
 
     if (mknod(name, file_type | opts.mode, dev) != 0) {
       (void)fprintf(stderr, "mknod: cannot create '%s': %s\n", name,

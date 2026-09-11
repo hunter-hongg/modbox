@@ -1,22 +1,19 @@
 #include "commands/curl.hpp"
 
 #include <argtable3.h>
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <fcntl.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#include <algorithm>
-#include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "commands/http_client.hpp"
-#include "commands/cmd_error.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
 #include "commands/arg_util.hpp"
@@ -26,63 +23,69 @@
 static void print_progress(long downloaded, long total, long uploaded, long upload_total,
                             double time_total, double time_spent,
                             bool silent, bool progress_bar) {
-    if (silent) return;
-    if (!isatty(STDERR_FILENO)) return;
-    if (!progress_bar && total == 0) return;
+    if (silent) { return;
+}
+    if (isatty(STDERR_FILENO) == 0) { return;
+}
+    if (!progress_bar && total == 0) { return;
+}
 
     char time_str[32];
     auto fmt_time = [](double s) -> const char* {
         static char buf[32];
-        long h = (long)s / 3600;
-        long m = ((long)s % 3600) / 60;
-        long sec = (long)s % 60;
-        if (h > 0)
-            snprintf(buf, sizeof(buf), "%ld:%02ld:%02ld", h, m, sec);
-        else
-            snprintf(buf, sizeof(buf), "%02ld:%02ld", m, sec);
+        long const h = static_cast<long>(s) / 3600;
+        long const m = (static_cast<long>(s) % 3600) / 60;
+        long const sec = static_cast<long>(s) % 60;
+        if (h > 0) {
+            (void)snprintf(buf, sizeof(buf), "%ld:%02ld:%02ld", h, m, sec);
+        } else {
+            (void)snprintf(buf, sizeof(buf), "%02ld:%02ld", m, sec);
+}
         return buf;
     };
 
     auto speed_str = [](long bytes, double secs) -> const char* {
         static char buf[32];
-        if (secs <= 0) { snprintf(buf, sizeof(buf), "   -"); return buf; }
-        double bps = (double)bytes / secs;
-        if (bps >= 1024 * 1024)
-            snprintf(buf, sizeof(buf), "%6.1fM", bps / (1024 * 1024));
-        else if (bps >= 1024)
-            snprintf(buf, sizeof(buf), "%6.1fk", bps / 1024);
-        else
-            snprintf(buf, sizeof(buf), "%7.0f", bps);
+        if (secs <= 0) { (void)snprintf(buf, sizeof(buf), "   -"); return buf; }
+        double const bps = static_cast<double>(bytes) / secs;
+        if (bps >= 1024 * 1024) {
+            (void)snprintf(buf, sizeof(buf), "%6.1fM", bps / (1024 * 1024));
+        } else if (bps >= 1024) {
+            (void)snprintf(buf, sizeof(buf), "%6.1fk", bps / 1024);
+        } else {
+            (void)snprintf(buf, sizeof(buf), "%7.0f", bps);
+}
         return buf;
     };
 
     if (progress_bar) {
         // Simple progress bar
-        int bar_width = 40;
-        int filled = total > 0 ? (int)((double)downloaded / total * bar_width) : 0;
-        if (filled > bar_width) filled = bar_width;
-        std::string bar_filled(filled, '#');
-        std::string bar_empty(bar_width - filled, ' ');
-        fprintf(stderr, "\r[%s] %ld/%ld %s %s  ",
+        int const bar_width = 40;
+        int filled = total > 0 ? static_cast<int>(static_cast<double>(downloaded) / total * bar_width) : 0;
+        filled = std::min(filled, bar_width);
+        std::string const bar_filled(filled, '#');
+        std::string const bar_empty(bar_width - filled, ' ');
+        (void)fprintf(stderr, "\r[%s] %ld/%ld %s %s  ",
                 (bar_filled + bar_empty).c_str(),
                 downloaded, total, speed_str(downloaded, time_spent), fmt_time(time_spent));
-        fflush(stderr);
-        if (downloaded >= total) fprintf(stderr, "\n");
+        (void)fflush(stderr);
+        if (downloaded >= total) { (void)fprintf(stderr, "\n");
+}
     } else {
         // Simple line output
-        fprintf(stderr, "\r%7ld  %7ld  %7ld  %7ld  %6s  %6s  %s  %s",
+        (void)fprintf(stderr, "\r%7ld  %7ld  %7ld  %7ld  %6s  %6s  %s  %s",
                 downloaded, total, uploaded,
                 total > 0 ? uploaded : 0,
                 speed_str(downloaded, time_spent),
                 speed_str(uploaded, time_spent),
                 fmt_time(time_spent), fmt_time(time_spent));
-        fflush(stderr);
+        (void)fflush(stderr);
     }
 }
 
 static void clear_progress() {
-    fprintf(stderr, "\r\033[K");
-    fflush(stderr);
+    (void)fprintf(stderr, "\r\033[K");
+    (void)fflush(stderr);
 }
 
 // ── Writeout formatting ─────────────────────────────────────────────────────
@@ -97,33 +100,36 @@ static std::string format_writeout(const std::string& fmt, const HttpResponse& r
             result += '\n';
             ++i;
         } else if (fmt[i] == '%' && i + 1 < fmt.size() && fmt[i + 1] == '{') {
-            size_t end = fmt.find('}', i + 2);
+            size_t const end = fmt.find('}', i + 2);
             if (end == std::string::npos) {
                 result += fmt[i];
                 continue;
             }
-            std::string var = fmt.substr(i + 2, end - i - 2);
+            std::string const var = fmt.substr(i + 2, end - i - 2);
 
-            if (var == "http_code") result += std::to_string(resp.status_code);
-            else if (var == "size_download") result += std::to_string(size_download);
-            else if (var == "size_upload") result += std::to_string(size_upload);
-            else if (var == "time_total") {
+            if (var == "http_code") { { result += std::to_string(resp.status_code);
+            } } else if (var == "size_download") { { result += std::to_string(size_download);
+            } } else if (var == "size_upload") { { result += std::to_string(size_upload);
+            } } else if (var == "time_total") {
                 char buf[32];
-                snprintf(buf, sizeof(buf), "%.3f", resp.time_total);
+                (void)snprintf(buf, sizeof(buf), "%.3f", resp.time_total);
                 result += buf;
             }
             else if (var == "time_connect") {
                 char buf[32];
-                snprintf(buf, sizeof(buf), "%.3f", resp.time_connect);
+                (void)snprintf(buf, sizeof(buf), "%.3f", resp.time_connect);
                 result += buf;
             }
-            else if (var == "url_effective") result += resp.final_url;
-            else if (var == "content_type") {
+            else if (var == "url_effective") { { result += resp.final_url;
+            } } else if (var == "content_type") {
                 auto it = resp.headers.find("content-type");
-                if (it != resp.headers.end()) result += it->second;
+                if (it != resp.headers.end()) { result += it->second;
+}
             }
-            else if (var == "num_redirects") result += std::to_string(resp.num_redirects);
-            else result += fmt.substr(i, end - i + 1); // unknown var, keep literal
+            else if (var == "num_redirects") { { result += std::to_string(resp.num_redirects);
+            } } else { { result += fmt.substr(i, end - i + 1); // unknown var, keep literal
+}
+}
 
             i = end; // advance past '}'
         } else {
@@ -137,15 +143,17 @@ static std::string format_writeout(const std::string& fmt, const HttpResponse& r
 
 static std::string get_remote_filename(const std::string& url) {
     // Find last / in path
-    size_t last_slash = url.rfind('/');
+    size_t const last_slash = url.rfind('/');
     if (last_slash == std::string::npos || last_slash == url.size() - 1) {
         return "index.html";
     }
     std::string fname = url.substr(last_slash + 1);
     // Remove query string
-    size_t q = fname.find('?');
-    if (q != std::string::npos) fname = fname.substr(0, q);
-    if (fname.empty()) fname = "index.html";
+    size_t const q = fname.find('?');
+    if (q != std::string::npos) { fname = fname.substr(0, q);
+}
+    if (fname.empty()) { fname = "index.html";
+}
     return fname;
 }
 
@@ -157,13 +165,14 @@ static std::vector<std::pair<std::string, std::string>> build_headers(
     for (int i = 0; i < header_count; ++i) {
         if (header_opt[i].count > 0) {
             for (int j = 0; j < header_opt[i].count; ++j) {
-                std::string h = header_opt[i].sval[j];
-                size_t colon = h.find(':');
+                std::string const h = header_opt[i].sval[j];
+                size_t const colon = h.find(':');
                 if (colon != std::string::npos) {
-                    std::string key = h.substr(0, colon);
+                    std::string const key = h.substr(0, colon);
                     std::string val = h.substr(colon + 1);
                     // Trim leading space from value
-                    if (!val.empty() && val[0] == ' ') val = val.substr(1);
+                    if (!val.empty() && val[0] == ' ') { val = val.substr(1);
+}
                     headers.emplace_back(key, val);
                 } else {
                     headers.emplace_back(h, "");
@@ -217,7 +226,7 @@ int curl_command(int argc, char** argv) {
     struct arg_file* url_arg = arg_filen(NULL, NULL, "URL", 0, 1, "URL to fetch");
     struct arg_end* end = arg_end(20);
 
-    std::vector<void*> table = {
+    std::vector<void*> const table = {
         help_opt, version_opt, silent_opt, verbose_opt, include_opt, head_opt,
         insecure_opt, follow_opt, fail_opt, fail_body_opt, get_opt, progress_bar_opt,
         no_buffer_opt, compressed_opt,
@@ -230,10 +239,10 @@ int curl_command(int argc, char** argv) {
 
     ArgTable argt(table);
 
-    int nerrors = argt.parse(argc, argv);
+    int const nerrors = argt.parse(argc, argv);
     if (nerrors > 0) {
         arg_print_errors(stderr, end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
@@ -283,31 +292,31 @@ int curl_command(int argc, char** argv) {
 
     // ── Validate ──
     if (url_arg->count == 0) {
-        fprintf(stderr, "curl: no URL specified\n");
+        (void)fprintf(stderr, "curl: no URL specified\n");
         return 1;
     }
     if (url_arg->count > 1) {
-        fprintf(stderr, "curl: only one URL is supported\n");
+        (void)fprintf(stderr, "curl: only one URL is supported\n");
         return 1;
     }
 
     // Conflicting flags
     if (output_opt->count > 0 && remote_name_opt->count > 0) {
-        fprintf(stderr, "curl: --output and --remote-name conflict\n");
+        (void)fprintf(stderr, "curl: --output and --remote-name conflict\n");
         return 1;
     }
     if (silent_opt->count > 0 && progress_bar_opt->count > 0) {
-        fprintf(stderr, "curl: --silent and --progress-bar conflict\n");
+        (void)fprintf(stderr, "curl: --silent and --progress-bar conflict\n");
         return 1;
     }
     if (head_opt->count > 0 && (data_opt->count > 0 || data_raw_opt->count > 0)) {
-        fprintf(stderr, "curl: --head with --data is not supported\n");
+        (void)fprintf(stderr, "curl: --head with --data is not supported\n");
         return 1;
     }
 
     // Out of scope warnings
     if (compressed_opt->count > 0) {
-        fprintf(stderr, "curl: --compressed is not fully supported in this version\n");
+        (void)fprintf(stderr, "curl: --compressed is not fully supported in this version\n");
     }
 
     // ── Build options ──
@@ -325,18 +334,18 @@ int curl_command(int argc, char** argv) {
     }
 
     // Data
-    if (data_opt->count > 0) opts.post_data = data_opt->sval[0];
-    else if (data_raw_opt->count > 0) opts.post_data = data_raw_opt->sval[0];
-    else if (data_ascii_opt->count > 0) opts.post_data = data_ascii_opt->sval[0];
-    else if (data_binary_opt->count > 0) opts.post_data = data_binary_opt->sval[0];
-    else if (data_urlencode_opt->count > 0) {
+    if (data_opt->count > 0) { { opts.post_data = data_opt->sval[0];
+    } } else if (data_raw_opt->count > 0) { { opts.post_data = data_raw_opt->sval[0];
+    } } else if (data_ascii_opt->count > 0) { { opts.post_data = data_ascii_opt->sval[0];
+    } } else if (data_binary_opt->count > 0) { { opts.post_data = data_binary_opt->sval[0];
+    } } else if (data_urlencode_opt->count > 0) {
         opts.post_data = data_urlencode_opt->sval[0];
         opts.data_urlencode = true;
     }
 
     if (opts.data_urlencode && !opts.post_data.empty()) {
         // Format is "key=value"
-        size_t eq = opts.post_data.find('=');
+        size_t const eq = opts.post_data.find('=');
         if (eq != std::string::npos) {
             opts.post_data = url_encode(opts.post_data.substr(0, eq)) + "=" +
                              url_encode(opts.post_data.substr(eq + 1));
@@ -384,8 +393,8 @@ int curl_command(int argc, char** argv) {
 
     // Auth
     if (user_opt->count > 0) {
-        std::string auth = user_opt->sval[0];
-        size_t colon = auth.find(':');
+        std::string const auth = user_opt->sval[0];
+        size_t const colon = auth.find(':');
         if (colon != std::string::npos) {
             opts.user = auth.substr(0, colon);
             opts.password = auth.substr(colon + 1);
@@ -398,8 +407,9 @@ int curl_command(int argc, char** argv) {
         static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         std::string b64str;
         for (size_t i = 0; i < creds.size(); i += 3) {
-            unsigned char a = creds[i], b = (i + 1 < creds.size()) ? creds[i + 1] : 0,
-                          c = (i + 2 < creds.size()) ? creds[i + 2] : 0;
+            unsigned char const a = creds[i];
+            unsigned char const b = (i + 1 < creds.size()) ? creds[i + 1] : 0;
+            unsigned char const c = (i + 2 < creds.size()) ? creds[i + 2] : 0;
             b64str += b64[a >> 2];
             b64str += b64[((a & 0x3) << 4) | (b >> 4)];
             b64str += (i + 1 < creds.size()) ? b64[((b & 0xF) << 2) | (c >> 6)] : '=';
@@ -429,13 +439,14 @@ int curl_command(int argc, char** argv) {
 
     // ── Execute ──
     HttpResponse response;
-    int rc = http_request(opts, response);
-    if (rc != 0) return rc;
+    int const rc = http_request(opts, response);
+    if (rc != 0) { return rc;
+}
 
     // ── Writeout ──
     if (opts.show_writeout) {
-        long size_down = (long)response.body.size();
-        std::string out = format_writeout(opts.writeout_format, response, size_down, 0);
+        long const size_down = static_cast<long>(response.body.size());
+        std::string const out = format_writeout(opts.writeout_format, response, size_down, 0);
         printf("%s", out.c_str());
         return 0;
     }
@@ -448,35 +459,35 @@ int curl_command(int argc, char** argv) {
                 printf("%s", response.body.c_str());
             }
         }
-        fprintf(stderr, "curl: (22) The requested URL returned error: %d\n", response.status_code);
+        (void)fprintf(stderr, "curl: (22) The requested URL returned error: %d\n", response.status_code);
         return 22;
     }
 
     // ── Output body ──
-    long size_down = (long)response.body.size();
+    long const size_down = static_cast<long>(response.body.size());
 
     // Progress
-    if (!opts.silent && isatty(STDERR_FILENO)) {
+    if (!opts.silent && (isatty(STDERR_FILENO) != 0)) {
         print_progress(size_down, size_down, 0, 0, response.time_total, response.time_total,
                        opts.silent, opts.progress_bar);
         clear_progress();
-        fprintf(stderr, "\n");
+        (void)fprintf(stderr, "\n");
     }
 
     // Dump headers to file
     if (!opts.dump_header_file.empty()) {
         FILE* f = fopen(opts.dump_header_file.c_str(), "w");
-        if (!f) {
-            fprintf(stderr, "curl: Failed to open file '%s': %s\n",
+        if (f == nullptr) {
+            (void)fprintf(stderr, "curl: Failed to open file '%s': %s\n",
                     opts.dump_header_file.c_str(), strerror(errno));
             return 1;
         }
-        fprintf(f, "HTTP/1.1 %d %s\r\n", response.status_code, response.status_text.c_str());
+        (void)fprintf(f, "HTTP/1.1 %d %s\r\n", response.status_code, response.status_text.c_str());
         for (auto& h : response.headers) {
-            fprintf(f, "%s: %s\r\n", h.first.c_str(), h.second.c_str());
+            (void)fprintf(f, "%s: %s\r\n", h.first.c_str(), h.second.c_str());
         }
-        fprintf(f, "\r\n");
-        fclose(f);
+        (void)fprintf(f, "\r\n");
+        (void)fclose(f);
     }
 
     // Include headers in output
@@ -491,22 +502,22 @@ int curl_command(int argc, char** argv) {
     // Write to file or stdout
     if (!opts.output_file.empty()) {
         FILE* f = fopen(opts.output_file.c_str(), "w");
-        if (!f) {
-            fprintf(stderr, "curl: Failed to open file '%s': %s\n",
+        if (f == nullptr) {
+            (void)fprintf(stderr, "curl: Failed to open file '%s': %s\n",
                     opts.output_file.c_str(), strerror(errno));
             return 1;
         }
-        fwrite(response.body.c_str(), 1, response.body.size(), f);
-        fclose(f);
+        (void)fwrite(response.body.c_str(), 1, response.body.size(), f);
+        (void)fclose(f);
     } else if (!opts.remote_name.empty()) {
         FILE* f = fopen(opts.remote_name.c_str(), "w");
-        if (!f) {
-            fprintf(stderr, "curl: Failed to open file '%s': %s\n",
+        if (f == nullptr) {
+            (void)fprintf(stderr, "curl: Failed to open file '%s': %s\n",
                     opts.remote_name.c_str(), strerror(errno));
             return 1;
         }
-        fwrite(response.body.c_str(), 1, response.body.size(), f);
-        fclose(f);
+        (void)fwrite(response.body.c_str(), 1, response.body.size(), f);
+        (void)fclose(f);
     } else {
         printf("%s", response.body.c_str());
     }

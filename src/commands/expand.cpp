@@ -12,11 +12,13 @@ static int next_tab_col(int col, const std::vector<int>& stops, bool interval_mo
 {
     if (interval_mode)
     {
-        int n = stops[0];
+        int const n = stops[0];
         return (col / n + 1) * n;
     }
-    for (int s : stops)
-        if (s > col) return s;
+    for (int s : stops) {
+        if (s > col) { return s;
+}
+}
     return col + 1;
 }
 
@@ -33,21 +35,22 @@ static void expand_file(FILE* fp, bool initial_only, const std::vector<int>& sto
 
         for (ssize_t i = 0; i < n; i++)
         {
-            unsigned char ch = (unsigned char)buf[i];
+            unsigned char const ch = static_cast<unsigned char>(buf[i]);
 
             if (ch == '\t')
             {
                 if (initial_only && !leading)
                 {
                     putchar('\t');
-                    int next = next_tab_col((int)col, stops, interval_mode);
+                    int const next = next_tab_col(static_cast<int>(col), stops, interval_mode);
                     col = next;
                 }
                 else
                 {
-                    int next = next_tab_col((int)col, stops, interval_mode);
-                    for (int s = (int)col; s < next; s++)
+                    int const next = next_tab_col(static_cast<int>(col), stops, interval_mode);
+                    for (int s = static_cast<int>(col); s < next; s++) {
                         putchar(' ');
+}
                     col = next;
                 }
             }
@@ -61,12 +64,14 @@ static void expand_file(FILE* fp, bool initial_only, const std::vector<int>& sto
             {
                 putchar(ch);
                 col++;
-                if (ch != ' ' && ch != '\t')
+                if (ch != ' ' && ch != '\t') {
                     leading = false;
+}
             }
         }
-        if (n > 0 && buf[n - 1] != '\n')
+        if (n > 0 && buf[n - 1] != '\n') {
             putchar('\n');
+}
     }
 
     free(buf);
@@ -78,22 +83,26 @@ static bool parse_tab_stops(const char* s, std::vector<int>& stops, bool& interv
     interval_mode = false;
 
     const char* p = s;
-    while (*p)
+    while ((*p) != 0)
     {
-        if (!isdigit((unsigned char)*p))
+        if (isdigit(static_cast<unsigned char>(*p)) == 0) {
             return false;
-        long v = strtol(p, (char**)&p, 10);
-        if (v < 1 || v > 10000)
+}
+        long v = strtol(p, const_cast<char**>(&p), 10);
+        if (v < 1 || v > 10000) {
             return false;
-        stops.push_back((int)v);
-        if (*p == ',')
+}
+        stops.push_back(static_cast<int>(v));
+        if (*p == ',') {
             p++;
-        else if (*p != '\0')
+        } else if (*p != '\0') {
             return false;
+}
     }
 
-    if (stops.empty())
+    if (stops.empty()) {
         return false;
+}
 
     if (stops.size() == 1)
     {
@@ -101,9 +110,11 @@ static bool parse_tab_stops(const char* s, std::vector<int>& stops, bool& interv
     }
     else
     {
-        for (size_t i = 1; i < stops.size(); i++)
-            if (stops[i] <= stops[i - 1])
+        for (size_t i = 1; i < stops.size(); i++) {
+            if (stops[i] <= stops[i - 1]) {
                 return false;
+}
+}
     }
 
     return true;
@@ -118,7 +129,7 @@ int expand_command(int argc, char** argv)
     struct arg_end* end = arg_end(20);
 
     ArgTable at({initial_opt, tabs_opt, help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0)
     {
@@ -138,7 +149,7 @@ int expand_command(int argc, char** argv)
         return at.print_errors(end, argv[0]);
     }
 
-    bool initial_only = (initial_opt->count > 0);
+    bool const initial_only = (initial_opt->count > 0);
 
     std::vector<int> tab_stops;
     bool interval_mode = true;
@@ -148,7 +159,7 @@ int expand_command(int argc, char** argv)
     {
         if (!parse_tab_stops(tabs_opt->sval[0], tab_stops, interval_mode))
         {
-            fprintf(stderr, "expand: invalid tab stop list: %s\n", tabs_opt->sval[0]);
+            (void)fprintf(stderr, "expand: invalid tab stop list: %s\n", tabs_opt->sval[0]);
             return 0;
         }
     }
@@ -169,13 +180,13 @@ int expand_command(int argc, char** argv)
             else
             {
                 FILE* fp = fopen(fname, "r");
-                if (!fp)
+                if (fp == nullptr)
                 {
-                    fprintf(stderr, "expand: %s: No such file or directory\n", fname);
+                    (void)fprintf(stderr, "expand: %s: No such file or directory\n", fname);
                     continue;
                 }
                 expand_file(fp, initial_only, tab_stops, interval_mode);
-                fclose(fp);
+                (void)fclose(fp);
             }
         }
     }

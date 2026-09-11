@@ -36,8 +36,8 @@ int printenv_command(int argc, char** argv) {
 
     if (vars.empty()) {
         for (char** e = environ; *e != nullptr; e++) {
-            fputs(*e, stdout);
-            fputc(null_out ? '\0' : '\n', stdout);
+            (void)fputs(*e, stdout);
+            (void)fputc(null_out ? '\0' : '\n', stdout);
         }
         return 0;
     }
@@ -45,7 +45,7 @@ int printenv_command(int argc, char** argv) {
     int found_count = 0;
     for (const auto& name : vars) {
         const char* val = getenv(name.c_str());
-        if (val) {
+        if (val != nullptr) {
             if (null_out) {
                 printf("%s=%s%c", name.c_str(), val, '\0');
             } else {
@@ -55,7 +55,7 @@ int printenv_command(int argc, char** argv) {
         }
     }
 
-    if (found_count < (int)vars.size()) {
+    if (found_count < static_cast<int>(vars.size())) {
         exit(1);
     }
     return 0;

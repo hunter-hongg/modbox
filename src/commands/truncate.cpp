@@ -1,13 +1,13 @@
+#include <cstdint>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <vector>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <errno.h>
+#include <cerrno>
 #include <argtable3.h>
 #include "commands/truncate.hpp"
 #include "commands/arg_util.hpp"
@@ -23,7 +23,8 @@ struct TruncateOptions {
 /* Parse a human-readable size string like "10K", "1M", "+100", "-1G", "<512", ">1024", "/64", "%32".
  * Returns the parsed value through `out` and true on success. */
 static bool parse_size(const char* s, int64_t& out) {
-    if (s == nullptr || *s == '\0') return false;
+    if (s == nullptr || *s == '\0') { return false;
+}
 
     const char* p = s;
     int modifier = 0;  // 0=none, 1=+, 2=-, 3=<, 4=>, 5=/, 6=%
@@ -36,9 +37,11 @@ static bool parse_size(const char* s, int64_t& out) {
     }
 
     /* Skip whitespace */
-    while (*p == ' ') p++;
+    while (*p == ' ') { p++;
+}
 
-    if (*p == '\0') return false;
+    if (*p == '\0') { return false;
+}
 
     /* Parse number */
     char* end = nullptr;
@@ -46,13 +49,14 @@ static bool parse_size(const char* s, int64_t& out) {
     int64_t val = strtoll(p, &end, 10);
     if (errno != 0 || end == p || *end == '\0') {
         /* Try decimal */
-        val = (int64_t)strtod(p, &end);
-        if (errno != 0 || end == p) return false;
+        val = static_cast<int64_t>(strtod(p, &end));
+        if (errno != 0 || end == p) { return false;
+}
     }
 
     /* Parse optional unit suffix */
     if (*end != '\0') {
-        char unit = *end;
+        char const unit = *end;
         switch (unit) {
         case 'B': case 'b':
             end++;
@@ -84,20 +88,24 @@ static int64_t apply_modifier(int64_t current, int modifier, int64_t new_val) {
     case 1: return current + new_val;  // relative increase
     case 2: return current - new_val;  // relative decrease
     case 3: {                        // at most
-        if (new_val > current) return current;
+        if (new_val > current) { return current;
+}
         return new_val;
     }
     case 4: {                        // at least
-        if (new_val < current) return current;
+        if (new_val < current) { return current;
+}
         return new_val;
     }
     case 5: {                        // floor to multiple
-        if (new_val == 0) return current;
+        if (new_val == 0) { return current;
+}
         return (current / new_val) * new_val;
     }
     case 6: {                        // ceil to multiple
-        if (new_val == 0) return current;
-        int64_t r = current % new_val;
+        if (new_val == 0) { return current;
+}
+        int64_t const r = current % new_val;
         return r == 0 ? current : current + (new_val - r);
     }
     default: return new_val;
@@ -115,7 +123,7 @@ int truncate_command(int argc, char** argv) {
 
     ArgTable at({no_create_opt, io_blocks_opt, help_opt, ref_opt, size_opt, files_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -139,22 +147,24 @@ int truncate_command(int argc, char** argv) {
     }
 
     if (files_arg->count == 0) {
-        fprintf(stderr, "truncate: missing file operand\n");
-        fprintf(stderr, "Try 'truncate --help' for more information.\n");
+        (void)fprintf(stderr, "truncate: missing file operand\n");
+        (void)fprintf(stderr, "Try 'truncate --help' for more information.\n");
         return 0;
     }
 
     if (size_opt->count == 0 && ref_opt->count == 0) {
-        fprintf(stderr, "truncate: missing operand\n");
-        fprintf(stderr, "Try 'truncate --help' for more information.\n");
+        (void)fprintf(stderr, "truncate: missing operand\n");
+        (void)fprintf(stderr, "Try 'truncate --help' for more information.\n");
         return 0;
     }
 
     TruncateOptions opts;
-    opts.no_create = (no_create_opt->count > 0);
-    opts.io_blocks = (io_blocks_opt->count > 0);
-    if (ref_opt->count > 0) opts.reference = ref_opt->sval[0];
-    if (size_opt->count > 0) opts.size_str = size_opt->sval[0];
+    opts.no_create = static_cast<int>(no_create_opt->count > 0);
+    opts.io_blocks = static_cast<int>(io_blocks_opt->count > 0);
+    if (ref_opt->count > 0) { opts.reference = ref_opt->sval[0];
+}
+    if (size_opt->count > 0) { opts.size_str = size_opt->sval[0];
+}
 
     for (int i = 0; i < files_arg->count; i++) {
         const char* filepath = files_arg->filename[i];
@@ -167,15 +177,15 @@ int truncate_command(int argc, char** argv) {
         if (!opts.reference.empty()) {
             struct stat st;
             if (stat(opts.reference.c_str(), &st) != 0) {
-                fprintf(stderr, "truncate: cannot stat '%s': %s\n",
+                (void)fprintf(stderr, "truncate: cannot stat '%s': %s\n",
                         opts.reference.c_str(), strerror(errno));
                 continue;
             }
-            target_size = opts.io_blocks ? (st.st_blocks >> 1) : st.st_size;
+            target_size = (opts.io_blocks != 0) ? (st.st_blocks >> 1) : st.st_size;
             have_target = true;
         } else {
             if (!parse_size(opts.size_str.c_str(), target_size)) {
-                fprintf(stderr, "truncate: invalid '%s': %s\n",
+                (void)fprintf(stderr, "truncate: invalid '%s': %s\n",
                         opts.size_str.c_str(), strerror(EINVAL));
                 continue;
             }
@@ -188,20 +198,20 @@ int truncate_command(int argc, char** argv) {
 
         /* Create file if it doesn't exist and --no-create not set */
         struct stat st;
-        bool exists = (stat(filepath, &st) == 0);
+        bool const exists = (stat(filepath, &st) == 0);
 
         if (!exists) {
-            if (opts.no_create) {
-                fprintf(stderr, "truncate: %s: No such file\n", filepath);
+            if (opts.no_create != 0) {
+                (void)fprintf(stderr, "truncate: %s: No such file\n", filepath);
                 continue;
             }
             /* Create empty file */
             FILE* f = fopen(filepath, "w");
-            if (!f) {
-                fprintf(stderr, "truncate: cannot open '%s': %s\n", filepath, strerror(errno));
+            if (f == nullptr) {
+                (void)fprintf(stderr, "truncate: cannot open '%s': %s\n", filepath, strerror(errno));
                 continue;
             }
-            fclose(f);
+            (void)fclose(f);
             /* If target is negative (relative decrease from nonexistent), skip */
             if (is_relative && target_size < 0) {
                 continue;
@@ -212,29 +222,31 @@ int truncate_command(int argc, char** argv) {
         }
 
         if (is_relative) {
-            int64_t current_size = st.st_size;
+            int64_t const current_size = st.st_size;
             target_size = apply_modifier(current_size, 0, target_size);
             /* Re-parse the modifier to get the actual modifier type */
             const char* s = opts.size_str.c_str();
             int mod = 0;
-            if (*s == '+') mod = 1;
-            else if (*s == '-') mod = 2;
-            else if (*s == '<') mod = 3;
-            else if (*s == '>') mod = 4;
-            else if (*s == '/') mod = 5;
-            else if (*s == '%') mod = 6;
+            if (*s == '+') { mod = 1;
+            } else if (*s == '-') { mod = 2;
+            } else if (*s == '<') { mod = 3;
+            } else if (*s == '>') { mod = 4;
+            } else if (*s == '/') { mod = 5;
+            } else if (*s == '%') { mod = 6;
+}
 
             /* Re-parse the numeric part */
             int64_t raw_val = 0;
             const char* num_start = s + 1;
-            while (*num_start == ' ') num_start++;
+            while (*num_start == ' ') { num_start++;
+}
             char* endptr = nullptr;
             errno = 0;
             raw_val = strtoll(num_start, &endptr, 10);
 
             int64_t multiplier = 1;
             if (*endptr != '\0') {
-                char unit = *endptr;
+                char const unit = *endptr;
                 switch (unit) {
                 case 'Y': case 'y': multiplier = 1024LL << 50; break;
                 case 'Z': case 'z': multiplier = 1024LL << 42; break;
@@ -247,30 +259,30 @@ int truncate_command(int argc, char** argv) {
                 default: break;
                 }
             }
-            int64_t adjusted = raw_val * multiplier;
+            int64_t const adjusted = raw_val * multiplier;
             target_size = apply_modifier(current_size, mod, adjusted);
         }
 
         /* Clamp negative sizes to 0 */
-        if (target_size < 0) target_size = 0;
+        target_size = std::max<int64_t>(target_size, 0);
 
         /* Apply truncate/ftruncate */
         int ret = 0;
-        if (opts.io_blocks) {
+        if (opts.io_blocks != 0) {
             /* For io_blocks mode, use ftruncate with block-sized value */
-            int fd = open(filepath, O_RDWR);
+            int const fd = open(filepath, O_RDWR);
             if (fd < 0) {
-                fprintf(stderr, "truncate: cannot open '%s': %s\n", filepath, strerror(errno));
+                (void)fprintf(stderr, "truncate: cannot open '%s': %s\n", filepath, strerror(errno));
                 continue;
             }
             if (ftruncate(fd, target_size) != 0) {
-                fprintf(stderr, "truncate: cannot truncate '%s': %s\n", filepath, strerror(errno));
+                (void)fprintf(stderr, "truncate: cannot truncate '%s': %s\n", filepath, strerror(errno));
                 ret = 1;
             }
             close(fd);
         } else {
             if (truncate(filepath, target_size) != 0) {
-                fprintf(stderr, "truncate: cannot truncate '%s': %s\n", filepath, strerror(errno));
+                (void)fprintf(stderr, "truncate: cannot truncate '%s': %s\n", filepath, strerror(errno));
                 ret = 1;
             }
         }

@@ -30,7 +30,7 @@ int setsebool_command(int argc, char** argv) {
 
     ArgTable at({help_opt, version_opt, persist_opt, bools_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
     if (nerrors > 0) {
         return print_arg_errors(end, argv[0]);
     }
@@ -52,12 +52,12 @@ int setsebool_command(int argc, char** argv) {
     }
 
     if (bools_opt->count == 0) {
-        fprintf(stderr, "%s: missing operand\n", argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
-    int permanent = persist_opt->count > 0 ? 1 : 0;
+    int const permanent = persist_opt->count > 0 ? 1 : 0;
 
     // Detect batch form (name=value tokens) vs legacy form (name value).
     int is_batch = 0;
@@ -72,7 +72,7 @@ int setsebool_command(int argc, char** argv) {
         SELboolean* list = static_cast<SELboolean*>(
             calloc(static_cast<size_t>(bools_opt->count), sizeof(SELboolean)));
         if (list == nullptr) {
-            fprintf(stderr, "setsebool: out of memory\n");
+            (void)fprintf(stderr, "setsebool: out of memory\n");
             return 1;
         }
         int valid = 0;
@@ -81,14 +81,14 @@ int setsebool_command(int argc, char** argv) {
             const char* tok = bools_opt->filename[i];
             const char* eq = strchr(tok, '=');
             if (eq == nullptr) {
-                fprintf(stderr, "setsebool: invalid boolean assignment '%s'\n", tok);
+                (void)fprintf(stderr, "setsebool: invalid boolean assignment '%s'\n", tok);
                 rc = 1;
                 continue;
             }
             const size_t nlen = static_cast<size_t>(eq - tok);
             char* name = static_cast<char*>(malloc(nlen + 1));
             if (name == nullptr) {
-                fprintf(stderr, "setsebool: out of memory\n");
+                (void)fprintf(stderr, "setsebool: out of memory\n");
                 rc = 1;
                 continue;
             }
@@ -96,7 +96,7 @@ int setsebool_command(int argc, char** argv) {
             name[nlen] = '\0';
             int value = 0;
             if (parse_value(eq + 1, &value) != 0) {
-                fprintf(stderr, "setsebool: invalid value in '%s'\n", tok);
+                (void)fprintf(stderr, "setsebool: invalid value in '%s'\n", tok);
                 free(name);
                 rc = 1;
                 continue;
@@ -107,7 +107,7 @@ int setsebool_command(int argc, char** argv) {
         }
         if (valid > 0 && rc == 0) {
             if (security_set_boolean_list(static_cast<size_t>(valid), list, permanent) < 0) {
-                fprintf(stderr, "setsebool: unable to set booleans\n");
+                (void)fprintf(stderr, "setsebool: unable to set booleans\n");
                 rc = 1;
             }
         }
@@ -116,7 +116,7 @@ int setsebool_command(int argc, char** argv) {
     }
 
     if (bools_opt->count != 2) {
-        fprintf(stderr, "%s: expecting BOOLEAN on|off or BOOLEAN=value (got %d operand(s))\n",
+        (void)fprintf(stderr, "%s: expecting BOOLEAN on|off or BOOLEAN=value (got %d operand(s))\n",
                 argv[0], bools_opt->count);
         return 1;
     }
@@ -124,7 +124,7 @@ int setsebool_command(int argc, char** argv) {
     const char* name = bools_opt->filename[0];
     int value = 0;
     if (parse_value(bools_opt->filename[1], &value) != 0) {
-        fprintf(stderr, "setsebool: invalid value '%s' (expected on|off)\n",
+        (void)fprintf(stderr, "setsebool: invalid value '%s' (expected on|off)\n",
                 bools_opt->filename[1]);
         return 1;
     }
@@ -135,7 +135,7 @@ int setsebool_command(int argc, char** argv) {
     single.name = const_cast<char*>(name);
     single.value = value;
     if (security_set_boolean_list(1, &single, permanent) < 0) {
-        fprintf(stderr, "setsebool: unable to set %s to %s\n", name,
+        (void)fprintf(stderr, "setsebool: unable to set %s to %s\n", name,
                 value != 0 ? "on" : "off");
         return 1;
     }

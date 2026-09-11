@@ -26,8 +26,9 @@ static void base64_encode(FILE* in, FILE* out, int wrap_cols) {
     int col = 0;
     
     while (true) {
-        size_t bytes_read = fread(in_buf, 1, 3, in);
-        if (bytes_read == 0) break;
+        size_t const bytes_read = fread(in_buf, 1, 3, in);
+        if (bytes_read == 0) { break;
+}
         
         // Handle partial last block
         if (bytes_read < 3) {
@@ -51,11 +52,11 @@ static void base64_encode(FILE* in, FILE* out, int wrap_cols) {
         
         // Write output with line wrapping
         for (int i = 0; i < 4; i++) {
-            fputc(out_buf[i], out);
+            (void)fputc(out_buf[i], out);
             if (wrap_cols > 0) {
                 col++;
                 if (col >= wrap_cols) {
-                    fputc('\n', out);
+                    (void)fputc('\n', out);
                     col = 0;
                 }
             }
@@ -64,7 +65,7 @@ static void base64_encode(FILE* in, FILE* out, int wrap_cols) {
     
     // Add final newline if wrapping was enabled
     if (wrap_cols > 0 && col > 0) {
-        fputc('\n', out);
+        (void)fputc('\n', out);
     }
 }
 
@@ -75,11 +76,13 @@ static bool base64_decode(FILE* in, FILE* out, bool ignore_garbage) {
     int padding = 0;
     
     while (true) {
-        int c = fgetc(in);
-        if (c == EOF) break;
+        int const c = fgetc(in);
+        if (c == EOF) { break;
+}
         
         // Skip newlines (always accepted)
-        if (c == '\n') continue;
+        if (c == '\n') { continue;
+}
         
         // Handle padding
         if (c == '=') {
@@ -91,8 +94,8 @@ static bool base64_decode(FILE* in, FILE* out, bool ignore_garbage) {
                 out_buf[1] = ((in_buf[1] & 0x0F) << 4) | (in_buf[2] >> 2);
                 out_buf[2] = ((in_buf[2] & 0x03) << 6) | in_buf[3];
                 
-                int out_len = 3 - padding;
-                fwrite(out_buf, 1, out_len, out);
+                int const out_len = 3 - padding;
+                (void)fwrite(out_buf, 1, out_len, out);
                 buf_idx = 0;
                 padding = 0;
             }
@@ -101,7 +104,7 @@ static bool base64_decode(FILE* in, FILE* out, bool ignore_garbage) {
         
         // Decode character
         if (c >= 0 && c < 128) {
-            int8_t val = decode_table[c];
+            int8_t const val = decode_table[c];
             if (val >= 0) {
                 in_buf[buf_idx++] = val;
             } else if (!ignore_garbage) {
@@ -119,7 +122,7 @@ static bool base64_decode(FILE* in, FILE* out, bool ignore_garbage) {
             out_buf[1] = ((in_buf[1] & 0x0F) << 4) | (in_buf[2] >> 2);
             out_buf[2] = ((in_buf[2] & 0x03) << 6) | in_buf[3];
             
-            fwrite(out_buf, 1, 3, out);
+            (void)fwrite(out_buf, 1, 3, out);
             buf_idx = 0;
         }
     }
@@ -142,7 +145,7 @@ int base64_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
     
     ArgTable at({decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
     
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -167,13 +170,13 @@ int base64_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
     
-    bool decode = (decode_opt->count > 0);
-    bool ignore_garbage = (ignore_garbage_opt->count > 0);
+    bool const decode = (decode_opt->count > 0);
+    bool const ignore_garbage = (ignore_garbage_opt->count > 0);
     int wrap_cols = 76; // Default per GNU
     
     if (wrap_opt->count > 0) {
         if (wrap_opt->ival[0] < 0) {
-            fprintf(stderr, "base64: invalid wrap value: %d\n", wrap_opt->ival[0]);
+            (void)fprintf(stderr, "base64: invalid wrap value: %d\n", wrap_opt->ival[0]);
             return 0;
         }
         wrap_cols = wrap_opt->ival[0];
@@ -194,13 +197,13 @@ int base64_command(int argc, char** argv) {
     if (!use_stdin) {
         in = fopen(filename, "rb");
         if (in == nullptr) {
-            fprintf(stderr, "base64: %s: No such file or directory\n", filename);
+            (void)fprintf(stderr, "base64: %s: No such file or directory\n", filename);
             return 0;
         }
     }
     
     if (decode) {
-        bool success = base64_decode(in, stdout, ignore_garbage);
+        bool const success = base64_decode(in, stdout, ignore_garbage);
         if (!success) {
             // If decoding failed without ignore-garbage, we still produce whatever output we can
             // GNU base64 doesn't necessarily exit with error on invalid input
@@ -210,7 +213,7 @@ int base64_command(int argc, char** argv) {
     }
     
     if (!use_stdin) {
-        fclose(in);
+        (void)fclose(in);
     }
     
     return 0;

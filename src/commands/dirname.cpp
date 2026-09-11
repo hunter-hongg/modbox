@@ -36,7 +36,7 @@ static std::string dirname_of(const std::string& path) {
     }
 
     // Find last non-trailing slash
-    size_t slash = p.rfind('/');
+    size_t const slash = p.rfind('/');
     if (slash == std::string::npos) {
         return ".";
     }
@@ -80,7 +80,7 @@ int dirname_command(int argc, char** argv) {
     }
 
     for (int i = name_start; i < argc; i++) {
-        std::string d = dirname_of(argv[i]);
+        std::string const d = dirname_of(argv[i]);
         if (zero) {
             printf("%s", d.c_str());
         } else {

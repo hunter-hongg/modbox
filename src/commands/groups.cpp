@@ -1,5 +1,7 @@
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <sys/types.h>
 #include <vector>
 #include <string>
 #include <pwd.h>
@@ -22,26 +24,29 @@ static void print_groups_version(const char* prog) {
 }
 
 static std::string gid_to_name(gid_t gid) {
-    struct group* gr = getgrgid(gid);
-    if (gr) return std::string(gr->gr_name);
+    const struct group* gr = getgrgid(gid);
+    if (gr != nullptr) { return std::string(gr->gr_name);
+}
     char buf[32];
-    snprintf(buf, sizeof(buf), "%u", (unsigned)gid);
+    (void)snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(gid));
     return std::string(buf);
 }
 
 static std::vector<gid_t> get_user_groups(const char* username) {
     std::vector<gid_t> groups;
-    struct passwd* pw = getpwnam(username ? username : "");
-    if (!pw) {
+    const struct passwd* pw = getpwnam((username != nullptr) ? username : "");
+    if (pw == nullptr) {
         pw = getpwuid(getuid());
     }
-    if (!pw) return groups;
+    if (pw == nullptr) { return groups;
+}
 
     int ngroups = 32;
-    gid_t* gids = (gid_t*)malloc((size_t)ngroups * sizeof(gid_t));
-    if (!gids) return groups;
+    gid_t* gids = static_cast<gid_t*>(malloc(static_cast<size_t>(ngroups) * sizeof(gid_t)));
+    if (gids == nullptr) { return groups;
+}
 
-    int ret = getgrouplist(pw->pw_name, pw->pw_gid, gids, &ngroups);
+    int const ret = getgrouplist(pw->pw_name, pw->pw_gid, gids, &ngroups);
     if (ret >= 0) {
         for (int i = 0; i < ngroups; i++) {
             groups.push_back(gids[i]);
@@ -65,8 +70,8 @@ int groups_command(int argc, char** argv) {
             return 0;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "groups: invalid option '%s'\n", a);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "groups: invalid option '%s'\n", a);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return 0;
         }
         usernames.push_back(a);
@@ -77,10 +82,11 @@ int groups_command(int argc, char** argv) {
     }
 
     for (size_t u = 0; u < usernames.size(); u++) {
-        std::vector<gid_t> gids = get_user_groups(usernames[u]);
+        std::vector<gid_t> const gids = get_user_groups(usernames[u]);
         bool first = true;
         for (gid_t gid : gids) {
-            if (!first) printf(" ");
+            if (!first) { printf(" ");
+}
             printf("%s", gid_to_name(gid).c_str());
             first = false;
         }

@@ -1,11 +1,15 @@
+#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <strings.h>
+#include <utility>
 #include <vector>
 #include <algorithm>
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
 
 #include "commands/sort.hpp"
@@ -53,9 +57,9 @@ static const char* find_field_start(const char* line, int field_num, char sep) {
             return (*p == '\0') ? nullptr : p;
         }
         current = 1;
-        while (*p) {
+        while ((*p) != 0) {
             /* Scan to next blank */
-            while (*p && *p != ' ' && *p != '\t') {
+            while (((*p) != 0) && *p != ' ' && *p != '\t') {
                 p++;
             }
             if (*p == '\0') {
@@ -70,7 +74,7 @@ static const char* find_field_start(const char* line, int field_num, char sep) {
         }
     } else {
         /* Single-character separator */
-        while (*p) {
+        while ((*p) != 0) {
             if (current == field_num) {
                 return p;
             }
@@ -99,12 +103,12 @@ static const char* find_field_end(const char* line, int field_num, char sep, con
 
     if (sep == 0) {
         /* End at next blank or end of string */
-        while (*p && *p != ' ' && *p != '\t') {
+        while (((*p) != 0) && *p != ' ' && *p != '\t') {
             p++;
         }
     } else {
         /* End at next separator or end of string */
-        while (*p && *p != sep) {
+        while (((*p) != 0) && *p != sep) {
             p++;
         }
     }
@@ -129,7 +133,7 @@ static std::string extract_key(const char* line, const ParsedKey* key, char sep)
         /* Apply char_start offset (1-indexed) */
         if (key->char_start > 1) {
             int offset = key->char_start - 1;
-            while (offset > 0 && *start) {
+            while (offset > 0 && ((*start) != 0)) {
                 start++;
                 offset--;
             }
@@ -144,10 +148,10 @@ static std::string extract_key(const char* line, const ParsedKey* key, char sep)
             /* Apply char_end offset */
             if (key->char_end > 0) {
                 const char* fstart = find_field_start(line, key->field_end, sep);
-                if (fstart) {
+                if (fstart != nullptr) {
                     int offset = key->char_end;
                     const char* p = fstart;
-                    while (offset > 1 && *p && p < end) {
+                    while (offset > 1 && ((*p) != 0) && p < end) {
                         p++;
                         offset--;
                     }
@@ -161,11 +165,9 @@ static std::string extract_key(const char* line, const ParsedKey* key, char sep)
 
     /* Handle KEY_FLAG_SKIP_BLANKS: skip leading blanks within the key */
     const char* effective_start = start;
-    if (key->flags & KEY_FLAG_SKIP_BLANKS) {
+    if ((key->flags & KEY_FLAG_SKIP_BLANKS) != 0) {
         effective_start = skip_blanks(start);
-        if (effective_start > end) {
-            effective_start = end;
-        }
+        effective_start = std::min(effective_start, end);
     }
 
     if (effective_start >= end) {
@@ -188,13 +190,13 @@ static double parse_numeric(const char* s, int* ok) {
         s++;
     }
     /* Must start with a digit or decimal point */
-    if (!std::isdigit((unsigned char)*s) && *s != '.') {
+    if ((std::isdigit(static_cast<unsigned char>(*s)) == 0) && *s != '.') {
         *ok = 0;
         return 0.0;
     }
     /* Reset and parse properly */
     // NOLINTNEXTLINE(cert-err34-c)
-    double val = strtod(s, &end);
+    double const val = strtod(s, &end);
     if (end == s) {
         *ok = 0;
         return 0.0;
@@ -212,17 +214,18 @@ static int compare_key_strings(const std::string& a, const std::string& b,
     const char* sa = a.c_str();
     const char* sb = b.c_str();
 
-    if (key->flags & KEY_FLAG_NUMERIC) {
-        int ok_a = 0, ok_b = 0;
-        double va = parse_numeric(sa, &ok_a);
-        double vb = parse_numeric(sb, &ok_b);
-        if (!ok_a && !ok_b) {
+    if ((key->flags & KEY_FLAG_NUMERIC) != 0) {
+        int ok_a = 0;
+        int ok_b = 0;
+        double const va = parse_numeric(sa, &ok_a);
+        double const vb = parse_numeric(sb, &ok_b);
+        if ((ok_a == 0) && (ok_b == 0)) {
             return 0;
         }
-        if (!ok_a) {
+        if (ok_a == 0) {
             return -1;
         }
-        if (!ok_b) {
+        if (ok_b == 0) {
             return 1;
         }
         if (va < vb) {
@@ -234,7 +237,7 @@ static int compare_key_strings(const std::string& a, const std::string& b,
         return 0;
     }
 
-    if (key->flags & KEY_FLAG_IGNORE_CASE) {
+    if ((key->flags & KEY_FLAG_IGNORE_CASE) != 0) {
         return strcasecmp(sa, sb);
     }
 
@@ -253,8 +256,8 @@ static int compare_content(const SortLine& la,
         /* Compare by key fields */
         for (std::size_t i = 0; i < opts->keys.size(); i++) {
             const ParsedKey& key = opts->keys[i];
-            std::string key_a = extract_key(la.line.c_str(), &key, opts->field_separator);
-            std::string key_b = extract_key(lb.line.c_str(), &key, opts->field_separator);
+            std::string const key_a = extract_key(la.line.c_str(), &key, opts->field_separator);
+            std::string const key_b = extract_key(lb.line.c_str(), &key, opts->field_separator);
 
             result = compare_key_strings(key_a, key_b, &key);
 
@@ -264,7 +267,7 @@ static int compare_content(const SortLine& la,
         }
 
         /* Tiebreaker: if keys are equal and not stable, compare whole lines */
-        if (result == 0 && !opts->stable) {
+        if (result == 0 && (opts->stable == 0)) {
             result = strcmp(la.line.c_str(), lb.line.c_str());
         }
     } else {
@@ -273,26 +276,27 @@ static int compare_content(const SortLine& la,
         const char* sb = lb.line.c_str();
 
         /* Apply -b globally: skip leading blanks */
-        if (opts->ignore_leading_blanks) {
+        if (opts->ignore_leading_blanks != 0) {
             sa = skip_blanks(sa);
             sb = skip_blanks(sb);
         }
 
-        if (opts->numeric_sort) {
-            int ok_a = 0, ok_b = 0;
-            double va = parse_numeric(sa, &ok_a);
-            double vb = parse_numeric(sb, &ok_b);
-            if (ok_a && ok_b) {
+        if (opts->numeric_sort != 0) {
+            int ok_a = 0;
+            int ok_b = 0;
+            double const va = parse_numeric(sa, &ok_a);
+            double const vb = parse_numeric(sb, &ok_b);
+            if ((ok_a != 0) && (ok_b != 0)) {
                 result = (va < vb) ? -1 : (va > vb) ? 1 : 0;
-            } else if (!ok_a && !ok_b) {
+            } else if ((ok_a == 0) && (ok_b == 0)) {
                 result = 0;
-            } else if (!ok_a) {
+            } else if (ok_a == 0) {
                 result = -1;
             } else {
                 result = 1;
             }
         } else {
-            if (opts->ignore_case) {
+            if (opts->ignore_case != 0) {
                 result = strcasecmp(sa, sb);
             } else {
                 result = strcmp(sa, sb);
@@ -301,7 +305,7 @@ static int compare_content(const SortLine& la,
     }
 
     /* Apply reverse */
-    if (opts->reverse) {
+    if (opts->reverse != 0) {
         result = -result;
     }
 
@@ -338,8 +342,8 @@ static ParsedKey parse_one_key(const char* spec) {
     const char* p = spec;
 
     /* Parse field_start */
-    if (std::isdigit((unsigned char)*p)) {
-        key.field_start = (int)strtol(p, (char**)&p, 10);
+    if (std::isdigit(static_cast<unsigned char>(*p)) != 0) {
+        key.field_start = static_cast<int>(strtol(p, const_cast<char**>(&p), 10));
     } else {
         key.field_start = 1;
     }
@@ -347,13 +351,13 @@ static ParsedKey parse_one_key(const char* spec) {
     /* Parse optional .char_start */
     if (*p == '.') {
         p++;
-        if (std::isdigit((unsigned char)*p)) {
-            key.char_start = (int)strtol(p, (char**)&p, 10);
+        if (std::isdigit(static_cast<unsigned char>(*p)) != 0) {
+            key.char_start = static_cast<int>(strtol(p, const_cast<char**>(&p), 10));
         }
     }
 
     /* Parse optional flags before comma */
-    while (*p && *p != ',') {
+    while (((*p) != 0) && *p != ',') {
         switch (*p) {
             case 'b': key.flags |= KEY_FLAG_SKIP_BLANKS; break;
             case 'f': key.flags |= KEY_FLAG_IGNORE_CASE; break;
@@ -367,21 +371,21 @@ static ParsedKey parse_one_key(const char* spec) {
     /* Parse optional second part after comma */
     if (*p == ',') {
         p++;
-        if (std::isdigit((unsigned char)*p)) {
-            key.field_end = (int)strtol(p, (char**)&p, 10);
+        if (std::isdigit(static_cast<unsigned char>(*p)) != 0) {
+            key.field_end = static_cast<int>(strtol(p, const_cast<char**>(&p), 10));
         } else {
             key.field_end = key.field_start;
         }
 
         if (*p == '.') {
             p++;
-            if (std::isdigit((unsigned char)*p)) {
-                key.char_end = (int)strtol(p, (char**)&p, 10);
+            if (std::isdigit(static_cast<unsigned char>(*p)) != 0) {
+                key.char_end = static_cast<int>(strtol(p, const_cast<char**>(&p), 10));
             }
         }
 
         /* Parse optional flags after comma */
-        while (*p) {
+        while ((*p) != 0) {
             switch (*p) {
                 case 'b': key.flags |= KEY_FLAG_SKIP_BLANKS; break;
                 case 'f': key.flags |= KEY_FLAG_IGNORE_CASE; break;
@@ -412,13 +416,13 @@ static std::vector<SortLine> read_lines(int file_count, const char** filenames) 
     if (file_count == 0) {
         char buf[8192];
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        while (fgets(buf, (int)sizeof(buf), stdin)) {
+        while (fgets(buf, static_cast<int>(sizeof(buf)), stdin) != nullptr) {
             /* Remove trailing newline */
-            size_t len = strlen(buf);
+            size_t const len = strlen(buf);
             if (len > 0 && buf[len - 1] == '\n') {
                 buf[len - 1] = '\0';
             }
-            lines.push_back({std::string(buf), line_index});
+            lines.push_back({.line=std::string(buf), .orig_index=line_index});
             line_index++;
         }
         return lines;
@@ -444,12 +448,12 @@ static std::vector<SortLine> read_lines(int file_count, const char** filenames) 
 
         char buf[8192];
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        while (fgets(buf, (int)sizeof(buf), fp)) {
-            size_t len = strlen(buf);
+        while (fgets(buf, static_cast<int>(sizeof(buf)), fp) != nullptr) {
+            size_t const len = strlen(buf);
             if (len > 0 && buf[len - 1] == '\n') {
                 buf[len - 1] = '\0';
             }
-            lines.push_back({std::string(buf), line_index});
+            lines.push_back({.line=std::string(buf), .orig_index=line_index});
             line_index++;
         }
 
@@ -467,7 +471,7 @@ static std::vector<SortLine> read_lines(int file_count, const char** filenames) 
 static void write_lines(const std::vector<SortLine>& lines, const char* output_file) {
     FILE* fp = stdout;
 
-    if (output_file) {
+    if (output_file != nullptr) {
         fp = fopen(output_file, "w");
         if (fp == nullptr) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -499,12 +503,12 @@ static int check_sorted(const std::vector<SortLine>& lines, const SortOptions* o
         const SortLine& curr = lines[i];
 
         /* Use compare function: result > 0 means previous > current → disorder */
-        int cmp = compare_sort_lines_direct(prev, curr, opts);
+        int const cmp = compare_sort_lines_direct(prev, curr, opts);
 
         if (cmp > 0) {
             /* Out of order: find which file/line */
-            int line_num = (int)i;   /* 1-indexed for display */
-            const char* fname = filenames && file_count > 0
+            int const line_num = static_cast<int>(i);   /* 1-indexed for display */
+            const char* fname = (filenames != nullptr) && file_count > 0
                                  ? filenames[0] : "-";
 
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -514,9 +518,9 @@ static int check_sorted(const std::vector<SortLine>& lines, const SortOptions* o
         }
 
         /* -c -u check: if adjacent lines compare equal by content, that's disorder */
-        if (opts->unique && compare_content(prev, curr, opts) == 0) {
-            int line_num = (int)i;
-            const char* fname = filenames && file_count > 0
+        if ((opts->unique != 0) && compare_content(prev, curr, opts) == 0) {
+            int const line_num = static_cast<int>(i);
+            const char* fname = (filenames != nullptr) && file_count > 0
                                  ? filenames[0] : "-";
 
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -568,7 +572,7 @@ int sort_command(int argc, char** argv) {
                  help_opt,
                  file_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -604,13 +608,13 @@ int sort_command(int argc, char** argv) {
     }
 
     /* Populate options */
-    opts.ignore_leading_blanks = (ignore_blanks_opt->count > 0);
-    opts.ignore_case = (ignore_case_opt->count > 0);
-    opts.numeric_sort = (numeric_sort_opt->count > 0);
-    opts.reverse = (reverse_opt->count > 0);
-    opts.unique = (unique_opt->count > 0);
-    opts.check = (check_opt->count > 0);
-    opts.stable = (stable_opt->count > 0);
+    opts.ignore_leading_blanks = static_cast<int>(ignore_blanks_opt->count > 0);
+    opts.ignore_case = static_cast<int>(ignore_case_opt->count > 0);
+    opts.numeric_sort = static_cast<int>(numeric_sort_opt->count > 0);
+    opts.reverse = static_cast<int>(reverse_opt->count > 0);
+    opts.unique = static_cast<int>(unique_opt->count > 0);
+    opts.check = static_cast<int>(check_opt->count > 0);
+    opts.stable = static_cast<int>(stable_opt->count > 0);
     if (output_opt->count > 0) {
         opts.output_file = output_opt->sval[0];
     }
@@ -633,24 +637,24 @@ int sort_command(int argc, char** argv) {
         add_key_from_spec(key_opt->sval[i], opts.keys);
         /* Apply global flags to key flags as defaults.
            Key-specific flags (explicitly parsed) take precedence. */
-        ParsedKey& key = opts.keys[(std::size_t)i];
-        if ((key.flags & KEY_FLAG_SKIP_BLANKS) == 0 && opts.ignore_leading_blanks) {
+        ParsedKey& key = opts.keys[static_cast<std::size_t>(i)];
+        if ((key.flags & KEY_FLAG_SKIP_BLANKS) == 0 && (opts.ignore_leading_blanks != 0)) {
             key.flags |= KEY_FLAG_SKIP_BLANKS;
         }
-        if ((key.flags & KEY_FLAG_IGNORE_CASE) == 0 && opts.ignore_case) {
+        if ((key.flags & KEY_FLAG_IGNORE_CASE) == 0 && (opts.ignore_case != 0)) {
             key.flags |= KEY_FLAG_IGNORE_CASE;
         }
-        if ((key.flags & KEY_FLAG_NUMERIC) == 0 && opts.numeric_sort) {
+        if ((key.flags & KEY_FLAG_NUMERIC) == 0 && (opts.numeric_sort != 0)) {
             key.flags |= KEY_FLAG_NUMERIC;
         }
-        if ((key.flags & KEY_FLAG_REVERSE) == 0 && opts.reverse) {
+        if ((key.flags & KEY_FLAG_REVERSE) == 0 && (opts.reverse != 0)) {
             key.flags |= KEY_FLAG_REVERSE;
         }
     }
 
     /* Collect filenames */
-    int file_count = file_arg->count;
-    const char** filenames = (const char**)(file_arg->filename);
+    int const file_count = file_arg->count;
+    const char** filenames = file_arg->filename;
 
     /* Read all lines */
     std::vector<SortLine> lines = read_lines(file_count, filenames);
@@ -660,10 +664,10 @@ int sort_command(int argc, char** argv) {
     }
 
     /* Check mode or sort */
-    if (opts.check) {
-        int sorted = check_sorted(lines, &opts, file_count, filenames);
+    if (opts.check != 0) {
+        int const sorted = check_sorted(lines, &opts, file_count, filenames);
         
-        exit(sorted ? 1 : 0);
+        exit((sorted != 0) ? 1 : 0);
     }
 
     /* Sort */
@@ -673,17 +677,17 @@ int sort_command(int argc, char** argv) {
               });
 
     /* Unique: remove consecutive duplicates */
-    if (opts.unique) {
+    if (opts.unique != 0) {
         std::vector<SortLine> uniq;
         if (!lines.empty()) {
-            uniq.push_back({lines[0].line, 0});
+            uniq.push_back({.line=lines[0].line, .orig_index=0});
         }
         for (std::size_t i = 1; i < lines.size(); i++) {
             const SortLine& prev = uniq.back();
             const SortLine& curr = lines[i];
             /* Use compare_content (no index tiebreaker) to detect true duplicates */
             if (compare_content(prev, curr, &opts) != 0) {
-                uniq.push_back({curr.line, (int)uniq.size()});
+                uniq.push_back({.line=curr.line, .orig_index=static_cast<int>(uniq.size())});
             }
         }
         lines = std::move(uniq);

@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 #include <string>
 #include <argtable3.h>
@@ -24,7 +25,8 @@
 #define ARG_END_SIZE       30
 
 static void do_cleanup_expanded(char** my_argv, char** argv, int orig_argc, int argc, int expanded) {
-    if (!expanded) return;
+    if (expanded == 0) { return;
+}
     for (int i = 0; i < argc; i++) {
         int from_original = 0;
         for (int j = 0; j < orig_argc; j++) {
@@ -33,7 +35,7 @@ static void do_cleanup_expanded(char** my_argv, char** argv, int orig_argc, int 
                 break;
             }
         }
-        if (!from_original) {
+        if (from_original == 0) {
             free(my_argv[i]);
         }
     }
@@ -41,17 +43,17 @@ static void do_cleanup_expanded(char** my_argv, char** argv, int orig_argc, int 
 }
 
 static int is_blank_line(const char* buf) {
-    return buf[0] == '\n';
+    return static_cast<int>(buf[0] == '\n');
 }
 
 static void output_char_visual(unsigned char c, int show_tabs, int show_nonprinting, FILE* out) {
-    if (show_tabs && c == '\t') {
+    if ((show_tabs != 0) && c == '\t') {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(out, "^I");
         return;
     }
 
-    if (show_nonprinting) {
+    if (show_nonprinting != 0) {
         if (c == '\n' || c == '\t') {
             (void)fputc(c, out);
             return;
@@ -90,35 +92,35 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
     char buf[1024];
     int has_newline = 1;
     int prev_blank = 0;
-    while (fgets(buf, sizeof(buf), fp)) {
-        size_t len = strlen(buf);
-        has_newline = (len > 0 && buf[len - 1] == '\n');
-        int blank = is_blank_line(buf);
+    while (fgets(buf, sizeof(buf), fp) != nullptr) {
+        size_t const len = strlen(buf);
+        has_newline = static_cast<int>(len > 0 && buf[len - 1] == '\n');
+        int const blank = is_blank_line(buf);
 
-        if (opts->squeeze_blank && blank && prev_blank) {
+        if ((opts->squeeze_blank != 0) && (blank != 0) && (prev_blank != 0)) {
             continue;
         }
         prev_blank = blank;
 
         int should_number = 0;
-        if (opts->show_line_numbers) {
+        if (opts->show_line_numbers != 0) {
             should_number = 1;
-        } else if (opts->show_nonempty_line_numbers) {
-            should_number = !blank;
+        } else if (opts->show_nonempty_line_numbers != 0) {
+            should_number = static_cast<int>(static_cast<int>(blank == 0));
         }
 
-        if (should_number) {
+        if (should_number != 0) {
             format_line_number(*line_num, opts->number_format, out);
             (*line_num)++;
         }
 
-        if (opts->show_nonprinting) {
-            size_t content_len = has_newline ? len - 1 : len;
+        if (opts->show_nonprinting != 0) {
+            size_t const content_len = (has_newline != 0) ? len - 1 : len;
             for (size_t j = 0; j < content_len; j++) {
-                output_char_visual((unsigned char)buf[j], opts->show_tabs, 1, out);
+                output_char_visual(static_cast<unsigned char>(buf[j]), opts->show_tabs, 1, out);
             }
-            if (has_newline) {
-                if (opts->show_ends) {
+            if (has_newline != 0) {
+                if (opts->show_ends != 0) {
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                     (void)fprintf(out, "$\n");
                 } else {
@@ -128,7 +130,7 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
             }
         } else {
             int tab_processed = 0;
-            if (opts->show_tabs) {
+            if (opts->show_tabs != 0) {
                 for (size_t j = 0; j < len; j++) {
                     if (buf[j] == '\t') {
                         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -140,11 +142,11 @@ static int process_file(FILE* fp, int* line_num, const CatOptions* opts, FILE* o
                 tab_processed = 1;
             }
 
-            if (opts->show_ends && has_newline && !tab_processed) {
+            if ((opts->show_ends != 0) && (has_newline != 0) && (tab_processed == 0)) {
                 buf[len - 1] = '$';
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(out, "%s\n", buf);
-            } else if (!tab_processed) {
+            } else if (tab_processed == 0) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(out, "%s", buf);
             }
@@ -157,7 +159,7 @@ static char** expand_short_options(int* argc, char** argv) {
     int new_argc = 0;
     for (int i = 0; i < *argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
-            new_argc += (int)strlen(argv[i]) - 1;
+            new_argc += static_cast<int>(strlen(argv[i])) - 1;
         } else {
             new_argc += 1;
         }
@@ -167,12 +169,12 @@ static char** expand_short_options(int* argc, char** argv) {
         return argv;
     }
 
-    char** new_argv = (char**)malloc((size_t)new_argc * sizeof(char*));
+    char** new_argv = static_cast<char**>(malloc(static_cast<size_t>(new_argc) * sizeof(char*)));
     int j = 0;
     for (int i = 0; i < *argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '-' && argv[i][1] != '\0') {
             for (int k = 1; argv[i][k] != '\0'; k++) {
-                char* opt = (char*)malloc(3);
+                char* opt = static_cast<char*>(malloc(3));
                 opt[0] = '-';
                 opt[1] = argv[i][k];
                 opt[2] = '\0';
@@ -188,64 +190,64 @@ static char** expand_short_options(int* argc, char** argv) {
 }
 
 static void run_pipeline(const char* path, const CatOptions* opts, int* line_num, FILE* out) {
-    int from_stdin = (path == NULL);
+    int const from_stdin = static_cast<int>(path == NULL);
 
-    if (opts->diff_file && !from_stdin) {
-        if (opts->header_mode) { print_header(path, out); }
+    if ((opts->diff_file != nullptr) && (from_stdin == 0)) {
+        if (opts->header_mode != 0) { print_header(path, out); }
         run_diff(path, opts->diff_file, out);
         return;
     }
 
     // lines will be allocated below; ensure cleanup on error paths
 
-    auto read_vec = from_stdin ? read_stdin_to_lines() : read_file_to_lines(path);
+    auto read_vec = (from_stdin != 0) ? read_stdin_to_lines() : read_file_to_lines(path);
     std::vector<PipelineLine*>* lines = new std::vector<PipelineLine*>(std::move(read_vec));
     if (lines->empty()) {
-        if (!from_stdin) {
+        if (from_stdin == 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "cat: %s: No such file or directory\n", path);
         }
         return;
     }
 
-    if (opts->header_mode && !from_stdin) {
+    if ((opts->header_mode != 0) && (from_stdin == 0)) {
         print_header(path, out);
     }
 
     BlameInfo* blame = NULL;
     int blame_count = 0;
-    if (opts->blame_mode && !from_stdin) {
+    if ((opts->blame_mode != 0) && (from_stdin == 0)) {
         blame = parse_blame(path, &blame_count);
     }
 
     std::vector<PipelineLine*>* cur = lines;
 
-    if (opts->squeeze_blank) {
+    if (opts->squeeze_blank != 0) {
         std::vector<PipelineLine*>* filtered = squeeze_blank_lines(cur);
         free_pipeline_lines(cur);
         cur = filtered;
     }
 
-    if (opts->range_start || opts->range_end) {
+    if ((opts->range_start != 0) || (opts->range_end != 0)) {
         std::vector<PipelineLine*>* filtered = slice_range(cur, opts->range_start, opts->range_end);
         free_pipeline_lines(cur);
         cur = filtered;
     }
 
-    if (opts->head_lines) {
+    if (opts->head_lines != 0) {
         std::vector<PipelineLine*>* filtered = slice_head(cur, opts->head_lines);
         free_pipeline_lines(cur);
         cur = filtered;
     }
 
-    if (opts->tail_lines) {
+    if (opts->tail_lines != 0) {
         std::vector<PipelineLine*>* filtered = slice_tail(cur, opts->tail_lines);
         free_pipeline_lines(cur);
         cur = filtered;
     }
 
     std::vector<unsigned int>* match_indices = NULL;
-    if (opts->grep_pattern) {
+    if (opts->grep_pattern != nullptr) {
         match_indices = find_matching_indices(cur, opts->grep_pattern);
         if (opts->context_lines > 0) {
             std::vector<unsigned int>* expanded = expand_indices(cur, match_indices, opts->context_lines);
@@ -258,22 +260,22 @@ static void run_pipeline(const char* path, const CatOptions* opts, int* line_num
     }
 
     const char* ext = NULL;
-    if (opts->highlight_mode && !from_stdin) {
+    if ((opts->highlight_mode != 0) && (from_stdin == 0)) {
         ext = get_file_extension(path);
     }
 
     for (size_t i = 0; i < cur->size(); i++) {
         PipelineLine* pl = (*cur)[i];
-        int blank = (pl->text[0] == '\n');
+        int const blank = static_cast<int>(pl->text[0] == '\n');
         int show_num = 0;
 
-        if (opts->show_line_numbers) {
+        if (opts->show_line_numbers != 0) {
             show_num = 1;
-        } else if (opts->show_nonempty_line_numbers) {
-            show_num = !blank;
+        } else if (opts->show_nonempty_line_numbers != 0) {
+            show_num = static_cast<int>(static_cast<int>(blank == 0));
         }
 
-        if (opts->blame_mode && blame && pl->orig_index < blame_count) {
+        if ((opts->blame_mode != 0) && (blame != nullptr) && pl->orig_index < blame_count) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(out, "%.7s  %-12.12s  %-10.10s  |  ",
                     blame[pl->orig_index].commit,
@@ -281,19 +283,19 @@ static void run_pipeline(const char* path, const CatOptions* opts, int* line_num
                     blame[pl->orig_index].date);
         }
 
-        if (show_num) {
+        if (show_num != 0) {
             format_line_number(*line_num, opts->number_format, out);
             (*line_num)++;
         }
 
-        if (opts->highlight_mode && isatty(STDOUT_FILENO) && ext) {
+        if ((opts->highlight_mode != 0) && (isatty(STDOUT_FILENO) != 0) && (ext != nullptr)) {
             print_highlighted(pl->text.c_str(), ext, out);
         } else {
             output_line_visual(pl->text.c_str(), opts, out);
         }
     }
 
-    if (opts->show_stats) {
+    if (opts->show_stats != 0) {
         print_stats(cur, out);
     }
 
@@ -307,14 +309,14 @@ static void run_pipeline(const char* path, const CatOptions* opts, int* line_num
 void cat_tui_main(int file_count, const char** filenames, bool number_mode, bool nonempty_number_mode, int number_format, bool highlight_mode);
 
 int cat_command(int argc, char** argv) {
-    CatOptions opts = {0};
+    CatOptions opts = {.show_line_numbers=0};
     char* pager_buf = NULL;
     size_t pager_buf_size = 0;
     FILE* out_fp = stdout;
 
-    int orig_argc = argc;
+    int const orig_argc = argc;
     char** my_argv = expand_short_options(&argc, argv);
-    int expanded = (my_argv != argv);
+    int const expanded = static_cast<int>(my_argv != argv);
 
     struct arg_lit* number_opt = arg_lit0("n", "number", "number all output lines");
     struct arg_lit* nonempty_number_opt = arg_lit0("b", "number-nonblank", "number nonempty output lines");
@@ -353,7 +355,7 @@ int cat_command(int argc, char** argv) {
         number_format_opt, stats_opt,
         file_arg, end });
 
-    int nerrors = at.parse(argc, my_argv);
+    int const nerrors = at.parse(argc, my_argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -394,12 +396,12 @@ int cat_command(int argc, char** argv) {
     }
 
     if (nerrors > 0) {
-        int rc = at.print_errors(end, argv[0]);
+        int const rc = at.print_errors(end, argv[0]);
         do_cleanup_expanded(my_argv, argv, orig_argc, argc, expanded);
         return rc;
     }
 
-    if (tui_opt->count > 0 && isatty(STDOUT_FILENO)) {
+    if (tui_opt->count > 0 && (isatty(STDOUT_FILENO) != 0)) {
         cat_tui_main(file_arg->count, file_arg->filename,
                      number_opt->count > 0, nonempty_number_opt->count > 0,
                      opts.number_format, highlight_opt->count > 0);
@@ -407,26 +409,27 @@ int cat_command(int argc, char** argv) {
         return 0;
     }
 
-    opts.show_line_numbers = (number_opt->count > 0);
-    opts.show_nonempty_line_numbers = (nonempty_number_opt->count > 0);
-    opts.show_ends = (show_ends_opt->count > 0);
-    opts.show_tabs = (show_tabs_opt->count > 0);
-    opts.squeeze_blank = (squeeze_blank_opt->count > 0);
-    opts.show_nonprinting = (show_nonprinting_opt->count > 0);
-    opts.less_mode = (less_opt->count > 0);
+    opts.show_line_numbers = static_cast<int>(number_opt->count > 0);
+    opts.show_nonempty_line_numbers = static_cast<int>(nonempty_number_opt->count > 0);
+    opts.show_ends = static_cast<int>(show_ends_opt->count > 0);
+    opts.show_tabs = static_cast<int>(show_tabs_opt->count > 0);
+    opts.squeeze_blank = static_cast<int>(squeeze_blank_opt->count > 0);
+    opts.show_nonprinting = static_cast<int>(show_nonprinting_opt->count > 0);
+    opts.less_mode = static_cast<int>(less_opt->count > 0);
 
-    opts.blame_mode = (blame_opt->count > 0);
-    opts.highlight_mode = (highlight_opt->count > 0);
-    opts.header_mode = (header_opt->count > 0);
-    opts.diff_file = (char*)(diff_opt->count > 0 ? diff_opt->sval[0] : NULL);
-    opts.grep_pattern = (char*)(grep_opt->count > 0 ? grep_opt->sval[0] : NULL);
+    opts.blame_mode = static_cast<int>(blame_opt->count > 0);
+    opts.highlight_mode = static_cast<int>(highlight_opt->count > 0);
+    opts.header_mode = static_cast<int>(header_opt->count > 0);
+    opts.diff_file = const_cast<char*>(diff_opt->count > 0 ? diff_opt->sval[0] : NULL);
+    opts.grep_pattern = const_cast<char*>(grep_opt->count > 0 ? grep_opt->sval[0] : NULL);
     opts.context_lines = (context_opt->count > 0 ? context_opt->ival[0] : 0);
     opts.head_lines = (head_opt->count > 0 ? head_opt->ival[0] : 0);
     opts.tail_lines = (tail_opt->count > 0 ? tail_opt->ival[0] : 0);
-    opts.show_stats = (stats_opt->count > 0);
+    opts.show_stats = static_cast<int>(stats_opt->count > 0);
 
     if (range_opt->count > 0) {
-        int s = 0, e = 0;
+        int s = 0;
+        int e = 0;
         if (sscanf(range_opt->sval[0], "%d-%d", &s, &e) >= 1) {
             opts.range_start = s;
             opts.range_end = e;
@@ -435,8 +438,9 @@ int cat_command(int argc, char** argv) {
 
     if (number_format_opt->count > 0) {
         const char* fmt = number_format_opt->sval[0];
-        if (strcmp(fmt, "hex") == 0) opts.number_format = 1;
-        else if (strcmp(fmt, "octal") == 0) opts.number_format = 2;
+        if (strcmp(fmt, "hex") == 0) { opts.number_format = 1;
+        } else if (strcmp(fmt, "octal") == 0) { opts.number_format = 2;
+}
     }
 
     if (show_all_opt->count > 0) {
@@ -455,18 +459,18 @@ int cat_command(int argc, char** argv) {
         opts.show_tabs = 1;
     }
 
-    if (opts.show_nonempty_line_numbers) {
+    if (opts.show_nonempty_line_numbers != 0) {
         opts.show_line_numbers = 0;
     }
 
-    int use_buffer = opts.blame_mode || opts.highlight_mode || opts.header_mode ||
-                     opts.diff_file || opts.range_start || opts.range_end ||
-                     opts.grep_pattern || opts.context_lines > 0 ||
+    int const use_buffer = static_cast<int>((opts.blame_mode != 0) || (opts.highlight_mode != 0) || (opts.header_mode != 0) ||
+                     (opts.diff_file != nullptr) || (opts.range_start != 0) || (opts.range_end != 0) ||
+                     (opts.grep_pattern != nullptr) || opts.context_lines > 0 ||
                      opts.head_lines > 0 || opts.tail_lines > 0 ||
-                     opts.show_stats || opts.number_format > 0;
+                     (opts.show_stats != 0) || opts.number_format > 0);
     int line_num = 1;
 
-    if (opts.less_mode && isatty(STDOUT_FILENO)) {
+    if ((opts.less_mode != 0) && (isatty(STDOUT_FILENO) != 0)) {
         out_fp = open_memstream(&pager_buf, &pager_buf_size);
         if (out_fp == NULL) {
             out_fp = stdout;
@@ -475,7 +479,7 @@ int cat_command(int argc, char** argv) {
     }
 
     if (file_arg->count == 0) {
-        if (use_buffer) {
+        if (use_buffer != 0) {
             run_pipeline(NULL, &opts, &line_num, out_fp);
         } else {
             process_file(stdin, &line_num, &opts, out_fp);
@@ -483,8 +487,8 @@ int cat_command(int argc, char** argv) {
     } else {
         int prev_file_had_newline = 1;
         for (int i = 0; i < file_arg->count; i++) {
-            if (use_buffer) {
-                if (i > 0 && !prev_file_had_newline) {
+            if (use_buffer != 0) {
+                if (i > 0 && (prev_file_had_newline == 0)) {
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                     (void)fprintf(out_fp, "\n");
                 }
@@ -502,7 +506,7 @@ int cat_command(int argc, char** argv) {
                     prev_file_had_newline = 1;
                     continue;
                 }
-                if (i > 0 && !prev_file_had_newline) {
+                if (i > 0 && (prev_file_had_newline == 0)) {
                     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                     (void)fprintf(out_fp, "\n");
                 }
@@ -519,8 +523,8 @@ int cat_command(int argc, char** argv) {
         if (pager_buf != NULL) {
             std::vector<std::string> pager_lines;
             char* saveptr;
-            char* line = strtok_r(pager_buf, "\n", &saveptr);
-            while (line) {
+            const char *line = strtok_r(pager_buf, "\n", &saveptr);
+            while (line != nullptr) {
                 pager_lines.push_back(line);
                 line = strtok_r(nullptr, "\n", &saveptr);
             }

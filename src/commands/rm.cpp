@@ -1,11 +1,11 @@
 #include <argtable3.h>
 #include <dirent.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
-#include <time.h>
+#include <ctime>
 #include <unistd.h>
 
 #include "commands/rm.hpp"
@@ -19,7 +19,8 @@
 static int ensure_trash_dir(const char *trash_dir) {
   struct stat st;
   if (stat(trash_dir, &st) == 0) {
-    if (S_ISDIR(st.st_mode)) return 0;
+    if (S_ISDIR(st.st_mode)) { return 0;
+}
     errno = ENOTDIR;
     return -1;
   }
@@ -30,21 +31,24 @@ static int ensure_trash_dir(const char *trash_dir) {
 static char* resolve_trash_path(const char* path, const char* home) {
     static char dest[4096];
     const char* base = strrchr(path, '/');
-    base = base ? base + 1 : path;
-    snprintf(dest, sizeof(dest), "%s/.trash/%s", home, base);
-    if (access(dest, F_OK) != 0) return dest;
+    base = (base != nullptr) ? base + 1 : path;
+    (void)snprintf(dest, sizeof(dest), "%s/.trash/%s", home, base);
+    if (access(dest, F_OK) != 0) { return dest;
+}
     for (int i = 1; i < 10000; i++) {
-        snprintf(dest, sizeof(dest), "%s/.trash/%s.%d", home, base, i);
-        if (access(dest, F_OK) != 0) return dest;
+        (void)snprintf(dest, sizeof(dest), "%s/.trash/%s.%d", home, base, i);
+        if (access(dest, F_OK) != 0) { return dest;
+}
     }
-    snprintf(dest, sizeof(dest), "%s/.trash/%s.%ld.%d", home, base, (long)time(NULL), rand());
+    (void)snprintf(dest, sizeof(dest), "%s/.trash/%s.%ld.%d", home, base, static_cast<long>(time(NULL)), rand());
     return dest;
 }
 
 static int copy_file_to_trash(const char *src, const char *dest) {
   // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
   FILE *fsrc = fopen(src, "rb");
-  if (fsrc == NULL) return -1;
+  if (fsrc == NULL) { return -1;
+}
 
   // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
   FILE *fdst = fopen(dest, "wb");
@@ -67,7 +71,7 @@ static int copy_file_to_trash(const char *src, const char *dest) {
     }
   }
 
-  if (ferror(fsrc)) {
+  if (ferror(fsrc) != 0) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(fsrc);
     // NOLINTNEXTLINE(bugprone-unused-return-value)
@@ -87,10 +91,12 @@ static int copy_file_to_trash(const char *src, const char *dest) {
 // NOLINTNEXTLINE(misc-no-recursion)
 static int move_to_trash(const char *path, const RmOptions *opts) {
   struct stat st;
-  if (lstat(path, &st) != 0) return -1;
+  if (lstat(path, &st) != 0) { return -1;
+}
 
   const char *home = getenv("HOME");
-  if (home == NULL) return -1;
+  if (home == NULL) { return -1;
+}
 
   char trash_dir[4096];
   // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -102,8 +108,9 @@ static int move_to_trash(const char *path, const RmOptions *opts) {
     return -1;
   }
 
-  char *dest = resolve_trash_path(path, home);
-  if (dest == NULL) return -1;
+  char const *dest = resolve_trash_path(path, home);
+  if (dest == NULL) { return -1;
+}
 
   int ret = 0;
 
@@ -135,7 +142,8 @@ static int move_to_trash(const char *path, const RmOptions *opts) {
         char child_src[4096];
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(child_src, sizeof(child_src), "%s/%s", path, entry->d_name);
-        if (move_to_trash(child_src, opts) != 0) ret = -1;
+        if (move_to_trash(child_src, opts) != 0) { ret = -1;
+}
       }
       // NOLINTNEXTLINE(bugprone-unused-return-value)
       (void)closedir(dir);
@@ -158,7 +166,7 @@ static int move_to_trash(const char *path, const RmOptions *opts) {
     }
   }
 
-  if (ret == 0 && opts->is_verbose) {
+  if (ret == 0 && (opts->is_verbose != 0)) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)printf("trashed '%s' -> '%s'\n", path, dest);
   }
@@ -174,13 +182,13 @@ static bool prompt_remove(const char *path) {
   int in_opened = 0;
   int out_opened = 0;
 
-  if (isatty(STDIN_FILENO)) {
+  if (isatty(STDIN_FILENO) != 0) {
     in = fopen("/dev/tty", "r");
     if (in != NULL) {
       in_opened = 1;
     }
   }
-  if (isatty(STDOUT_FILENO)) {
+  if (isatty(STDOUT_FILENO) != 0) {
     out = fopen("/dev/tty", "w");
     if (out != NULL) {
       out_opened = 1;
@@ -203,11 +211,11 @@ static bool prompt_remove(const char *path) {
     }
   }
 
-  if (in_opened && in != NULL) {
+  if ((in_opened != 0) && in != NULL) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(in);
   }
-  if (out_opened && out != NULL) {
+  if ((out_opened != 0) && out != NULL) {
     // NOLINTNEXTLINE(bugprone-unused-return-value)
     (void)fclose(out);
   }
@@ -217,16 +225,18 @@ static bool prompt_remove(const char *path) {
 // NOLINTNEXTLINE(misc-no-recursion)
 static int remove_entry(const char *path, const RmOptions *opts) {
   /* Trash mode: move to ~/.trash instead of unlinking */
-  if (opts->is_trash) {
+  if (opts->is_trash != 0) {
     return move_to_trash(path, opts);
   }
 
   struct stat st;
-  if (lstat(path, &st) != 0) return -1;
+  if (lstat(path, &st) != 0) { return -1;
+}
 
   if (S_ISDIR(st.st_mode)) {
     DIR *dir = opendir(path);
-    if (dir == NULL) return -1;
+    if (dir == NULL) { return -1;
+}
 
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     struct dirent *entry;
@@ -265,7 +275,7 @@ static int remove_file(const char *path, const RmOptions *opts) {
   struct stat st;
 
   /* -d: only remove with rmdir if it's an empty directory */
-  if (opts->remove_empty_dirs) {
+  if (opts->remove_empty_dirs != 0) {
     if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
       if (rmdir(path) == 0) {
         return 0;
@@ -281,14 +291,14 @@ static int remove_file(const char *path, const RmOptions *opts) {
     return -1;
   }
 
-  if (S_ISDIR(st.st_mode) && !opts->is_recursive) {
+  if (S_ISDIR(st.st_mode) && (opts->is_recursive == 0)) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(stderr, "rm: cannot remove '%s': Is a directory\n", path);
     return -1;
   }
 
     /* Interactive prompt */
-  if (opts->is_interactive) {
+  if (opts->is_interactive != 0) {
     if (!prompt_remove(path)) {
       return 0;
     }
@@ -302,7 +312,7 @@ static int remove_file(const char *path, const RmOptions *opts) {
       return -1;
     }
   } else {
-    if (opts->is_trash) {
+    if (opts->is_trash != 0) {
       if (move_to_trash(path, opts) != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "rm: cannot trash '%s': %s\n", path,
@@ -319,7 +329,7 @@ static int remove_file(const char *path, const RmOptions *opts) {
     }
   }
 
-  if (opts->is_verbose) {
+  if (opts->is_verbose != 0) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)printf("removed '%s'\n", path);
   }
@@ -362,7 +372,7 @@ int rm_command(int argc, char **argv) {
                preserve_root_opt, trash_opt, help_opt,
                files_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION]... FILE...\n", argv[0]);
@@ -386,21 +396,21 @@ int rm_command(int argc, char **argv) {
   }
 
   RmOptions opts = {};
-  opts.is_recursive = (recursive_opt->count > 0);
-  opts.is_force = (force_opt->count > 0);
-  opts.is_interactive = (interactive_opt->count > 0);
-  opts.is_verbose = (verbose_opt->count > 0);
-  opts.remove_empty_dirs = (dir_opt->count > 0);
-  opts.is_trash = (trash_opt->count > 0);
+  opts.is_recursive = static_cast<int>(recursive_opt->count > 0);
+  opts.is_force = static_cast<int>(force_opt->count > 0);
+  opts.is_interactive = static_cast<int>(interactive_opt->count > 0);
+  opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+  opts.remove_empty_dirs = static_cast<int>(dir_opt->count > 0);
+  opts.is_trash = static_cast<int>(trash_opt->count > 0);
 
   /* -f overrides -i */
-  if (opts.is_force) {
+  if (opts.is_force != 0) {
     opts.is_interactive = 0;
   }
 
   /* Default: no prompting — use -i for interactive confirmation */
 
-  int num_files = files_arg->count;
+  int const num_files = files_arg->count;
 
   if (num_files < 1) {
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
@@ -412,7 +422,7 @@ int rm_command(int argc, char **argv) {
     const char *path = files_arg->filename[i];
 
     /* If force, skip nonexistent files silently */
-    if (opts.is_force) {
+    if (opts.is_force != 0) {
       struct stat st;
       if (lstat(path, &st) != 0) {
         if (errno == ENOENT) {

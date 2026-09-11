@@ -12,7 +12,7 @@ struct ChgrpOptions {
     int no_dereference = 0;
     int traverse_mode = 0;
     int group_set = 0;
-    gid_t group = (gid_t)-1;
+    gid_t group = static_cast<gid_t>(-1);
     const char* reference = nullptr;
 };
 

@@ -31,7 +31,7 @@ static void print_help(const char* prog) {
 }
 
 static void usage_error(const char* prog) {
-    fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+    (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
     exit(EXIT_CANCELED);
 }
 
@@ -72,10 +72,10 @@ int nice_command(int argc, char** argv) {
 
         // Obsolete form: -N, --N, -+N (e.g. -10, --5, -+5).
         if (s[0] == '-' && s[1] != '\0') {
-            int idx = (s[1] == '-' || s[1] == '+') ? 2 : 1;
-            if (isdigit((unsigned char)s[idx])) {
+            int const idx = (s[1] == '-' || s[1] == '+') ? 2 : 1;
+            if (isdigit(static_cast<unsigned char>(s[idx])) != 0) {
                 if (!accumulate_adjustment(prog, s + 1, &adjustment)) {
-                    fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, s + 1);
+                    (void)fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, s + 1);
                     usage_error(prog);
                 }
                 have_adjustment = true;
@@ -100,11 +100,11 @@ int nice_command(int argc, char** argv) {
         // -n N  and  -nN
         if (strcmp(s, "-n") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s: option requires an argument -- 'n'\n", prog);
+                (void)fprintf(stderr, "%s: option requires an argument -- 'n'\n", prog);
                 usage_error(prog);
             }
             if (!accumulate_adjustment(prog, argv[i + 1], &adjustment)) {
-                fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, argv[i + 1]);
+                (void)fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, argv[i + 1]);
                 usage_error(prog);
             }
             have_adjustment = true;
@@ -113,7 +113,7 @@ int nice_command(int argc, char** argv) {
         }
         if (strncmp(s, "-n", 2) == 0) {
             if (!accumulate_adjustment(prog, s + 2, &adjustment)) {
-                fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, s + 2);
+                (void)fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, s + 2);
                 usage_error(prog);
             }
             have_adjustment = true;
@@ -124,7 +124,7 @@ int nice_command(int argc, char** argv) {
         // --adjustment=N  and  --adjustment N
         if (strncmp(s, "--adjustment=", 13) == 0) {
             if (!accumulate_adjustment(prog, s + 13, &adjustment)) {
-                fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, s + 13);
+                (void)fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, s + 13);
                 usage_error(prog);
             }
             have_adjustment = true;
@@ -133,11 +133,11 @@ int nice_command(int argc, char** argv) {
         }
         if (strcmp(s, "--adjustment") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "%s: option '--adjustment' requires an argument\n", prog);
+                (void)fprintf(stderr, "%s: option '--adjustment' requires an argument\n", prog);
                 usage_error(prog);
             }
             if (!accumulate_adjustment(prog, argv[i + 1], &adjustment)) {
-                fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, argv[i + 1]);
+                (void)fprintf(stderr, "%s: invalid adjustment '%s'\n", prog, argv[i + 1]);
                 usage_error(prog);
             }
             have_adjustment = true;
@@ -147,7 +147,7 @@ int nice_command(int argc, char** argv) {
 
         // Any other leading-dash token is an unknown option.
         if (s[0] == '-' && s[1] != '\0') {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", prog, s);
+            (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, s);
             usage_error(prog);
         }
 
@@ -158,13 +158,13 @@ int nice_command(int argc, char** argv) {
     // No command given.
     if (i >= argc) {
         if (have_adjustment) {
-            fprintf(stderr, "%s: a command must be given with an adjustment\n", prog);
+            (void)fprintf(stderr, "%s: a command must be given with an adjustment\n", prog);
             usage_error(prog);
         }
         errno = 0;
-        int current = getpriority(PRIO_PROCESS, 0);
+        int const current = getpriority(PRIO_PROCESS, 0);
         if (current == -1 && errno != 0) {
-            fprintf(stderr, "%s: cannot get niceness: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: cannot get niceness: %s\n", prog, strerror(errno));
             exit(EXIT_CANCELED);
         }
         printf("%d\n", current);
@@ -176,21 +176,21 @@ int nice_command(int argc, char** argv) {
     }
 
     errno = 0;
-    int current = getpriority(PRIO_PROCESS, 0);
+    int const current = getpriority(PRIO_PROCESS, 0);
     if (current == -1 && errno != 0) {
-        fprintf(stderr, "%s: cannot get niceness: %s\n", prog, strerror(errno));
+        (void)fprintf(stderr, "%s: cannot get niceness: %s\n", prog, strerror(errno));
         exit(EXIT_CANCELED);
     }
 
     if (setpriority(PRIO_PROCESS, 0, current + adjustment) != 0) {
         // Failing to set the niceness is non-fatal: warn and still run COMMAND.
-        fprintf(stderr, "%s: cannot set niceness: %s\n", prog, strerror(errno));
+        (void)fprintf(stderr, "%s: cannot set niceness: %s\n", prog, strerror(errno));
     }
 
     execvp(argv[i], &argv[i]);
 
-    int code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
-    fprintf(stderr, "%s: %s: %s\n", prog, argv[i], strerror(errno));
+    int const code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
+    (void)fprintf(stderr, "%s: %s: %s\n", prog, argv[i], strerror(errno));
     exit(code);
 }
 REGISTER_COMMAND("nice", nice_command, "Run with modified scheduling priority");

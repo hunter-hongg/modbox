@@ -27,12 +27,14 @@
 static inline uint16_t hex_to_uint16(const std::string& s) {
     uint16_t val = 0;
     for (size_t i = 0; i < 4 && i < s.size(); ++i) {
-        char c = s[i];
+        char const c = s[i];
         uint8_t nibble = 0xFF;
-        if (c >= '0' && c <= '9') nibble = static_cast<uint8_t>(c - '0');
-        else if (c >= 'a' && c <= 'f') nibble = static_cast<uint8_t>(c - 'a' + 10);
-        else if (c >= 'A' && c <= 'F') nibble = static_cast<uint8_t>(c - 'A' + 10);
-        if (nibble == 0xFF) return 0;
+        if (c >= '0' && c <= '9') { nibble = static_cast<uint8_t>(c - '0');
+        } else if (c >= 'a' && c <= 'f') { nibble = static_cast<uint8_t>(c - 'a' + 10);
+        } else if (c >= 'A' && c <= 'F') { nibble = static_cast<uint8_t>(c - 'A' + 10);
+}
+        if (nibble == 0xFF) { return 0;
+}
         val = static_cast<uint16_t>((val << 4) | nibble);
     }
     return val;
@@ -45,20 +47,23 @@ public:
     // caller falls back to raw hex IDs).
     bool load(const char* filepath) {
         FILE* f = std::fopen(filepath, "r");
-        if (!f) return false;
+        if (f == nullptr) { return false;
+}
         vendors_.clear();
         devices_.clear();
         char line[1024];
         uint16_t cur_vendor = 0;
         bool have_vendor = false;
-        while (std::fgets(line, sizeof(line), f)) {
+        while (std::fgets(line, sizeof(line), f) != nullptr) {
             // Strip trailing newline.
             size_t len = std::strlen(line);
             while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
                 line[--len] = '\0';
             }
-            if (len == 0) continue;
-            if (line[0] == '#') continue;
+            if (len == 0) { continue;
+}
+            if (line[0] == '#') { continue;
+}
 
             // Count leading tabs = nesting depth.
             size_t depth = 0;
@@ -68,13 +73,18 @@ public:
 
             if (depth == 1) {
                 // Device/product line: one tab, then a 4-hex id, then the name.
-                if (!have_vendor) continue;
+                if (!have_vendor) { continue;
+}
                 const char* p = line + 1;
                 uint16_t did = 0;
-                if (!parse_hex4(p, did)) continue;
-                if (*p != ' ' && *p != '\t') continue;   // must be id + separator
-                while (*p == ' ' || *p == '\t') ++p;
-                if (*p != '\0') add_device(cur_vendor, did, p);
+                if (!parse_hex4(p, did)) { continue;
+}
+                if (*p != ' ' && *p != '\t') { continue;   // must be id + separator
+}
+                while (*p == ' ' || *p == '\t') { ++p;
+}
+                if (*p != '\0') { add_device(cur_vendor, did, p);
+}
             } else if (depth == 0) {
                 // Column-0 line. A vendor header is exactly 4 hex digits
                 // followed by whitespace. Section headers ("C ", "AT ",
@@ -83,7 +93,8 @@ public:
                 const char* p = line;
                 uint16_t vid = 0;
                 if (parse_hex4(p, vid) && (*p == ' ' || *p == '\t')) {
-                    while (*p == ' ' || *p == '\t') ++p;
+                    while (*p == ' ' || *p == '\t') { ++p;
+}
                     if (*p != '\0') {
                         add_vendor(vid, p);
                         cur_vendor = vid;
@@ -93,7 +104,7 @@ public:
             }
             // depth >= 2: subsystem / interface / prog-if lines — skip.
         }
-        std::fclose(f);
+        (void)std::fclose(f);
         return true;
     }
 
@@ -119,12 +130,13 @@ private:
     static bool parse_hex4(const char*& s, uint16_t& out) {
         uint32_t val = 0;
         for (int i = 0; i < 4; ++i) {
-            char c = s[i];
+            char const c = s[i];
             uint8_t nibble = 0;
-            if (c >= '0' && c <= '9') nibble = static_cast<uint8_t>(c - '0');
-            else if (c >= 'a' && c <= 'f') nibble = static_cast<uint8_t>(c - 'a' + 10);
-            else if (c >= 'A' && c <= 'F') nibble = static_cast<uint8_t>(c - 'A' + 10);
-            else return false;
+            if (c >= '0' && c <= '9') { nibble = static_cast<uint8_t>(c - '0');
+            } else if (c >= 'a' && c <= 'f') { nibble = static_cast<uint8_t>(c - 'a' + 10);
+            } else if (c >= 'A' && c <= 'F') { nibble = static_cast<uint8_t>(c - 'A' + 10);
+            } else { return false;
+}
             val = (val << 4) | nibble;
         }
         s += 4;
@@ -141,9 +153,11 @@ private:
 
     static std::string trim(const char* s) {
         const char* start = s;
-        while (*start == ' ' || *start == '\t') ++start;
+        while (*start == ' ' || *start == '\t') { ++start;
+}
         const char* end = start + std::strlen(start);
-        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) --end;
+        while (end > start && (end[-1] == ' ' || end[-1] == '\t')) { --end;
+}
         return std::string(start, static_cast<size_t>(end - start));
     }
 
@@ -157,7 +171,8 @@ private:
 // A missing db is non-fatal (names fall back to raw IDs).
 inline std::string get_ids_dir() {
     if (const char* env = std::getenv("MODBOX_IDS_DIR")) {
-        if (env[0] != '\0') return std::string(env);
+        if (env[0] != '\0') { return std::string(env);
+}
     }
     return std::string("/usr/share/hwdata");
 }
@@ -165,7 +180,8 @@ inline std::string get_ids_dir() {
 // Resolve the sysfs root (default "/sys"); MODBOX_SYSFS overrides for tests.
 inline std::string get_sysfs_root() {
     if (const char* env = std::getenv("MODBOX_SYSFS")) {
-        if (env[0] != '\0') return std::string(env);
+        if (env[0] != '\0') { return std::string(env);
+}
     }
     return std::string("/sys");
 }

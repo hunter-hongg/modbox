@@ -1,9 +1,6 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
-#include <cctype>
-#include <string>
-#include <vector>
 #include <argtable3.h>
 #include "commands/basenc.hpp"
 #include "commands/arg_util.hpp"
@@ -19,8 +16,8 @@ static const char base64url_table[] =
 static int8_t build_decode_table(const char* alphabet) {
     static int8_t table[128];
     memset(table, -1, sizeof(table));
-    for (int i = 0; alphabet[i]; i++) {
-        table[(int)alphabet[i]] = (int8_t)i;
+    for (int i = 0; alphabet[i] != 0; i++) {
+        table[static_cast<int>(alphabet[i])] = static_cast<int8_t>(i);
     }
     table['='] = -2;  // padding marker
     return 0;
@@ -33,17 +30,17 @@ static void base16_encode(FILE* in, FILE* out, int wrap_cols) {
     int col = 0;
     int c;
     while ((c = fgetc(in)) != EOF) {
-        fprintf(out, "%02X", (unsigned char)c);
+        (void)fprintf(out, "%02X", static_cast<unsigned char>(c));
         if (wrap_cols > 0) {
             col += 2;
             if (col >= wrap_cols) {
-                fputc('\n', out);
+                (void)fputc('\n', out);
                 col = 0;
             }
         }
     }
     if (wrap_cols > 0 && col > 0) {
-        fputc('\n', out);
+        (void)fputc('\n', out);
     }
 }
 
@@ -51,18 +48,21 @@ static bool base16_decode(FILE* in, FILE* out, bool ignore_garbage) {
     int nybble_hi = -1;
     int c;
     while ((c = fgetc(in)) != EOF) {
-        if (c == '\n' || c == '\r' || c == ' ') continue;
+        if (c == '\n' || c == '\r' || c == ' ') { continue;
+}
         int val = -1;
-        if (c >= '0' && c <= '9') val = c - '0';
-        else if (c >= 'A' && c <= 'F') val = c - 'A' + 10;
-        else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
-        else if (!ignore_garbage) return false;
-        if (val < 0) { if (!ignore_garbage) return false; continue; }
+        if (c >= '0' && c <= '9') { val = c - '0';
+        } else if (c >= 'A' && c <= 'F') { val = c - 'A' + 10;
+        } else if (c >= 'a' && c <= 'f') { val = c - 'a' + 10;
+        } else if (!ignore_garbage) { return false;
+}
+        if (val < 0) { if (!ignore_garbage) { return false; 
+}continue; }
 
         if (nybble_hi < 0) {
             nybble_hi = val;
         } else {
-            fputc((nybble_hi << 4) | val, out);
+            (void)fputc((nybble_hi << 4) | val, out);
             nybble_hi = -1;
         }
     }
@@ -79,11 +79,13 @@ static void base32_encode_generic(FILE* in, FILE* out, int wrap_cols,
     int col = 0;
 
     while (true) {
-        size_t n = fread(buf, 1, 5, in);
-        if (n == 0) break;
+        size_t const n = fread(buf, 1, 5, in);
+        if (n == 0) { break;
+}
 
         if (n < 5) {
-            for (size_t i = n; i < 5; i++) buf[i] = 0;
+            for (size_t i = n; i < 5; i++) { buf[i] = 0;
+}
         }
 
         uint8_t out_chars[8];
@@ -126,11 +128,11 @@ static void base32_encode_generic(FILE* in, FILE* out, int wrap_cols,
         }
 
         for (int i = 0; i < out_len; i++) {
-            fputc(out_chars[i], out);
+            (void)fputc(out_chars[i], out);
             if (wrap_cols > 0) {
                 col++;
                 if (col >= wrap_cols) {
-                    fputc('\n', out);
+                    (void)fputc('\n', out);
                     col = 0;
                 }
             }
@@ -138,7 +140,7 @@ static void base32_encode_generic(FILE* in, FILE* out, int wrap_cols,
     }
 
     if (wrap_cols > 0 && col > 0) {
-        fputc('\n', out);
+        (void)fputc('\n', out);
     }
 }
 
@@ -149,15 +151,17 @@ static bool base32_decode_generic(FILE* in, FILE* out, const char* alphabet,
     int padding = 0;
     int8_t decode_table[128];
     memset(decode_table, -1, sizeof(decode_table));
-    for (int i = 0; alphabet[i]; i++) {
-        decode_table[(int)alphabet[i]] = (int8_t)i;
+    for (int i = 0; alphabet[i] != 0; i++) {
+        decode_table[static_cast<int>(alphabet[i])] = static_cast<int8_t>(i);
     }
 
     while (true) {
-        int c = fgetc(in);
-        if (c == EOF) break;
+        int const c = fgetc(in);
+        if (c == EOF) { break;
+}
 
-        if (c == '\n' || c == '\r' || c == ' ') continue;
+        if (c == '\n' || c == '\r' || c == ' ') { continue;
+}
 
         if (c == '=') {
             padding++;
@@ -171,13 +175,14 @@ static bool base32_decode_generic(FILE* in, FILE* out, const char* alphabet,
                 out_buf[4] = ((buf[6] & 0x07) << 5) | buf[7];
 
                 int out_len;
-                if (padding >= 6) out_len = 1;
-                else if (padding >= 4) out_len = 2;
-                else if (padding >= 3) out_len = 3;
-                else if (padding >= 1) out_len = 4;
-                else out_len = 5;
+                if (padding >= 6) { out_len = 1;
+                } else if (padding >= 4) { out_len = 2;
+                } else if (padding >= 3) { out_len = 3;
+                } else if (padding >= 1) { out_len = 4;
+                } else { out_len = 5;
+}
 
-                fwrite(out_buf, 1, out_len, out);
+                (void)fwrite(out_buf, 1, out_len, out);
                 buf_idx = 0;
                 padding = 0;
             }
@@ -185,7 +190,7 @@ static bool base32_decode_generic(FILE* in, FILE* out, const char* alphabet,
         }
 
         if (c >= 0 && c < 128) {
-            int8_t val = decode_table[c];
+            int8_t const val = decode_table[c];
             if (val >= 0) {
                 buf[buf_idx++] = val;
             } else if (!ignore_garbage) {
@@ -203,7 +208,7 @@ static bool base32_decode_generic(FILE* in, FILE* out, const char* alphabet,
             out_buf[3] = ((buf[4] & 0x01) << 7) | (buf[5] << 2) | (buf[6] >> 3);
             out_buf[4] = ((buf[6] & 0x07) << 5) | buf[7];
 
-            fwrite(out_buf, 1, 5, out);
+            (void)fwrite(out_buf, 1, 5, out);
             buf_idx = 0;
         }
     }
@@ -218,11 +223,13 @@ static void base64_encode_generic(FILE* in, FILE* out, int wrap_cols,
     int col = 0;
 
     while (true) {
-        size_t n = fread(buf, 1, 3, in);
-        if (n == 0) break;
+        size_t const n = fread(buf, 1, 3, in);
+        if (n == 0) { break;
+}
 
         if (n < 3) {
-            for (size_t i = n; i < 3; i++) buf[i] = 0;
+            for (size_t i = n; i < 3; i++) { buf[i] = 0;
+}
         }
 
         uint8_t out_chars[4];
@@ -239,11 +246,11 @@ static void base64_encode_generic(FILE* in, FILE* out, int wrap_cols,
         }
 
         for (int i = 0; i < 4; i++) {
-            fputc(out_chars[i], out);
+            (void)fputc(out_chars[i], out);
             if (wrap_cols > 0) {
                 col++;
                 if (col >= wrap_cols) {
-                    fputc('\n', out);
+                    (void)fputc('\n', out);
                     col = 0;
                 }
             }
@@ -251,7 +258,7 @@ static void base64_encode_generic(FILE* in, FILE* out, int wrap_cols,
     }
 
     if (wrap_cols > 0 && col > 0) {
-        fputc('\n', out);
+        (void)fputc('\n', out);
     }
 }
 
@@ -262,15 +269,17 @@ static bool base64_decode_generic(FILE* in, FILE* out, const char* alphabet,
     int padding = 0;
     int8_t decode_table[128];
     memset(decode_table, -1, sizeof(decode_table));
-    for (int i = 0; alphabet[i]; i++) {
-        decode_table[(int)alphabet[i]] = (int8_t)i;
+    for (int i = 0; alphabet[i] != 0; i++) {
+        decode_table[static_cast<int>(alphabet[i])] = static_cast<int8_t>(i);
     }
 
     while (true) {
-        int c = fgetc(in);
-        if (c == EOF) break;
+        int const c = fgetc(in);
+        if (c == EOF) { break;
+}
 
-        if (c == '\n' || c == '\r' || c == ' ') continue;
+        if (c == '\n' || c == '\r' || c == ' ') { continue;
+}
 
         if (c == '=') {
             padding++;
@@ -282,11 +291,12 @@ static bool base64_decode_generic(FILE* in, FILE* out, const char* alphabet,
                 out_buf[2] = (buf[2] << 6) | buf[3];
 
                 int out_len;
-                if (padding >= 2) out_len = 1;
-                else if (padding >= 1) out_len = 2;
-                else out_len = 3;
+                if (padding >= 2) { out_len = 1;
+                } else if (padding >= 1) { out_len = 2;
+                } else { out_len = 3;
+}
 
-                fwrite(out_buf, 1, out_len, out);
+                (void)fwrite(out_buf, 1, out_len, out);
                 buf_idx = 0;
                 padding = 0;
             }
@@ -294,7 +304,7 @@ static bool base64_decode_generic(FILE* in, FILE* out, const char* alphabet,
         }
 
         if (c >= 0 && c < 128) {
-            int8_t val = decode_table[c];
+            int8_t const val = decode_table[c];
             if (val >= 0) {
                 buf[buf_idx++] = val;
             } else if (!ignore_garbage) {
@@ -310,7 +320,7 @@ static bool base64_decode_generic(FILE* in, FILE* out, const char* alphabet,
             out_buf[1] = (buf[1] << 4) | (buf[2] >> 2);
             out_buf[2] = (buf[2] << 6) | buf[3];
 
-            fwrite(out_buf, 1, 3, out);
+            (void)fwrite(out_buf, 1, 3, out);
             buf_idx = 0;
         }
     }
@@ -324,17 +334,18 @@ static void base2msbf_encode(FILE* in, FILE* out, int wrap_cols) {
     int c;
     while ((c = fgetc(in)) != EOF) {
         for (int bit = 7; bit >= 0; bit--) {
-            fputc((c & (1 << bit)) ? '1' : '0', out);
+            (void)fputc(((c & (1 << bit)) != 0) ? '1' : '0', out);
             if (wrap_cols > 0) {
                 col++;
                 if (col >= wrap_cols) {
-                    fputc('\n', out);
+                    (void)fputc('\n', out);
                     col = 0;
                 }
             }
         }
     }
-    if (wrap_cols > 0 && col > 0) fputc('\n', out);
+    if (wrap_cols > 0 && col > 0) { (void)fputc('\n', out);
+}
 }
 
 static bool base2msbf_decode(FILE* in, FILE* out, bool ignore_garbage) {
@@ -342,7 +353,8 @@ static bool base2msbf_decode(FILE* in, FILE* out, bool ignore_garbage) {
     int bits = 0;
     int c;
     while ((c = fgetc(in)) != EOF) {
-        if (c == '\n' || c == '\r' || c == ' ') continue;
+        if (c == '\n' || c == '\r' || c == ' ') { continue;
+}
         if (c == '0') {
             byte_val = (byte_val << 1);
             bits++;
@@ -353,7 +365,7 @@ static bool base2msbf_decode(FILE* in, FILE* out, bool ignore_garbage) {
             return false;
         }
         if (bits == 8) {
-            fputc(byte_val, out);
+            (void)fputc(byte_val, out);
             byte_val = 0;
             bits = 0;
         }
@@ -367,17 +379,18 @@ static void base2lsbf_encode(FILE* in, FILE* out, int wrap_cols) {
     int c;
     while ((c = fgetc(in)) != EOF) {
         for (int bit = 0; bit < 8; bit++) {
-            fputc((c & (1 << bit)) ? '1' : '0', out);
+            (void)fputc(((c & (1 << bit)) != 0) ? '1' : '0', out);
             if (wrap_cols > 0) {
                 col++;
                 if (col >= wrap_cols) {
-                    fputc('\n', out);
+                    (void)fputc('\n', out);
                     col = 0;
                 }
             }
         }
     }
-    if (wrap_cols > 0 && col > 0) fputc('\n', out);
+    if (wrap_cols > 0 && col > 0) { (void)fputc('\n', out);
+}
 }
 
 static bool base2lsbf_decode(FILE* in, FILE* out, bool ignore_garbage) {
@@ -385,7 +398,8 @@ static bool base2lsbf_decode(FILE* in, FILE* out, bool ignore_garbage) {
     int bit_pos = 0;
     int c;
     while ((c = fgetc(in)) != EOF) {
-        if (c == '\n' || c == '\r' || c == ' ') continue;
+        if (c == '\n' || c == '\r' || c == ' ') { continue;
+}
         if (c == '1') {
             byte_val |= (1 << bit_pos);
             bit_pos++;
@@ -395,7 +409,7 @@ static bool base2lsbf_decode(FILE* in, FILE* out, bool ignore_garbage) {
             return false;
         }
         if (bit_pos == 8) {
-            fputc(byte_val, out);
+            (void)fputc(byte_val, out);
             byte_val = 0;
             bit_pos = 0;
         }
@@ -478,7 +492,7 @@ int basenc_command(int argc, char** argv) {
     ArgTable at({base64_opt, base64url_opt, base32_opt, base32hex_opt,
                  base16_opt, base2msbf_opt, base2lsbf_opt,
                  decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s ENCODING [OPTION]... [FILE]\n", argv[0]);
@@ -508,31 +522,32 @@ int basenc_command(int argc, char** argv) {
     }
 
     // Determine encoding type
-    int enc_count = base64_opt->count + base64url_opt->count + base32_opt->count +
+    int const enc_count = base64_opt->count + base64url_opt->count + base32_opt->count +
                     base32hex_opt->count + base16_opt->count + base2msbf_opt->count +
                     base2lsbf_opt->count;
     if (enc_count != 1) {
-        fprintf(stderr, "%s: exactly one encoding type must be specified\n", argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "%s: exactly one encoding type must be specified\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 0;
     }
 
     BaseNEncoding enc;
-    if (base64_opt->count) enc = BaseNEncoding::BASE64;
-    else if (base64url_opt->count) enc = BaseNEncoding::BASE64URL;
-    else if (base32_opt->count) enc = BaseNEncoding::BASE32;
-    else if (base32hex_opt->count) enc = BaseNEncoding::BASE32HEX;
-    else if (base16_opt->count) enc = BaseNEncoding::BASE16;
-    else if (base2msbf_opt->count) enc = BaseNEncoding::BASE2MSBF;
-    else enc = BaseNEncoding::BASE2LSBF;
+    if (base64_opt->count != 0) { enc = BaseNEncoding::BASE64;
+    } else if (base64url_opt->count != 0) { enc = BaseNEncoding::BASE64URL;
+    } else if (base32_opt->count != 0) { enc = BaseNEncoding::BASE32;
+    } else if (base32hex_opt->count != 0) { enc = BaseNEncoding::BASE32HEX;
+    } else if (base16_opt->count != 0) { enc = BaseNEncoding::BASE16;
+    } else if (base2msbf_opt->count != 0) { enc = BaseNEncoding::BASE2MSBF;
+    } else { enc = BaseNEncoding::BASE2LSBF;
+}
 
-    bool decode = (decode_opt->count > 0);
-    bool ignore_garbage = (ignore_garbage_opt->count > 0);
+    bool const decode = (decode_opt->count > 0);
+    bool const ignore_garbage = (ignore_garbage_opt->count > 0);
     int wrap_cols = 76;
 
     if (wrap_opt->count > 0) {
         if (wrap_opt->ival[0] < 0) {
-            fprintf(stderr, "basenc: invalid wrap value: %d\n", wrap_opt->ival[0]);
+            (void)fprintf(stderr, "basenc: invalid wrap value: %d\n", wrap_opt->ival[0]);
             return 0;
         }
         wrap_cols = wrap_opt->ival[0];
@@ -552,21 +567,21 @@ int basenc_command(int argc, char** argv) {
     if (!use_stdin) {
         in = fopen(filename, "rb");
         if (in == nullptr) {
-            fprintf(stderr, "basenc: %s: No such file or directory\n", filename);
+            (void)fprintf(stderr, "basenc: %s: No such file or directory\n", filename);
             return 0;
         }
     }
 
     if (decode) {
         if (!decode_stream(in, stdout, enc, ignore_garbage)) {
-            fprintf(stderr, "basenc: invalid input\n");
+            (void)fprintf(stderr, "basenc: invalid input\n");
         }
     } else {
         encode_stream(in, stdout, enc, wrap_cols);
     }
 
     if (!use_stdin) {
-        fclose(in);
+        (void)fclose(in);
     }
 
     return 0;

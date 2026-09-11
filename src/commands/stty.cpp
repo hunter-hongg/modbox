@@ -1,13 +1,15 @@
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
+#include <asm-generic/ioctls.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cctype>
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -33,110 +35,112 @@ struct BaudEntry {
 
 static const BaudEntry kBauds[] = {
 #ifdef B0
-    {B0, 0},
+    {.code=B0, .num=0},
 #endif
 #ifdef B50
-    {B50, 50},
+    {.code=B50, .num=50},
 #endif
 #ifdef B75
-    {B75, 75},
+    {.code=B75, .num=75},
 #endif
 #ifdef B110
-    {B110, 110},
+    {.code=B110, .num=110},
 #endif
 #ifdef B134
-    {B134, 134},
+    {.code=B134, .num=134},
 #endif
 #ifdef B150
-    {B150, 150},
+    {.code=B150, .num=150},
 #endif
 #ifdef B200
-    {B200, 200},
+    {.code=B200, .num=200},
 #endif
 #ifdef B300
-    {B300, 300},
+    {.code=B300, .num=300},
 #endif
 #ifdef B600
-    {B600, 600},
+    {.code=B600, .num=600},
 #endif
 #ifdef B1200
-    {B1200, 1200},
+    {.code=B1200, .num=1200},
 #endif
 #ifdef B1800
-    {B1800, 1800},
+    {.code=B1800, .num=1800},
 #endif
 #ifdef B2400
-    {B2400, 2400},
+    {.code=B2400, .num=2400},
 #endif
 #ifdef B4800
-    {B4800, 4800},
+    {.code=B4800, .num=4800},
 #endif
 #ifdef B9600
-    {B9600, 9600},
+    {.code=B9600, .num=9600},
 #endif
 #ifdef B19200
-    {B19200, 19200},
+    {.code=B19200, .num=19200},
 #endif
 #ifdef B38400
-    {B38400, 38400},
+    {.code=B38400, .num=38400},
 #endif
 #ifdef B57600
-    {B57600, 57600},
+    {.code=B57600, .num=57600},
 #endif
 #ifdef B115200
-    {B115200, 115200},
+    {.code=B115200, .num=115200},
 #endif
 #ifdef B230400
-    {B230400, 230400},
+    {.code=B230400, .num=230400},
 #endif
 #ifdef B460800
-    {B460800, 460800},
+    {.code=B460800, .num=460800},
 #endif
 #ifdef B500000
-    {B500000, 500000},
+    {.code=B500000, .num=500000},
 #endif
 #ifdef B576000
-    {B576000, 576000},
+    {.code=B576000, .num=576000},
 #endif
 #ifdef B921600
-    {B921600, 921600},
+    {.code=B921600, .num=921600},
 #endif
 #ifdef B1000000
-    {B1000000, 1000000},
+    {.code=B1000000, .num=1000000},
 #endif
 #ifdef B1152000
-    {B1152000, 1152000},
+    {.code=B1152000, .num=1152000},
 #endif
 #ifdef B1500000
-    {B1500000, 1500000},
+    {.code=B1500000, .num=1500000},
 #endif
 #ifdef B2000000
-    {B2000000, 2000000},
+    {.code=B2000000, .num=2000000},
 #endif
 #ifdef B2500000
-    {B2500000, 2500000},
+    {.code=B2500000, .num=2500000},
 #endif
 #ifdef B3000000
-    {B3000000, 3000000},
+    {.code=B3000000, .num=3000000},
 #endif
 #ifdef B3500000
-    {B3500000, 3500000},
+    {.code=B3500000, .num=3500000},
 #endif
 #ifdef B4000000
-    {B4000000, 4000000},
+    {.code=B4000000, .num=4000000},
 #endif
 };
 
 static speed_t encode_baud(int n) {
     for (const auto& b : kBauds) {
-        if (b.num == n) return b.code;
+        if (b.num == n) { return b.code;
+}
     }
     return static_cast<speed_t>(-1);
 }
 
 static int decode_baud(speed_t code) {
     for (const auto& b : kBauds) {
-        if (b.code == code) return b.num;
+        if (b.code == code) { return b.num;
+}
     }
     return -1;
 }
@@ -152,28 +156,31 @@ static void sprint_char(char* buf, size_t buflen, unsigned char c) {
         (void)snprintf(buf, buflen, "^?");
     } else if (c < 32) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buflen, "^%c", (char)(c + 64));
+        (void)snprintf(buf, buflen, "^%c", static_cast<char>(c + 64));
     } else if (c == ' ') {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)snprintf(buf, buflen, " ");
-    } else if (isprint(c)) {
+    } else if (isprint(c) != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buflen, "%c", (char)c);
+        (void)snprintf(buf, buflen, "%c", static_cast<char>(c));
     } else {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)snprintf(buf, buflen, "\\%03o", (int)c);
+        (void)snprintf(buf, buflen, "\\%03o", static_cast<int>(c));
     }
 }
 
 static int parse_char(const char* s) {
-    if (s == NULL) return -1;
+    if (s == NULL) { return -1;
+}
     if (strcmp(s, "-") == 0 || strcmp(s, "undef") == 0 ||
         strcmp(s, "<undef>") == 0) {
         return _POSIX_VDISABLE;
     }
     if (s[0] == '^' && s[1] != '\0' && s[2] == '\0') {
-        if (s[1] == '?') return 127;
-        if (s[1] >= '@' && s[1] <= '_') return s[1] - 64;
+        if (s[1] == '?') { return 127;
+}
+        if (s[1] >= '@' && s[1] <= '_') { return s[1] - 64;
+}
         return -1;
     }
     if (s[0] == '\\') {
@@ -185,11 +192,12 @@ static int parse_char(const char* s) {
             p++;
             count++;
         }
-        if (count > 0) return val & 0xff;
+        if (count > 0) { return val & 0xff;
+}
         return -1;
     }
     if (s[0] != '\0' && s[1] == '\0') {
-        return (unsigned char)s[0];
+        return static_cast<unsigned char>(s[0]);
     }
     return -1;
 }
@@ -308,7 +316,7 @@ struct CharMode {
     int idx;
 };
 
-static std::vector<CharMode> build_charmodes(void) {
+static std::vector<CharMode> build_charmodes() {
     std::vector<CharMode> v;
 #define ADD(nm, idx) v.push_back({nm, idx})
 #ifdef VINTR
@@ -380,16 +388,16 @@ static tcflag_t* group_ptr(int group) {
 
 static tcflag_t* group_ptr_of(const struct termios* t, int group) {
     switch (group) {
-        case G_IFLAG: return (tcflag_t*)&t->c_iflag;
-        case G_OFLAG: return (tcflag_t*)&t->c_oflag;
-        case G_CFLAG: return (tcflag_t*)&t->c_cflag;
-        case G_LFLAG: return (tcflag_t*)&t->c_lflag;
+        case G_IFLAG: return const_cast<tcflag_t*>(&t->c_iflag);
+        case G_OFLAG: return const_cast<tcflag_t*>(&t->c_oflag);
+        case G_CFLAG: return const_cast<tcflag_t*>(&t->c_cflag);
+        case G_LFLAG: return const_cast<tcflag_t*>(&t->c_lflag);
         default: return NULL;
     }
 }
 
 static bool mode_on(const struct termios* t, const FlagMode* fm) {
-    tcflag_t f = *group_ptr_of(t, fm->group);
+    tcflag_t const f = *group_ptr_of(t, fm->group);
     if (fm->clr_mask == 0) {
         return (f & fm->set_mask) != 0;
     }
@@ -400,18 +408,28 @@ static void apply_mode(const FlagMode* fm, bool on) {
     tcflag_t* f = group_ptr(fm->group);
     if (fm->clr_mask != 0) {
         *f &= ~fm->clr_mask;
-        if (on) *f |= fm->set_mask;
+        if (on) { *f |= fm->set_mask;
+}
     } else {
-        if (on) *f |= fm->set_mask;
-        else *f &= ~fm->set_mask;
+        if (on) { *f |= fm->set_mask;
+        } else { *f &= ~fm->set_mask;
+}
     }
 }
 
 static const FlagMode* find_mode(const char* name) {
-    for (const auto& fm : kControlModes) if (strcmp(fm.name, name) == 0) return &fm;
-    for (const auto& fm : kInputModes) if (strcmp(fm.name, name) == 0) return &fm;
-    for (const auto& fm : kOutputModes) if (strcmp(fm.name, name) == 0) return &fm;
-    for (const auto& fm : kLocalModes) if (strcmp(fm.name, name) == 0) return &fm;
+    for (const auto& fm : kControlModes) { if (strcmp(fm.name, name) == 0) { return &fm;
+}
+}
+    for (const auto& fm : kInputModes) { if (strcmp(fm.name, name) == 0) { return &fm;
+}
+}
+    for (const auto& fm : kOutputModes) { if (strcmp(fm.name, name) == 0) { return &fm;
+}
+}
+    for (const auto& fm : kLocalModes) { if (strcmp(fm.name, name) == 0) { return &fm;
+}
+}
     return NULL;
 }
 
@@ -464,82 +482,85 @@ static void apply_sane(struct termios* t) {
             name++;
         }
         const FlagMode* fm = find_mode(name);
-        if (fm == NULL) continue;
+        if (fm == NULL) { continue;
+}
         tcflag_t* f = group_ptr_of(t, fm->group);
         if (fm->clr_mask != 0) {
             *f &= ~fm->clr_mask;
-            if (on) *f |= fm->set_mask;
+            if (on) { *f |= fm->set_mask;
+}
         } else {
-            if (on) *f |= fm->set_mask;
-            else *f &= ~fm->set_mask;
+            if (on) { *f |= fm->set_mask;
+            } else { *f &= ~fm->set_mask;
+}
         }
     }
 
     static const struct { const char* name; int val; } sane_cc[] = {
 #ifdef VINTR
-        {"intr", 3},
+        {.name="intr", .val=3},
 #endif
 #ifdef VQUIT
-        {"quit", 28},
+        {.name="quit", .val=28},
 #endif
 #ifdef VERASE
-        {"erase", 127},
+        {.name="erase", .val=127},
 #endif
 #ifdef VKILL
-        {"kill", 21},
+        {.name="kill", .val=21},
 #endif
 #ifdef VEOF
-        {"eof", 4},
+        {.name="eof", .val=4},
 #endif
 #ifdef VEOL
-        {"eol", _POSIX_VDISABLE},
+        {.name="eol", .val=_POSIX_VDISABLE},
 #endif
 #ifdef VEOL2
-        {"eol2", _POSIX_VDISABLE},
+        {.name="eol2", .val=_POSIX_VDISABLE},
 #endif
 #ifdef VSWTC
-        {"swtch", _POSIX_VDISABLE},
+        {.name="swtch", .val=_POSIX_VDISABLE},
 #elif defined(VSWTCH)
         {"swtch", _POSIX_VDISABLE},
 #endif
 #ifdef VSTART
-        {"start", 17},
+        {.name="start", .val=17},
 #endif
 #ifdef VSTOP
-        {"stop", 19},
+        {.name="stop", .val=19},
 #endif
 #ifdef VSUSP
-        {"susp", 26},
+        {.name="susp", .val=26},
 #endif
 #ifdef VREPRINT
-        {"rprnt", 18},
+        {.name="rprnt", .val=18},
 #elif defined(VRPRNT)
         {"rprnt", 18},
 #endif
 #ifdef VWERASE
-        {"werase", 23},
+        {.name="werase", .val=23},
 #endif
 #ifdef VLNEXT
-        {"lnext", 22},
+        {.name="lnext", .val=22},
 #endif
 #ifdef VDISCARD
-        {"discard", 15},
+        {.name="discard", .val=15},
 #elif defined(VFLUSHO)
         {"discard", 15},
 #endif
     };
-    std::vector<CharMode> cms = build_charmodes();
+    std::vector<CharMode> const cms = build_charmodes();
     for (const auto& c : sane_cc) {
-        std::string n = c.name;
+        std::string const n = c.name;
         for (const auto& m : cms) {
             if (n == m.name) {
-                t->c_cc[m.idx] = (cc_t)c.val;
+                t->c_cc[m.idx] = static_cast<cc_t>(c.val);
                 break;
             }
         }
     }
 
-    if (t->c_lflag & ICANON) {
+    if ((t->c_lflag & ICANON) != 0u) {
 #ifdef VMIN
         t->c_cc[VMIN] = 1;
 #endif
@@ -563,15 +584,15 @@ static int set_winsize(struct winsize* ws) {
 
 static void print_speed_line(bool with_size) {
     int ospeed = decode_baud(cfgetospeed(&g_mode));
-    if (ospeed < 0) ospeed = 0;
+    ospeed = std::max(ospeed, 0);
     printf("speed %d baud;", ospeed);
     if (with_size) {
         struct winsize ws;
         if (get_winsize(&ws) == 0) {
-            printf(" rows %d; columns %d;", (int)ws.ws_row, (int)ws.ws_col);
+            printf(" rows %d; columns %d;", static_cast<int>(ws.ws_row), static_cast<int>(ws.ws_col));
         }
     }
-    printf(" line = %d;\n", (int)g_mode.c_line);
+    printf(" line = %d;\n", static_cast<int>(g_mode.c_line));
 }
 
 static void print_group(const FlagMode* modes, size_t n, bool diff,
@@ -579,67 +600,77 @@ static void print_group(const FlagMode* modes, size_t n, bool diff,
     bool any = false;
     for (size_t i = 0; i < n; i++) {
         const FlagMode* fm = &modes[i];
-        bool on = mode_on(&g_mode, fm);
+        bool const on = mode_on(&g_mode, fm);
         if (diff) {
-            bool base_on = mode_on(base, fm);
-            if (on == base_on) continue;
+            bool const base_on = mode_on(base, fm);
+            if (on == base_on) { continue;
+}
         }
-        if (any) putchar(' ');
+        if (any) { putchar(' ');
+}
         printf("%s%s", on ? "" : "-", fm->name);
         any = true;
     }
-    if (any) printf("\n");
+    if (any) { printf("\n");
+}
 }
 
 static void print_chars(bool diff, const struct termios* base) {
-    std::vector<CharMode> cms = build_charmodes();
+    std::vector<CharMode> const cms = build_charmodes();
     char buf[32];
     bool any = false;
     for (const auto& c : cms) {
-        unsigned char cur = g_mode.c_cc[c.idx];
+        unsigned char const cur = g_mode.c_cc[c.idx];
         if (diff) {
-            unsigned char b = base->c_cc[c.idx];
-            if (cur == b) continue;
+            unsigned char const b = base->c_cc[c.idx];
+            if (cur == b) { continue;
+}
         }
         sprint_char(buf, sizeof(buf), cur);
-        if (any) printf("; ");
+        if (any) { printf("; ");
+}
         printf("%s = %s", c.name, buf);
         any = true;
     }
 
-    if (!(g_mode.c_lflag & ICANON) || !diff) {
+    if (((g_mode.c_lflag & ICANON) == 0u) || !diff) {
 #ifdef VMIN
         if (diff) {
             if (g_mode.c_cc[VMIN] != base->c_cc[VMIN]) {
-                if (any) printf("; ");
-                printf("min = %d", (int)g_mode.c_cc[VMIN]);
+                if (any) { printf("; ");
+}
+                printf("min = %d", static_cast<int>(g_mode.c_cc[VMIN]));
                 any = true;
             }
         } else {
-            if (any) printf("; ");
-            printf("min = %d", (int)g_mode.c_cc[VMIN]);
+            if (any) { printf("; ");
+}
+            printf("min = %d", static_cast<int>(g_mode.c_cc[VMIN]));
             any = true;
         }
 #endif
 #ifdef VTIME
         if (diff) {
             if (g_mode.c_cc[VTIME] != base->c_cc[VTIME]) {
-                if (any) printf("; ");
-                printf("time = %d", (int)g_mode.c_cc[VTIME]);
+                if (any) { printf("; ");
+}
+                printf("time = %d", static_cast<int>(g_mode.c_cc[VTIME]));
                 any = true;
             }
         } else {
-            if (any) printf("; ");
-            printf("time = %d", (int)g_mode.c_cc[VTIME]);
+            if (any) { printf("; ");
+}
+            printf("time = %d", static_cast<int>(g_mode.c_cc[VTIME]));
             any = true;
         }
 #endif
     }
 
-    if (any) printf(";\n");
+    if (any) { printf(";\n");
+}
 }
 
-static void print_all(void) {
+static void print_all() {
     print_speed_line(true);
     print_chars(false, NULL);
     print_group(kControlModes,
@@ -652,7 +683,7 @@ static void print_all(void) {
                 sizeof(kLocalModes) / sizeof(kLocalModes[0]), false, NULL);
 }
 
-static void print_default(void) {
+static void print_default() {
     struct termios sane = g_mode;
     apply_sane(&sane);
 
@@ -668,16 +699,16 @@ static void print_default(void) {
                 sizeof(kLocalModes) / sizeof(kLocalModes[0]), true, &sane);
 }
 
-static void print_g(void) {
+static void print_g() {
     printf("%x:%x:%lx:%lx:%lx:%lx",
-           (unsigned int)cfgetispeed(&g_mode),
-           (unsigned int)cfgetospeed(&g_mode),
-           (unsigned long)g_mode.c_cflag,
-           (unsigned long)g_mode.c_iflag,
-           (unsigned long)g_mode.c_oflag,
-           (unsigned long)g_mode.c_lflag);
+           static_cast<unsigned int>(cfgetispeed(&g_mode)),
+           static_cast<unsigned int>(cfgetospeed(&g_mode)),
+           static_cast<unsigned long>(g_mode.c_cflag),
+           static_cast<unsigned long>(g_mode.c_iflag),
+           static_cast<unsigned long>(g_mode.c_oflag),
+           static_cast<unsigned long>(g_mode.c_lflag));
     for (size_t i = 0; i < NCCS; i++) {
-        printf(":%x", (unsigned int)g_mode.c_cc[i]);
+        printf(":%x", static_cast<unsigned int>(g_mode.c_cc[i]));
     }
     printf("\n");
 }
@@ -685,43 +716,47 @@ static void print_g(void) {
 static int apply_g(const char* s) {
     std::vector<std::string> toks;
     const char* p = s;
-    while (*p) {
+    while ((*p) != 0) {
         const char* colon = strchr(p, ':');
         if (colon == NULL) {
             toks.emplace_back(p);
             break;
         }
-        toks.emplace_back(p, (size_t)(colon - p));
+        toks.emplace_back(p, static_cast<size_t>(colon - p));
         p = colon + 1;
     }
-    if (toks.size() < 6) return -1;
+    if (toks.size() < 6) { return -1;
+}
 
     auto hx = [](const std::string& t, long def) -> long {
-        if (t.empty()) return def;
+        if (t.empty()) { return def;
+}
         return strtol(t.c_str(), NULL, 16);
     };
 
-    long isp = hx(toks[0], -1);
-    long osp = hx(toks[1], -1);
-    g_mode.c_cflag = (tcflag_t)hx(toks[2], g_mode.c_cflag);
-    g_mode.c_iflag = (tcflag_t)hx(toks[3], g_mode.c_iflag);
-    g_mode.c_oflag = (tcflag_t)hx(toks[4], g_mode.c_oflag);
-    g_mode.c_lflag = (tcflag_t)hx(toks[5], g_mode.c_lflag);
+    long const isp = hx(toks[0], -1);
+    long const osp = hx(toks[1], -1);
+    g_mode.c_cflag = static_cast<tcflag_t>(hx(toks[2], g_mode.c_cflag));
+    g_mode.c_iflag = static_cast<tcflag_t>(hx(toks[3], g_mode.c_iflag));
+    g_mode.c_oflag = static_cast<tcflag_t>(hx(toks[4], g_mode.c_oflag));
+    g_mode.c_lflag = static_cast<tcflag_t>(hx(toks[5], g_mode.c_lflag));
 
-    size_t n = toks.size() - 6;
+    size_t const n = toks.size() - 6;
     for (size_t i = 0; i < NCCS && i < n; i++) {
-        g_mode.c_cc[i] = (cc_t)hx(toks[6 + i], g_mode.c_cc[i]);
+        g_mode.c_cc[i] = static_cast<cc_t>(hx(toks[6 + i], g_mode.c_cc[i]));
     }
 
-    if (isp >= 0) cfsetispeed(&g_mode, (speed_t)isp);
-    if (osp >= 0) cfsetospeed(&g_mode, (speed_t)osp);
+    if (isp >= 0) { cfsetispeed(&g_mode, static_cast<speed_t>(isp));
+}
+    if (osp >= 0) { cfsetospeed(&g_mode, static_cast<speed_t>(osp));
+}
     return 0;
 }
 
 /* ── Mode application from argument tokens ────────────────────────────────── */
 
 static int apply_tokens(char** tokens, int count) {
-    std::vector<CharMode> cms = build_charmodes();
+    std::vector<CharMode> const cms = build_charmodes();
     bool saw_g = false;
 
     for (int i = 0; i < count; i++) {
@@ -757,7 +792,7 @@ static int apply_tokens(char** tokens, int count) {
         if (strcmp(arg, "size") == 0) {
             struct winsize ws;
             if (get_winsize(&ws) == 0) {
-                printf("%d %d\n", (int)ws.ws_row, (int)ws.ws_col);
+                printf("%d %d\n", static_cast<int>(ws.ws_row), static_cast<int>(ws.ws_col));
             } else {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "%s: standard input: %s\n", g_prog, strerror(errno));
@@ -780,51 +815,56 @@ static int apply_tokens(char** tokens, int count) {
 
         if (strcmp(arg, "rows") == 0 && i + 1 < count) {
             struct winsize ws;
-            if (get_winsize(&ws) != 0) ws.ws_row = 0, ws.ws_col = 0;
-            ws.ws_row = (unsigned short)atoi(tokens[++i]);
+            if (get_winsize(&ws) != 0) { ws.ws_row = 0, ws.ws_col = 0;
+}
+            ws.ws_row = static_cast<unsigned short>(atoi(tokens[++i]));
             set_winsize(&ws);
             continue;
         }
         if (strcmp(arg, "cols") == 0 && i + 1 < count) {
             struct winsize ws;
-            if (get_winsize(&ws) != 0) ws.ws_row = 0, ws.ws_col = 0;
-            ws.ws_col = (unsigned short)atoi(tokens[++i]);
+            if (get_winsize(&ws) != 0) { ws.ws_row = 0, ws.ws_col = 0;
+}
+            ws.ws_col = static_cast<unsigned short>(atoi(tokens[++i]));
             set_winsize(&ws);
             continue;
         }
         if (strcmp(arg, "columns") == 0 && i + 1 < count) {
             struct winsize ws;
-            if (get_winsize(&ws) != 0) ws.ws_row = 0, ws.ws_col = 0;
-            ws.ws_col = (unsigned short)atoi(tokens[++i]);
+            if (get_winsize(&ws) != 0) { ws.ws_row = 0, ws.ws_col = 0;
+}
+            ws.ws_col = static_cast<unsigned short>(atoi(tokens[++i]));
             set_winsize(&ws);
             continue;
         }
         if ((strcmp(arg, "speed") == 0 || strcmp(arg, "ispeed") == 0 ||
              strcmp(arg, "ospeed") == 0) &&
             i + 1 < count) {
-            int n = atoi(tokens[i + 1]);
-            speed_t code = encode_baud(n);
-            if (code == (speed_t)-1) {
+            int const n = atoi(tokens[i + 1]);
+            speed_t const code = encode_baud(n);
+            if (code == static_cast<speed_t>(-1)) {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "%s: invalid speed\n", g_prog);
                 return -1;
             }
-            if (strcmp(arg, "ispeed") == 0 || strcmp(arg, "speed") == 0)
+            if (strcmp(arg, "ispeed") == 0 || strcmp(arg, "speed") == 0) {
                 cfsetispeed(&g_mode, code);
-            if (strcmp(arg, "ospeed") == 0 || strcmp(arg, "speed") == 0)
+}
+            if (strcmp(arg, "ospeed") == 0 || strcmp(arg, "speed") == 0) {
                 cfsetospeed(&g_mode, code);
+}
             i++;
             continue;
         }
         if (strcmp(arg, "min") == 0 && i + 1 < count) {
 #ifdef VMIN
-            g_mode.c_cc[VMIN] = (cc_t)atoi(tokens[++i]);
+            g_mode.c_cc[VMIN] = static_cast<cc_t>(atoi(tokens[++i]));
 #endif
             continue;
         }
         if (strcmp(arg, "time") == 0 && i + 1 < count) {
 #ifdef VTIME
-            g_mode.c_cc[VTIME] = (cc_t)atoi(tokens[++i]);
+            g_mode.c_cc[VTIME] = static_cast<cc_t>(atoi(tokens[++i]));
 #endif
             continue;
         }
@@ -833,21 +873,22 @@ static int apply_tokens(char** tokens, int count) {
         for (const auto& c : cms) {
             if (strcmp(arg, c.name) == 0) {
                 if (i + 1 < count) {
-                    int v = parse_char(tokens[i + 1]);
+                    int const v = parse_char(tokens[i + 1]);
                     if (v < 0) {
                         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                         (void)fprintf(stderr, "%s: invalid character '%s'\n", g_prog,
                                 tokens[i + 1]);
                         return -1;
                     }
-                    g_mode.c_cc[c.idx] = (cc_t)v;
+                    g_mode.c_cc[c.idx] = static_cast<cc_t>(v);
                     i++;
                     is_char = true;
                 }
                 break;
             }
         }
-        if (is_char) continue;
+        if (is_char) { continue;
+}
 
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "%s: invalid argument '%s'\n", g_prog, arg);
@@ -858,7 +899,7 @@ static int apply_tokens(char** tokens, int count) {
 
 /* ── Help / version ───────────────────────────────────────────────────────── */
 
-static void print_help(void) {
+static void print_help() {
     printf("Usage: %s [-F DEVICE | --file=DEVICE] [SETTING]...\n", g_prog);
     printf("Print or change terminal characteristics.\n");
     printf("\n");

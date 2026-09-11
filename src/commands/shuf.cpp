@@ -16,8 +16,8 @@ static std::vector<std::string> read_lines(int file_count, const char** filename
     std::vector<std::string> lines;
     if (file_count == 0) {
         char buf[8192];
-        while (fgets(buf, (int)sizeof(buf), stdin)) {
-            size_t len = strlen(buf);
+        while (fgets(buf, static_cast<int>(sizeof(buf)), stdin) != nullptr) {
+            size_t const len = strlen(buf);
             if (len > 0 && buf[len - 1] == '\n') {
                 buf[len - 1] = '\0';
             }
@@ -32,14 +32,14 @@ static std::vector<std::string> read_lines(int file_count, const char** filename
         if (strcmp(fname, "-") != 0) {
             fp = fopen(fname, "r");
             if (fp == nullptr) {
-                fprintf(stderr, "shuf: %s: No such file or directory\n", fname);
+                (void)fprintf(stderr, "shuf: %s: No such file or directory\n", fname);
                 continue;
             }
         }
 
         char buf[8192];
-        while (fgets(buf, (int)sizeof(buf), fp)) {
-            size_t len = strlen(buf);
+        while (fgets(buf, static_cast<int>(sizeof(buf)), fp) != nullptr) {
+            size_t const len = strlen(buf);
             if (len > 0 && buf[len - 1] == '\n') {
                 buf[len - 1] = '\0';
             }
@@ -47,7 +47,7 @@ static std::vector<std::string> read_lines(int file_count, const char** filename
         }
 
         if (fp != stdin) {
-            fclose(fp);
+            (void)fclose(fp);
         }
     }
 
@@ -66,7 +66,7 @@ int shuf_command(int argc, char** argv) {
 
     ArgTable at({echo_opt, input_range_opt, head_count_opt, repeat_opt, output_opt, help_opt, file_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -86,32 +86,33 @@ int shuf_command(int argc, char** argv) {
     }
 
     if (echo_opt->count > 0 && input_range_opt->count > 0) {
-        fprintf(stderr, "shuf: cannot combine -e and -i\n");
+        (void)fprintf(stderr, "shuf: cannot combine -e and -i\n");
         return 0;
     }
 
     if (input_range_opt->count > 0 && file_arg->count > 0) {
-        fprintf(stderr, "shuf: cannot combine -i with file arguments\n");
+        (void)fprintf(stderr, "shuf: cannot combine -i with file arguments\n");
         return 0;
     }
 
-    int repeat = (repeat_opt->count > 0);
-    int head_count = (head_count_opt->count > 0) ? head_count_opt->ival[0] : -1;
+    int const repeat = static_cast<int>(repeat_opt->count > 0);
+    int const head_count = (head_count_opt->count > 0) ? head_count_opt->ival[0] : -1;
     const char* output_file = (output_opt->count > 0) ? output_opt->sval[0] : nullptr;
 
     std::vector<std::string> lines;
 
     if (input_range_opt->count > 0) {
         const char* range = input_range_opt->sval[0];
-        int lo = 0, hi = 0;
+        int lo = 0;
+        int hi = 0;
         if (sscanf(range, "%d-%d", &lo, &hi) != 2 || lo > hi) {
-            fprintf(stderr, "shuf: invalid input range: %s\n", range);
+            (void)fprintf(stderr, "shuf: invalid input range: %s\n", range);
             return 0;
         }
-        lines.reserve((size_t)(hi - lo + 1));
+        lines.reserve(static_cast<size_t>(hi - lo + 1));
         for (int i = lo; i <= hi; i++) {
             char buf[32];
-            snprintf(buf, sizeof(buf), "%d", i);
+            (void)snprintf(buf, sizeof(buf), "%d", i);
             lines.push_back(std::string(buf));
         }
     } else if (echo_opt->count > 0) {
@@ -119,12 +120,12 @@ int shuf_command(int argc, char** argv) {
             lines.push_back(std::string(file_arg->filename[i]));
         }
         if (lines.empty()) {
-            fprintf(stderr, "shuf: no input lines\n");
+            (void)fprintf(stderr, "shuf: no input lines\n");
             return 0;
         }
     } else {
-        int file_count = file_arg->count;
-        const char** filenames = (const char**)(file_arg->filename);
+        int const file_count = file_arg->count;
+        const char** filenames = file_arg->filename;
         lines = read_lines(file_count, filenames);
     }
 
@@ -133,10 +134,10 @@ int shuf_command(int argc, char** argv) {
     }
 
     FILE* out_fp = stdout;
-    if (output_file) {
+    if (output_file != nullptr) {
         out_fp = fopen(output_file, "w");
         if (out_fp == nullptr) {
-            fprintf(stderr, "shuf: %s: Cannot open for writing: %s\n", output_file, strerror(errno));
+            (void)fprintf(stderr, "shuf: %s: Cannot open for writing: %s\n", output_file, strerror(errno));
             return 0;
         }
     }
@@ -144,27 +145,27 @@ int shuf_command(int argc, char** argv) {
     std::random_device rd;
     std::mt19937 g(rd());
 
-    if (repeat) {
+    if (repeat != 0) {
         std::uniform_int_distribution<size_t> dist(0, lines.size() - 1);
         if (head_count >= 0) {
             for (int i = 0; i < head_count; i++) {
-                fprintf(out_fp, "%s\n", lines[dist(g)].c_str());
+                (void)fprintf(out_fp, "%s\n", lines[dist(g)].c_str());
             }
         } else {
             while (true) {
-                fprintf(out_fp, "%s\n", lines[dist(g)].c_str());
+                (void)fprintf(out_fp, "%s\n", lines[dist(g)].c_str());
             }
         }
     } else {
         std::shuffle(lines.begin(), lines.end(), g);
-        int count = (head_count >= 0 && head_count < (int)lines.size()) ? head_count : (int)lines.size();
+        int const count = (head_count >= 0 && head_count < static_cast<int>(lines.size())) ? head_count : static_cast<int>(lines.size());
         for (int i = 0; i < count; i++) {
-            fprintf(out_fp, "%s\n", lines[i].c_str());
+            (void)fprintf(out_fp, "%s\n", lines[i].c_str());
         }
     }
 
     if (out_fp != stdout) {
-        fclose(out_fp);
+        (void)fclose(out_fp);
     }
 
     return 0;

@@ -1,38 +1,50 @@
+#include "argtable3.h"
 #include "commands/arg_util.hpp"
+#include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <string>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
+#include <system_error>
 #include <unistd.h>
 
 #include "commands/grep.hpp"
 #include "commands/grep_tui.hpp"
 #include "commands/search_common.hpp"
 #include "commands/tui_base.hpp"
+#include "ftxui/dom/elements.hpp"
 
 #include <ftxui/component/app.hpp>
+#include <vector>
+#include <utility>
 
 using namespace ftxui;
 
 #define GREP_MAX_FILES 200
 
 static std::string truncate_line(const std::string& line, size_t max_len) {
-    if (line.size() <= max_len) return line;
+    if (line.size() <= max_len) { return line;
+}
     return line.substr(0, max_len - 3) + "...";
 }
 
 static void open_in_editor(const char* path) {
     const char* editor = getenv("EDITOR");
-    if (!editor) editor = getenv("PAGER");
-    if (!editor) editor = "cat";
+    if (editor == nullptr) { editor = getenv("PAGER");
+}
+    if (editor == nullptr) { editor = "cat";
+}
 
-    pid_t pid = fork();
+    pid_t const pid = fork();
     if (pid == 0) {
         execlp(editor, editor, path, (char*)nullptr);
         _exit(127);
@@ -50,24 +62,25 @@ public:
     explicit GrepTuiComponent(std::vector<GrepMatch> matches)
         : entries_(std::move(matches)) {}
 
-    int entries_size() const override { return (int)entries_.size(); }
-    int header_rows() const override { return 1; }
+    [[nodiscard]] int entries_size() const override { return static_cast<int>(entries_.size()); }
+    [[nodiscard]] int header_rows() const override { return 1; }
     void fill_entries() override { update_scroll_math(); }
 
-    Element render_row(int idx) const override {
-        if (idx < 0 || idx >= (int)entries_.size()) return text("");
+    [[nodiscard]] Element render_row(int idx) const override {
+        if (idx < 0 || idx >= static_cast<int>(entries_.size())) { return text("");
+}
         const auto& m = entries_[idx];
 
         char buf[64];
-        snprintf(buf, sizeof(buf), "%d", m.line_number);
+        (void)snprintf(buf, sizeof(buf), "%d", m.line_number);
 
-        std::string display = m.display_name + ":" + buf + ": " + truncate_line(m.line_content, 80);
+        std::string const display = m.display_name + ":" + buf + ": " + truncate_line(m.line_content, 80);
 
         return text(display);
     }
 
-    Element render_detail() const {
-        if (entries_.empty() || selected_ < 0 || selected_ >= (int)entries_.size()) {
+    [[nodiscard]] Element render_detail() const {
+        if (entries_.empty() || selected_ < 0 || selected_ >= static_cast<int>(entries_.size())) {
             return text("No matches") | dim | center;
         }
         const auto& m = entries_[selected_];
@@ -85,9 +98,7 @@ public:
                     line_elements.push_back(text(m.line_content.substr(0, m.match_start)));
                 }
                 size_t match_len = m.match_end - m.match_start;
-                if (match_len > m.line_content.size() - m.match_start) {
-                    match_len = m.line_content.size() - m.match_start;
-                }
+                match_len = std::min(match_len, m.line_content.size() - m.match_start);
                 line_elements.push_back(text(m.line_content.substr(m.match_start, match_len)) | color(Color::Red) | bold);
                 if (m.match_end < m.line_content.size()) {
                     line_elements.push_back(text(m.line_content.substr(m.match_end)));
@@ -148,14 +159,17 @@ public:
                 update_scroll_math();
                 return true;
             }
-            if (handle_search(event)) return true;
+            if (handle_search(event)) { return true;
+}
             return ComponentBase::OnEvent(event);
         }
 
-        if (handle_nav(event)) return true;
+        if (handle_nav(event)) { return true;
+}
 
         if (event == Event::Character('q') || event == Event::Character('Q')) {
-            if (auto* app = App::Active()) app->Exit();
+            if (auto* app = App::Active()) { app->Exit();
+}
             return true;
         }
         if (event == Event::Character('n')) {
@@ -197,7 +211,7 @@ public:
             return true;
         }
         if (event == Event::Return || event == Event::Character('o')) {
-            if (selected_ >= 0 && selected_ < (int)entries_.size()) {
+            if (selected_ >= 0 && selected_ < static_cast<int>(entries_.size())) {
                 open_in_editor(entries_[selected_].file_path.c_str());
                 status_msg_ = "Opened: " + entries_[selected_].file_path;
             }
@@ -246,26 +260,26 @@ static int collect_search_file(const char* path, bool is_stdin,
 
         if (opts->mode == GrepMode::FIXED) {
             std::string work_line(line, len);
-            if (opts->ignore_case) {
+            if (opts->ignore_case != 0) {
                 for (auto& ch : work_line) {
-                    ch = (char)std::tolower((unsigned char)ch);
+                    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
                 }
             }
             std::string lower_pat = opts->pattern;
-            if (opts->ignore_case) {
+            if (opts->ignore_case != 0) {
                 for (auto& ch : lower_pat) {
-                    ch = (char)std::tolower((unsigned char)ch);
+                    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
                 }
             }
             matched = search_fixed_loop(work_line.c_str(), lower_pat.c_str(), len,
                                         &m_start, &m_end,
                                         opts->word_regexp, opts->line_regexp);
-        } else if (opts->word_regexp) {
-            std::string s(line, len);
+        } else if (opts->word_regexp != 0) {
+            std::string const s(line, len);
             std::smatch m;
             auto search_start = s.cbegin();
             while (std::regex_search(search_start, s.cend(), m, *re)) {
-                std::size_t abs_pos = (std::size_t)(m.position(0) + (search_start - s.cbegin()));
+                std::size_t const abs_pos = static_cast<std::size_t>(m.position(0) + (search_start - s.cbegin()));
                 if (search_check_word_boundary(line, abs_pos, abs_pos + m.length(0), len)) {
                     matched = true;
                     m_start = abs_pos;
@@ -275,7 +289,7 @@ static int collect_search_file(const char* path, bool is_stdin,
                 search_start = m.suffix().first;
             }
         } else {
-            std::string s(line, len);
+            std::string const s(line, len);
             std::smatch m;
             if (std::regex_search(s, m, *re)) {
                 matched = true;
@@ -284,15 +298,15 @@ static int collect_search_file(const char* path, bool is_stdin,
             }
         }
 
-        if (opts->invert_match) {
+        if (opts->invert_match != 0) {
             matched = !matched;
         }
 
         if (matched) {
             match_count++;
             GrepMatch gm;
-            gm.file_path = display_name ? display_name : "(standard input)";
-            gm.display_name = display_name ? display_name : "(standard input)";
+            gm.file_path = (display_name != nullptr) ? display_name : "(standard input)";
+            gm.display_name = (display_name != nullptr) ? display_name : "(standard input)";
             gm.line_number = line_count;
             gm.line_content = line;
             gm.match_start = m_start;
@@ -312,7 +326,7 @@ static int collect_search_directory(const char* dirpath, const GrepOptions* opts
                                     const std::regex* re,
                                     std::vector<GrepMatch>& matches) {
     std::error_code ec;
-    std::filesystem::path dir(dirpath);
+    std::filesystem::path const dir(dirpath);
 
     int total_matches = 0;
 
@@ -322,19 +336,20 @@ static int collect_search_directory(const char* dirpath, const GrepOptions* opts
             return total_matches;
         }
 
-        std::string filename = entry.path().filename().string();
+        std::string const filename = entry.path().filename().string();
         if (filename == "." || filename == "..") {
             continue;
         }
 
-        std::string full_path = entry.path().string();
+        std::string const full_path = entry.path().string();
         struct stat st;
         if (stat(full_path.c_str(), &st) == 0) {
             if (S_ISDIR(st.st_mode)) {
                 total_matches += collect_search_directory(full_path.c_str(), opts, re, matches);
             } else if (S_ISREG(st.st_mode)) {
-                int m = collect_search_file(full_path.c_str(), false, full_path.c_str(), opts, re, matches);
-                if (m > 0) total_matches += m;
+                int const m = collect_search_file(full_path.c_str(), false, full_path.c_str(), opts, re, matches);
+                if (m > 0) { total_matches += m;
+}
             }
         }
     }
@@ -347,7 +362,7 @@ std::vector<GrepMatch> grep_collect_matches(const GrepOptions* opts,
                                             struct arg_file* file_arg) {
     std::vector<GrepMatch> matches;
 
-    if (!opts->recursive) {
+    if (opts->recursive == 0) {
         for (int i = 0; i < file_arg->count && i < GREP_MAX_FILES; i++) {
             const char* fname = file_arg->filename[i];
             struct stat st;
@@ -377,7 +392,7 @@ std::vector<GrepMatch> grep_collect_matches(const GrepOptions* opts,
 }
 
 void grep_tui_main(int argc, char** argv) {
-    if (!isatty(STDERR_FILENO)) {
+    if (isatty(STDERR_FILENO) == 0) {
         (void)fprintf(stderr, "grep: --tui requires a terminal\n");
         return;
     }
@@ -430,7 +445,7 @@ void grep_tui_main(int argc, char** argv) {
                  pattern_opt, help_opt,
                  file_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... PATTERN [FILE]...\n", argv[0]);
@@ -466,13 +481,13 @@ void grep_tui_main(int argc, char** argv) {
         opts.mode = GrepMode::FIXED;
     }
 
-    opts.ignore_case = (ignore_case_opt->count > 0);
-    opts.invert_match = (invert_opt->count > 0);
-    opts.line_number = (line_number_opt->count > 0);
-    opts.recursive = (recursive_opt->count > 0) || (recursive2_opt->count > 0);
-    opts.word_regexp = (word_regexp_opt->count > 0);
-    opts.line_regexp = (line_regexp_opt->count > 0);
-    opts.only_matching = (only_matching_opt->count > 0);
+    opts.ignore_case = static_cast<int>(ignore_case_opt->count > 0);
+    opts.invert_match = static_cast<int>(invert_opt->count > 0);
+    opts.line_number = static_cast<int>(line_number_opt->count > 0);
+    opts.recursive = static_cast<int>((recursive_opt->count > 0) || (recursive2_opt->count > 0));
+    opts.word_regexp = static_cast<int>(word_regexp_opt->count > 0);
+    opts.line_regexp = static_cast<int>(line_regexp_opt->count > 0);
+    opts.only_matching = static_cast<int>(only_matching_opt->count > 0);
 
     const char* pattern = nullptr;
     if (pattern_opt->count > 0) {
@@ -498,7 +513,7 @@ void grep_tui_main(int argc, char** argv) {
     const std::regex* re = nullptr;
     if (opts.mode != GrepMode::FIXED) {
         auto re_flags = std::regex::optimize;
-        if (opts.ignore_case) {
+        if (opts.ignore_case != 0) {
             re_flags |= std::regex::icase;
         }
         try {

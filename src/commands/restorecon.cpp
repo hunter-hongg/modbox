@@ -30,7 +30,7 @@ static int restorecon_one_file(const char* path, unsigned int flags) {
         old_con = nullptr;
     }
 
-    int rc = selinux_restorecon(path, flags);
+    int const rc = selinux_restorecon(path, flags);
 
     if ((flags & SELINUX_RESTORECON_NOCHANGE) == 0 && rc == 0 &&
         (flags & SELINUX_RESTORECON_VERBOSE) != 0) {
@@ -57,10 +57,10 @@ static int recursive_callback(const char* fpath, const struct stat* sb,
     (void)sb;
     (void)typeflag;
     (void)ftwbuf;
-    int rc = restorecon_one_file(fpath, restorecon_glob.flags);
+    int const rc = restorecon_one_file(fpath, restorecon_glob.flags);
     if (rc != 0) {
         if (restorecon_glob.ignore == 0) {
-            fprintf(stderr, "restorecon: %s: failed to relabel\n", fpath);
+            (void)fprintf(stderr, "restorecon: %s: failed to relabel\n", fpath);
         }
         restorecon_glob.errors++;
     }
@@ -81,7 +81,7 @@ int restorecon_command(int argc, char** argv) {
     ArgTable at({help_opt, version_opt, recursive_opt, verbose_opt,
                  nochange_opt, force_opt, ignore_opt, files_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
     if (nerrors > 0) {
         return print_arg_errors(end, argv[0]);
     }
@@ -106,17 +106,22 @@ int restorecon_command(int argc, char** argv) {
     }
 
     if (files_opt->count == 0) {
-        fprintf(stderr, "%s: missing operand\n", argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
     unsigned int flags = SELINUX_RESTORECON_REALPATH;
-    if (recursive_opt->count > 0) flags |= SELINUX_RESTORECON_RECURSE;
-    if (verbose_opt->count > 0) flags |= SELINUX_RESTORECON_VERBOSE;
-    if (nochange_opt->count > 0) flags |= SELINUX_RESTORECON_NOCHANGE;
-    if (force_opt->count > 0) flags |= SELINUX_RESTORECON_SET_SPECFILE_CTX;
-    if (ignore_opt->count > 0) flags |= SELINUX_RESTORECON_COUNT_ERRORS;
+    if (recursive_opt->count > 0) { flags |= SELINUX_RESTORECON_RECURSE;
+}
+    if (verbose_opt->count > 0) { flags |= SELINUX_RESTORECON_VERBOSE;
+}
+    if (nochange_opt->count > 0) { flags |= SELINUX_RESTORECON_NOCHANGE;
+}
+    if (force_opt->count > 0) { flags |= SELINUX_RESTORECON_SET_SPECFILE_CTX;
+}
+    if (ignore_opt->count > 0) { flags |= SELINUX_RESTORECON_COUNT_ERRORS;
+}
 
     restorecon_glob.flags = flags;
     restorecon_glob.errors = 0;
@@ -128,15 +133,16 @@ int restorecon_command(int argc, char** argv) {
         if (recursive_opt->count > 0) {
             restorecon_glob.errors = 0;
             if (nftw(path, recursive_callback, 64, FTW_PHYS) != 0) {
-                fprintf(stderr, "restorecon: %s: traversal failed\n", path);
+                (void)fprintf(stderr, "restorecon: %s: traversal failed\n", path);
                 rc = 1;
             }
-            if (restorecon_glob.errors > 0) rc = 1;
+            if (restorecon_glob.errors > 0) { rc = 1;
+}
         } else {
-            int frc = restorecon_one_file(path, flags);
+            int const frc = restorecon_one_file(path, flags);
             if (frc != 0) {
                 if (ignore_opt->count == 0) {
-                    fprintf(stderr, "restorecon: %s: failed to relabel\n", path);
+                    (void)fprintf(stderr, "restorecon: %s: failed to relabel\n", path);
                 }
                 rc = 1;
             }

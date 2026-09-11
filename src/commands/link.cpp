@@ -1,8 +1,8 @@
 #include <argtable3.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -21,14 +21,14 @@ int link_command(int argc, char** argv) {
 
     ArgTable at({verbose_opt, src_arg, dst_arg, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (nerrors > 0) {
         return at.print_errors(end, argv[0]);
     }
 
     LinkOptions opts = {};
-    opts.is_verbose = (verbose_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
 
     const char* src = src_arg->filename[0];
     const char* dst = dst_arg->filename[0];
@@ -84,7 +84,7 @@ int link_command(int argc, char** argv) {
         return 0;
     }
 
-    if (opts.is_verbose) {
+    if (opts.is_verbose != 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)printf("'%s' linked to '%s'\n", dst, src);
     }

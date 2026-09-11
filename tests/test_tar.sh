@@ -74,6 +74,40 @@ rm -f x.txt
 if [[ -f "$TMPDIR/x.txt" ]]; then pass "tar: zstd extract"; else fail "tar: zstd extract failed"; fi
 cd - >/dev/null
 
+echo "  ── large streaming compression (regression) ──"
+if [[ $TAR_HAS_SYS -eq 1 ]]; then
+    cd "$TMPDIR"
+    head -c 2097152 /dev/urandom > big.bin
+    rm -rf bigout_$$
+    mkdir -p bigout_$$
+    "$MODBOX" tar -czf big.tar.gz big.bin
+    tar -xzf big.tar.gz -C bigout_$$ && cmp -s big.bin bigout_$$/big.bin && pass "tar: 2MiB gzip archive extracts" || fail "tar: 2MiB gzip archive invalid"
+    "$MODBOX" tar -cjf big.tar.xz big.bin
+    tar -xJf big.tar.xz -C bigout_$$ && cmp -s big.bin bigout_$$/big.bin && pass "tar: 2MiB xz archive extracts" || fail "tar: 2MiB xz archive invalid"
+    "$MODBOX" tar -cJf big.tar.zst big.bin
+    tar --zstd -tf big.tar.zst | grep -qx big.bin && pass "tar: 2MiB zstd archive lists" || fail "tar: 2MiB zstd archive invalid"
+    cd - >/dev/null
+else
+    echo "  SKIP large compression interop (system tar absent)"
+fi
+
+echo "  ── symlinked directory recursion ──"
+cd "$TMPDIR"
+mkdir -p loopdir
+printf 'data' > loopdir/data.txt
+ln -sfn . loopdir/self
+if timeout 10 "$MODBOX" tar -c -f loop.tar loopdir; then
+    loop_list=$(timeout 10 "$MODBOX" tar -t -f loop.tar)
+    if [[ "$loop_list" == *"loopdir/self"* && "$loop_list" != *"loopdir/self/self"* ]]; then
+        pass "tar: symlinked directory is stored as a link"
+    else
+        fail "tar: symlinked directory recursion/list unexpected [$loop_list]"
+    fi
+else
+    fail "tar: symlinked directory archive timed out or failed"
+fi
+cd - >/dev/null
+
 echo "  ── path traversal rejection ──"
 printf 'evil' > "$TMPDIR/evil.txt"
 mkdir -p "$TMPDIR/traverse_src"
@@ -112,3 +146,4 @@ fi
 
 echo "  ── errors ──"
 if "$MODBOX" tar -x -f "$TMPDIR/nonexist.tar" >/dev/null 2>&1; then fail "tar: missing archive should error"; else pass "tar: missing archive errors"; fi
+if "$MODBOX" tar --create --list -f /dev/null >/dev/null 2>&1; then fail "tar: conflicting long operations should error"; else pass "tar: conflicting long operations errors"; fi

@@ -37,14 +37,14 @@ struct id_opts {
 
 static uid_t resolve_user(const char* name, struct passwd** pw) {
     char* end = nullptr;
-    long v = strtol(name, &end, 10);
+    long const v = strtol(name, &end, 10);
     if (*end == '\0' && end != name) {
-        *pw = getpwuid((uid_t)v);
-        return (uid_t)v;
+        *pw = getpwuid(static_cast<uid_t>(v));
+        return static_cast<uid_t>(v);
     }
     *pw = getpwnam(name);
     if (*pw == nullptr) {
-        fprintf(stderr, "id: '%s': no such user\n", name);
+        (void)fprintf(stderr, "id: '%s': no such user\n", name);
         exit(1);
     }
     return (*pw)->pw_uid;
@@ -52,14 +52,14 @@ static uid_t resolve_user(const char* name, struct passwd** pw) {
 
 static gid_t resolve_group(const char* name, struct group** gr) {
     char* end = nullptr;
-    long v = strtol(name, &end, 10);
+    long const v = strtol(name, &end, 10);
     if (*end == '\0' && end != name) {
-        *gr = getgrgid((gid_t)v);
-        return (gid_t)v;
+        *gr = getgrgid(static_cast<gid_t>(v));
+        return static_cast<gid_t>(v);
     }
     *gr = getgrnam(name);
     if (*gr == nullptr) {
-        fprintf(stderr, "id: '%s': no such group\n", name);
+        (void)fprintf(stderr, "id: '%s': no such group\n", name);
         exit(1);
     }
     return (*gr)->gr_gid;
@@ -82,15 +82,15 @@ int id_command(int argc, char** argv) {
         }
         if (a[0] == '-' && a[1] != '\0') {
             if (a[1] == '-') {
-                if (strcmp(a, "--user") == 0) o.opt_u = true;
-                else if (strcmp(a, "--group") == 0) o.opt_g = true;
-                else if (strcmp(a, "--groups") == 0) o.opt_G = true;
-                else if (strcmp(a, "--name") == 0) o.opt_n = true;
-                else if (strcmp(a, "--real") == 0) o.opt_r = true;
-                else if (strcmp(a, "--zero") == 0) o.opt_z = true;
-                else { fprintf(stderr, "id: unrecognized option '%s'\n", a); return 0; }
+                if (strcmp(a, "--user") == 0) { { o.opt_u = true;
+                } } else if (strcmp(a, "--group") == 0) { { o.opt_g = true;
+                } } else if (strcmp(a, "--groups") == 0) { { o.opt_G = true;
+                } } else if (strcmp(a, "--name") == 0) { { o.opt_n = true;
+                } } else if (strcmp(a, "--real") == 0) { { o.opt_r = true;
+                } } else if (strcmp(a, "--zero") == 0) { { o.opt_z = true;
+                } } else { (void)fprintf(stderr, "id: unrecognized option '%s'\n", a); return 0; }
             } else {
-                for (const char* p = a + 1; *p; p++) {
+                for (const char* p = a + 1; (*p) != 0; p++) {
                     switch (*p) {
                         case 'u': o.opt_u = true; break;
                         case 'g': o.opt_g = true; break;
@@ -99,7 +99,7 @@ int id_command(int argc, char** argv) {
                         case 'r': o.opt_r = true; break;
                         case 'z': o.opt_z = true; break;
                         default:
-                            fprintf(stderr, "id: invalid option -- '%c'\n", *p);
+                            (void)fprintf(stderr, "id: invalid option -- '%c'\n", *p);
                             return 0;
                     }
                 }
@@ -109,8 +109,8 @@ int id_command(int argc, char** argv) {
         }
     }
 
-    char sep = o.opt_z ? '\0' : ' ';
-    char nl = o.opt_z ? '\0' : '\n';
+    char const sep = o.opt_z ? '\0' : ' ';
+    char const nl = o.opt_z ? '\0' : '\n';
 
     struct passwd* pw = nullptr;
     uid_t uid;
@@ -131,15 +131,15 @@ int id_command(int argc, char** argv) {
         pw = getpwuid(uid);
     }
 
-    uid_t out_uid = o.opt_r ? ruid : uid;
-    gid_t out_gid = o.opt_r ? rgid : gid;
+    uid_t const out_uid = o.opt_r ? ruid : uid;
+    gid_t const out_gid = o.opt_r ? rgid : gid;
 
     if (o.opt_u) {
         if (o.opt_n) {
-            struct passwd* p = getpwuid(out_uid);
-            printf("%s", p ? p->pw_name : "?");
+            const struct passwd* p = getpwuid(out_uid);
+            printf("%s", (p != nullptr) ? p->pw_name : "?");
         } else {
-            printf("%u", (unsigned)out_uid);
+            printf("%u", static_cast<unsigned>(out_uid));
         }
         putchar(nl);
         return 0;
@@ -147,10 +147,10 @@ int id_command(int argc, char** argv) {
 
     if (o.opt_g) {
         if (o.opt_n) {
-            struct group* g = getgrgid(out_gid);
-            printf("%s", g ? g->gr_name : "?");
+            const struct group* g = getgrgid(out_gid);
+            printf("%s", (g != nullptr) ? g->gr_name : "?");
         } else {
-            printf("%u", (unsigned)out_gid);
+            printf("%u", static_cast<unsigned>(out_gid));
         }
         putchar(nl);
         return 0;
@@ -160,44 +160,45 @@ int id_command(int argc, char** argv) {
         int ngroups = 0;
         getgroups(0, nullptr);
         std::vector<gid_t> groups(64);
-        ngroups = getgroups((int)groups.size(), groups.data());
+        ngroups = getgroups(static_cast<int>(groups.size()), groups.data());
         bool first = true;
         for (int j = 0; j < ngroups; j++) {
-            if (!first) putchar(sep);
+            if (!first) { putchar(sep);
+}
             first = false;
             if (o.opt_n) {
-                struct group* g = getgrgid(groups[j]);
-                printf("%s", g ? g->gr_name : "?");
+                const struct group* g = getgrgid(groups[j]);
+                printf("%s", (g != nullptr) ? g->gr_name : "?");
             } else {
-                printf("%u", (unsigned)groups[j]);
+                printf("%u", static_cast<unsigned>(groups[j]));
             }
         }
         putchar(nl);
         return 0;
     }
 
-    const char* uname = pw ? pw->pw_name : "?";
-    struct group* eg = getgrgid(out_gid);
-    const char* gname = eg ? eg->gr_name : "?";
+    const char* uname = (pw != nullptr) ? pw->pw_name : "?";
+    const struct group* eg = getgrgid(out_gid);
+    const char* gname = (eg != nullptr) ? eg->gr_name : "?";
 
     if (o.opt_n) {
-        printf("uid=%u(%s)", (unsigned)out_uid, uname);
+        printf("uid=%u(%s)", static_cast<unsigned>(out_uid), uname);
     } else {
-        printf("uid=%u", (unsigned)out_uid);
+        printf("uid=%u", static_cast<unsigned>(out_uid));
     }
     if (out_uid != ruid) {
-        struct passwd* rp = getpwuid(ruid);
-        printf(" uid=%u(%s)", (unsigned)ruid, rp ? rp->pw_name : "?");
+        const struct passwd* rp = getpwuid(ruid);
+        printf(" uid=%u(%s)", static_cast<unsigned>(ruid), (rp != nullptr) ? rp->pw_name : "?");
     }
 
     if (o.opt_n) {
-        printf(" gid=%u(%s)", (unsigned)out_gid, gname);
+        printf(" gid=%u(%s)", static_cast<unsigned>(out_gid), gname);
     } else {
-        printf(" gid=%u", (unsigned)out_gid);
+        printf(" gid=%u", static_cast<unsigned>(out_gid));
     }
     if (out_gid != rgid) {
-        struct group* rg = getgrgid(rgid);
-        printf(" gid=%u(%s)", (unsigned)rgid, rg ? rg->gr_name : "?");
+        const struct group* rg = getgrgid(rgid);
+        printf(" gid=%u(%s)", static_cast<unsigned>(rgid), (rg != nullptr) ? rg->gr_name : "?");
     }
 
     int ngroups = 0;
@@ -207,12 +208,13 @@ int id_command(int argc, char** argv) {
         getgroups(ngroups, groups.data());
         printf(" groups=");
         for (int j = 0; j < ngroups; j++) {
-            if (j > 0) putchar(sep);
+            if (j > 0) { putchar(sep);
+}
             if (o.opt_n) {
-                struct group* g = getgrgid(groups[j]);
-                printf("%u(%s)", (unsigned)groups[j], g ? g->gr_name : "?");
+                const struct group* g = getgrgid(groups[j]);
+                printf("%u(%s)", static_cast<unsigned>(groups[j]), (g != nullptr) ? g->gr_name : "?");
             } else {
-                printf("%u", (unsigned)groups[j]);
+                printf("%u", static_cast<unsigned>(groups[j]));
             }
         }
     }

@@ -2,11 +2,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <signal.h>
 #include <string>
 
 #include <csignal>
 #include <ctime>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "commands/timeout.hpp"
@@ -51,7 +54,7 @@ static void print_help(const char* prog) {
 }
 
 static void usage_error(const char* prog) {
-    fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+    (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
     exit(EXIT_CANCELED);
 }
 
@@ -62,7 +65,7 @@ static bool parse_duration(const char* s, double* out) {
 
     char* endp = nullptr;
     errno = 0;
-    double val = strtod(s, &endp);
+    double const val = strtod(s, &endp);
 
     if (endp == s) {
         return false;
@@ -104,11 +107,11 @@ static int parse_signal(const char* name) {
     if (*name >= '0' && *name <= '9') {
         errno = 0;
         char* endp = nullptr;
-        long val = strtol(name, &endp, 10);
+        long const val = strtol(name, &endp, 10);
         if (endp == name || *endp != '\0' || val < 0 || val > 255) {
             return -1;
         }
-        return (int)val;
+        return static_cast<int>(val);
     }
 
     std::string s(name);
@@ -116,41 +119,70 @@ static int parse_signal(const char* name) {
         s = s.substr(3);
     }
 
-    if (s == "HUP") return SIGHUP;
-    if (s == "INT") return SIGINT;
-    if (s == "QUIT") return SIGQUIT;
-    if (s == "ILL") return SIGILL;
-    if (s == "TRAP") return SIGTRAP;
-    if (s == "ABRT") return SIGABRT;
-    if (s == "BUS") return SIGBUS;
-    if (s == "FPE") return SIGFPE;
-    if (s == "KILL") return SIGKILL;
-    if (s == "USR1") return SIGUSR1;
-    if (s == "SEGV") return SIGSEGV;
-    if (s == "USR2") return SIGUSR2;
-    if (s == "PIPE") return SIGPIPE;
-    if (s == "ALRM") return SIGALRM;
-    if (s == "TERM") return SIGTERM;
-    if (s == "CHLD") return SIGCHLD;
-    if (s == "CONT") return SIGCONT;
-    if (s == "STOP") return SIGSTOP;
-    if (s == "TSTP") return SIGTSTP;
-    if (s == "TTIN") return SIGTTIN;
-    if (s == "TTOU") return SIGTTOU;
-    if (s == "URG") return SIGURG;
-    if (s == "XCPU") return SIGXCPU;
-    if (s == "XFSZ") return SIGXFSZ;
-    if (s == "VTALRM") return SIGVTALRM;
-    if (s == "PROF") return SIGPROF;
-    if (s == "WINCH") return SIGWINCH;
-    if (s == "IO" || s == "POLL") return SIGIO;
-    if (s == "SYS") return SIGSYS;
+    if (s == "HUP") { return SIGHUP;
+}
+    if (s == "INT") { return SIGINT;
+}
+    if (s == "QUIT") { return SIGQUIT;
+}
+    if (s == "ILL") { return SIGILL;
+}
+    if (s == "TRAP") { return SIGTRAP;
+}
+    if (s == "ABRT") { return SIGABRT;
+}
+    if (s == "BUS") { return SIGBUS;
+}
+    if (s == "FPE") { return SIGFPE;
+}
+    if (s == "KILL") { return SIGKILL;
+}
+    if (s == "USR1") { return SIGUSR1;
+}
+    if (s == "SEGV") { return SIGSEGV;
+}
+    if (s == "USR2") { return SIGUSR2;
+}
+    if (s == "PIPE") { return SIGPIPE;
+}
+    if (s == "ALRM") { return SIGALRM;
+}
+    if (s == "TERM") { return SIGTERM;
+}
+    if (s == "CHLD") { return SIGCHLD;
+}
+    if (s == "CONT") { return SIGCONT;
+}
+    if (s == "STOP") { return SIGSTOP;
+}
+    if (s == "TSTP") { return SIGTSTP;
+}
+    if (s == "TTIN") { return SIGTTIN;
+}
+    if (s == "TTOU") { return SIGTTOU;
+}
+    if (s == "URG") { return SIGURG;
+}
+    if (s == "XCPU") { return SIGXCPU;
+}
+    if (s == "XFSZ") { return SIGXFSZ;
+}
+    if (s == "VTALRM") { return SIGVTALRM;
+}
+    if (s == "PROF") { return SIGPROF;
+}
+    if (s == "WINCH") { return SIGWINCH;
+}
+    if (s == "IO" || s == "POLL") { return SIGIO;
+}
+    if (s == "SYS") { return SIGSYS;
+}
 
     return -1;
 }
 
 static void send_signal_verbose(const char* prog, int sig) {
-    fprintf(stderr, "%s: sending signal %d to command '%s'\n", prog, sig, "");
+    (void)fprintf(stderr, "%s: sending signal %d to command '%s'\n", prog, sig, "");
 }
 
 int timeout_command(int argc, char** argv) {
@@ -193,7 +225,7 @@ int timeout_command(int argc, char** argv) {
         }
         if (strncmp(a, "--kill-after=", 13) == 0) {
             if (!parse_duration(a + 13, &kill_after) || kill_after < 0) {
-                fprintf(stderr, "%s: invalid time interval '%s'\n", prog, a + 13);
+                (void)fprintf(stderr, "%s: invalid time interval '%s'\n", prog, a + 13);
                 usage_error(prog);
             }
             have_kill_after = true;
@@ -202,48 +234,48 @@ int timeout_command(int argc, char** argv) {
         if (strncmp(a, "--signal=", 9) == 0) {
             timeout_signal = parse_signal(a + 9);
             if (timeout_signal < 0) {
-                fprintf(stderr, "%s: invalid signal '%s'\n", prog, a + 9);
+                (void)fprintf(stderr, "%s: invalid signal '%s'\n", prog, a + 9);
                 usage_error(prog);
             }
             continue;
         }
         if (a[0] == '-' && a[1] != '\0') {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", prog, a);
+            (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, a);
             usage_error(prog);
         }
         break;
     }
 
     if (i >= argc) {
-        fprintf(stderr, "%s: missing operand\n", prog);
+        (void)fprintf(stderr, "%s: missing operand\n", prog);
         usage_error(prog);
     }
 
     double duration = 0.0;
     if (!parse_duration(argv[i], &duration) || duration < 0) {
-        fprintf(stderr, "%s: invalid time interval '%s'\n", prog, argv[i]);
+        (void)fprintf(stderr, "%s: invalid time interval '%s'\n", prog, argv[i]);
         usage_error(prog);
     }
     i++;
 
     if (i >= argc) {
-        fprintf(stderr, "%s: missing command\n", prog);
+        (void)fprintf(stderr, "%s: missing command\n", prog);
         usage_error(prog);
     }
 
-    int timeout_sec = (int)duration;
-    long timeout_nsec = (long)((duration - (double)timeout_sec) * 1000000000.0);
+    int const timeout_sec = static_cast<int>(duration);
+    long const timeout_nsec = static_cast<long>((duration - static_cast<double>(timeout_sec)) * 1000000000.0);
 
     child_pid = fork();
     if (child_pid < 0) {
-        fprintf(stderr, "%s: fork failed: %s\n", prog, strerror(errno));
+        (void)fprintf(stderr, "%s: fork failed: %s\n", prog, strerror(errno));
         exit(EXIT_CANCELED);
     }
 
     if (child_pid == 0) {
         execvp(argv[i], &argv[i]);
-        int code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
-        fprintf(stderr, "%s: failed to run command '%s': %s\n",
+        int const code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
+        (void)fprintf(stderr, "%s: failed to run command '%s': %s\n",
                 prog, argv[i], strerror(errno));
         _exit(code);
     }
@@ -260,7 +292,7 @@ int timeout_command(int argc, char** argv) {
         struct timespec remaining = ts;
         while (nanosleep(&remaining, &remaining) == -1 && errno == EINTR) {
             int status;
-            pid_t r = waitpid(child_pid, &status, WNOHANG);
+            pid_t const r = waitpid(child_pid, &status, WNOHANG);
             if (r == child_pid) {
                 if (WIFEXITED(status)) {
                     exit(preserve_status ? WEXITSTATUS(status) : WEXITSTATUS(status));
@@ -272,7 +304,7 @@ int timeout_command(int argc, char** argv) {
         }
 
         int status;
-        pid_t r = waitpid(child_pid, &status, WNOHANG);
+        pid_t const r = waitpid(child_pid, &status, WNOHANG);
         if (r == child_pid) {
             if (WIFEXITED(status)) {
                 exit(preserve_status ? WEXITSTATUS(status) : WEXITSTATUS(status));
@@ -291,19 +323,18 @@ int timeout_command(int argc, char** argv) {
         kill(child_pid, timeout_signal);
 
         if (have_kill_after && kill_after > 0) {
-            int kill_sec = (int)kill_after;
-            long kill_nsec = (long)((kill_after - (double)kill_sec) * 1000000000.0);
+            int const kill_sec = static_cast<int>(kill_after);
+            long const kill_nsec = static_cast<long>((kill_after - static_cast<double>(kill_sec)) * 1000000000.0);
             struct timespec kts;
             kts.tv_sec = kill_sec;
             kts.tv_nsec = kill_nsec;
 
             struct timespec kremaining = kts;
             while (nanosleep(&kremaining, &kremaining) == -1 && errno == EINTR) {
-                continue;
-            }
+                           }
 
             int status;
-            pid_t r = waitpid(child_pid, &status, WNOHANG);
+            pid_t const r = waitpid(child_pid, &status, WNOHANG);
             if (r != child_pid) {
                 if (verbose) {
                     send_signal_verbose(prog, SIGKILL);
@@ -314,8 +345,7 @@ int timeout_command(int argc, char** argv) {
 
         int status;
         while (waitpid(child_pid, &status, 0) == -1 && errno == EINTR) {
-            continue;
-        }
+                   }
 
         if (preserve_status) {
             if (WIFEXITED(status)) {

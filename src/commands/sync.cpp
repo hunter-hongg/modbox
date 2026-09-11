@@ -1,9 +1,9 @@
 #include <argtable3.h>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 
 #include "commands/sync.hpp"
@@ -22,7 +22,7 @@ int sync_command(int argc, char **argv) {
 
   ArgTable at({help_opt, version_opt, files_arg, end});
 
-  int nerrors = at.parse(argc, argv);
+  int const nerrors = at.parse(argc, argv);
 
   if (help_opt->count > 0) {
     printf("Usage: %s [OPTION] [FILE]...\n", argv[0]);
@@ -45,7 +45,7 @@ int sync_command(int argc, char **argv) {
     return at.print_errors(end, argv[0]);
   }
 
-  int num_files = files_arg->count;
+  int const num_files = files_arg->count;
 
   if (num_files == 0) {
     // sync all filesystems
@@ -54,7 +54,7 @@ int sync_command(int argc, char **argv) {
     // sync specific files
     for (int i = 0; i < num_files; i++) {
       const char *path = files_arg->filename[i];
-      int fd = open(path, O_RDONLY);
+      int const fd = open(path, O_RDONLY);
       if (fd < 0) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(stderr, "sync: cannot open '%s': %s\n", path,

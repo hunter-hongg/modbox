@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -6,10 +8,10 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <pwd.h>
 #include <argtable3.h>
 #include <string>
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
@@ -61,9 +63,9 @@ static int g_clk_tck = 100; // sysconf(_SC_CLK_TCK), updated below
 
 static void read_boot_time() {
     FILE* fp = fopen("/proc/stat", "r");
-    if (fp) {
+    if (fp != nullptr) {
         char line[256];
-        while (fgets(line, sizeof(line), fp)) {
+        while (fgets(line, sizeof(line), fp) != nullptr) {
             if (strncmp(line, "btime", 5) == 0) {
                 long bt;
                 if (sscanf(line, "btime %ld", &bt) == 1) {
@@ -72,7 +74,7 @@ static void read_boot_time() {
                 break;
             }
         }
-        fclose(fp);
+        (void)fclose(fp);
     }
 }
 
@@ -80,25 +82,25 @@ static void read_boot_time() {
 // tty_nr is major*256 + minor (Linux convention). 0 means no terminal.
 static void tty_name(long tty_nr, char* out, size_t out_size) {
     if (tty_nr == 0) {
-        snprintf(out, out_size, "?");
+        (void)snprintf(out, out_size, "?");
         return;
     }
-    int major = (tty_nr >> 8) & 0xfff;
-    int minor = (tty_nr & 0xff) | ((tty_nr >> 12) & 0xfff00);
+    int const major = (tty_nr >> 8) & 0xfff;
+    int const minor = (tty_nr & 0xff) | ((tty_nr >> 12) & 0xfff00);
 
     if (major == 4) {
         // 4,x -> ttyx
-        snprintf(out, out_size, "tty%d", minor);
+        (void)snprintf(out, out_size, "tty%d", minor);
     } else if (major == 136 || major == 128) {
         // 136,x / 128,x -> pts/x
-        snprintf(out, out_size, "pts/%d", minor);
+        (void)snprintf(out, out_size, "pts/%d", minor);
     } else if (major == 3) {
         // 3,x -> ttySx (serial)
-        snprintf(out, out_size, "ttyS%d", minor);
+        (void)snprintf(out, out_size, "ttyS%d", minor);
     } else if (major == 348) {
-        snprintf(out, out_size, "pts/%d", minor);
+        (void)snprintf(out, out_size, "pts/%d", minor);
     } else {
-        snprintf(out, out_size, "%d/%d", major, minor);
+        (void)snprintf(out, out_size, "%d/%d", major, minor);
     }
 }
 
@@ -108,27 +110,31 @@ static bool read_process_info(pid_t pid, ProcessInfo& info) {
     FILE* fp;
 
     // Read stat
-    snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/stat", pid);
     fp = fopen(path, "r");
-    if (!fp) return false;
+    if (fp == nullptr) { return false;
+}
 
     char stat_buf[4096];
-    if (fgets(stat_buf, sizeof(stat_buf), fp)) {
+    if (fgets(stat_buf, sizeof(stat_buf), fp) != nullptr) {
         // Format: pid (comm) state ppid pgrp session tty_nr tpgid flags
         //   minflt cminflt majflt cmajflt utime stime cutime cstime
         //   priority nice num_threads itrealvalue starttime vsize rss ...
-        char* p = stat_buf;
+        const char* p = stat_buf;
 
         // Skip pid
-        while (*p && *p != ' ') p++;
-        while (*p == ' ') p++;
+        while (((*p) != 0) && *p != ' ') { p++;
+}
+        while (*p == ' ') { p++;
+}
 
         // Read comm (in parentheses)
         if (*p == '(') {
             p++;
-            char* comm_start = p;
-            while (*p && *p != ')') p++;
-            size_t comm_len = p - comm_start;
+            char const * comm_start = p;
+            while (((*p) != 0) && *p != ')') { p++;
+}
+            size_t const comm_len = p - comm_start;
             if (comm_len < sizeof(info.comm) - 1) {
                 memcpy(info.comm, comm_start, comm_len);
                 info.comm[comm_len] = '\0';
@@ -137,14 +143,15 @@ static bool read_process_info(pid_t pid, ProcessInfo& info) {
         }
 
         // Skip whitespace before state
-        while (*p == ' ') p++;
+        while (*p == ' ') { p++;
+}
         info.state = *p;
 
         // Parse the remaining fields.
         // Fields after state: ppid pgrp session tty_nr tpgid flags
         //   minflt cminflt majflt cmajflt utime stime cutime cstime
         //   priority nice num_threads itrealvalue starttime vsize rss
-        int parsed = sscanf(p,
+        int const parsed = sscanf(p,
             "%*c %d %d %d %ld %*d %*d %*d %*d %*d %d %d %d %d %d %d %d %llu %llu %lld",
             &info.ppid, &info.pgrp, &info.session, &info.tty_nr,
             &info.utime, &info.stime, &info.cutime, &info.cstime,
@@ -152,45 +159,52 @@ static bool read_process_info(pid_t pid, ProcessInfo& info) {
             &info.starttime, &info.vsize, &info.rss);
 
         if (parsed < 14) {
-            fclose(fp);
+            (void)fclose(fp);
             return false;
         }
     }
-    fclose(fp);
+    (void)fclose(fp);
 
     // Read status for uid/gid
-    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/status", pid);
     fp = fopen(path, "r");
-    if (fp) {
+    if (fp != nullptr) {
         char line[256];
-        while (fgets(line, sizeof(line), fp)) {
+        while (fgets(line, sizeof(line), fp) != nullptr) {
             if (strncmp(line, "Uid:", 4) == 0) {
                 // Format: Uid: real effective saved fs
-                int r, e, s, f;
+                int r;
+                int e;
+                int s;
+                int f;
                 if (sscanf(line, "Uid: %d %d %d %d", &r, &e, &s, &f) >= 1) {
                     info.uid = e; // effective uid
                 }
             } else if (strncmp(line, "Gid:", 4) == 0) {
-                int r, e, s, f;
+                int r;
+                int e;
+                int s;
+                int f;
                 if (sscanf(line, "Gid: %d %d %d %d", &r, &e, &s, &f) >= 1) {
                     info.gid = e;
                 }
             }
         }
-        fclose(fp);
+        (void)fclose(fp);
     }
 
     // Read cmdline
-    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
     fp = fopen(path, "r");
-    if (fp) {
-        size_t n = fread(info.cmd, 1, sizeof(info.cmd) - 1, fp);
+    if (fp != nullptr) {
+        size_t const n = fread(info.cmd, 1, sizeof(info.cmd) - 1, fp);
         info.cmd[n > 0 ? n - 1 : 0] = '\0'; // ensure terminator
         // Replace null bytes with spaces (args separated by NUL in cmdline)
         for (size_t i = 0; i < n; i++) {
-            if (info.cmd[i] == '\0') info.cmd[i] = ' ';
+            if (info.cmd[i] == '\0') { info.cmd[i] = ' ';
+}
         }
-        fclose(fp);
+        (void)fclose(fp);
         if (n == 0) {
             // No cmdline (e.g. kernel thread) -> fall back to comm
             strncpy(info.cmd, info.comm, sizeof(info.cmd) - 1);
@@ -207,12 +221,12 @@ static bool read_process_info(pid_t pid, ProcessInfo& info) {
 
 static const char* get_username(uid_t uid) {
     static char username[256];
-    struct passwd* pw = getpwuid(uid);
-    if (pw) {
+    const struct passwd* pw = getpwuid(uid);
+    if (pw != nullptr) {
         strncpy(username, pw->pw_name, sizeof(username) - 1);
         username[sizeof(username) - 1] = '\0';
     } else {
-        snprintf(username, sizeof(username), "%d", uid);
+        (void)snprintf(username, sizeof(username), "%d", uid);
     }
     return username;
 }
@@ -220,14 +234,14 @@ static const char* get_username(uid_t uid) {
 // Format the process start time as HH:MM:SS (or MM-DD if old).
 static void format_start_time(unsigned long long starttime, char* out, size_t out_size) {
     if (g_btime == 0) {
-        snprintf(out, out_size, "?");
+        (void)snprintf(out, out_size, "?");
         return;
     }
-    time_t start_sec = (time_t)(g_btime + (long long)(starttime / g_clk_tck));
-    time_t now = time(nullptr);
+    time_t const start_sec = static_cast<time_t>(g_btime + static_cast<long long>(starttime / g_clk_tck));
+    time_t const now = time(nullptr);
     struct tm tm_start;
     if (localtime_r(&start_sec, &tm_start) == nullptr) {
-        snprintf(out, out_size, "?");
+        (void)snprintf(out, out_size, "?");
         return;
     }
     struct tm tm_now;
@@ -235,28 +249,28 @@ static void format_start_time(unsigned long long starttime, char* out, size_t ou
     if (tm_start.tm_year == tm_now.tm_year && tm_start.tm_mon == tm_now.tm_mon &&
         tm_start.tm_mday == tm_now.tm_mday) {
         // Same day: HH:MM:SS
-        snprintf(out, out_size, "%02d:%02d:%02d",
+        (void)snprintf(out, out_size, "%02d:%02d:%02d",
                  tm_start.tm_hour, tm_start.tm_min, tm_start.tm_sec);
     } else {
         // Different day: MM-DD
-        snprintf(out, out_size, "%02d-%02d",
+        (void)snprintf(out, out_size, "%02d-%02d",
                  tm_start.tm_mon + 1, tm_start.tm_mday);
     }
 }
 
 // Format cumulative CPU time as [[dd-]hh:]mm:ss
 static void format_cputime(int total_ticks, char* out, size_t out_size) {
-    long total_sec = total_ticks / g_clk_tck;
-    long days = total_sec / 86400;
-    long hours = (total_sec % 86400) / 3600;
-    long mins = (total_sec % 3600) / 60;
-    long secs = total_sec % 60;
+    long const total_sec = total_ticks / g_clk_tck;
+    long const days = total_sec / 86400;
+    long const hours = (total_sec % 86400) / 3600;
+    long const mins = (total_sec % 3600) / 60;
+    long const secs = total_sec % 60;
     if (days > 0) {
-        snprintf(out, out_size, "%ld-%02ld:%02ld:%02ld", days, hours, mins, secs);
+        (void)snprintf(out, out_size, "%ld-%02ld:%02ld:%02ld", days, hours, mins, secs);
     } else if (hours > 0) {
-        snprintf(out, out_size, "%02ld:%02ld:%02ld", hours, mins, secs);
+        (void)snprintf(out, out_size, "%02ld:%02ld:%02ld", hours, mins, secs);
     } else {
-        snprintf(out, out_size, "%02ld:%02ld", mins, secs);
+        (void)snprintf(out, out_size, "%02ld:%02ld", mins, secs);
     }
 }
 
@@ -264,8 +278,9 @@ static void format_cputime(int total_ticks, char* out, size_t out_size) {
 static void ps_tui_main();
 
 int ps_command(int argc, char** argv) {
-    g_clk_tck = (int)sysconf(_SC_CLK_TCK);
-    if (g_clk_tck <= 0) g_clk_tck = 100;
+    g_clk_tck = static_cast<int>(sysconf(_SC_CLK_TCK));
+    if (g_clk_tck <= 0) { g_clk_tck = 100;
+}
     read_boot_time();
 
     // Pre-process BSD-style option clusters: "aux" -> "-aux", "ax" -> "-ax", etc.
@@ -273,11 +288,11 @@ int ps_command(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] != '-') {
             const char* arg = argv[i];
-            size_t len = strlen(arg);
+            size_t const len = strlen(arg);
             if (len >= 1 && len <= 5) {
                 bool all_alpha = true;
                 for (size_t j = 0; j < len; j++) {
-                    if (!isalpha((unsigned char)arg[j])) {
+                    if (isalpha(static_cast<unsigned char>(arg[j])) == 0) {
                         all_alpha = false;
                         break;
                     }
@@ -304,7 +319,7 @@ int ps_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({all_opt, a_opt, d_opt, e_opt, f_opt, u_opt, help_opt, x_opt, tui_opt, json_opt, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -347,24 +362,24 @@ int ps_command(int argc, char** argv) {
     }
 
     bool select_all = (all_opt->count > 0) || (e_opt->count > 0);
-    bool select_a = (a_opt->count > 0);
-    bool select_d = (d_opt->count > 0);
-    bool full_format = (f_opt->count > 0);
-    bool select_x = (x_opt->count > 0);
-    bool user_format = (u_opt->count > 0);
-    bool json_mode = (json_opt->count > 0);
+    bool const select_a = (a_opt->count > 0);
+    bool const select_d = (d_opt->count > 0);
+    bool const full_format = (f_opt->count > 0);
+    bool const select_x = (x_opt->count > 0);
+    bool const user_format = (u_opt->count > 0);
+    bool const json_mode = (json_opt->count > 0);
 
     // BSD-style: -a -x together = show all processes
     if (select_a && select_x) {
         select_all = true;
     }
 
-    uid_t my_uid = geteuid();
-    pid_t my_pid = getpid();
+    uid_t const my_uid = geteuid();
+    pid_t const my_pid = getpid();
 
     // Determine our own session/tty for default and -a selection.
     ProcessInfo my_info;
-    bool have_my_info = read_process_info(my_pid, my_info);
+    bool const have_my_info = read_process_info(my_pid, my_info);
 
     // Helper to test whether a process is a session leader.
     auto is_session_leader = [](const ProcessInfo& info) {
@@ -374,20 +389,23 @@ int ps_command(int argc, char** argv) {
     std::vector<ProcessInfo> matched_procs;
 
     DIR* proc_dir = opendir("/proc");
-    if (!proc_dir) {
+    if (proc_dir == nullptr) {
         perror("ps: cannot open /proc");
         return 0;
     }
 
     struct dirent* entry;
     while ((entry = readdir(proc_dir)) != NULL) {
-        if (entry->d_type != DT_DIR) continue;
+        if (entry->d_type != DT_DIR) { continue;
+}
 
-        pid_t pid = atoi(entry->d_name);
-        if (pid <= 0) continue;
+        pid_t const pid = atoi(entry->d_name);
+        if (pid <= 0) { continue;
+}
 
         ProcessInfo info;
-        if (!read_process_info(pid, info)) continue;
+        if (!read_process_info(pid, info)) { continue;
+}
 
         bool show = false;
 
@@ -413,120 +431,130 @@ int ps_command(int argc, char** argv) {
             }
         }
 
-        if (!show) continue;
+        if (!show) { continue;
+}
         matched_procs.push_back(info);
     }
 
     closedir(proc_dir);
 
     if (json_mode) {
-        fprintf(stdout, "[\n");
+        (void)fprintf(stdout, "[\n");
         for (size_t i = 0; i < matched_procs.size(); i++) {
             const ProcessInfo& info = matched_procs[i];
             const char* username = get_username(info.uid);
-            int total_ticks = info.utime + info.stime + info.cutime + info.cstime;
-            fprintf(stdout, "  {\n");
-            fprintf(stdout, "    \"pid\": %d,\n", info.pid);
-            fprintf(stdout, "    \"ppid\": %d,\n", info.ppid);
-            fprintf(stdout, "    \"pgrp\": %d,\n", info.pgrp);
-            fprintf(stdout, "    \"session\": %d,\n", info.session);
-            fprintf(stdout, "    \"uid\": %d,\n", info.uid);
-            fprintf(stdout, "    \"user\": ");
+            int const total_ticks = info.utime + info.stime + info.cutime + info.cstime;
+            (void)fprintf(stdout, "  {\n");
+            (void)fprintf(stdout, "    \"pid\": %d,\n", info.pid);
+            (void)fprintf(stdout, "    \"ppid\": %d,\n", info.ppid);
+            (void)fprintf(stdout, "    \"pgrp\": %d,\n", info.pgrp);
+            (void)fprintf(stdout, "    \"session\": %d,\n", info.session);
+            (void)fprintf(stdout, "    \"uid\": %d,\n", info.uid);
+            (void)fprintf(stdout, "    \"user\": ");
             json_escape_string(stdout, username);
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"gid\": %d,\n", info.gid);
-            fprintf(stdout, "    \"comm\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"gid\": %d,\n", info.gid);
+            (void)fprintf(stdout, "    \"comm\": ");
             json_escape_string(stdout, info.comm);
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"state\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"state\": ");
             json_escape_string(stdout, std::string(1, info.state).c_str());
-            fprintf(stdout, ",\n");
-            fprintf(stdout, "    \"tty_nr\": %ld,\n", (long)info.tty_nr);
-            fprintf(stdout, "    \"utime\": %d,\n", info.utime);
-            fprintf(stdout, "    \"stime\": %d,\n", info.stime);
-            fprintf(stdout, "    \"priority\": %d,\n", info.priority);
-            fprintf(stdout, "    \"nice\": %d,\n", info.nice);
-            fprintf(stdout, "    \"num_threads\": %d,\n", info.num_threads);
-            fprintf(stdout, "    \"vsize\": %llu,\n", (unsigned long long)info.vsize);
-            fprintf(stdout, "    \"rss\": %lld,\n", (long long)info.rss);
-            fprintf(stdout, "    \"cmd\": ");
+            (void)fprintf(stdout, ",\n");
+            (void)fprintf(stdout, "    \"tty_nr\": %ld,\n", info.tty_nr);
+            (void)fprintf(stdout, "    \"utime\": %d,\n", info.utime);
+            (void)fprintf(stdout, "    \"stime\": %d,\n", info.stime);
+            (void)fprintf(stdout, "    \"priority\": %d,\n", info.priority);
+            (void)fprintf(stdout, "    \"nice\": %d,\n", info.nice);
+            (void)fprintf(stdout, "    \"num_threads\": %d,\n", info.num_threads);
+            (void)fprintf(stdout, "    \"vsize\": %llu,\n", info.vsize);
+            (void)fprintf(stdout, "    \"rss\": %lld,\n", info.rss);
+            (void)fprintf(stdout, "    \"cmd\": ");
             json_escape_string(stdout, info.cmd);
-            fprintf(stdout, "\n");
-            fprintf(stdout, "  }%s\n", (i + 1 < matched_procs.size()) ? "," : "");
+            (void)fprintf(stdout, "\n");
+            (void)fprintf(stdout, "  }%s\n", (i + 1 < matched_procs.size()) ? "," : "");
         }
-        fprintf(stdout, "]\n");
+        (void)fprintf(stdout, "]\n");
         return 0;
     }
 
-    int pid_w = 3, ppid_w = 3, cpu_w = 1, user_w = 3;
-    int stime_w = 5, tty_w = 3, time_w = 4;
-    int vsz_w = 4, rss_w = 4, stat_w = 1, mem_w = 4;
+    int pid_w = 3;
+    int ppid_w = 3;
+    int cpu_w = 1;
+    int user_w = 3;
+    int stime_w = 5;
+    int tty_w = 3;
+    int time_w = 4;
+    int vsz_w = 4;
+    int rss_w = 4;
+    int const stat_w = 1;
+    int mem_w = 4;
 
     // Read total memory for %MEM calculation (user format)
     unsigned long mem_total_kb = 0;
     {
         FILE* f = fopen("/proc/meminfo", "r");
-        if (f) {
+        if (f != nullptr) {
             char line[256];
-            while (fgets(line, sizeof(line), f)) {
-                if (sscanf(line, "MemTotal: %lu kB", &mem_total_kb) == 1) break;
+            while (fgets(line, sizeof(line), f) != nullptr) {
+                if (sscanf(line, "MemTotal: %lu kB", &mem_total_kb) == 1) { break;
+}
             }
-            fclose(f);
+            (void)fclose(f);
         }
     }
 
     for (const auto& info : matched_procs) {
         int n;
         n = snprintf(nullptr, 0, "%d", info.pid);
-        if (n > pid_w) pid_w = n;
+        pid_w = std::max(n, pid_w);
         n = snprintf(nullptr, 0, "%d", info.ppid);
-        if (n > ppid_w) ppid_w = n;
+        ppid_w = std::max(n, ppid_w);
         const char* username = get_username(info.uid);
-        n = (int)strlen(username);
-        if (n > user_w) user_w = n;
+        n = static_cast<int>(strlen(username));
+        user_w = std::max(n, user_w);
 
         char stime_str[32];
         format_start_time(info.starttime, stime_str, sizeof(stime_str));
-        n = (int)strlen(stime_str);
-        if (n > stime_w) stime_w = n;
+        n = static_cast<int>(strlen(stime_str));
+        stime_w = std::max(n, stime_w);
 
         char tty_str[64];
         tty_name(info.tty_nr, tty_str, sizeof(tty_str));
-        n = (int)strlen(tty_str);
-        if (n > tty_w) tty_w = n;
+        n = static_cast<int>(strlen(tty_str));
+        tty_w = std::max(n, tty_w);
 
-        int total_ticks = info.utime + info.stime + info.cutime + info.cstime;
+        int const total_ticks = info.utime + info.stime + info.cutime + info.cstime;
         char time_str[32];
         format_cputime(total_ticks, time_str, sizeof(time_str));
-        n = (int)strlen(time_str);
-        if (n > time_w) time_w = n;
+        n = static_cast<int>(strlen(time_str));
+        time_w = std::max(n, time_w);
 
         int cpu_pct = 0;
         if (g_btime != 0) {
-            long long start_sec = g_btime + (long long)(info.starttime / g_clk_tck);
-            long long elapsed = (long long)time(nullptr) - start_sec;
+            long long const start_sec = g_btime + static_cast<long long>(info.starttime / g_clk_tck);
+            long long const elapsed = static_cast<long long>(time(nullptr)) - start_sec;
             if (elapsed > 0) {
-                cpu_pct = (int)((total_ticks * 100LL / g_clk_tck) / elapsed);
-                if (cpu_pct > 99) cpu_pct = 99;
+                cpu_pct = static_cast<int>((total_ticks * 100LL / g_clk_tck) / elapsed);
+                cpu_pct = std::min(cpu_pct, 99);
             }
         }
         n = snprintf(nullptr, 0, "%d", cpu_pct);
-        if (n > cpu_w) cpu_w = n;
+        cpu_w = std::max(n, cpu_w);
 
         // User-format column widths
         if (user_format) {
             // %MEM width (XX.Y format)
             n = snprintf(nullptr, 0, "%.1f", 0.0);
-            if (n > mem_w) mem_w = n;
+            mem_w = std::max(n, mem_w);
 
             // VSZ width (in KB)
-            n = snprintf(nullptr, 0, "%lu", (unsigned long)(info.vsize / 1024));
-            if (n > vsz_w) vsz_w = n;
+            n = snprintf(nullptr, 0, "%lu", static_cast<unsigned long>(info.vsize / 1024));
+            vsz_w = std::max(n, vsz_w);
 
             // RSS width (in KB: rss * pagesize / 1024)
-            long rss_kb = info.rss * (long)sysconf(_SC_PAGE_SIZE) / 1024;
+            long const rss_kb = info.rss * (long)sysconf(_SC_PAGE_SIZE) / 1024;
             n = snprintf(nullptr, 0, "%ld", rss_kb);
-            if (n > rss_w) rss_w = n;
+            rss_w = std::max(n, rss_w);
         }
     }
 
@@ -552,14 +580,14 @@ int ps_command(int argc, char** argv) {
         if (full_format) {
             const char* username = get_username(info.uid);
 
-            int total_ticks = info.utime + info.stime + info.cutime + info.cstime;
+            int const total_ticks = info.utime + info.stime + info.cutime + info.cstime;
             int cpu_percent = 0;
             if (g_btime != 0) {
-                long long start_sec = g_btime + (long long)(info.starttime / g_clk_tck);
-                long long elapsed = (long long)time(nullptr) - start_sec;
+                long long const start_sec = g_btime + static_cast<long long>(info.starttime / g_clk_tck);
+                long long const elapsed = static_cast<long long>(time(nullptr)) - start_sec;
                 if (elapsed > 0) {
-                    cpu_percent = (int)((total_ticks * 100LL / g_clk_tck) / elapsed);
-                    if (cpu_percent > 99) cpu_percent = 99;
+                    cpu_percent = static_cast<int>((total_ticks * 100LL / g_clk_tck) / elapsed);
+                    cpu_percent = std::min(cpu_percent, 99);
                 }
             }
 
@@ -576,25 +604,25 @@ int ps_command(int argc, char** argv) {
         } else if (user_format) {
             const char* username = get_username(info.uid);
 
-            int total_ticks = info.utime + info.stime + info.cutime + info.cstime;
+            int const total_ticks = info.utime + info.stime + info.cutime + info.cstime;
             int cpu_percent = 0;
             if (g_btime != 0) {
-                long long start_sec = g_btime + (long long)(info.starttime / g_clk_tck);
-                long long elapsed = (long long)time(nullptr) - start_sec;
+                long long const start_sec = g_btime + static_cast<long long>(info.starttime / g_clk_tck);
+                long long const elapsed = static_cast<long long>(time(nullptr)) - start_sec;
                 if (elapsed > 0) {
-                    cpu_percent = (int)((total_ticks * 100LL / g_clk_tck) / elapsed);
-                    if (cpu_percent > 99) cpu_percent = 99;
+                    cpu_percent = static_cast<int>((total_ticks * 100LL / g_clk_tck) / elapsed);
+                    cpu_percent = std::min(cpu_percent, 99);
                 }
             }
 
             double mem_pct = 0.0;
             if (mem_total_kb > 0) {
-                long rss_kb = info.rss * (long)sysconf(_SC_PAGE_SIZE) / 1024;
-                mem_pct = 100.0 * (double)rss_kb / (double)mem_total_kb;
+                long const rss_kb = info.rss * (long)sysconf(_SC_PAGE_SIZE) / 1024;
+                mem_pct = 100.0 * static_cast<double>(rss_kb) / static_cast<double>(mem_total_kb);
             }
 
-            unsigned long vsz_kb = (unsigned long)(info.vsize / 1024);
-            long rss_kb = info.rss * (long)sysconf(_SC_PAGE_SIZE) / 1024;
+            unsigned long const vsz_kb = static_cast<unsigned long>(info.vsize / 1024);
+            long const rss_kb = info.rss * (long)sysconf(_SC_PAGE_SIZE) / 1024;
 
             char stime_str[32];
             format_start_time(info.starttime, stime_str, sizeof(stime_str));
@@ -609,7 +637,7 @@ int ps_command(int argc, char** argv) {
                    tty_w, tty_str, stat_w, info.state,
                    stime_w, stime_str, time_w, time_str, info.cmd);
         } else {
-            int total_ticks = info.utime + info.stime + info.cutime + info.cstime;
+            int const total_ticks = info.utime + info.stime + info.cutime + info.cstime;
             char time_str[32];
             format_cputime(total_ticks, time_str, sizeof(time_str));
 
@@ -654,85 +682,104 @@ static long ps_tui_clk_tck;
 static long ps_tui_page_sz;
 
 static PsTuiMemInfo ps_tui_read_meminfo() {
-    PsTuiMemInfo info = {0, 0};
+    PsTuiMemInfo info = {.total=0, .available=0};
     FILE* f = fopen("/proc/meminfo", "r");
-    if (!f) return info;
+    if (f == nullptr) { return info;
+}
     char line[256];
-    while (fgets(line, sizeof(line), f)) {
+    while (fgets(line, sizeof(line), f) != nullptr) {
         unsigned long val;
-        if (sscanf(line, "MemTotal: %lu kB", &val) == 1) info.total = val;
-        else if (sscanf(line, "MemAvailable: %lu kB", &val) == 1) info.available = val;
+        if (sscanf(line, "MemTotal: %lu kB", &val) == 1) { info.total = val;
+        } else if (sscanf(line, "MemAvailable: %lu kB", &val) == 1) { info.available = val;
+}
     }
-    fclose(f);
+    (void)fclose(f);
     return info;
 }
 
 static float ps_tui_read_uptime() {
     FILE* f = fopen("/proc/uptime", "r");
-    if (!f) return 0;
+    if (f == nullptr) { return 0;
+}
     double up;
-    if (fscanf(f, "%lf", &up) != 1) up = 0;
-    fclose(f);
-    return (float)up;
+    if (fscanf(f, "%lf", &up) != 1) { up = 0;
+}
+    (void)fclose(f);
+    return static_cast<float>(up);
 }
 
 static void ps_tui_read_loadavg(float loads[3]) {
     FILE* f = fopen("/proc/loadavg", "r");
-    if (!f) return;
+    if (f == nullptr) { return;
+}
     if (fscanf(f, "%f %f %f", &loads[0], &loads[1], &loads[2]) != 3) {
         loads[0] = loads[1] = loads[2] = 0;
     }
-    fclose(f);
+    (void)fclose(f);
 }
 
 static bool ps_tui_read_proc_status(int pid, unsigned* uid) {
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/status", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/status", pid);
     FILE* f = fopen(path, "r");
-    if (!f) return false;
+    if (f == nullptr) { return false;
+}
     char line[256];
     bool found = false;
-    while (fgets(line, sizeof(line), f)) {
+    while (fgets(line, sizeof(line), f) != nullptr) {
         if (sscanf(line, "Uid: %u", uid) == 1) {
             found = true;
             break;
         }
     }
-    fclose(f);
+    (void)fclose(f);
     return found;
 }
 
 static int ps_tui_read_proc_stat(int pid, PsTuiProcInfo* info) {
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/stat", pid);
     FILE* f = fopen(path, "r");
-    if (!f) return -1;
+    if (f == nullptr) { return -1;
+}
     char buf[4096];
-    if (!fgets(buf, sizeof(buf), f)) {
-        fclose(f);
+    if (fgets(buf, sizeof(buf), f) == nullptr) {
+        (void)fclose(f);
         return -1;
     }
-    fclose(f);
+    (void)fclose(f);
 
     const char* start = strchr(buf, '(');
-    if (!start) return -1;
+    if (start == nullptr) { return -1;
+}
     start++;
     const char* end = strrchr(buf, ')');
-    if (!end) return -1;
+    if (end == nullptr) { return -1;
+}
 
     int comm_len = end - start;
-    if (comm_len > 255) comm_len = 255;
-    strncpy(info->comm, start, (size_t)comm_len);
+    comm_len = std::min(comm_len, 255);
+    strncpy(info->comm, start, static_cast<size_t>(comm_len));
     info->comm[comm_len] = '\0';
 
     const char* p = end + 2;
 
     char st;
-    int ppid, pgrp, sess, tty, tpgid;
+    int ppid;
+    int pgrp;
+    int sess;
+    int tty;
+    int tpgid;
     unsigned fl;
-    unsigned long minflt, cminflt, majflt, cmajflt;
-    unsigned long long utime, stime;
-    long priority, nice, num_threads;
+    unsigned long minflt;
+    unsigned long cminflt;
+    unsigned long majflt;
+    unsigned long cmajflt;
+    unsigned long long utime;
+    unsigned long long stime;
+    long priority;
+    long nice;
+    long num_threads;
     unsigned long long starttime;
     unsigned long vsize;
     long rss;
@@ -761,19 +808,21 @@ static int ps_tui_read_proc_stat(int pid, PsTuiProcInfo* info) {
 
 static void ps_tui_read_cmdline(int pid, char* cmd, size_t cmd_size) {
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    (void)snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
     FILE* f = fopen(path, "r");
-    if (!f) {
+    if (f == nullptr) {
         cmd[0] = '\0';
         return;
     }
-    size_t n = fread(cmd, 1, cmd_size - 1, f);
-    fclose(f);
+    size_t const n = fread(cmd, 1, cmd_size - 1, f);
+    (void)fclose(f);
     cmd[n] = '\0';
     for (size_t i = 0; i < n; i++) {
-        if (cmd[i] == '\0') cmd[i] = ' ';
+        if (cmd[i] == '\0') { cmd[i] = ' ';
+}
     }
-    if (n == 0) cmd[0] = '\0';
+    if (n == 0) { cmd[0] = '\0';
+}
 }
 
 static void ps_tui_lookup_user(unsigned uid,
@@ -781,15 +830,15 @@ static void ps_tui_lookup_user(unsigned uid,
                                 char* out, size_t out_size) {
     auto it = cache.find(uid);
     if (it != cache.end()) {
-        snprintf(out, out_size, "%s", it->second.c_str());
+        (void)snprintf(out, out_size, "%s", it->second.c_str());
         return;
     }
-    struct passwd* pw = getpwuid(uid);
-    if (pw) {
-        snprintf(out, out_size, "%s", pw->pw_name);
+    const struct passwd* pw = getpwuid(uid);
+    if (pw != nullptr) {
+        (void)snprintf(out, out_size, "%s", pw->pw_name);
         cache[uid] = pw->pw_name;
     } else {
-        snprintf(out, out_size, "%u", uid);
+        (void)snprintf(out, out_size, "%u", uid);
         cache[uid] = std::to_string(uid);
     }
 }
@@ -801,21 +850,25 @@ static std::vector<PsTuiProcInfo> ps_tui_read_procs(
     std::vector<PsTuiProcInfo> procs;
 
     DIR* dir = opendir("/proc");
-    if (!dir) return procs;
+    if (dir == nullptr) { return procs;
+}
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type != DT_DIR) continue;
+        if (entry->d_type != DT_DIR) { continue;
+}
         bool is_num = true;
-        for (const char* p = entry->d_name; *p; p++) {
-            if (!isdigit((unsigned char)*p)) { is_num = false; break; }
+        for (const char* p = entry->d_name; (*p) != 0; p++) {
+            if (isdigit(static_cast<unsigned char>(*p)) == 0) { is_num = false; break; }
         }
-        if (!is_num) continue;
-        int pid = atoi(entry->d_name);
+        if (!is_num) { continue;
+}
+        int const pid = atoi(entry->d_name);
 
         PsTuiProcInfo info;
         memset(&info, 0, sizeof(info));
-        if (ps_tui_read_proc_stat(pid, &info) != 0) continue;
+        if (ps_tui_read_proc_stat(pid, &info) != 0) { continue;
+}
 
         unsigned uid = 0;
         if (ps_tui_read_proc_status(pid, &uid)) {
@@ -823,7 +876,7 @@ static std::vector<PsTuiProcInfo> ps_tui_read_procs(
             ps_tui_lookup_user(uid, user_cache, info.user, sizeof(info.user));
         } else {
             info.uid = 0;
-            snprintf(info.user, sizeof(info.user), "?");
+            (void)snprintf(info.user, sizeof(info.user), "?");
         }
 
         ps_tui_read_cmdline(pid, info.cmd, sizeof(info.cmd));
@@ -833,14 +886,14 @@ static std::vector<PsTuiProcInfo> ps_tui_read_procs(
         }
 
         // Calculate CPU%
-        double elapsed = (double)uptime * (double)ps_tui_clk_tck - (double)info.starttime;
+        double const elapsed = static_cast<double>(uptime) * static_cast<double>(ps_tui_clk_tck) - static_cast<double>(info.starttime);
         if (elapsed > 0) {
-            info.cpu_pct = (float)(100.0 * (double)(info.utime + info.stime) / elapsed);
+            info.cpu_pct = static_cast<float>(100.0 * static_cast<double>(info.utime + info.stime) / elapsed);
         }
 
         // Calculate MEM%
         if (mem.total > 0) {
-            info.mem_pct = 100.0f * (float)(info.rss * ps_tui_page_sz / 1024) / (float)mem.total;
+            info.mem_pct = 100.0F * static_cast<float>(info.rss * ps_tui_page_sz / 1024) / static_cast<float>(mem.total);
         }
 
         procs.push_back(info);
@@ -856,7 +909,7 @@ static void ps_tui_build_tree(std::vector<PsTuiProcInfo>& procs) {
     }
 
     std::unordered_map<int, int> pid_to_idx;
-    for (int i = 0; i < (int)procs.size(); i++) {
+    for (int i = 0; i < static_cast<int>(procs.size()); i++) {
         pid_to_idx[procs[i].pid] = i;
     }
 
@@ -865,7 +918,8 @@ static void ps_tui_build_tree(std::vector<PsTuiProcInfo>& procs) {
 
     std::function<void(int, int)> dfs = [&](int pid, int depth) {
         auto it = pid_to_idx.find(pid);
-        if (it == pid_to_idx.end()) return;
+        if (it == pid_to_idx.end()) { return;
+}
         procs[it->second].depth = depth;
         sorted.push_back(procs[it->second]);
         auto& ch = children[pid];
@@ -891,80 +945,81 @@ static void ps_tui_build_tree(std::vector<PsTuiProcInfo>& procs) {
 
 static ftxui::Color ps_tui_gradient(float pct) {
     using namespace ftxui;
-    if (pct < 50.0f) {
-        uint8_t r = (uint8_t)(pct / 50.0f * 255.0f);
+    if (pct < 50.0F) {
+        uint8_t const r = static_cast<uint8_t>(pct / 50.0F * 255.0F);
         return Color::RGB(r, 255, 0);
-    } else {
-        uint8_t g = (uint8_t)((100.0f - pct) / 50.0f * 255.0f);
+    }         uint8_t g = (uint8_t)((100.0f - pct) / 50.0f * 255.0f);
         return Color::RGB(255, g, 0);
-    }
+   
 }
 
 static void ps_tui_fmt_time(char* buf, size_t size, unsigned long long ticks) {
-    unsigned long total_secs = (unsigned long)(ticks / (unsigned long long)ps_tui_clk_tck);
-    long hours = (long)(total_secs / 3600);
-    long mins = (long)((total_secs % 3600) / 60);
-    long secs = total_secs % 60;
+    unsigned long const total_secs = static_cast<unsigned long>(ticks / static_cast<unsigned long long>(ps_tui_clk_tck));
+    long const hours = static_cast<long>(total_secs / 3600);
+    long const mins = static_cast<long>((total_secs % 3600) / 60);
+    long const secs = total_secs % 60;
     if (hours > 0) {
-        snprintf(buf, size, "%ld:%02ld:%02ld", hours, mins, secs);
+        (void)snprintf(buf, size, "%ld:%02ld:%02ld", hours, mins, secs);
     } else {
-        snprintf(buf, size, "%ld:%02ld", mins, secs);
+        (void)snprintf(buf, size, "%ld:%02ld", mins, secs);
     }
 }
 
 static void ps_tui_fmt_memsize(char* buf, size_t size, unsigned long kb) {
     if (kb >= 1024 * 1024) {
-        snprintf(buf, size, "%.1fT", (double)kb / (1024.0 * 1024.0));
+        (void)snprintf(buf, size, "%.1fT", static_cast<double>(kb) / (1024.0 * 1024.0));
     } else if (kb >= 1024) {
-        snprintf(buf, size, "%.1fG", (double)kb / 1024.0);
+        (void)snprintf(buf, size, "%.1fG", static_cast<double>(kb) / 1024.0);
     } else {
-        snprintf(buf, size, "%.0fM", (double)kb);
+        (void)snprintf(buf, size, "%.0fM", static_cast<double>(kb));
     }
 }
 
 static void ps_tui_tty_name(long tty_nr, char* out, size_t out_size) {
     if (tty_nr == 0) {
-        snprintf(out, out_size, "?");
+        (void)snprintf(out, out_size, "?");
         return;
     }
-    int major = (tty_nr >> 8) & 0xfff;
-    int minor = (tty_nr & 0xff) | ((tty_nr >> 12) & 0xfff00);
+    int const major = (tty_nr >> 8) & 0xfff;
+    int const minor = (tty_nr & 0xff) | ((tty_nr >> 12) & 0xfff00);
 
     if (major == 4) {
-        snprintf(out, out_size, "tty%d", minor);
+        (void)snprintf(out, out_size, "tty%d", minor);
     } else if (major == 136 || major == 128) {
-        snprintf(out, out_size, "pts/%d", minor);
+        (void)snprintf(out, out_size, "pts/%d", minor);
     } else if (major == 3) {
-        snprintf(out, out_size, "ttyS%d", minor);
+        (void)snprintf(out, out_size, "ttyS%d", minor);
     } else if (major == 348) {
-        snprintf(out, out_size, "pts/%d", minor);
+        (void)snprintf(out, out_size, "pts/%d", minor);
     } else {
-        snprintf(out, out_size, "%d/%d", major, minor);
+        (void)snprintf(out, out_size, "%d/%d", major, minor);
     }
 }
 
 static bool ps_tui_matches(const PsTuiProcInfo& p, const std::string& query) {
-    if (query.empty()) return true;
+    if (query.empty()) { return true;
+}
     std::string q = query;
     std::transform(q.begin(), q.end(), q.begin(), ::tolower);
 
     char pid_str[16];
-    snprintf(pid_str, sizeof(pid_str), "%d", p.pid);
-    if (strstr(pid_str, q.c_str())) return true;
+    (void)snprintf(pid_str, sizeof(pid_str), "%d", p.pid);
+    if (strstr(pid_str, q.c_str()) != nullptr) { return true;
+}
 
     std::string user = p.user;
     std::transform(user.begin(), user.end(), user.begin(), ::tolower);
-    if (user.find(q) != std::string::npos) return true;
+    if (user.find(q) != std::string::npos) { return true;
+}
 
     std::string comm = p.comm;
     std::transform(comm.begin(), comm.end(), comm.begin(), ::tolower);
-    if (comm.find(q) != std::string::npos) return true;
+    if (comm.find(q) != std::string::npos) { return true;
+}
 
     std::string cmd = p.cmd;
     std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
-    if (cmd.find(q) != std::string::npos) return true;
-
-    return false;
+    return cmd.find(q) != std::string::npos;
 }
 
 struct PsTuiFmtWidth {
@@ -983,39 +1038,44 @@ class PsTuiComponent : public TuiBase {
 public:
     PsTuiComponent() = default;
 
-    int entries_size() const override { return (int)filtered_.size(); }
+    int entries_size() const override { return static_cast<int>(filtered_.size()); }
     ftxui::Element render_row(int idx) const override;
     void fill_entries() override;
     int header_rows() const override { return 5; }
     bool on_command_key(ftxui::Event event) override;
 
     PsTuiFmtWidth calc_fmt_widths() const {
-        int pid = 3, user = 4, cpu = 4, mem = 4;
-        int state = 1, time = 5, tty = 3;
+        int pid = 3;
+        int user = 4;
+        int cpu = 4;
+        int mem = 4;
+        int const state = 1;
+        int time = 5;
+        int tty = 3;
 
         for (const auto& p : filtered_) {
             int n;
             n = snprintf(nullptr, 0, "%d", p.pid);
-            if (n > pid) pid = n;
-            n = (int)strlen(p.user);
-            if (n > user) user = n;
-            n = snprintf(nullptr, 0, "%.1f", (double)p.cpu_pct);
-            if (n > cpu) cpu = n;
-            n = snprintf(nullptr, 0, "%.1f", (double)p.mem_pct);
-            if (n > mem) mem = n;
+            pid = std::max(n, pid);
+            n = static_cast<int>(strlen(p.user));
+            user = std::max(n, user);
+            n = snprintf(nullptr, 0, "%.1f", static_cast<double>(p.cpu_pct));
+            cpu = std::max(n, cpu);
+            n = snprintf(nullptr, 0, "%.1f", static_cast<double>(p.mem_pct));
+            mem = std::max(n, mem);
 
             char time_str[32];
             ps_tui_fmt_time(time_str, sizeof(time_str), p.utime + p.stime);
-            n = (int)strlen(time_str);
-            if (n > time) time = n;
+            n = static_cast<int>(strlen(time_str));
+            time = std::max(n, time);
 
             char tty_str[64];
             ps_tui_tty_name(p.tty_nr, tty_str, sizeof(tty_str));
-            n = (int)strlen(tty_str);
-            if (n > tty) tty = n;
+            n = static_cast<int>(strlen(tty_str));
+            tty = std::max(n, tty);
         }
 
-        return {pid, user, cpu, mem, state, time, tty};
+        return {.pid=pid, .user=user, .cpu=cpu, .mem=mem, .state=state, .time=time, .tty=tty};
     }
 
     ftxui::Element OnRender() override {
@@ -1026,56 +1086,58 @@ public:
 
         // Header: hostname, uptime, load
         time_t now_secs;
-        time(&now_secs);
-        struct tm* tm_now = localtime(&now_secs);
+        (void)time(&now_secs);
+        const struct tm* tm_now = localtime(&now_secs);
         char timebuf[64];
-        strftime(timebuf, sizeof(timebuf), "%H:%M:%S", tm_now);
+        (void)strftime(timebuf, sizeof(timebuf), "%H:%M:%S", tm_now);
 
-        int hours = (int)(uptime_ / 3600);
-        int mins = (int)((uptime_ - (float)(hours * 3600)) / 60);
+        int const hours = static_cast<int>(uptime_ / 3600);
+        int const mins = static_cast<int>((uptime_ - static_cast<float>(hours * 3600)) / 60);
 
         char hostname[256];
         hostname[0] = '\0';
         gethostname(hostname, sizeof(hostname));
 
-        int total = (int)procs_.size();
+        int const total = static_cast<int>(procs_.size());
         int running = 0;
         for (const auto& p : procs_) {
-            if (p.state == 'R') running++;
+            if (p.state == 'R') { running++;
+}
         }
 
         auto dot_el = text(" \xe2\x97\x8f ") | color(Color::Green) | bold;
         auto sys_el = text(hostname) | bold | color(Color::Cyan);
-        snprintf(buf, sizeof(buf), "  up %d:%02d  ", hours, mins);
+        (void)snprintf(buf, sizeof(buf), "  up %d:%02d  ", hours, mins);
         auto uptime_el = text(buf) | color(Color::GrayLight);
-        snprintf(buf, sizeof(buf), "load: %.2f %.2f %.2f", loads_[0], loads_[1], loads_[2]);
+        (void)snprintf(buf, sizeof(buf), "load: %.2f %.2f %.2f", loads_[0], loads_[1], loads_[2]);
         auto load_el = text(buf) | color(Color::GrayLight);
-        snprintf(buf, sizeof(buf), "Tasks: %d [%d]", total, running);
+        (void)snprintf(buf, sizeof(buf), "Tasks: %d [%d]", total, running);
         auto tasks_el = text(buf) | color(Color::GrayLight);
 
         rows.push_back(hbox({dot_el, sys_el, uptime_el, load_el, text("  "), tasks_el}) | flex_shrink);
 
         // Memory bar
         if (mem_.total > 0) {
-            int bar_w = 40;
-            unsigned long used = mem_.total - mem_.available;
-            float used_pct = 100.0f * (float)used / (float)mem_.total;
-            int fill = (int)(used_pct * bar_w / 100.0f);
-            if (fill > bar_w) fill = bar_w;
-            if (fill < 0) fill = 0;
+            int const bar_w = 40;
+            unsigned long const used = mem_.total - mem_.available;
+            float const used_pct = 100.0F * static_cast<float>(used) / static_cast<float>(mem_.total);
+            int fill = static_cast<int>(used_pct * bar_w / 100.0F);
+            fill = std::min(fill, bar_w);
+            fill = std::max(fill, 0);
 
             std::string bar;
             for (int i = 0; i < bar_w; i++) {
                 bar += (i < fill) ? "\xe2\x96\x88" : "\xe2\x96\x91";
             }
 
-            char used_str[32], total_str[32];
+            char used_str[32];
+            char total_str[32];
             ps_tui_fmt_memsize(used_str, sizeof(used_str), used);
             ps_tui_fmt_memsize(total_str, sizeof(total_str), mem_.total);
 
             auto mem_color = ps_tui_gradient(used_pct);
             char pct_str[16];
-            snprintf(pct_str, sizeof(pct_str), "%5.1f%%", (double)used_pct);
+            (void)snprintf(pct_str, sizeof(pct_str), "%5.1f%%", static_cast<double>(used_pct));
 
             rows.push_back(hbox({
                 text("MEM  ") | bold | color(Color::White),
@@ -1092,7 +1154,7 @@ public:
 
         // Column headers
         auto w = calc_fmt_widths();
-        snprintf(buf, sizeof(buf),
+        (void)snprintf(buf, sizeof(buf),
             "%*s  %-*s  %*s  %*s  %*s  %*s  %*s  %s",
             w.pid, "PID", w.user, "USER", w.cpu, "CPU%", w.mem, "MEM%",
             w.state, "S", w.time, "TIME", w.tty, "TTY", "COMMAND");
@@ -1104,10 +1166,11 @@ public:
         // Footer
         rows.push_back(separator());
         const char* sort_label = "CPU";
-        if (sort_by_ == PsSortMode::MEM) sort_label = "MEM";
-        else if (sort_by_ == PsSortMode::PID) sort_label = "PID";
+        if (sort_by_ == PsSortMode::MEM) { sort_label = "MEM";
+        } else if (sort_by_ == PsSortMode::PID) { sort_label = "PID";
+}
 
-        snprintf(buf, sizeof(buf),
+        (void)snprintf(buf, sizeof(buf),
                  " Sort: %s  Tree: %s  q:quit  /:search  t:tree  c/m/p:sort  j/k:scroll",
                  sort_label, tree_mode_ ? "on" : "off");
         rows.push_back(text(buf) | color(Color::GrayLight));
@@ -1131,21 +1194,25 @@ public:
                 Refresh();
                 return true;
             }
-            if (handle_search(event)) return true;
+            if (handle_search(event)) { return true;
+}
             return ComponentBase::OnEvent(event);
         }
 
-        if (handle_nav(event)) return true;
+        if (handle_nav(event)) { return true;
+}
 
         if (event == Event::Character('q') || event == Event::Character('Q')) {
-            if (auto* app = App::Active()) app->Exit();
+            if (auto* app = App::Active()) { app->Exit();
+}
             return true;
         }
         if (event == Event::Custom) {
             Refresh();
             return true;
         }
-        if (on_command_key(event)) return true;
+        if (on_command_key(event)) { return true;
+}
         if (event == Event::Character('/')) {
             search_mode_ = true;
             search_input_ = search_query_;
@@ -1165,8 +1232,10 @@ public:
 static void ps_tui_main() {
     ps_tui_clk_tck = sysconf(_SC_CLK_TCK);
     ps_tui_page_sz = sysconf(_SC_PAGE_SIZE);
-    if (ps_tui_clk_tck <= 0) ps_tui_clk_tck = 100;
-    if (ps_tui_page_sz <= 0) ps_tui_page_sz = 4096;
+    if (ps_tui_clk_tck <= 0) { ps_tui_clk_tck = 100;
+}
+    if (ps_tui_page_sz <= 0) { ps_tui_page_sz = 4096;
+}
 
     auto screen = ftxui::App::Fullscreen();
     screen.TrackMouse(false);
@@ -1176,11 +1245,11 @@ static void ps_tui_main() {
 
     component->Refresh();
 
-    double delay = 1.0;
+    double const delay = 1.0;
     std::atomic<bool> running{true};
     std::thread refresher([&screen, &running, delay]() {
         const auto step = std::chrono::milliseconds(50);
-        const auto interval = std::chrono::milliseconds((int)(delay * 1000));
+        const auto interval = std::chrono::milliseconds(static_cast<int>(delay * 1000));
         auto elapsed = std::chrono::milliseconds(0);
         while (running.load()) {
             std::this_thread::sleep_for(step);
@@ -1216,7 +1285,8 @@ ftxui::Element PsTuiComponent::render_row(int idx) const {
         for (int d = 0; d < p.depth && d < 10; d++) {
             prefix += "  ";
         }
-        if (p.depth > 0) prefix += "\xe2\x94\x94\xe2\x94\x80";
+        if (p.depth > 0) { prefix += "\xe2\x94\x94\xe2\x94\x80";
+}
     }
 
     std::string cmd_display = prefix + p.comm;
@@ -1225,19 +1295,19 @@ ftxui::Element PsTuiComponent::render_row(int idx) const {
     }
 
     auto w = calc_fmt_widths();
-    snprintf(buf, sizeof(buf),
+    (void)snprintf(buf, sizeof(buf),
         "%*d  %-*s  %*.1f  %*.1f  %*c  %*s  %*s  %s",
-        w.pid, p.pid, w.user, p.user, w.cpu, (double)p.cpu_pct,
-        w.mem, (double)p.mem_pct, w.state, p.state,
+        w.pid, p.pid, w.user, p.user, w.cpu, static_cast<double>(p.cpu_pct),
+        w.mem, static_cast<double>(p.mem_pct), w.state, p.state,
         w.time, time_str, w.tty, tty_str, cmd_display.c_str());
 
     auto el = text(buf);
 
-    if (p.cpu_pct >= 50.0f) {
+    if (p.cpu_pct >= 50.0F) {
         el = el | color(Color::Red);
-    } else if (p.cpu_pct >= 10.0f) {
+    } else if (p.cpu_pct >= 10.0F) {
         el = el | color(Color::Yellow);
-    } else if (p.cpu_pct >= 1.0f) {
+    } else if (p.cpu_pct >= 1.0F) {
         el = el | color(Color::Green);
     }
 
@@ -1290,7 +1360,8 @@ bool PsTuiComponent::on_command_key(ftxui::Event event) {
     using namespace ftxui;
 
     if (event == Event::Character('q') || event == Event::Character('Q')) {
-        if (auto* app = App::Active()) app->Exit();
+        if (auto* app = App::Active()) { app->Exit();
+}
         return true;
     }
     if (event == Event::Character('c') || event == Event::Character('C')) {

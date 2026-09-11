@@ -1,9 +1,5 @@
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cmath>
-#include <string>
-#include <unistd.h>
+#include <ctime>
 #include <argtable3.h>
 
 #include "commands/uptime.hpp"
@@ -17,7 +13,7 @@ int uptime_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
     ArgTable at({help_opt, pretty_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -33,8 +29,8 @@ int uptime_command(int argc, char** argv) {
     }
 
     FILE* fp = fopen("/proc/uptime", "r");
-    if (!fp) {
-        fprintf(stderr, "uptime: cannot open /proc/uptime\n");
+    if (fp == nullptr) {
+        (void)fprintf(stderr, "uptime: cannot open /proc/uptime\n");
         return 0;
     }
 
@@ -42,27 +38,27 @@ int uptime_command(int argc, char** argv) {
     if (fscanf(fp, "%lf", &uptime_secs) != 1) {
         uptime_secs = 0;
     }
-    fclose(fp);
+    (void)fclose(fp);
 
     double loadavg[3] = {0, 0, 0};
     fp = fopen("/proc/loadavg", "r");
-    if (fp) {
+    if (fp != nullptr) {
         if (fscanf(fp, "%lf %lf %lf", &loadavg[0], &loadavg[1], &loadavg[2]) != 3) {
             loadavg[0] = loadavg[1] = loadavg[2] = 0;
         }
-        fclose(fp);
+        (void)fclose(fp);
     }
 
-    int users = utmp_user_count();
+    int const users = utmp_user_count();
 
-    time_t now = time(nullptr);
-    struct tm* tm_now = localtime(&now);
+    time_t const now = time(nullptr);
+    const struct tm* tm_now = localtime(&now);
     char time_buf[16];
-    strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm_now);
+    (void)strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm_now);
 
-    int days = (int)(uptime_secs / 86400);
-    int hours = (int)((uptime_secs - days * 86400) / 3600);
-    int minutes = (int)((uptime_secs - days * 86400 - hours * 3600) / 60);
+    int const days = static_cast<int>(uptime_secs / 86400);
+    int const hours = static_cast<int>((uptime_secs - days * 86400) / 3600);
+    int const minutes = static_cast<int>((uptime_secs - days * 86400 - hours * 3600) / 60);
 
     if (pretty_opt->count > 0) {
         if (days > 0) {

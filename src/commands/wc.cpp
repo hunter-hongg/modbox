@@ -1,3 +1,5 @@
+#include <cstdint>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -16,15 +18,19 @@ struct WcCounts {
 
 static void print_counts(const WcCounts& counts, const char* name, bool show_l, bool show_w,
                           bool show_c, bool show_m) {
-    if (show_l) printf(" %7lld", (long long)counts.lines);
-    if (show_w) printf(" %7lld", (long long)counts.words);
+    if (show_l) { printf(" %7lld", static_cast<long long>(counts.lines));
+}
+    if (show_w) { printf(" %7lld", static_cast<long long>(counts.words));
+}
     if (show_c || show_m) {
-        if (show_m)
-            printf(" %7lld", (long long)counts.bytes);
-        else
-            printf(" %7lld", (long long)counts.bytes);
+        if (show_m) {
+            printf(" %7lld", static_cast<long long>(counts.bytes));
+        } else {
+            printf(" %7lld", static_cast<long long>(counts.bytes));
+}
     }
-    if (name != nullptr) printf(" %s", name);
+    if (name != nullptr) { printf(" %s", name);
+}
     printf("\n");
 }
 
@@ -36,8 +42,9 @@ static WcCounts wc_stream(FILE* fp, const char* name, bool show_l, bool show_w,
     while ((c = fgetc(fp)) != EOF) {
         counts.bytes++;
         counts.chars++;
-        if (c == '\n') counts.lines++;
-        bool is_space = (c == ' ' || c == '\t' || c == '\n' || c == '\r'
+        if (c == '\n') { counts.lines++;
+}
+        bool const is_space = (c == ' ' || c == '\t' || c == '\n' || c == '\r'
                          || c == '\v' || c == '\f');
         if (is_space) {
             if (in_word) {
@@ -48,13 +55,14 @@ static WcCounts wc_stream(FILE* fp, const char* name, bool show_l, bool show_w,
             in_word = true;
         }
     }
-    if (in_word) counts.words++;
+    if (in_word) { counts.words++;
+}
 
     if (!json_mode) {
         print_counts(counts, name, show_l, show_w, show_c, show_m);
     }
 
-    if (total) {
+    if (total != nullptr) {
         total->lines += counts.lines;
         total->words += counts.words;
         total->bytes += counts.bytes;
@@ -100,12 +108,12 @@ int wc_command(int argc, char** argv) {
             json_mode = true;
         } else if (a[0] == '-' && a[1] != '\0') {
             for (size_t j = 1; a[j] != '\0'; j++) {
-                if (a[j] == 'c') show_c = true;
-                else if (a[j] == 'm') show_m = true;
-                else if (a[j] == 'l') show_l = true;
-                else if (a[j] == 'w') show_w = true;
-                else {
-                    fprintf(stderr, "wc: invalid option -- '%c'\n", a[j]);
+                if (a[j] == 'c') { { show_c = true;
+                } } else if (a[j] == 'm') { { show_m = true;
+                } } else if (a[j] == 'l') { { show_l = true;
+                } } else if (a[j] == 'w') { { show_w = true;
+                } } else {
+                    (void)fprintf(stderr, "wc: invalid option -- '%c'\n", a[j]);
                     return 0;
                 }
             }
@@ -130,7 +138,7 @@ int wc_command(int argc, char** argv) {
     int success_count = 0;
 
     if (files.empty()) {
-        WcCounts c = wc_stream(stdin, nullptr, show_l, show_w, show_c, show_m, nullptr, json_mode);
+        WcCounts const c = wc_stream(stdin, nullptr, show_l, show_w, show_c, show_m, nullptr, json_mode);
         if (json_mode) {
             WcResult r;
             r.counts = c;
@@ -141,7 +149,7 @@ int wc_command(int argc, char** argv) {
         for (size_t i = 0; i < files.size(); i++) {
             const char* fname = files[i];
             if (strcmp(fname, "-") == 0) {
-                WcCounts c = wc_stream(stdin, "-", show_l, show_w, show_c, show_m, &totals, json_mode);
+                WcCounts const c = wc_stream(stdin, "-", show_l, show_w, show_c, show_m, &totals, json_mode);
                 if (json_mode) {
                     WcResult r;
                     r.counts = c;
@@ -158,17 +166,17 @@ int wc_command(int argc, char** argv) {
                         r.name = fname;
                         results.push_back(r);
                     } else {
-                        fprintf(stderr, "wc: %s: No such file or directory\n", fname);
+                        (void)fprintf(stderr, "wc: %s: No such file or directory\n", fname);
                     }
                 } else {
-                    WcCounts c = wc_stream(fp, fname, show_l, show_w, show_c, show_m, &totals, json_mode);
+                    WcCounts const c = wc_stream(fp, fname, show_l, show_w, show_c, show_m, &totals, json_mode);
                     if (json_mode) {
                         WcResult r;
                         r.counts = c;
                         r.name = fname;
                         results.push_back(r);
                     }
-                    fclose(fp);
+                    (void)fclose(fp);
                     success_count++;
                 }
             }
@@ -176,42 +184,42 @@ int wc_command(int argc, char** argv) {
     }
 
     if (json_mode) {
-        fprintf(stdout, "[\n");
+        (void)fprintf(stdout, "[\n");
         for (size_t i = 0; i < results.size(); i++) {
             const WcResult& r = results[i];
             if (!r.valid) {
-                fprintf(stdout, "  {\n");
-                fprintf(stdout, "    \"error\": ");
+                (void)fprintf(stdout, "  {\n");
+                (void)fprintf(stdout, "    \"error\": ");
                 json_escape_string(stdout, r.error.c_str());
-                fprintf(stdout, ",\n");
-                fprintf(stdout, "    \"name\": ");
+                (void)fprintf(stdout, ",\n");
+                (void)fprintf(stdout, "    \"name\": ");
                 json_escape_string(stdout, r.name.c_str());
-                fprintf(stdout, "\n");
-                fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
+                (void)fprintf(stdout, "\n");
+                (void)fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
             } else {
                 const WcCounts& c = r.counts;
-                fprintf(stdout, "  {\n");
-                fprintf(stdout, "    \"bytes\": %lld,\n", (long long)c.bytes);
-                fprintf(stdout, "    \"chars\": %lld,\n", (long long)c.chars);
-                fprintf(stdout, "    \"lines\": %lld,\n", (long long)c.lines);
-                fprintf(stdout, "    \"name\": ");
+                (void)fprintf(stdout, "  {\n");
+                (void)fprintf(stdout, "    \"bytes\": %lld,\n", static_cast<long long>(c.bytes));
+                (void)fprintf(stdout, "    \"chars\": %lld,\n", static_cast<long long>(c.chars));
+                (void)fprintf(stdout, "    \"lines\": %lld,\n", static_cast<long long>(c.lines));
+                (void)fprintf(stdout, "    \"name\": ");
                 json_escape_string(stdout, r.name.c_str());
-                fprintf(stdout, ",\n");
-                fprintf(stdout, "    \"words\": %lld\n", (long long)c.words);
-                fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
+                (void)fprintf(stdout, ",\n");
+                (void)fprintf(stdout, "    \"words\": %lld\n", static_cast<long long>(c.words));
+                (void)fprintf(stdout, "  }%s\n", (i + 1 < results.size()) ? "," : "");
             }
         }
         if (success_count > 1) {
-            fprintf(stdout, "  ,\n");
-            fprintf(stdout, "  {\n");
-            fprintf(stdout, "    \"bytes\": %lld,\n", (long long)totals.bytes);
-            fprintf(stdout, "    \"chars\": %lld,\n", (long long)totals.chars);
-            fprintf(stdout, "    \"lines\": %lld,\n", (long long)totals.lines);
-            fprintf(stdout, "    \"name\": \"total\",\n");
-            fprintf(stdout, "    \"words\": %lld\n", (long long)totals.words);
-            fprintf(stdout, "  }\n");
+            (void)fprintf(stdout, "  ,\n");
+            (void)fprintf(stdout, "  {\n");
+            (void)fprintf(stdout, "    \"bytes\": %lld,\n", static_cast<long long>(totals.bytes));
+            (void)fprintf(stdout, "    \"chars\": %lld,\n", static_cast<long long>(totals.chars));
+            (void)fprintf(stdout, "    \"lines\": %lld,\n", static_cast<long long>(totals.lines));
+            (void)fprintf(stdout, "    \"name\": \"total\",\n");
+            (void)fprintf(stdout, "    \"words\": %lld\n", static_cast<long long>(totals.words));
+            (void)fprintf(stdout, "  }\n");
         }
-        fprintf(stdout, "]\n");
+        (void)fprintf(stdout, "]\n");
         return 0;
     }
 

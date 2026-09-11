@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include "commands/test.hpp"
@@ -19,8 +18,8 @@ struct Ctx {
     const char* prog;
     bool error;
 
-    bool at_end() const { return pos >= nargs; }
-    const char* cur() const { return args[pos]; }
+    [[nodiscard]] bool at_end() const { return pos >= nargs; }
+    [[nodiscard]] const char* cur() const { return args[pos]; }
 };
 
 bool is_unary(const char* s) {
@@ -29,8 +28,10 @@ bool is_unary(const char* s) {
         "-O", "-p", "-r", "-s", "-S", "-t", "-u", "-w", "-x", "-z", "-G",
         "-a", "-o", nullptr
     };
-    for (int i = 0; ops[i]; i++)
-        if (strcmp(s, ops[i]) == 0) return true;
+    for (int i = 0; ops[i] != nullptr; i++) {
+        if (strcmp(s, ops[i]) == 0) { return true;
+}
+}
     return false;
 }
 
@@ -42,81 +43,122 @@ bool is_binary(const char* s) {
 }
 
 bool do_stat(const char* path, struct stat* st, bool follow) {
-    if (follow) return stat(path, st) == 0;
+    if (follow) { return stat(path, st) == 0;
+}
     return lstat(path, st) == 0;
 }
 
 bool unary_check(const char* op, const char* arg, const char* prog) {
     struct stat st;
-    if (strcmp(op, "-b") == 0) return do_stat(arg, &st, true) && S_ISBLK(st.st_mode);
-    if (strcmp(op, "-c") == 0) return do_stat(arg, &st, true) && S_ISCHR(st.st_mode);
-    if (strcmp(op, "-d") == 0) return do_stat(arg, &st, true) && S_ISDIR(st.st_mode);
-    if (strcmp(op, "-e") == 0) return do_stat(arg, &st, true);
-    if (strcmp(op, "-f") == 0) return do_stat(arg, &st, true) && S_ISREG(st.st_mode);
-    if (strcmp(op, "-g") == 0) return do_stat(arg, &st, true) && (st.st_mode & S_ISGID);
-    if (strcmp(op, "-h") == 0 || strcmp(op, "-L") == 0)
+    if (strcmp(op, "-b") == 0) { return do_stat(arg, &st, true) && S_ISBLK(st.st_mode);
+}
+    if (strcmp(op, "-c") == 0) { return do_stat(arg, &st, true) && S_ISCHR(st.st_mode);
+}
+    if (strcmp(op, "-d") == 0) { return do_stat(arg, &st, true) && S_ISDIR(st.st_mode);
+}
+    if (strcmp(op, "-e") == 0) { return do_stat(arg, &st, true);
+}
+    if (strcmp(op, "-f") == 0) { return do_stat(arg, &st, true) && S_ISREG(st.st_mode);
+}
+    if (strcmp(op, "-g") == 0) { return do_stat(arg, &st, true) && ((st.st_mode & S_ISGID) != 0u);
+}
+    if (strcmp(op, "-h") == 0 || strcmp(op, "-L") == 0) {
         return do_stat(arg, &st, false) && S_ISLNK(st.st_mode);
-    if (strcmp(op, "-k") == 0) return do_stat(arg, &st, true) && (st.st_mode & S_ISVTX);
-    if (strcmp(op, "-n") == 0) return strlen(arg) > 0;
-    if (strcmp(op, "-p") == 0) return do_stat(arg, &st, true) && S_ISFIFO(st.st_mode);
-    if (strcmp(op, "-r") == 0) return do_stat(arg, &st, true) && access(arg, R_OK) == 0;
-    if (strcmp(op, "-s") == 0) return do_stat(arg, &st, true) && st.st_size > 0;
-    if (strcmp(op, "-S") == 0) return do_stat(arg, &st, true) && S_ISSOCK(st.st_mode);
-    if (strcmp(op, "-u") == 0) return do_stat(arg, &st, true) && (st.st_mode & S_ISUID);
-    if (strcmp(op, "-w") == 0) return do_stat(arg, &st, true) && access(arg, W_OK) == 0;
-    if (strcmp(op, "-x") == 0) return do_stat(arg, &st, true) && access(arg, X_OK) == 0;
-    if (strcmp(op, "-O") == 0) return do_stat(arg, &st, true) && st.st_uid == geteuid();
-    if (strcmp(op, "-G") == 0) return do_stat(arg, &st, true) && st.st_gid == getegid();
-    if (strcmp(op, "-N") == 0)
+}
+    if (strcmp(op, "-k") == 0) { return do_stat(arg, &st, true) && ((st.st_mode & S_ISVTX) != 0u);
+}
+    if (strcmp(op, "-n") == 0) { return strlen(arg) > 0;
+}
+    if (strcmp(op, "-p") == 0) { return do_stat(arg, &st, true) && S_ISFIFO(st.st_mode);
+}
+    if (strcmp(op, "-r") == 0) { return do_stat(arg, &st, true) && access(arg, R_OK) == 0;
+}
+    if (strcmp(op, "-s") == 0) { return do_stat(arg, &st, true) && st.st_size > 0;
+}
+    if (strcmp(op, "-S") == 0) { return do_stat(arg, &st, true) && S_ISSOCK(st.st_mode);
+}
+    if (strcmp(op, "-u") == 0) { return do_stat(arg, &st, true) && ((st.st_mode & S_ISUID) != 0u);
+}
+    if (strcmp(op, "-w") == 0) { return do_stat(arg, &st, true) && access(arg, W_OK) == 0;
+}
+    if (strcmp(op, "-x") == 0) { return do_stat(arg, &st, true) && access(arg, X_OK) == 0;
+}
+    if (strcmp(op, "-O") == 0) { return do_stat(arg, &st, true) && st.st_uid == geteuid();
+}
+    if (strcmp(op, "-G") == 0) { return do_stat(arg, &st, true) && st.st_gid == getegid();
+}
+    if (strcmp(op, "-N") == 0) {
         return do_stat(arg, &st, true) && st.st_mtime > st.st_atime;
-    if (strcmp(op, "-z") == 0) return strlen(arg) == 0;
-    if (strcmp(op, "-t") == 0) return isatty(atoi(arg));
-    if (strcmp(op, "-a") == 0) return do_stat(arg, &st, true);
-    if (strcmp(op, "-o") == 0) return false;
-    fprintf(stderr, "%s: unknown unary operator '%s'\n", prog, op);
+}
+    if (strcmp(op, "-z") == 0) { return strlen(arg) == 0;
+}
+    if (strcmp(op, "-t") == 0) { return isatty(atoi(arg)) != 0;
+}
+    if (strcmp(op, "-a") == 0) { return do_stat(arg, &st, true);
+}
+    if (strcmp(op, "-o") == 0) { return false;
+}
+    (void)fprintf(stderr, "%s: unknown unary operator '%s'\n", prog, op);
     return false;
 }
 
 bool parse_int(const char* s, long long& v) {
     char* end = nullptr;
     errno = 0;
-    long long r = strtoll(s, &end, 10);
-    if (end == s || *end != '\0') return false;
+    long long const r = strtoll(s, &end, 10);
+    if (end == s || *end != '\0') { return false;
+}
     v = r;
     return true;
 }
 
 bool newer_than(const char* a, const char* b) {
-    struct stat sa, sb;
-    if (!do_stat(a, &sa, true) || !do_stat(b, &sb, true)) return false;
+    struct stat sa;
+    struct stat sb;
+    if (!do_stat(a, &sa, true) || !do_stat(b, &sb, true)) { return false;
+}
     return sa.st_mtime > sb.st_mtime;
 }
 
 bool same_file(const char* a, const char* b) {
-    struct stat sa, sb;
-    if (!do_stat(a, &sa, true) || !do_stat(b, &sb, true)) return false;
+    struct stat sa;
+    struct stat sb;
+    if (!do_stat(a, &sa, true) || !do_stat(b, &sb, true)) { return false;
+}
     return sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino;
 }
 
 bool binary_check(const char* op, const char* a, const char* b, Ctx& c) {
-    if (strcmp(op, "=") == 0 || strcmp(op, "==") == 0) return strcmp(a, b) == 0;
-    if (strcmp(op, "!=") == 0) return strcmp(a, b) != 0;
-    if (strcmp(op, "-nt") == 0) return newer_than(a, b);
-    if (strcmp(op, "-ot") == 0) return newer_than(b, a);
-    if (strcmp(op, "-ef") == 0) return same_file(a, b);
-    long long v1, v2;
+    if (strcmp(op, "=") == 0 || strcmp(op, "==") == 0) { return strcmp(a, b) == 0;
+}
+    if (strcmp(op, "!=") == 0) { return strcmp(a, b) != 0;
+}
+    if (strcmp(op, "-nt") == 0) { return newer_than(a, b);
+}
+    if (strcmp(op, "-ot") == 0) { return newer_than(b, a);
+}
+    if (strcmp(op, "-ef") == 0) { return same_file(a, b);
+}
+    long long v1;
+    long long v2;
     if (!parse_int(a, v1) || !parse_int(b, v2)) {
-        fprintf(stderr, "%s: integer expression expected\n", c.prog);
+        (void)fprintf(stderr, "%s: integer expression expected\n", c.prog);
         c.error = true;
         return false;
     }
-    if (strcmp(op, "-eq") == 0) return v1 == v2;
-    if (strcmp(op, "-ne") == 0) return v1 != v2;
-    if (strcmp(op, "-gt") == 0) return v1 > v2;
-    if (strcmp(op, "-ge") == 0) return v1 >= v2;
-    if (strcmp(op, "-lt") == 0) return v1 < v2;
-    if (strcmp(op, "-le") == 0) return v1 <= v2;
-    fprintf(stderr, "%s: unknown binary operator '%s'\n", c.prog, op);
+    if (strcmp(op, "-eq") == 0) { return v1 == v2;
+}
+    if (strcmp(op, "-ne") == 0) { return v1 != v2;
+}
+    if (strcmp(op, "-gt") == 0) { return v1 > v2;
+}
+    if (strcmp(op, "-ge") == 0) { return v1 >= v2;
+}
+    if (strcmp(op, "-lt") == 0) { return v1 < v2;
+}
+    if (strcmp(op, "-le") == 0) { return v1 <= v2;
+}
+    (void)fprintf(stderr, "%s: unknown binary operator '%s'\n", c.prog, op);
     c.error = true;
     return false;
 }
@@ -131,7 +173,7 @@ bool parse_or(Ctx& c) {
     while (!c.error && !c.at_end()) {
         if (strcmp(c.cur(), "-o") == 0) {
             c.pos++;
-            bool r = parse_expr_and(c);
+            bool const r = parse_expr_and(c);
             v = v || r;
         } else {
             break;
@@ -145,7 +187,7 @@ bool parse_expr_and(Ctx& c) {
     while (!c.error && !c.at_end()) {
         if (strcmp(c.cur(), "-a") == 0) {
             c.pos++;
-            bool r = parse_not(c);
+            bool const r = parse_not(c);
             v = v && r;
         } else {
             break;
@@ -164,16 +206,16 @@ bool parse_not(Ctx& c) {
 
 bool parse_primary(Ctx& c) {
     if (c.at_end()) {
-        fprintf(stderr, "%s: syntax error: missing operand\n", c.prog);
+        (void)fprintf(stderr, "%s: syntax error: missing operand\n", c.prog);
         c.error = true;
         return false;
     }
     const char* tok = c.cur();
     if (strcmp(tok, "(") == 0) {
         c.pos++;
-        bool v = parse_expr(c);
+        bool const v = parse_expr(c);
         if (c.at_end() || strcmp(c.cur(), ")") != 0) {
-            fprintf(stderr, "%s: ')' expected\n", c.prog);
+            (void)fprintf(stderr, "%s: ')' expected\n", c.prog);
             c.error = true;
             return false;
         }
@@ -183,7 +225,7 @@ bool parse_primary(Ctx& c) {
     if (is_unary(tok)) {
         c.pos++;
         if (c.at_end()) {
-            fprintf(stderr, "%s: %s: unary operator expected\n", c.prog, tok);
+            (void)fprintf(stderr, "%s: %s: unary operator expected\n", c.prog, tok);
             c.error = true;
             return false;
         }
@@ -197,7 +239,7 @@ bool parse_primary(Ctx& c) {
         const char* op = c.cur();
         c.pos++;
         if (c.at_end()) {
-            fprintf(stderr, "%s: %s: binary operator expected\n", c.prog, op);
+            (void)fprintf(stderr, "%s: %s: binary operator expected\n", c.prog, op);
             c.error = true;
             return false;
         }
@@ -272,7 +314,7 @@ void print_help(const char* prog) {
 int test_command(int argc, char** argv) {
     const char* prog = argv[0];
     const char* base = strrchr(prog, '/');
-    base = base ? base + 1 : prog;
+    base = (base != nullptr) ? base + 1 : prog;
     const bool is_bracket = (strcmp(base, "[") == 0);
 
     char** args = argv + 1;

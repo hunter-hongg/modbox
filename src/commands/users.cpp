@@ -17,7 +17,7 @@ int users_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
     ArgTable at({help_opt, file_opt, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -45,7 +45,8 @@ int users_command(int argc, char** argv) {
 
     bool first = true;
     for (const auto& name : names) {
-        if (!first) printf(" ");
+        if (!first) { printf(" ");
+}
         printf("%s", name.c_str());
         first = false;
     }

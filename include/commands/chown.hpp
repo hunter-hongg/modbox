@@ -13,12 +13,12 @@ struct ChownOptions {
     int traverse_mode = 0;
     int owner_set = 0;
     int group_set = 0;
-    uid_t owner = (uid_t)-1;
-    gid_t group = (gid_t)-1;
+    uid_t owner = static_cast<uid_t>(-1);
+    gid_t group = static_cast<gid_t>(-1);
     const char* reference = nullptr;
     int has_from = 0;
-    uid_t from_owner = (uid_t)-1;
-    gid_t from_group = (gid_t)-1;
+    uid_t from_owner = static_cast<uid_t>(-1);
+    gid_t from_group = static_cast<gid_t>(-1);
 };
 
 int chown_command(int argc, char** argv);

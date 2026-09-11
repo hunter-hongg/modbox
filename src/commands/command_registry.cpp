@@ -1,4 +1,7 @@
 #include "commands/command_registry.hpp"
+#include <vector>
+#include <string>
+#include <functional>
 
 CommandRegistry &CommandRegistry::instance() {
     static CommandRegistry inst;
@@ -7,7 +10,7 @@ CommandRegistry &CommandRegistry::instance() {
 
 void CommandRegistry::add(const char *name, const char *help,
                           int (*run)(int, char **)) {
-    entries_.push_back({name, help, run});
+    entries_.push_back({.name=name, .help=help, .run=run});
 }
 
 const std::vector<CommandEntry> &CommandRegistry::all() const {

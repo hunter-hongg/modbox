@@ -25,28 +25,28 @@ static int chown_changes_made;
 
 static uid_t resolve_uid(const char *name) {
     char *end;
-    long val = strtol(name, &end, 10);
-    if (*end == '\0' && val >= 0 && val <= (long)UINT32_MAX) {
-        return (uid_t)val;
+    long const val = strtol(name, &end, 10);
+    if (*end == '\0' && val >= 0 && val <= static_cast<long>UINT32_MAX) {
+        return static_cast<uid_t>(val);
     }
 
-    struct passwd *pw = getpwnam(name);
-    if (!pw) {
-        return (uid_t)-1;
+    const struct passwd *pw = getpwnam(name);
+    if (pw == nullptr) {
+        return static_cast<uid_t>(-1);
     }
     return pw->pw_uid;
 }
 
 static gid_t resolve_gid(const char *name) {
     char *end;
-    long val = strtol(name, &end, 10);
-    if (*end == '\0' && val >= 0 && val <= (long)UINT32_MAX) {
-        return (gid_t)val;
+    long const val = strtol(name, &end, 10);
+    if (*end == '\0' && val >= 0 && val <= static_cast<long>UINT32_MAX) {
+        return static_cast<gid_t>(val);
     }
 
-    struct group *gr = getgrnam(name);
-    if (!gr) {
-        return (gid_t)-1;
+    const struct group *gr = getgrnam(name);
+    if (gr == nullptr) {
+        return static_cast<gid_t>(-1);
     }
     return gr->gr_gid;
 }
@@ -59,10 +59,10 @@ static int parse_owner_group(const char *spec, uid_t *owner, gid_t *group,
     *owner_set = 0;
     *group_set = 0;
 
-    if (!colon) {
+    if (colon == nullptr) {
         /* just OWNER */
-        uid_t u = resolve_uid(spec);
-        if (u == (uid_t)-1) {
+        uid_t const u = resolve_uid(spec);
+        if (u == static_cast<uid_t>(-1)) {
             return -1;
         }
         *owner = u;
@@ -73,16 +73,16 @@ static int parse_owner_group(const char *spec, uid_t *owner, gid_t *group,
     /* Has a colon */
     if (colon > spec) {
         /* OWNER:… */
-        size_t len = (size_t)(colon - spec);
-        char *owner_str = (char*)malloc(len + 1);
-        if (!owner_str) {
+        size_t const len = static_cast<size_t>(colon - spec);
+        char *owner_str = static_cast<char*>(malloc(len + 1));
+        if (owner_str == nullptr) {
             return -1;
         }
         memcpy(owner_str, spec, len);
         owner_str[len] = '\0';
-        uid_t u = resolve_uid(owner_str);
+        uid_t const u = resolve_uid(owner_str);
         free(owner_str);
-        if (u == (uid_t)-1) {
+        if (u == static_cast<uid_t>(-1)) {
             return -1;
         }
         *owner = u;
@@ -91,16 +91,16 @@ static int parse_owner_group(const char *spec, uid_t *owner, gid_t *group,
 
     if (colon[1] != '\0') {
         /* …:GROUP */
-        gid_t g = resolve_gid(colon + 1);
-        if (g == (gid_t)-1) {
+        gid_t const g = resolve_gid(colon + 1);
+        if (g == static_cast<gid_t>(-1)) {
             return -1;
         }
         *group = g;
         *group_set = 1;
-    } else if (*owner_set) {
+    } else if ((*owner_set) != 0) {
         /* OWNER: — set group to owner's login group */
-        struct passwd *pw = getpwuid(*owner);
-        if (pw) {
+        const struct passwd *pw = getpwuid(*owner);
+        if (pw != nullptr) {
             *group = pw->pw_gid;
             *group_set = 1;
         }
@@ -112,74 +112,74 @@ static int parse_owner_group(const char *spec, uid_t *owner, gid_t *group,
 /* ── Single-file chown ─────────────────────────────────────────────────── */
 
 static int chown_one_file(const char *path, const ChownOptions *opts) {
-    if (opts->preserve_root && strcmp(path, "/") == 0) {
-        if (!opts->is_silent) {
-            fprintf(stderr, "chown: it is dangerous to operate recursively on '/'\n");
+    if ((opts->preserve_root != 0) && strcmp(path, "/") == 0) {
+        if (opts->is_silent == 0) {
+            (void)fprintf(stderr, "chown: it is dangerous to operate recursively on '/'\n");
         }
         return 1;
     }
 
     /* --from filter */
-    if (opts->has_from) {
+    if (opts->has_from != 0) {
         struct stat st;
-        int stat_rc = (opts->no_dereference)
+        int const stat_rc = ((opts->no_dereference) != 0)
                           ? lstat(path, &st)
                           : stat(path, &st);
         if (stat_rc != 0) {
-            if (!opts->is_silent) {
-                fprintf(stderr, "chown: cannot access '%s': %s\n", path, strerror(errno));
+            if (opts->is_silent == 0) {
+                (void)fprintf(stderr, "chown: cannot access '%s': %s\n", path, strerror(errno));
             }
             return 1;
         }
-        if (opts->from_owner != (uid_t)-1 && st.st_uid != opts->from_owner) {
+        if (opts->from_owner != static_cast<uid_t>(-1) && st.st_uid != opts->from_owner) {
             return 1;
         }
-        if (opts->from_group != (gid_t)-1 && st.st_gid != opts->from_group) {
+        if (opts->from_group != static_cast<gid_t>(-1) && st.st_gid != opts->from_group) {
             return 1;
         }
     }
 
     struct stat st_before;
-    int have_before = (opts->is_verbose || opts->is_changes)
-                          ? (lstat(path, &st_before) == 0)
+    int const have_before = ((opts->is_verbose != 0) || (opts->is_changes != 0))
+                          ? static_cast<int>(lstat(path, &st_before) == 0)
                           : 0;
 
     int rc;
-    if (opts->no_dereference) {
+    if (opts->no_dereference != 0) {
         rc = lchown(path, opts->owner, opts->group);
     } else {
         rc = chown(path, opts->owner, opts->group);
     }
 
     if (rc != 0) {
-        if (!opts->is_silent) {
-            fprintf(stderr, "chown: changing ownership of '%s': %s\n", path, strerror(errno));
+        if (opts->is_silent == 0) {
+            (void)fprintf(stderr, "chown: changing ownership of '%s': %s\n", path, strerror(errno));
         }
         return 1;
     }
 
     chown_changes_made = 1;
 
-    if (opts->is_verbose || opts->is_changes) {
+    if ((opts->is_verbose != 0) || (opts->is_changes != 0)) {
         int changed = 1;
-        if (opts->is_changes && have_before) {
+        if ((opts->is_changes != 0) && (have_before != 0)) {
             struct stat st_after;
             if (lstat(path, &st_after) == 0) {
-                changed = (st_before.st_uid != st_after.st_uid ||
+                changed = static_cast<int>(st_before.st_uid != st_after.st_uid ||
                            st_before.st_gid != st_after.st_gid);
             }
         }
-        if (changed) {
+        if (changed != 0) {
             struct stat st;
             if (lstat(path, &st) == 0) {
-                struct passwd *pw = getpwuid(st.st_uid);
-                struct group *gr = getgrgid(st.st_gid);
+                const struct passwd *pw = getpwuid(st.st_uid);
+                const struct group *gr = getgrgid(st.st_gid);
                 printf("changed ownership of '%s' from %s:%s to %s:%s\n",
                        path,
-                       pw ? pw->pw_name : "?",
-                       gr ? gr->gr_name : "?",
-                       pw ? pw->pw_name : "?",
-                       gr ? gr->gr_name : "?");
+                       (pw != nullptr) ? pw->pw_name : "?",
+                       (gr != nullptr) ? gr->gr_name : "?",
+                       (pw != nullptr) ? pw->pw_name : "?",
+                       (gr != nullptr) ? gr->gr_name : "?");
             }
         }
     }
@@ -195,9 +195,9 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
     (void)typeflag;
     (void)ftwbuf;
 
-    if (chown_glob_opts->preserve_root && strcmp(fpath, "/") == 0) {
-        if (!chown_glob_opts->is_silent) {
-            fprintf(stderr, "chown: it is dangerous to operate recursively on '/'\n");
+    if ((chown_glob_opts->preserve_root != 0) && strcmp(fpath, "/") == 0) {
+        if (chown_glob_opts->is_silent == 0) {
+            (void)fprintf(stderr, "chown: it is dangerous to operate recursively on '/'\n");
         }
         chown_errors = 1;
         return 0;
@@ -252,7 +252,7 @@ int chown_command(int argc, char **argv) {
         help_opt, all_args, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [OWNER][:[GROUP]] FILE...\n", argv[0]);
@@ -289,12 +289,12 @@ int chown_command(int argc, char **argv) {
     }
 
     ChownOptions opts = {};
-    opts.is_recursive = (recursive_opt->count > 0);
-    opts.is_verbose = (verbose_opt->count > 0);
-    opts.is_changes = (changes_opt->count > 0);
-    opts.is_silent = (silent_opt->count > 0 || quiet_opt->count > 0);
-    opts.no_dereference = (no_dereference_opt->count > 0);
-    opts.preserve_root = (preserve_root_opt->count > 0);
+    opts.is_recursive = static_cast<int>(recursive_opt->count > 0);
+    opts.is_verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.is_changes = static_cast<int>(changes_opt->count > 0);
+    opts.is_silent = static_cast<int>(silent_opt->count > 0 || quiet_opt->count > 0);
+    opts.no_dereference = static_cast<int>(no_dereference_opt->count > 0);
+    opts.preserve_root = static_cast<int>(preserve_root_opt->count > 0);
     opts.reference = (reference_opt->count > 0) ? reference_opt->sval[0] : nullptr;
 
     if (traverse_L_opt->count > 0) {
@@ -308,18 +308,21 @@ int chown_command(int argc, char **argv) {
     /* --from parsing */
     if (from_opt->count > 0) {
         const char *from_spec = from_opt->sval[0];
-        uid_t fu = (uid_t)-1;
-        gid_t fg = (gid_t)-1;
-        int fu_set = 0, fg_set = 0;
+        uid_t fu = static_cast<uid_t>(-1);
+        gid_t fg = static_cast<gid_t>(-1);
+        int fu_set = 0;
+        int fg_set = 0;
         if (parse_owner_group(from_spec, &fu, &fg, &fu_set, &fg_set) != 0) {
-            fprintf(stderr, "%s: invalid --from value: '%s'\n", argv[0], from_spec);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: invalid --from value: '%s'\n", argv[0], from_spec);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             
             return 0;
         }
         opts.has_from = 1;
-        if (fu_set) opts.from_owner = fu;
-        if (fg_set) opts.from_group = fg;
+        if (fu_set != 0) { opts.from_owner = fu;
+}
+        if (fg_set != 0) { opts.from_group = fg;
+}
     }
 
     int num_files = all_args->count;
@@ -327,8 +330,8 @@ int chown_command(int argc, char **argv) {
 
     if (reference_opt->count == 0) {
         if (num_files < 1) {
-            fprintf(stderr, "%s: missing operand\n", argv[0]);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             
             return 0;
         }
@@ -339,15 +342,15 @@ int chown_command(int argc, char **argv) {
 
         if (parse_owner_group(spec, &opts.owner, &opts.group,
                                &opts.owner_set, &opts.group_set) != 0) {
-            fprintf(stderr, "%s: invalid owner: '%s'\n", argv[0], spec);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: invalid owner: '%s'\n", argv[0], spec);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             
             return 0;
         }
     } else {
         if (num_files == 0) {
-            fprintf(stderr, "%s: missing operand\n", argv[0]);
-            fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+            (void)fprintf(stderr, "%s: missing operand\n", argv[0]);
+            (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             
             return 0;
         }
@@ -355,7 +358,7 @@ int chown_command(int argc, char **argv) {
         /* --reference: stat the reference file */
         struct stat ref_st;
         if (stat(reference_opt->sval[0], &ref_st) != 0) {
-            fprintf(stderr, "%s: cannot access '%s': %s\n", argv[0],
+            (void)fprintf(stderr, "%s: cannot access '%s': %s\n", argv[0],
                     reference_opt->sval[0], strerror(errno));
             
             return 0;
@@ -379,12 +382,12 @@ int chown_command(int argc, char **argv) {
 
     chown_glob_opts = &opts;
 
-    if (opts.is_recursive) {
+    if (opts.is_recursive != 0) {
         for (int i = 0; i < num_files; i++) {
             const char *path = all_args->filename[file_offset + i];
             if (nftw(path, recursive_callback, 20, nftw_opts) != 0) {
-                if (!opts.is_silent) {
-                    fprintf(stderr, "chown: %s: %s\n", path, strerror(errno));
+                if (opts.is_silent == 0) {
+                    (void)fprintf(stderr, "chown: %s: %s\n", path, strerror(errno));
                 }
                 chown_errors = 1;
             }

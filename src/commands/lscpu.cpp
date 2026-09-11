@@ -1,10 +1,11 @@
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <fcntl.h>
 #include <unistd.h>
 #include <sys/utsname.h>
 
@@ -51,41 +52,48 @@ struct CpuTopologyEntry {
 };
 
 static std::string trim_str(const std::string& s) {
-    size_t start = s.find_first_not_of(" \t\n\r");
-    if (start == std::string::npos) return "";
-    size_t end = s.find_last_not_of(" \t\n\r");
+    size_t const start = s.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) { return "";
+}
+    size_t const end = s.find_last_not_of(" \t\n\r");
     return s.substr(start, end - start + 1);
 }
 
 static std::string read_file(const std::string& path) {
     std::ifstream f(path);
-    if (!f.is_open()) return "";
+    if (!f.is_open()) { return "";
+}
     std::stringstream ss;
     ss << f.rdbuf();
     std::string result = ss.str();
-    while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' '))
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ')) {
         result.pop_back();
+}
     return result;
 }
 
 static bool safe_parse_int(const std::string& s, int& out) {
-    if (s.empty()) return false;
+    if (s.empty()) { return false;
+}
     char* end = nullptr;
-    long val = std::strtol(s.c_str(), &end, 10);
-    if (end == s.c_str() || *end != '\0') return false;
+    long const val = std::strtol(s.c_str(), &end, 10);
+    if (end == s.c_str() || *end != '\0') { return false;
+}
     out = static_cast<int>(val);
     return true;
 }
 
 static bool safe_parse_long(const std::string& s, long long& out) {
-    if (s.empty()) return false;
+    if (s.empty()) { return false;
+}
     char* end = nullptr;
     out = std::strtoll(s.c_str(), &end, 10);
     return end != s.c_str();
 }
 
 static bool safe_parse_double(const std::string& s, double& out) {
-    if (s.empty()) return false;
+    if (s.empty()) { return false;
+}
     char* end = nullptr;
     out = std::strtod(s.c_str(), &end);
     return end != s.c_str();
@@ -93,7 +101,7 @@ static bool safe_parse_double(const std::string& s, double& out) {
 
 static CpuInfo parse_cpuinfo() {
     CpuInfo info;
-    std::string content = read_file("/proc/cpuinfo");
+    std::string const content = read_file("/proc/cpuinfo");
     std::istringstream stream(content);
     std::string line;
     int processor_count = 0;
@@ -107,20 +115,22 @@ static CpuInfo parse_cpuinfo() {
 
     while (std::getline(stream, line)) {
         line = trim_str(line);
-        if (line.empty()) continue;
+        if (line.empty()) { continue;
+}
 
-        size_t colon = line.find(':');
-        if (colon == std::string::npos) continue;
+        size_t const colon = line.find(':');
+        if (colon == std::string::npos) { continue;
+}
 
         // Don't trim key yet - check for tabs before colon
         std::string key_raw = line.substr(0, colon);
-        std::string value = trim_str(line.substr(colon + 1));
+        std::string const value = trim_str(line.substr(colon + 1));
 
         // Remove trailing tabs from key
         while (!key_raw.empty() && key_raw.back() == '\t') {
             key_raw.pop_back();
         }
-        std::string key = trim_str(key_raw);
+        std::string const key = trim_str(key_raw);
 
         if (key == "processor") {
             processor_count++;
@@ -131,12 +141,12 @@ static CpuInfo parse_cpuinfo() {
         if (key == "physical id") {
             int pid = 0;
             if (safe_parse_int(value, pid)) {
-                if (pid > max_physical_id) max_physical_id = pid;
+                max_physical_id = std::max(pid, max_physical_id);
             }
         } else if (key == "core id") {
             int cid = 0;
             if (safe_parse_int(value, cid)) {
-                if (cid > max_core_id) max_core_id = cid;
+                max_core_id = std::max(cid, max_core_id);
             }
         }
 
@@ -151,7 +161,8 @@ static CpuInfo parse_cpuinfo() {
             } else if (key == "flags") {
                 std::istringstream iss(value);
                 std::string flag;
-                while (iss >> flag) info.flags.push_back(flag);
+                while (iss >> flag) { info.flags.push_back(flag);
+}
             } else if (key == "cache size") {
                 info.cache_l2 = value;
             } else if (key == "cpu MHz") {
@@ -172,22 +183,25 @@ static void read_cache_info(CpuInfo& info) {
     const std::string cache_dir = "/sys/devices/system/cpu/cpu0/cache";
     
     for (int i = 0; i < 8; i++) {
-        std::string type_path = cache_dir + "/index" + std::to_string(i) + "/type";
-        std::string size_path = cache_dir + "/index" + std::to_string(i) + "/size";
-        std::string level_path = cache_dir + "/index" + std::to_string(i) + "/level";
+        std::string const type_path = cache_dir + "/index" + std::to_string(i) + "/type";
+        std::string const size_path = cache_dir + "/index" + std::to_string(i) + "/size";
+        std::string const level_path = cache_dir + "/index" + std::to_string(i) + "/level";
         
-        std::string type = read_file(type_path);
-        std::string size = read_file(size_path);
-        std::string level_str = read_file(level_path);
+        std::string const type = read_file(type_path);
+        std::string const size = read_file(size_path);
+        std::string const level_str = read_file(level_path);
         
-        if (type.empty() || size.empty() || level_str.empty()) continue;
+        if (type.empty() || size.empty() || level_str.empty()) { continue;
+}
         
         int level = 0;
-        if (!safe_parse_int(level_str, level)) continue;
+        if (!safe_parse_int(level_str, level)) { continue;
+}
         
         if (level == 1) {
-            if (type == "Data") info.cache_l1d = size;
-            else if (type == "Instruction") info.cache_l1i = size;
+            if (type == "Data") { info.cache_l1d = size;
+            } else if (type == "Instruction") { info.cache_l1i = size;
+}
         } else if (level == 2) {
             info.cache_l2 = size;
         } else if (level == 3) {
@@ -199,7 +213,7 @@ static void read_cache_info(CpuInfo& info) {
 static void read_cpu_freq(CpuInfo& info) {
     const std::string freq_dir = "/sys/devices/system/cpu/cpu0/cpufreq";
     
-    std::string min_freq = read_file(freq_dir + "/cpuinfo_min_freq");
+    std::string const min_freq = read_file(freq_dir + "/cpuinfo_min_freq");
     if (!min_freq.empty()) {
         long long freq_khz = 0;
         if (safe_parse_long(min_freq, freq_khz)) {
@@ -207,7 +221,7 @@ static void read_cpu_freq(CpuInfo& info) {
         }
     }
     
-    std::string max_freq = read_file(freq_dir + "/cpuinfo_max_freq");
+    std::string const max_freq = read_file(freq_dir + "/cpuinfo_max_freq");
     if (!max_freq.empty()) {
         long long freq_khz = 0;
         if (safe_parse_long(max_freq, freq_khz)) {
@@ -223,28 +237,32 @@ static std::vector<CpuTopologyEntry> parse_cpu_topology() {
     // Determine actual CPU count
     int max_cpu = 0;
     for (int cpu = 0; cpu < 1024; cpu++) {
-        std::string cpu_dir = syscpu + "/cpu" + std::to_string(cpu);
+        std::string const cpu_dir = syscpu + "/cpu" + std::to_string(cpu);
         if (access(cpu_dir.c_str(), F_OK) != 0) {
-            if (cpu > max_cpu) max_cpu = cpu;
+            max_cpu = std::max(cpu, max_cpu);
             break;
         }
         max_cpu = cpu;
     }
 
     for (int cpu = 0; cpu <= max_cpu; cpu++) {
-        std::string cpu_dir = syscpu + "/cpu" + std::to_string(cpu);
-        std::string core_id_path = cpu_dir + "/topology/core_id";
-        if (access(core_id_path.c_str(), F_OK) != 0) continue;
+        std::string const cpu_dir = syscpu + "/cpu" + std::to_string(cpu);
+        std::string const core_id_path = cpu_dir + "/topology/core_id";
+        if (access(core_id_path.c_str(), F_OK) != 0) { continue;
+}
 
-        int core_id = 0, socket_id = 0, numa = 0;
+        int core_id = 0;
+        int socket_id = 0;
+        int numa = 0;
         safe_parse_int(read_file(cpu_dir + "/topology/core_id"), core_id);
         safe_parse_int(read_file(cpu_dir + "/topology/physical_package_id"), socket_id);
         {
             std::ifstream nf(cpu_dir + "/numa_node");
-            if (nf.is_open()) nf >> numa;
+            if (nf.is_open()) { nf >> numa;
+}
         }
 
-        result.push_back({cpu, core_id, socket_id, numa});
+        result.push_back({.cpu=cpu, .core=core_id, .socket=socket_id, .node=numa});
     }
 
     return result;
@@ -278,24 +296,27 @@ int lscpu_command(int argc, char** argv) {
             continue;
         }
         if (strncmp(a, "--parse=", 8) == 0) {
-            std::string fields = a + 8;
+            std::string const fields = a + 8;
             size_t pos = 0;
             while (pos <= fields.size()) {
                 size_t comma = fields.find(',', pos);
-                if (comma == std::string::npos) comma = fields.size();
+                if (comma == std::string::npos) { comma = fields.size();
+}
                 std::string field = fields.substr(pos, comma - pos);
                 // Trim
-                size_t s = field.find_first_not_of(" \t");
-                size_t e = field.find_last_not_of(" \t");
-                if (s != std::string::npos) field = field.substr(s, e - s + 1);
-                if (!field.empty()) parse_fields.push_back(field);
+                size_t const s = field.find_first_not_of(" \t");
+                size_t const e = field.find_last_not_of(" \t");
+                if (s != std::string::npos) { field = field.substr(s, e - s + 1);
+}
+                if (!field.empty()) { parse_fields.push_back(field);
+}
                 pos = comma + 1;
             }
             continue;
         }
         if (a[0] == '-') {
-            fprintf(stderr, "lscpu: unrecognized option '%s'\n", a);
-            fprintf(stderr, "Try 'lscpu --help' for more information.\n");
+            (void)fprintf(stderr, "lscpu: unrecognized option '%s'\n", a);
+            (void)fprintf(stderr, "Try 'lscpu --help' for more information.\n");
             return 1;
         }
     }
@@ -309,21 +330,22 @@ int lscpu_command(int argc, char** argv) {
         // --parse= mode: output key=value pairs
         for (const auto& field : parse_fields) {
             std::string value;
-            if (field == "Architecture") value = info.architecture;
-            else if (field == "Model name") value = info.model_name;
-            else if (field == "Vendor ID") value = info.vendor_id;
-            else if (field == "CPU(s)") value = std::to_string(info.cpu_online);
-            else if (field == "Thread(s) per core") value = std::to_string(info.cpu_thread_per_core);
-            else if (field == "Core(s) per socket") value = std::to_string(info.cpu_core_per_socket);
-            else if (field == "Socket(s)") value = std::to_string(info.cpu_socket_count);
-            else if (field == "CPU max MHz") value = std::to_string(info.cpu_max_mhz);
-            else if (field == "CPU min MHz") value = std::to_string(info.cpu_min_mhz);
-            else if (field == "BogoMIPS") value = std::to_string(info.bogomips);
-            else if (field == "L1d cache") value = info.cache_l1d;
-            else if (field == "L1i cache") value = info.cache_l1i;
-            else if (field == "L2 cache") value = info.cache_l2;
-            else if (field == "L3 cache") value = info.cache_l3;
-            else value = "<not found>";
+            if (field == "Architecture") { value = info.architecture;
+            } else if (field == "Model name") { value = info.model_name;
+            } else if (field == "Vendor ID") { value = info.vendor_id;
+            } else if (field == "CPU(s)") { value = std::to_string(info.cpu_online);
+            } else if (field == "Thread(s) per core") { value = std::to_string(info.cpu_thread_per_core);
+            } else if (field == "Core(s) per socket") { value = std::to_string(info.cpu_core_per_socket);
+            } else if (field == "Socket(s)") { value = std::to_string(info.cpu_socket_count);
+            } else if (field == "CPU max MHz") { value = std::to_string(info.cpu_max_mhz);
+            } else if (field == "CPU min MHz") { value = std::to_string(info.cpu_min_mhz);
+            } else if (field == "BogoMIPS") { value = std::to_string(info.bogomips);
+            } else if (field == "L1d cache") { value = info.cache_l1d;
+            } else if (field == "L1i cache") { value = info.cache_l1i;
+            } else if (field == "L2 cache") { value = info.cache_l2;
+            } else if (field == "L3 cache") { value = info.cache_l3;
+            } else { value = "<not found>";
+}
             
             printf("%s=%s\n", field.c_str(), value.c_str());
         }
@@ -349,7 +371,8 @@ int lscpu_command(int argc, char** argv) {
         for (size_t i = 0; i < topology.size(); i++) {
             printf("    {\"cpu\": %d, \"core\": %d, \"socket\": %d, \"node\": %d}",
                    topology[i].cpu, topology[i].core, topology[i].socket, topology[i].node);
-            if (i + 1 < topology.size()) printf(",");
+            if (i + 1 < topology.size()) { printf(",");
+}
             printf("\n");
         }
         printf("  ]\n");
@@ -375,13 +398,18 @@ int lscpu_command(int argc, char** argv) {
             printf("CPU min MHz: %lld\n", info.cpu_min_mhz);
         }
         printf("BogoMIPS: %.2f\n", info.bogomips);
-        if (!info.cache_l1d.empty()) printf("L1d cache: %s\n", info.cache_l1d.c_str());
-        if (!info.cache_l1i.empty()) printf("L1i cache: %s\n", info.cache_l1i.c_str());
-        if (!info.cache_l2.empty()) printf("L2 cache: %s\n", info.cache_l2.c_str());
-        if (!info.cache_l3.empty()) printf("L3 cache: %s\n", info.cache_l3.c_str());
+        if (!info.cache_l1d.empty()) { printf("L1d cache: %s\n", info.cache_l1d.c_str());
+}
+        if (!info.cache_l1i.empty()) { printf("L1i cache: %s\n", info.cache_l1i.c_str());
+}
+        if (!info.cache_l2.empty()) { printf("L2 cache: %s\n", info.cache_l2.c_str());
+}
+        if (!info.cache_l3.empty()) { printf("L3 cache: %s\n", info.cache_l3.c_str());
+}
         if (!info.flags.empty()) {
             printf("Flags:");
-            for (const auto& f : info.flags) printf(" %s", f.c_str());
+            for (const auto& f : info.flags) { printf(" %s", f.c_str());
+}
             printf("\n");
         }
     }

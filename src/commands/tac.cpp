@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 #include <vector>
 #include <cstdint>
 
@@ -18,17 +19,17 @@ struct TacRecord {
 };
 
 static void write_records(const std::vector<TacRecord>& records, FILE* out) {
-    for (int i = (int)records.size() - 1; i >= 0; i--) {
+    for (int i = static_cast<int>(records.size()) - 1; i >= 0; i--) {
         const auto& rec = records[i];
         if (!rec.sep_bytes.empty()) {
             if (fwrite(rec.sep_bytes.data(), 1, rec.sep_bytes.size(), out) != rec.sep_bytes.size()) {
-                fprintf(stderr, "tac: write error\n");
+                (void)fprintf(stderr, "tac: write error\n");
                 return;
             }
         }
         if (!rec.bytes.empty()) {
             if (fwrite(rec.bytes.data(), 1, rec.bytes.size(), out) != rec.bytes.size()) {
-                fprintf(stderr, "tac: write error\n");
+                (void)fprintf(stderr, "tac: write error\n");
                 return;
             }
         }
@@ -38,12 +39,12 @@ static void write_records(const std::vector<TacRecord>& records, FILE* out) {
 static std::vector<TacRecord> split_custom(const uint8_t* data, size_t total_len,
                                            const char* sep, int before_mode, int regex_mode) {
     std::vector<TacRecord> records;
-    size_t sep_len = strlen(sep);
+    size_t const sep_len = strlen(sep);
 
-    if (regex_mode) {
+    if (regex_mode != 0) {
         regex_t regex;
         if (regcomp(&regex, sep, REG_EXTENDED) != 0) {
-            fprintf(stderr, "tac: invalid regex: %s\n", sep);
+            (void)fprintf(stderr, "tac: invalid regex: %s\n", sep);
             return records;
         }
 
@@ -51,16 +52,16 @@ static std::vector<TacRecord> split_custom(const uint8_t* data, size_t total_len
         std::vector<uint8_t> pending_sep;
         while (pos < total_len) {
             regmatch_t match;
-            int rc = regexec(&regex, (const char*)data + pos, 1, &match, 0);
+            int const rc = regexec(&regex, reinterpret_cast<const char*>(data) + pos, 1, &match, 0);
             if (rc != 0 || match.rm_so == -1) {
                 break;
             }
 
-            size_t abs_match_start = pos + (size_t)match.rm_so;
-            size_t abs_match_end = pos + (size_t)match.rm_eo;
-            size_t cur_match_len = abs_match_end - abs_match_start;
+            size_t const abs_match_start = pos + static_cast<size_t>(match.rm_so);
+            size_t const abs_match_end = pos + static_cast<size_t>(match.rm_eo);
+            size_t const cur_match_len = abs_match_end - abs_match_start;
 
-            if (before_mode) {
+            if (before_mode != 0) {
                 if (abs_match_start > pos) {
                     TacRecord rec;
                     rec.bytes.assign(data + pos, data + abs_match_start);
@@ -85,7 +86,7 @@ static std::vector<TacRecord> split_custom(const uint8_t* data, size_t total_len
         if (pos < total_len) {
             TacRecord rec;
             rec.bytes.assign(data + pos, data + total_len);
-            if (before_mode) {
+            if (before_mode != 0) {
                 rec.sep_bytes = std::move(pending_sep);
             }
             records.push_back(std::move(rec));
@@ -110,7 +111,7 @@ static std::vector<TacRecord> split_custom(const uint8_t* data, size_t total_len
                 break;
             }
 
-            if (before_mode) {
+            if (before_mode != 0) {
                 if (found > pos) {
                     TacRecord rec;
                     rec.bytes.assign(data + pos, data + found);
@@ -135,7 +136,7 @@ static std::vector<TacRecord> split_custom(const uint8_t* data, size_t total_len
         if (pos < total_len) {
             TacRecord rec;
             rec.bytes.assign(data + pos, data + total_len);
-            if (before_mode) {
+            if (before_mode != 0) {
                 rec.sep_bytes = std::move(pending_sep);
             }
             records.push_back(std::move(rec));
@@ -152,8 +153,8 @@ static std::vector<TacRecord> split_by_newline(const uint8_t* data, size_t total
     size_t pos = 0;
 
     while (pos < total_len) {
-        const uint8_t* nl_ptr = (const uint8_t*)memchr(data + pos, '\n', total_len - pos);
-        if (!nl_ptr) {
+        const uint8_t* nl_ptr = static_cast<const uint8_t*>(memchr(data + pos, '\n', total_len - pos));
+        if (nl_ptr == nullptr) {
             TacRecord rec;
             if (total_len > pos) {
                 rec.bytes.assign(data + pos, data + total_len);
@@ -161,11 +162,11 @@ static std::vector<TacRecord> split_by_newline(const uint8_t* data, size_t total
             records.push_back(std::move(rec));
             break;
         }
-        size_t chunk_len = (size_t)(nl_ptr - data) - pos + 1;
+        size_t const chunk_len = static_cast<size_t>(nl_ptr - data) - pos + 1;
         TacRecord rec;
         rec.bytes.assign(data + pos, data + pos + chunk_len);
         records.push_back(std::move(rec));
-        pos = (size_t)(nl_ptr - data) + 1;
+        pos = static_cast<size_t>(nl_ptr - data) + 1;
     }
 
     return records;
@@ -173,7 +174,7 @@ static std::vector<TacRecord> split_by_newline(const uint8_t* data, size_t total
 
 static std::vector<TacRecord> split_input(const uint8_t* data, size_t total_len,
                                           const char* sep, int before_mode, int regex_mode) {
-    if (!sep || strlen(sep) == 0) {
+    if ((sep == nullptr) || strlen(sep) == 0) {
         return split_by_newline(data, total_len);
     }
     return split_custom(data, total_len, sep, before_mode, regex_mode);
@@ -196,7 +197,7 @@ int tac_command(int argc, char** argv) {
     ArgTable at({ before_opt, regex_opt, sep_opt, help_opt,
                   file_arg, end });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -213,13 +214,13 @@ int tac_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    int before_mode = (before_opt->count > 0);
-    int regex_mode = (regex_opt->count > 0);
+    int const before_mode = static_cast<int>(before_opt->count > 0);
+    int const regex_mode = static_cast<int>(regex_opt->count > 0);
     const char* sep = sep_opt->count > 0 ? sep_opt->sval[0] : NULL;
 
-    int from_stdin = (file_arg->count == 0);
+    int const from_stdin = static_cast<int>(file_arg->count == 0);
 
-    if (from_stdin) {
+    if (from_stdin != 0) {
         std::vector<uint8_t> buf;
         char tmp[4096];
         size_t n;
@@ -233,25 +234,25 @@ int tac_command(int argc, char** argv) {
     } else {
         for (int i = 0; i < file_arg->count; i++) {
             FILE* fp = fopen(file_arg->filename[i], "rb");
-            if (!fp) {
-                fprintf(stderr, "tac: %s: No such file or directory\n",
+            if (fp == nullptr) {
+                (void)fprintf(stderr, "tac: %s: No such file or directory\n",
                         file_arg->filename[i]);
                 continue;
             }
 
-            fseek(fp, 0, SEEK_END);
-            long fsize = ftell(fp);
-            fseek(fp, 0, SEEK_SET);
+            (void)fseek(fp, 0, SEEK_END);
+            long const fsize = ftell(fp);
+            (void)fseek(fp, 0, SEEK_SET);
 
             if (fsize > 0) {
-                std::vector<uint8_t> data((size_t)fsize);
-                size_t nread = fread(data.data(), 1, (size_t)fsize, fp);
-                fclose(fp);
+                std::vector<uint8_t> data(static_cast<size_t>(fsize));
+                size_t const nread = fread(data.data(), 1, static_cast<size_t>(fsize), fp);
+                (void)fclose(fp);
 
                 auto records = split_input(data.data(), nread, sep, before_mode, regex_mode);
                 write_records(records, stdout);
             } else {
-                fclose(fp);
+                (void)fclose(fp);
             }
         }
     }

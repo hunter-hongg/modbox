@@ -25,7 +25,8 @@ static int64_t head_lines(FILE *fp, int64_t count, int delim, FILE *out) {
         (void)fputc(c, out);
         if (c == delim) {
             printed++;
-            if (printed >= count) break;
+            if (printed >= count) { break;
+}
         }
     }
     /* If last line has no terminator but we haven't hit limit, it's fine */
@@ -36,11 +37,14 @@ static int64_t head_lines_file(const char *fname, FILE *fp, int64_t count,
                                int delim, const HeadOptions *opts,
                                int file_index, int total_files, FILE *out) {
     int show_header = 0;
-    if (total_files > 1 && !opts->quiet) show_header = 1;
-    if (opts->verbose) show_header = 1;
+    if (total_files > 1 && (opts->quiet == 0)) { show_header = 1;
+}
+    if (opts->verbose != 0) { show_header = 1;
+}
 
-    if (show_header) {
-        if (file_index > 0) (void)fputc('\n', out);
+    if (show_header != 0) {
+        if (file_index > 0) { (void)fputc('\n', out);
+}
         print_header(fname, out);
     }
 
@@ -63,11 +67,14 @@ static int64_t head_bytes_file(const char *fname, FILE *fp, int64_t count,
                                const HeadOptions *opts,
                                int file_index, int total_files, FILE *out) {
     int show_header = 0;
-    if (total_files > 1 && !opts->quiet) show_header = 1;
-    if (opts->verbose) show_header = 1;
+    if (total_files > 1 && (opts->quiet == 0)) { show_header = 1;
+}
+    if (opts->verbose != 0) { show_header = 1;
+}
 
-    if (show_header) {
-        if (file_index > 0) (void)fputc('\n', out);
+    if (show_header != 0) {
+        if (file_index > 0) { (void)fputc('\n', out);
+}
         print_header(fname, out);
     }
 
@@ -80,22 +87,23 @@ static int64_t head_bytes_file(const char *fname, FILE *fp, int64_t count,
    For head: -n N = first N lines; -n +N = skip N-1 lines, show rest */
 static int64_t parse_count(const char *s, int *is_relative) {
     *is_relative = 0;
-    if (s == NULL) return 10;
+    if (s == NULL) { return 10;
+}
 
     if (s[0] == '+') {
         *is_relative = 1;
         // NOLINTNEXTLINE(cert-err34-c)
-        return (int64_t)strtoll(s + 1, NULL, 10);
+        return static_cast<int64_t>(strtoll(s + 1, NULL, 10));
     }
     // NOLINTNEXTLINE(cert-err34-c)
-    return (int64_t)strtoll(s, NULL, 10);
+    return static_cast<int64_t>(strtoll(s, NULL, 10));
 }
 
 /* ── Main command ────────────────────────────────────────────────────────── */
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 int head_command(int argc, char **argv) {
-    HeadOptions opts = {0};
+    HeadOptions opts = {.lines=0};
 
     struct arg_str *lines_opt = arg_str0("n", "lines", "N", "print first N lines (default 10)");
     struct arg_str *bytes_opt = arg_str0("c", "bytes", "N", "print first N bytes");
@@ -111,7 +119,7 @@ int head_command(int argc, char **argv) {
         help_opt, file_arg, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -133,45 +141,52 @@ int head_command(int argc, char **argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    opts.quiet = (quiet_opt->count > 0);
-    opts.verbose = (verbose_opt->count > 0);
-    opts.zero_terminated = (zero_opt->count > 0);
+    opts.quiet = static_cast<int>(quiet_opt->count > 0);
+    opts.verbose = static_cast<int>(verbose_opt->count > 0);
+    opts.zero_terminated = static_cast<int>(zero_opt->count > 0);
 
     /* Parse -n or -c */
-    int use_bytes = (bytes_opt->count > 0);
+    int const use_bytes = static_cast<int>(bytes_opt->count > 0);
     int is_relative = 0;
 
-    if (use_bytes) {
+    if (use_bytes != 0) {
         opts.bytes = parse_count(bytes_opt->sval[0], &is_relative);
-        if (opts.bytes < 0) opts.bytes = -opts.bytes;
-        if (opts.bytes == 0) opts.bytes = 10;
+        if (opts.bytes < 0) { opts.bytes = -opts.bytes;
+}
+        if (opts.bytes == 0) { opts.bytes = 10;
+}
         opts.lines = 0;
     } else if (lines_opt->count > 0) {
         opts.lines = parse_count(lines_opt->sval[0], &is_relative);
-        if (opts.lines < 0) opts.lines = -opts.lines;
-        if (opts.lines == 0) opts.lines = 10;
+        if (opts.lines < 0) { opts.lines = -opts.lines;
+}
+        if (opts.lines == 0) { opts.lines = 10;
+}
     } else {
         opts.lines = 10;
     }
 
-    int delim = opts.zero_terminated ? '\0' : '\n';
-    int file_count = file_arg->count;
+    int const delim = (opts.zero_terminated != 0) ? '\0' : '\n';
+    int const file_count = file_arg->count;
 
     if (file_count == 0) {
         /* Read from stdin */
-        if (use_bytes) {
+        if (use_bytes != 0) {
             head_bytes(stdin, opts.bytes, stdout);
-        } else if (is_relative) {
+        } else if (is_relative != 0) {
             /* -n +N: skip N-1 lines then show rest */
             int64_t skip = opts.lines - 1;
             while (skip > 0) {
-                int c = fgetc(stdin);
-                if (c == EOF) break;
-                if (c == delim) skip--;
+                int const c = fgetc(stdin);
+                if (c == EOF) { break;
+}
+                if (c == delim) { skip--;
+}
             }
             /* Now output remaining */
             int c;
-            while ((c = fgetc(stdin)) != EOF) (void)fputc(c, stdout);
+            while ((c = fgetc(stdin)) != EOF) { (void)fputc(c, stdout);
+}
         } else {
             head_lines(stdin, opts.lines, delim, stdout);
         }
@@ -193,35 +208,42 @@ int head_command(int argc, char **argv) {
                 opened = 1;
             }
 
-            if (use_bytes) {
+            if (use_bytes != 0) {
                 head_bytes_file(fname, fp, opts.bytes, &opts, i, file_count, stdout);
-            } else if (is_relative) {
+            } else if (is_relative != 0) {
                 /* -n +N: skip N-1, show rest */
                 int show_header = 0;
-                if (file_count > 1 && !opts.quiet) show_header = 1;
-                if (opts.verbose) show_header = 1;
+                if (file_count > 1 && (opts.quiet == 0)) { show_header = 1;
+}
+                if (opts.verbose != 0) { show_header = 1;
+}
 
                 int64_t skip = opts.lines - 1;
                 while (skip > 0) {
-                    int c = fgetc(fp);
-                    if (c == EOF) break;
-                    if (c == delim) skip--;
+                    int const c = fgetc(fp);
+                    if (c == EOF) { break;
+}
+                    if (c == delim) { skip--;
+}
                 }
 
                 /* Check if any content remains after skipping */
-                if (!feof(fp)) {
-                    if (show_header) {
-                        if (i > 0) (void)fputc('\n', stdout);
+                if (feof(fp) == 0) {
+                    if (show_header != 0) {
+                        if (i > 0) { (void)fputc('\n', stdout);
+}
                         print_header(fname, stdout);
                     }
                     int c;
-                    while ((c = fgetc(fp)) != EOF) (void)fputc(c, stdout);
+                    while ((c = fgetc(fp)) != EOF) { (void)fputc(c, stdout);
+}
                 }
             } else {
                 head_lines_file(fname, fp, opts.lines, delim, &opts, i, file_count, stdout);
             }
 
-            if (opened) (void)fclose(fp);
+            if (opened != 0) { (void)fclose(fp);
+}
         }
     }
 

@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
+#include <sys/acl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <ftw.h>
@@ -20,31 +20,31 @@ static const GetfaclOptions *g_opts;
 
 static const char *uid_to_string(uid_t uid) {
     static char buf[64];
-    struct passwd *pw = getpwuid(uid);
-    if (pw) {
-        snprintf(buf, sizeof(buf), "%s", pw->pw_name);
+    const struct passwd *pw = getpwuid(uid);
+    if (pw != nullptr) {
+        (void)snprintf(buf, sizeof(buf), "%s", pw->pw_name);
     } else {
-        snprintf(buf, sizeof(buf), "%u", uid);
+        (void)snprintf(buf, sizeof(buf), "%u", uid);
     }
     return buf;
 }
 
 static const char *gid_to_string(gid_t gid) {
     static char buf[64];
-    struct group *gr = getgrgid(gid);
-    if (gr) {
-        snprintf(buf, sizeof(buf), "%s", gr->gr_name);
+    const struct group *gr = getgrgid(gid);
+    if (gr != nullptr) {
+        (void)snprintf(buf, sizeof(buf), "%s", gr->gr_name);
     } else {
-        snprintf(buf, sizeof(buf), "%u", gid);
+        (void)snprintf(buf, sizeof(buf), "%u", gid);
     }
     return buf;
 }
 
 static const char *mode_to_rwx(mode_t mode) {
     static char buf[4];
-    buf[0] = (mode & 04) ? 'r' : '-';
-    buf[1] = (mode & 02) ? 'w' : '-';
-    buf[2] = (mode & 01) ? 'x' : '-';
+    buf[0] = ((mode & 04) != 0u) ? 'r' : '-';
+    buf[1] = ((mode & 02) != 0u) ? 'w' : '-';
+    buf[2] = ((mode & 01) != 0u) ? 'x' : '-';
     buf[3] = '\0';
     return buf;
 }
@@ -54,12 +54,12 @@ static const char *mode_to_rwx(mode_t mode) {
 static void format_owner_group(const struct stat *st, int is_numeric,
                                 char *owner_buf, size_t owner_sz,
                                 char *group_buf, size_t group_sz) {
-    if (is_numeric) {
-        snprintf(owner_buf, owner_sz, "%u", st->st_uid);
-        snprintf(group_buf, group_sz, "%u", st->st_gid);
+    if (is_numeric != 0) {
+        (void)snprintf(owner_buf, owner_sz, "%u", st->st_uid);
+        (void)snprintf(group_buf, group_sz, "%u", st->st_gid);
     } else {
-        snprintf(owner_buf, owner_sz, "%s", uid_to_string(st->st_uid));
-        snprintf(group_buf, group_sz, "%s", gid_to_string(st->st_gid));
+        (void)snprintf(owner_buf, owner_sz, "%s", uid_to_string(st->st_uid));
+        (void)snprintf(group_buf, group_sz, "%s", gid_to_string(st->st_gid));
     }
 }
 
@@ -69,10 +69,11 @@ static bool warned_absolute = false;
 // Return a display path: strips leading '/' unless -p is set.
 // Warns once about stripping.
 static const char *display_path(const char *path) {
-    if (g_opts->absolute_names) return path;
+    if (g_opts->absolute_names != 0) { return path;
+}
     if (path[0] == '/') {
         if (!warned_absolute) {
-            fprintf(stderr, "getfacl: Removing leading '/' from absolute path names\n");
+            (void)fprintf(stderr, "getfacl: Removing leading '/' from absolute path names\n");
             warned_absolute = true;
         }
         return path + 1;  // skip leading '/'
@@ -83,7 +84,8 @@ static const char *display_path(const char *path) {
 // Print the "# file: / # owner: / # group:" header block.
 // Returns 1 if header was printed, 0 if it was omitted.
 static int print_header(const char *path, const char *owner, const char *group) {
-    if (g_opts->omit_header) return 0;
+    if (g_opts->omit_header != 0) { return 0;
+}
     printf("# file: %s\n", display_path(path));
     printf("# owner: %s\n", owner);
     printf("# group: %s\n", group);
@@ -93,10 +95,14 @@ static int print_header(const char *path, const char *owner, const char *group) 
 // Build the option flags for acl_to_any_text().
 static int acl_text_options() {
     int options = TEXT_SOME_EFFECTIVE;
-    if (g_opts->is_numeric) options |= TEXT_NUMERIC_IDS;
-    if (g_opts->all_effective) options = (options & ~TEXT_SOME_EFFECTIVE) | TEXT_ALL_EFFECTIVE;
-    if (g_opts->no_effective) options &= ~TEXT_SOME_EFFECTIVE;
-    if (g_opts->is_tabular) options |= TEXT_ABBREVIATE;
+    if (g_opts->is_numeric != 0) { options |= TEXT_NUMERIC_IDS;
+}
+    if (g_opts->all_effective != 0) { options = (options & ~TEXT_SOME_EFFECTIVE) | TEXT_ALL_EFFECTIVE;
+}
+    if (g_opts->no_effective != 0) { options &= ~TEXT_SOME_EFFECTIVE;
+}
+    if (g_opts->is_tabular != 0) { options |= TEXT_ABBREVIATE;
+}
     return options;
 }
 
@@ -105,69 +111,76 @@ static int acl_text_options() {
 static int print_file_acl(const char *path) {
     struct stat st;
     if (stat(path, &st) != 0) {
-        fprintf(stderr, "getfacl: cannot stat '%s': %s\n", path, strerror(errno));
+        (void)fprintf(stderr, "getfacl: cannot stat '%s': %s\n", path, strerror(errno));
         return 1;
     }
 
     // Determine what to show
     // GNU behavior: default shows both access and default ACLs
     // -a shows access only, -d shows default only, both show both
-    int show_access = 0, show_default = 0;
-    if (!g_opts->is_default && !g_opts->is_access) {
+    int show_access = 0;
+    int show_default = 0;
+    if ((g_opts->is_default == 0) && (g_opts->is_access == 0)) {
         show_access = 1;
         show_default = 1;  // GNU default: show both
     } else {
-        if (g_opts->is_access) show_access = 1;
-        if (g_opts->is_default) show_default = 1;
+        if (g_opts->is_access != 0) { show_access = 1;
+}
+        if (g_opts->is_default != 0) { show_default = 1;
+}
     }
 
     int printed_header = 0;
 
     // -s / --skip-base: skip files that only have base ACL entries
-    if (g_opts->skip_base) {
-        if (!acl_extended_file(path) &&
+    if (g_opts->skip_base != 0) {
+        if ((acl_extended_file(path) == 0) &&
             acl_get_file(path, ACL_TYPE_DEFAULT) == nullptr) {
             return 0;
         }
     }
 
-    char owner_buf[64], group_buf[64];
+    char owner_buf[64];
+    char group_buf[64];
     format_owner_group(&st, g_opts->is_numeric,
                        owner_buf, sizeof(owner_buf),
                        group_buf, sizeof(group_buf));
 
-    if (show_access) {
+    if (show_access != 0) {
         acl_t acl = acl_get_file(path, ACL_TYPE_ACCESS);
         if (acl != nullptr) {
-            if (print_header(path, owner_buf, group_buf))
+            if (print_header(path, owner_buf, group_buf) != 0) {
                 printed_header = 1;
+}
 
             char *text = acl_to_any_text(acl, nullptr, '\n', acl_text_options());
-            if (text) {
+            if (text != nullptr) {
                 printf("%s\n", text);
                 acl_free(text);
             }
             acl_free(acl);
         } else {
             // No extended ACL — fall back to mode bits
-            if (print_header(path, owner_buf, group_buf))
+            if (print_header(path, owner_buf, group_buf) != 0) {
                 printed_header = 1;
+}
             printf("user::%s\n", mode_to_rwx((st.st_mode & S_IRWXU) >> 6));
             printf("group::%s\n", mode_to_rwx((st.st_mode & S_IRWXG) >> 3));
             printf("other::%s\n", mode_to_rwx(st.st_mode & S_IRWXO));
         }
     }
 
-    if (show_default) {
+    if (show_default != 0) {
         acl_t def_acl = acl_get_file(path, ACL_TYPE_DEFAULT);
         if (def_acl != nullptr) {
-            if (!printed_header)
+            if (printed_header == 0) {
                 printed_header = print_header(path, owner_buf, group_buf);
+}
 
             // With -d only (no -a), show default ACL without "default:" prefix
-            const char *prefix = show_access ? "default:" : nullptr;
+            const char *prefix = (show_access != 0) ? "default:" : nullptr;
             char *text = acl_to_any_text(def_acl, prefix, '\n', acl_text_options());
-            if (text) {
+            if (text != nullptr) {
                 printf("%s\n", text);
                 acl_free(text);
             }
@@ -186,7 +199,7 @@ static int recursive_callback(const char *fpath, const struct stat *sb,
     (void)ftwbuf;
 
     if (typeflag == FTW_DNR || typeflag == FTW_NS) {
-        fprintf(stderr, "getfacl: cannot access '%s': %s\n", fpath, strerror(errno));
+        (void)fprintf(stderr, "getfacl: cannot access '%s': %s\n", fpath, strerror(errno));
         return 0;
     }
 
@@ -249,7 +262,7 @@ int getfacl_command(int argc, char **argv) {
                  one_fs_opt, version_opt, help_opt, preserve_root_opt,
                  no_preserve_root_opt, files, end});
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     // Version check first
     if (version_opt->count > 0) {
@@ -288,37 +301,37 @@ int getfacl_command(int argc, char **argv) {
 
     if (nerrors > 0) {
         at.print_errors(end, argv[0]);
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 
     // Populate options struct
     GetfaclOptions opts{};
-    opts.is_recursive = (recursive_opt->count > 0);
-    opts.is_dereference = (dereference_opt->count > 0);
-    opts.is_logical = (logical_opt->count > 0);
-    opts.is_physical = (physical_opt->count > 0);
-    opts.is_tabular = (tabular_opt->count > 0);
-    opts.is_default = (default_opt->count > 0);
-    opts.is_access = (access_opt->count > 0);
-    opts.omit_header = (header_opt->count > 0);
-    opts.is_numeric = (numeric_opt->count > 0);
-    opts.all_effective = (effective_opt->count > 0);
-    opts.no_effective = (no_effective_opt->count > 0);
-    opts.skip_base = (skip_base_opt->count > 0);
-    opts.absolute_names = (absolute_names_opt->count > 0);
-    opts.one_file_system = (one_fs_opt->count > 0);
-    opts.preserve_root = (preserve_root_opt->count > 0);
+    opts.is_recursive = static_cast<int>(recursive_opt->count > 0);
+    opts.is_dereference = static_cast<int>(dereference_opt->count > 0);
+    opts.is_logical = static_cast<int>(logical_opt->count > 0);
+    opts.is_physical = static_cast<int>(physical_opt->count > 0);
+    opts.is_tabular = static_cast<int>(tabular_opt->count > 0);
+    opts.is_default = static_cast<int>(default_opt->count > 0);
+    opts.is_access = static_cast<int>(access_opt->count > 0);
+    opts.omit_header = static_cast<int>(header_opt->count > 0);
+    opts.is_numeric = static_cast<int>(numeric_opt->count > 0);
+    opts.all_effective = static_cast<int>(effective_opt->count > 0);
+    opts.no_effective = static_cast<int>(no_effective_opt->count > 0);
+    opts.skip_base = static_cast<int>(skip_base_opt->count > 0);
+    opts.absolute_names = static_cast<int>(absolute_names_opt->count > 0);
+    opts.one_file_system = static_cast<int>(one_fs_opt->count > 0);
+    opts.preserve_root = static_cast<int>(preserve_root_opt->count > 0);
     // Build nftw flags
     int nftw_flags = FTW_PHYS; // default physical
-    if (opts.is_logical) {
+    if (opts.is_logical != 0) {
         nftw_flags &= ~FTW_PHYS;
     }
-    if (opts.is_recursive) {
+    if (opts.is_recursive != 0) {
         nftw_flags |= FTW_DEPTH;
     }
     // one-file-system: skip mount points
-    if (opts.one_file_system) {
+    if (opts.one_file_system != 0) {
         // FTW_MOUNT is not always available; skip on systems without it
 #ifdef FTW_MOUNT
         nftw_flags |= FTW_MOUNT;
@@ -328,43 +341,46 @@ int getfacl_command(int argc, char **argv) {
     g_opts = &opts;
 
     // Process files
-    if (!opts.is_recursive) {
+    if (opts.is_recursive == 0) {
         int rc = 0;
-        int n = files->count;
+        int const n = files->count;
         for (int i = 0; i < n; i++) {
-            if (print_file_acl(files->filename[i]) != 0)
+            if (print_file_acl(files->filename[i]) != 0) {
                 rc = 1;
-            if (i < n - 1) printf("\n");
+}
+            if (i < n - 1) { printf("\n");
+}
         }
         return rc;
     } else {
-        int n = files->count;
+        int const n = files->count;
         for (int i = 0; i < n; i++) {
             const char *path = files->filename[i];
             char resolved[4096];
 
             // -H: dereference command-line symlinks before starting traversal
-            if (opts.is_dereference) {
+            if (opts.is_dereference != 0) {
                 struct stat lst;
                 if (lstat(path, &lst) == 0 && S_ISLNK(lst.st_mode)) {
-                    if (realpath(path, resolved)) {
+                    if (realpath(path, resolved) != nullptr) {
                         path = resolved;
                     }
                 }
             }
 
             // preserve-root: check before starting traversal
-            if (opts.preserve_root && strcmp(path, "/") == 0) {
-                fprintf(stderr, "getfacl: it is dangerous to operate recursively on '/'\n");
-                fprintf(stderr, "getfacl: use --no-preserve-root to override this failsafe\n");
+            if ((opts.preserve_root != 0) && strcmp(path, "/") == 0) {
+                (void)fprintf(stderr, "getfacl: it is dangerous to operate recursively on '/'\n");
+                (void)fprintf(stderr, "getfacl: use --no-preserve-root to override this failsafe\n");
                 return 1;
             }
             if (nftw(path, recursive_callback, 20, nftw_flags) != 0) {
-                fprintf(stderr, "getfacl: failed to traverse '%s': %s\n",
+                (void)fprintf(stderr, "getfacl: failed to traverse '%s': %s\n",
                         path, strerror(errno));
                 return 1;
             }
-            if (i < n - 1) printf("\n");
+            if (i < n - 1) { printf("\n");
+}
         }
     }
 

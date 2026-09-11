@@ -24,11 +24,13 @@ static void base32_encode(FILE* in, FILE* out, int wrap_cols) {
     int col = 0;
 
     while (true) {
-        size_t n = fread(buf, 1, 5, in);
-        if (n == 0) break;
+        size_t const n = fread(buf, 1, 5, in);
+        if (n == 0) { break;
+}
 
         if (n < 5) {
-            for (size_t i = n; i < 5; i++) buf[i] = 0;
+            for (size_t i = n; i < 5; i++) { buf[i] = 0;
+}
         }
 
         uint8_t out_chars[8];
@@ -79,11 +81,11 @@ static void base32_encode(FILE* in, FILE* out, int wrap_cols) {
         }
 
         for (int i = 0; i < out_len; i++) {
-            fputc(out_chars[i], out);
+            (void)fputc(out_chars[i], out);
             if (wrap_cols > 0) {
                 col++;
                 if (col >= wrap_cols) {
-                    fputc('\n', out);
+                    (void)fputc('\n', out);
                     col = 0;
                 }
             }
@@ -91,7 +93,7 @@ static void base32_encode(FILE* in, FILE* out, int wrap_cols) {
     }
 
     if (wrap_cols > 0 && col > 0) {
-        fputc('\n', out);
+        (void)fputc('\n', out);
     }
 }
 
@@ -101,10 +103,12 @@ static bool base32_decode(FILE* in, FILE* out, bool ignore_garbage) {
     int padding = 0;
 
     while (true) {
-        int c = fgetc(in);
-        if (c == EOF) break;
+        int const c = fgetc(in);
+        if (c == EOF) { break;
+}
 
-        if (c == '\n' || c == '\r' || c == ' ') continue;
+        if (c == '\n' || c == '\r' || c == ' ') { continue;
+}
 
         if (c == '=') {
             padding++;
@@ -118,13 +122,14 @@ static bool base32_decode(FILE* in, FILE* out, bool ignore_garbage) {
                 out_buf[4] = ((buf[6] & 0x07) << 5) | buf[7];
 
                 int out_len;
-                if (padding >= 6) out_len = 1;
-                else if (padding >= 4) out_len = 2;
-                else if (padding >= 3) out_len = 3;
-                else if (padding >= 1) out_len = 4;
-                else out_len = 5;
+                if (padding >= 6) { out_len = 1;
+                } else if (padding >= 4) { out_len = 2;
+                } else if (padding >= 3) { out_len = 3;
+                } else if (padding >= 1) { out_len = 4;
+                } else { out_len = 5;
+}
 
-                fwrite(out_buf, 1, out_len, out);
+                (void)fwrite(out_buf, 1, out_len, out);
                 buf_idx = 0;
                 padding = 0;
             }
@@ -132,7 +137,7 @@ static bool base32_decode(FILE* in, FILE* out, bool ignore_garbage) {
         }
 
         if (c >= 0 && c < 128) {
-            int8_t val = decode_table[c];
+            int8_t const val = decode_table[c];
             if (val >= 0) {
                 buf[buf_idx++] = val;
             } else if (!ignore_garbage) {
@@ -150,16 +155,12 @@ static bool base32_decode(FILE* in, FILE* out, bool ignore_garbage) {
             out_buf[3] = ((buf[4] & 0x01) << 7) | (buf[5] << 2) | (buf[6] >> 3);
             out_buf[4] = ((buf[6] & 0x07) << 5) | buf[7];
 
-            fwrite(out_buf, 1, 5, out);
+            (void)fwrite(out_buf, 1, 5, out);
             buf_idx = 0;
         }
     }
 
-    if (buf_idx > 0) {
-        return false;
-    }
-
-    return true;
+    return buf_idx <= 0;
 }
 
 int base32_command(int argc, char** argv) {
@@ -171,7 +172,7 @@ int base32_command(int argc, char** argv) {
     struct arg_end* end = arg_end(20);
 
     ArgTable at({decode_opt, ignore_garbage_opt, wrap_opt, help_opt, file_arg, end});
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]\n", argv[0]);
@@ -196,13 +197,13 @@ int base32_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
 
-    bool decode = (decode_opt->count > 0);
-    bool ignore_garbage = (ignore_garbage_opt->count > 0);
+    bool const decode = (decode_opt->count > 0);
+    bool const ignore_garbage = (ignore_garbage_opt->count > 0);
     int wrap_cols = 76;
 
     if (wrap_opt->count > 0) {
         if (wrap_opt->ival[0] < 0) {
-            fprintf(stderr, "base32: invalid wrap value: %d\n", wrap_opt->ival[0]);
+            (void)fprintf(stderr, "base32: invalid wrap value: %d\n", wrap_opt->ival[0]);
             return 0;
         }
         wrap_cols = wrap_opt->ival[0];
@@ -222,7 +223,7 @@ int base32_command(int argc, char** argv) {
     if (!use_stdin) {
         in = fopen(filename, "rb");
         if (in == nullptr) {
-            fprintf(stderr, "base32: %s: No such file or directory\n", filename);
+            (void)fprintf(stderr, "base32: %s: No such file or directory\n", filename);
             return 0;
         }
     }
@@ -234,7 +235,7 @@ int base32_command(int argc, char** argv) {
     }
 
     if (!use_stdin) {
-        fclose(in);
+        (void)fclose(in);
     }
 
     return 0;

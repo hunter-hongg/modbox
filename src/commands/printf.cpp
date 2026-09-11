@@ -18,8 +18,8 @@ static void print_help(const char* prog) {
 }
 
 static const char* unescape(const char* s, char* out) {
-    while (*s) {
-        if (*s == '\\' && *(s + 1)) {
+    while ((*s) != 0) {
+        if (*s == '\\' && ((*(s + 1)) != 0)) {
             s++;
             switch (*s) {
                 case 'a': *out++ = '\a'; break;
@@ -49,7 +49,7 @@ static const char* unescape(const char* s, char* out) {
 static void emit_format(const char* fmt, const std::vector<std::string>& args, size_t& ai) {
     const char* p = fmt;
     char ebuf[16];
-    while (*p) {
+    while ((*p) != 0) {
         if (*p == '%') {
             p++;
             if (*p == '%') {
@@ -67,16 +67,19 @@ static void emit_format(const char* fmt, const std::vector<std::string>& args, s
                 flags = 1;
                 p++;
             }
-            while (*p >= '0' && *p <= '9') p++;
+            while (*p >= '0' && *p <= '9') { p++;
+}
             if (*p == '.') {
                 p++;
-                while (*p >= '0' && *p <= '9') p++;
+                while (*p >= '0' && *p <= '9') { p++;
+}
             }
-            char conv = *p;
+            char const conv = *p;
             p++;
             std::string spec("%");
-            if (flags) spec += std::string(start, p - start);
-            else spec += conv;
+            if (flags != 0) { spec += std::string(start, p - start);
+            } else { spec += conv;
+}
 
             if (conv == 'c') {
                 if (ai < args.size()) {
@@ -91,29 +94,29 @@ static void emit_format(const char* fmt, const std::vector<std::string>& args, s
                 ai++;
             } else if (conv == 'd' || conv == 'i' || conv == 'o' ||
                        conv == 'u' || conv == 'x' || conv == 'X') {
-                long long v = (ai < args.size()) ? atoll(args[ai].c_str()) : 0;
+                long long const v = (ai < args.size()) ? atoll(args[ai].c_str()) : 0;
                 printf(spec.c_str(), v);
                 ai++;
             } else if (conv == 'f' || conv == 'F' || conv == 'e' ||
                        conv == 'E' || conv == 'g' || conv == 'G') {
-                double v = (ai < args.size()) ? atof(args[ai].c_str()) : 0.0;
+                double const v = (ai < args.size()) ? atof(args[ai].c_str()) : 0.0;
                 printf(spec.c_str(), v);
                 ai++;
             } else if (conv == 'b') {
                 const char* s = (ai < args.size()) ? args[ai].c_str() : "";
                 unescape(s, ebuf);
-                fputs(ebuf, stdout);
+                (void)fputs(ebuf, stdout);
                 ai++;
             } else if (conv == 'q') {
                 const char* s = (ai < args.size()) ? args[ai].c_str() : "";
                 printf("%s", s);
                 ai++;
             } else {
-                fputc('%', stdout);
-                fputc(conv, stdout);
+                (void)fputc('%', stdout);
+                (void)fputc(conv, stdout);
             }
         } else {
-            fputc(*p, stdout);
+            (void)fputc(*p, stdout);
             p++;
         }
     }
@@ -122,8 +125,8 @@ static void emit_format(const char* fmt, const std::vector<std::string>& args, s
 int printf_command(int argc, char** argv) {
     const char* prog = argv[0];
     if (argc < 2) {
-        fprintf(stderr, "printf: missing operand\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+        (void)fprintf(stderr, "printf: missing operand\n");
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         return 0;
     }
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {

@@ -2,11 +2,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <signal.h>
 #include <string>
 
 #include <csignal>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "commands/nohup.hpp"
@@ -34,20 +36,20 @@ static void print_help(const char* prog) {
 }
 
 static void usage_error(const char* prog) {
-    fprintf(stderr, "Try '%s --help' for more information.\n", prog);
+    (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
     exit(EXIT_CANCELED);
 }
 
 // Reopen target_fd onto the file at path, mirroring GNU's fd_reopen: the
 // descriptor number is preserved so it keeps standing in for stdin/out/err.
 static int reopen_fd(int target_fd, const char* path, int flags, mode_t mode) {
-    int fd = open(path, flags, mode);
+    int const fd = open(path, flags, mode);
     if (fd < 0) {
         return -1;
     }
     if (fd != target_fd) {
         if (dup2(fd, target_fd) < 0) {
-            int saved = errno;
+            int const saved = errno;
             close(fd);
             errno = saved;
             return -1;
@@ -73,30 +75,30 @@ int nohup_command(int argc, char** argv) {
             print_version("nohup");
             return 0;
         }
-        fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argv[i]);
+        (void)fprintf(stderr, "%s: unrecognized option '%s'\n", prog, argv[i]);
         usage_error(prog);
     }
 
     if (i >= argc) {
-        fprintf(stderr, "%s: missing operand\n", prog);
+        (void)fprintf(stderr, "%s: missing operand\n", prog);
         usage_error(prog);
     }
 
-    bool ignoring_input = isatty(STDIN_FILENO);
-    bool redirecting_stdout = isatty(STDOUT_FILENO);
-    bool stdout_is_a_tty = redirecting_stdout;
-    bool redirecting_stderr = isatty(STDERR_FILENO);
+    bool const ignoring_input = isatty(STDIN_FILENO) != 0;
+    bool const redirecting_stdout = isatty(STDOUT_FILENO) != 0;
+    bool const stdout_is_a_tty = redirecting_stdout;
+    bool const redirecting_stderr = isatty(STDERR_FILENO) != 0;
 
     // If standard input is a terminal, replace it with an unreadable file.
     // /dev/null opened write-only ensures any attempt to read evokes an error.
     if (ignoring_input) {
         if (reopen_fd(STDIN_FILENO, "/dev/null", O_WRONLY, 0) < 0) {
-            fprintf(stderr, "%s: failed to render standard input unusable: %s\n",
+            (void)fprintf(stderr, "%s: failed to render standard input unusable: %s\n",
                     prog, strerror(errno));
             exit(EXIT_CANCELED);
         }
         if (!redirecting_stdout) {
-            fprintf(stderr, "%s: ignoring input\n", prog);
+            (void)fprintf(stderr, "%s: ignoring input\n", prog);
         }
     }
 
@@ -104,25 +106,25 @@ int nohup_command(int argc, char** argv) {
     if (redirecting_stdout) {
         std::string in_home;
         std::string file = "nohup.out";
-        int flags = O_CREAT | O_WRONLY | O_APPEND;
-        mode_t mode = S_IRUSR | S_IWUSR;
-        mode_t old_umask = umask(~mode & 0777);
+        int const flags = O_CREAT | O_WRONLY | O_APPEND;
+        mode_t const mode = S_IRUSR | S_IWUSR;
+        mode_t const old_umask = umask(~mode & 0777);
 
         int fd = reopen_fd(STDOUT_FILENO, file.c_str(), flags, mode);
         if (fd < 0) {
-            int saved_errno = errno;
+            int const saved_errno = errno;
             const char* home = getenv("HOME");
             if (home != nullptr && *home != '\0') {
                 in_home = std::string(home) + "/nohup.out";
                 fd = reopen_fd(STDOUT_FILENO, in_home.c_str(), flags, mode);
             }
             if (fd < 0) {
-                int saved_errno2 = errno;
+                int const saved_errno2 = errno;
                 umask(old_umask);
-                fprintf(stderr, "%s: failed to open '%s': %s\n",
+                (void)fprintf(stderr, "%s: failed to open '%s': %s\n",
                         prog, file.c_str(), strerror(saved_errno));
                 if (!in_home.empty()) {
-                    fprintf(stderr, "%s: failed to open '%s': %s\n",
+                    (void)fprintf(stderr, "%s: failed to open '%s': %s\n",
                             prog, in_home.c_str(), strerror(saved_errno2));
                 }
                 exit(EXIT_CANCELED);
@@ -131,7 +133,7 @@ int nohup_command(int argc, char** argv) {
         }
 
         umask(old_umask);
-        fprintf(stderr, "%s: %s '%s'\n", prog,
+        (void)fprintf(stderr, "%s: %s '%s'\n", prog,
                 ignoring_input ? "ignoring input and appending output to"
                                : "appending output to",
                 file.c_str());
@@ -148,23 +150,23 @@ int nohup_command(int argc, char** argv) {
                 if (saved_stderr_fd >= 0) {
                     dup2(saved_stderr_fd, STDERR_FILENO);
                 }
-                fprintf(stderr, "%s: failed to redirect standard error: %s\n",
+                (void)fprintf(stderr, "%s: failed to redirect standard error: %s\n",
                         prog, strerror(errno));
             }
             exit(EXIT_CANCELED);
         }
     }
 
-    signal(SIGHUP, SIG_IGN);
+    (void)signal(SIGHUP, SIG_IGN);
 
     execvp(argv[i], &argv[i]);
 
-    int code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
-    int saved_errno = errno;
+    int const code = (errno == ENOENT) ? EXIT_ENOENT : EXIT_CANNOT_INVOKE;
+    int const saved_errno = errno;
     if (redirecting_stderr && saved_stderr_fd >= 0) {
         dup2(saved_stderr_fd, STDERR_FILENO);
     }
-    fprintf(stderr, "%s: failed to run command '%s': %s\n",
+    (void)fprintf(stderr, "%s: failed to run command '%s': %s\n",
             prog, argv[i], strerror(saved_errno));
     exit(code);
 }

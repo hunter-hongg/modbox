@@ -1,20 +1,20 @@
 #include <argtable3.h>
 #include "commands/arg_util.hpp"
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <time.h>
-#include <unistd.h>
+#include <cstdint>
+#include <cctype>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <system_error>
+#include <ctime>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "commands/zoxide.hpp"
@@ -24,26 +24,31 @@ namespace fs = std::filesystem;
 
 static std::string get_db_path() {
     const char* xdg = std::getenv("XDG_DATA_HOME");
-    if (xdg && xdg[0] != '\0') {
+    if ((xdg != nullptr) && xdg[0] != '\0') {
         return std::string(xdg) + "/zoxide/db";
     }
     const char* home = std::getenv("HOME");
-    if (!home) home = "/root";
+    if (home == nullptr) { home = "/root";
+}
     return std::string(home) + "/.local/share/zoxide/db";
 }
 
 static std::vector<ZoxideEntry> load_db(const std::string& path) {
     std::vector<ZoxideEntry> entries;
     std::ifstream ifs(path);
-    if (!ifs.is_open()) return entries;
+    if (!ifs.is_open()) { return entries;
+}
 
     std::string line;
     while (std::getline(ifs, line)) {
-        if (line.empty()) continue;
-        size_t p1 = line.find('|');
-        if (p1 == std::string::npos) continue;
-        size_t p2 = line.find('|', p1 + 1);
-        if (p2 == std::string::npos) continue;
+        if (line.empty()) { continue;
+}
+        size_t const p1 = line.find('|');
+        if (p1 == std::string::npos) { continue;
+}
+        size_t const p2 = line.find('|', p1 + 1);
+        if (p2 == std::string::npos) { continue;
+}
 
         ZoxideEntry e;
         try {
@@ -61,34 +66,35 @@ static std::vector<ZoxideEntry> load_db(const std::string& path) {
 }
 
 static void save_db(const std::string& path, const std::vector<ZoxideEntry>& entries) {
-    fs::path p(path);
+    fs::path const p(path);
     if (p.has_parent_path()) {
         std::error_code ec;
         fs::create_directories(p.parent_path(), ec);
     }
     std::ofstream ofs(path);
     if (!ofs.is_open()) {
-        fprintf(stderr, "zoxide: cannot write database '%s': %s\n", path.c_str(), strerror(errno));
+        (void)fprintf(stderr, "zoxide: cannot write database '%s': %s\n", path.c_str(), strerror(errno));
         return;
     }
     for (const auto& e : entries) {
         char buf[64];
-        snprintf(buf, sizeof(buf), "%.6f", e.rank);
+        (void)snprintf(buf, sizeof(buf), "%.6f", e.rank);
         ofs << buf << '|' << e.timestamp << '|' << e.path << '\n';
     }
 }
 
 static double compute_frecency(double rank, int64_t last_access) {
-    int64_t now = static_cast<int64_t>(time(nullptr));
+    int64_t const now = static_cast<int64_t>(time(nullptr));
     int64_t age = now - last_access;
-    if (age < 0) age = 0;
+    age = std::max<int64_t>(age, 0);
 
     double factor;
-    if (age < 3600)        factor = 4.0;
-    else if (age < 86400)  factor = 2.0;
-    else if (age < 604800) factor = 1.0;
-    else if (age < 2592000) factor = 0.5;
-    else                   factor = 0.25;
+    if (age < 3600) {        factor = 4.0;
+    } else if (age < 86400) {  factor = 2.0;
+    } else if (age < 604800) { factor = 1.0;
+    } else if (age < 2592000) { factor = 0.5;
+    } else {                   factor = 0.25;
+}
 
     return rank * factor;
 }
@@ -99,7 +105,7 @@ static bool matches_keywords(const std::string& path, const std::vector<std::str
         std::transform(lower_kw.begin(), lower_kw.end(), lower_kw.begin(), ::tolower);
 
         bool found = false;
-        fs::path p(path);
+        fs::path const p(path);
         for (const auto& component : p) {
             std::string comp = component.string();
             std::transform(comp.begin(), comp.end(), comp.begin(), ::tolower);
@@ -108,7 +114,8 @@ static bool matches_keywords(const std::string& path, const std::vector<std::str
                 break;
             }
         }
-        if (!found) return false;
+        if (!found) { return false;
+}
     }
     return true;
 }
@@ -122,14 +129,14 @@ static void cmd_add(const std::string& db_path, const std::string& dir) {
         resolved = fs::canonical(fs::current_path() / dir, ec);
     }
     if (ec) {
-        fprintf(stderr, "zoxide: cannot resolve path '%s': %s\n", dir.c_str(), ec.message().c_str());
+        (void)fprintf(stderr, "zoxide: cannot resolve path '%s': %s\n", dir.c_str(), ec.message().c_str());
         return;
     }
 
-    std::string path_str = resolved.string();
+    std::string const path_str = resolved.string();
     auto entries = load_db(db_path);
 
-    int64_t now = static_cast<int64_t>(time(nullptr));
+    int64_t const now = static_cast<int64_t>(time(nullptr));
     bool found = false;
     for (auto& e : entries) {
         if (e.path == path_str) {
@@ -140,7 +147,7 @@ static void cmd_add(const std::string& db_path, const std::string& dir) {
         }
     }
     if (!found) {
-        entries.push_back({path_str, 1.0, now});
+        entries.push_back({.path=path_str, .rank=1.0, .timestamp=now});
     }
 
     save_db(db_path, entries);
@@ -155,21 +162,21 @@ static void cmd_remove(const std::string& db_path, const std::string& dir) {
         resolved = fs::canonical(fs::current_path() / dir, ec);
     }
     if (ec) {
-        fprintf(stderr, "zoxide: cannot resolve path '%s': %s\n", dir.c_str(), ec.message().c_str());
+        (void)fprintf(stderr, "zoxide: cannot resolve path '%s': %s\n", dir.c_str(), ec.message().c_str());
         return;
     }
 
     std::string path_str = resolved.string();
     auto entries = load_db(db_path);
 
-    size_t orig_size = entries.size();
+    size_t const orig_size = entries.size();
     entries.erase(
         std::remove_if(entries.begin(), entries.end(),
                         [&](const ZoxideEntry& e) { return e.path == path_str; }),
         entries.end());
 
     if (entries.size() == orig_size) {
-        fprintf(stderr, "zoxide: directory '%s' not found in database\n", path_str.c_str());
+        (void)fprintf(stderr, "zoxide: directory '%s' not found in database\n", path_str.c_str());
         return;
     }
     save_db(db_path, entries);
@@ -177,12 +184,13 @@ static void cmd_remove(const std::string& db_path, const std::string& dir) {
 
 static void cmd_edit(const std::string& db_path) {
     const char* editor = std::getenv("EDITOR");
-    if (!editor || editor[0] == '\0') editor = "vi";
+    if ((editor == nullptr) || editor[0] == '\0') { editor = "vi";
+}
 
-    std::string cmd = std::string(editor) + " " + db_path;
-    int ret = system(cmd.c_str());
+    std::string const cmd = std::string(editor) + " " + db_path;
+    int const ret = system(cmd.c_str());
     if (ret != 0) {
-        fprintf(stderr, "zoxide: editor exited with status %d\n", ret);
+        (void)fprintf(stderr, "zoxide: editor exited with status %d\n", ret);
     }
 }
 
@@ -194,7 +202,7 @@ static void cmd_list(const std::string& db_path) {
     });
 
     for (const auto& e : entries) {
-        double score = compute_frecency(e.rank, e.timestamp);
+        double const score = compute_frecency(e.rank, e.timestamp);
         printf("%-8.1f %s\n", score, e.path.c_str());
     }
 }
@@ -210,14 +218,16 @@ static std::string cmd_query(const std::string& db_path, const std::vector<std::
     std::vector<Scored> matches;
 
     for (const auto& e : entries) {
-        if (!exclude.empty() && e.path == exclude) continue;
-        if (!matches_keywords(e.path, keywords)) continue;
-        double score = compute_frecency(e.rank, e.timestamp);
-        matches.push_back({score, e.path});
+        if (!exclude.empty() && e.path == exclude) { continue;
+}
+        if (!matches_keywords(e.path, keywords)) { continue;
+}
+        double const score = compute_frecency(e.rank, e.timestamp);
+        matches.push_back({.score=score, .path=e.path});
     }
 
     if (matches.empty()) {
-        fprintf(stderr, "zoxide: no match found\n");
+        (void)fprintf(stderr, "zoxide: no match found\n");
         return "";
     }
 
@@ -229,12 +239,12 @@ static std::string cmd_query(const std::string& db_path, const std::vector<std::
 }
 
 static void cmd_init(const char* shell) {
-    if (!shell || shell[0] == '\0') {
-        fprintf(stderr, "zoxide: please specify a shell: bash, zsh, fish, nushell, posix\n");
+    if ((shell == nullptr) || shell[0] == '\0') {
+        (void)fprintf(stderr, "zoxide: please specify a shell: bash, zsh, fish, nushell, posix\n");
         return;
     }
 
-    std::string s(shell);
+    std::string const s(shell);
 
     if (s == "bash") {
         printf(R"SHELL(__zoxide_hook() {
@@ -363,7 +373,7 @@ def --env zi [...rest: string] {
 }
 )SHELL");
     } else {
-        fprintf(stderr, "zoxide: unsupported shell '%s'. Supported: bash, zsh, fish, nushell, posix\n", shell);
+        (void)fprintf(stderr, "zoxide: unsupported shell '%s'. Supported: bash, zsh, fish, nushell, posix\n", shell);
     }
 }
 
@@ -384,7 +394,7 @@ int zoxide_command(int argc, char** argv) {
         return 0;
     }
 
-    std::string subcmd = argv[1];
+    std::string const subcmd = argv[1];
 
     if (subcmd == "--help" || subcmd == "-h") {
         printf("Usage: %s <SUBCOMMAND> [options]\n", argv[0]);
@@ -406,17 +416,17 @@ int zoxide_command(int argc, char** argv) {
         return 0;
     }
 
-    std::string db_path = get_db_path();
+    std::string const db_path = get_db_path();
 
     if (subcmd == "add") {
         if (argc < 3) {
-            fprintf(stderr, "zoxide: 'add' requires a path argument\n");
+            (void)fprintf(stderr, "zoxide: 'add' requires a path argument\n");
             return 0;
         }
         cmd_add(db_path, argv[2]);
     } else if (subcmd == "remove") {
         if (argc < 3) {
-            fprintf(stderr, "zoxide: 'remove' requires a path argument\n");
+            (void)fprintf(stderr, "zoxide: 'remove' requires a path argument\n");
             return 0;
         }
         cmd_remove(db_path, argv[2]);
@@ -432,7 +442,7 @@ int zoxide_command(int argc, char** argv) {
         struct arg_end *end = arg_end(20);
 
         ArgTable at({interactive_opt, exclude_opt, help_opt, keywords_arg, end});
-        int nerrors = at.parse(argc - 1, argv + 1);
+        int const nerrors = at.parse(argc - 1, argv + 1);
 
         if (help_opt->count > 0) {
             printf("Usage: %s query [OPTION]... [KEYWORDS]...\n", argv[0]);
@@ -467,10 +477,12 @@ if (nerrors > 0) {
             };
             std::vector<Scored> matches;
             for (const auto& e : entries) {
-                if (!exclude.empty() && e.path == exclude) continue;
-                if (!keywords.empty() && !matches_keywords(e.path, keywords)) continue;
-                double score = compute_frecency(e.rank, e.timestamp);
-                matches.push_back({score, e.path});
+                if (!exclude.empty() && e.path == exclude) { continue;
+}
+                if (!keywords.empty() && !matches_keywords(e.path, keywords)) { continue;
+}
+                double const score = compute_frecency(e.rank, e.timestamp);
+                matches.push_back({.score=score, .path=e.path});
             }
             std::sort(matches.begin(), matches.end(), [](const Scored& a, const Scored& b) {
                 return a.score > b.score;
@@ -481,19 +493,19 @@ if (nerrors > 0) {
                 fzf_input += m.path + "\n";
             }
 
-            std::string cmd = "printf '%s' '" + fzf_input + "' | fzf --height=40% --reverse --select-1 --exit-0";
+            std::string const cmd = "printf '%s' '" + fzf_input + "' | fzf --height=40% --reverse --select-1 --exit-0";
             FILE* pipe = popen(cmd.c_str(), "r");
-            if (!pipe) {
-                fprintf(stderr, "zoxide: failed to run fzf\n");
+            if (pipe == nullptr) {
+                (void)fprintf(stderr, "zoxide: failed to run fzf\n");
                 
                 return 0;
             }
             char buf[4096];
             std::string result;
-            while (fgets(buf, sizeof(buf), pipe)) {
+            while (fgets(buf, sizeof(buf), pipe) != nullptr) {
                 result += buf;
             }
-            int status = pclose(pipe);
+            int const status = pclose(pipe);
             if (status != 0 || result.empty()) {
                 
                 return 0;
@@ -503,7 +515,7 @@ if (nerrors > 0) {
             }
             printf("%s", result.c_str());
         } else {
-            std::string result = cmd_query(db_path, keywords, exclude);
+            std::string const result = cmd_query(db_path, keywords, exclude);
             if (!result.empty()) {
                 printf("%s", result.c_str());
             }
@@ -514,8 +526,8 @@ if (nerrors > 0) {
         const char* shell = (argc >= 3) ? argv[2] : "";
         cmd_init(shell);
     } else {
-        fprintf(stderr, "zoxide: unknown subcommand '%s'\n", subcmd.c_str());
-        fprintf(stderr, "Run '%s --help' for usage.\n", argv[0]);
+        (void)fprintf(stderr, "zoxide: unknown subcommand '%s'\n", subcmd.c_str());
+        (void)fprintf(stderr, "Run '%s --help' for usage.\n", argv[0]);
     }
     return 0;
 }

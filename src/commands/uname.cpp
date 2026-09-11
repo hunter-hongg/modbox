@@ -1,5 +1,4 @@
 #include <cstdio>
-#include <cstring>
 #include <sys/utsname.h>
 #include <argtable3.h>
 #include "commands/uname.hpp"
@@ -25,7 +24,7 @@ int uname_command(int argc, char** argv) {
         help_opt, end
     });
 
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]...\n", argv[0]);
@@ -56,7 +55,7 @@ int uname_command(int argc, char** argv) {
         return 0;
     }
 
-    int any = all_opt->count
+    int const any = all_opt->count
            | kernel_opt->count
            | node_opt->count
            | release_opt->count
@@ -66,7 +65,7 @@ int uname_command(int argc, char** argv) {
            | hardware_opt->count
            | os_opt->count;
 
-    if (!any) {
+    if (any == 0) {
         printf("%s\n", buf.sysname);
         return 0;
     }
@@ -78,13 +77,18 @@ int uname_command(int argc, char** argv) {
     first = 0; \
 } while(0)
 
-    if (all_opt->count || kernel_opt->count)     PRINT_FIELD(buf.sysname);
-    if (all_opt->count || node_opt->count)        PRINT_FIELD(buf.nodename);
-    if (all_opt->count || release_opt->count)     PRINT_FIELD(buf.release);
-    if (all_opt->count || version_opt->count)     PRINT_FIELD(buf.version);
-    if (all_opt->count || machine_opt->count)     PRINT_FIELD(buf.machine);
+    if ((all_opt->count != 0) || (kernel_opt->count != 0)) {     PRINT_FIELD(buf.sysname);
+}
+    if ((all_opt->count != 0) || (node_opt->count != 0)) {        PRINT_FIELD(buf.nodename);
+}
+    if ((all_opt->count != 0) || (release_opt->count != 0)) {     PRINT_FIELD(buf.release);
+}
+    if ((all_opt->count != 0) || (version_opt->count != 0)) {     PRINT_FIELD(buf.version);
+}
+    if ((all_opt->count != 0) || (machine_opt->count != 0)) {     PRINT_FIELD(buf.machine);
+}
 
-    if (all_opt->count || processor_opt->count) {
+    if ((all_opt->count != 0) || (processor_opt->count != 0)) {
         const char* p = buf.machine;
 #if defined(__x86_64__) || defined(__i386__)
         p = "x86_64";
@@ -94,13 +98,13 @@ int uname_command(int argc, char** argv) {
         PRINT_FIELD(p);
     }
 
-    if (all_opt->count || hardware_opt->count) {
+    if ((all_opt->count != 0) || (hardware_opt->count != 0)) {
         const char* h = buf.machine;
         PRINT_FIELD(h);
     }
 
-    if (all_opt->count || os_opt->count) {
-#if defined(__linux__)
+    if ((all_opt->count != 0) || (os_opt->count != 0)) {
+#ifdef __linux__
         PRINT_FIELD("GNU/Linux");
 #elif defined(__APPLE__)
         PRINT_FIELD("Darwin");

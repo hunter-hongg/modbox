@@ -28,7 +28,7 @@ struct KeywordEntry {
 
 /* Check if a character is a word constituent */
 static int is_word_char(char c) {
-    return isalnum((unsigned char)c) || c == '_' || c == '\'';
+    return static_cast<int>((isalnum(static_cast<unsigned char>(c)) != 0) || c == '_' || c == '\'');
 }
 
 /* Extract words from a line and create keyword entries */
@@ -38,17 +38,17 @@ static void extract_keywords(const char* line, int line_num, const char* filenam
     strncpy(line_copy, line, PTX_MAX_LINE - 1);
     line_copy[PTX_MAX_LINE - 1] = '\0';
     
-    char* word_start = nullptr;
+    char const * word_start = nullptr;
     int in_word = 0;
     
-    for (char* p = line_copy; *p; p++) {
-        if (is_word_char(*p)) {
-            if (!in_word) {
+    for (char* p = line_copy; (*p) != 0; p++) {
+        if (is_word_char(*p) != 0) {
+            if (in_word == 0) {
                 word_start = p;
                 in_word = 1;
             }
         } else {
-            if (in_word) {
+            if (in_word != 0) {
                 *p = '\0';  /* Terminate the word */
                 
                 if (strlen(word_start) > 0) {
@@ -58,8 +58,8 @@ static void extract_keywords(const char* line, int line_num, const char* filenam
                     entry.right_context = std::string(p + 1);
                     entry.line_number = line_num;
                     
-                    if (opts->auto_reference) {
-                        if (filename && strcmp(filename, "-") != 0) {
+                    if (opts->auto_reference != 0) {
+                        if ((filename != nullptr) && strcmp(filename, "-") != 0) {
                             entry.reference = std::string(filename) + ":" + std::to_string(line_num);
                         } else {
                             entry.reference = std::to_string(line_num);
@@ -75,7 +75,7 @@ static void extract_keywords(const char* line, int line_num, const char* filenam
     }
     
     /* Handle word at end of line */
-    if (in_word && word_start) {
+    if ((in_word != 0) && (word_start != nullptr)) {
         if (strlen(word_start) > 0) {
             KeywordEntry entry;
             entry.keyword = word_start;
@@ -83,8 +83,8 @@ static void extract_keywords(const char* line, int line_num, const char* filenam
             entry.right_context = "";
             entry.line_number = line_num;
             
-            if (opts->auto_reference) {
-                if (filename && strcmp(filename, "-") != 0) {
+            if (opts->auto_reference != 0) {
+                if ((filename != nullptr) && strcmp(filename, "-") != 0) {
                     entry.reference = std::string(filename) + ":" + std::to_string(line_num);
                 } else {
                     entry.reference = std::to_string(line_num);
@@ -98,22 +98,22 @@ static void extract_keywords(const char* line, int line_num, const char* filenam
 
 /* Format and output a keyword entry */
 static void output_entry(const KeywordEntry& entry, const PtxOptions* opts, FILE* out_fp) {
-    int context_width = (opts->width - opts->gap_size) / 2;
+    int const context_width = (opts->width - opts->gap_size) / 2;
     
     std::string left = entry.left_context;
     std::string right = entry.right_context;
-    std::string keyword = entry.keyword;
+    std::string const keyword = entry.keyword;
     
     /* Truncate contexts if needed */
-    if ((int)left.length() > context_width) {
+    if (static_cast<int>(left.length()) > context_width) {
         left = left.substr(left.length() - context_width);
     }
-    if ((int)right.length() > context_width) {
+    if (static_cast<int>(right.length()) > context_width) {
         right = right.substr(0, context_width);
     }
     
     /* Format output */
-    if (opts->right_side_refs && !entry.reference.empty()) {
+    if ((opts->right_side_refs != 0) && !entry.reference.empty()) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(out_fp, "%s ", entry.reference.c_str());
     }
@@ -139,7 +139,7 @@ static void output_entry(const KeywordEntry& entry, const PtxOptions* opts, FILE
     // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     (void)fprintf(out_fp, "%s", right.c_str());
     
-    if (!opts->right_side_refs && !entry.reference.empty()) {
+    if ((opts->right_side_refs == 0) && !entry.reference.empty()) {
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
         (void)fprintf(out_fp, "  (%s)", entry.reference.c_str());
     }
@@ -154,11 +154,11 @@ static void process_file(FILE* fp, const char* filename, std::vector<KeywordEntr
     char line[PTX_MAX_LINE];
     int line_num = 0;
     
-    while (fgets(line, PTX_MAX_LINE, fp)) {
+    while (fgets(line, PTX_MAX_LINE, fp) != nullptr) {
         line_num++;
         
         /* Remove trailing newline */
-        size_t len = strlen(line);
+        size_t const len = strlen(line);
         if (len > 0 && line[len - 1] == '\n') {
             line[len - 1] = '\0';
         }
@@ -169,7 +169,7 @@ static void process_file(FILE* fp, const char* filename, std::vector<KeywordEntr
 
 /* Main command implementation */
 int ptx_command(int argc, char** argv) {
-    PtxOptions opts = {0};
+    PtxOptions opts = {.auto_reference=0};
     
     struct arg_lit* auto_ref_opt = arg_lit0("A", "auto-reference", "generate automatic references");
     struct arg_lit* right_ref_opt = arg_lit0("R", "right-side-refs", "put references on right side");
@@ -192,7 +192,7 @@ int ptx_command(int argc, char** argv) {
         help_opt, file_args, end
     });
     
-    int nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(argc, argv);
     
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -220,11 +220,11 @@ int ptx_command(int argc, char** argv) {
         return at.print_errors(end, argv[0]);
     }
     
-    opts.auto_reference = (auto_ref_opt->count > 0);
-    opts.right_side_refs = (right_ref_opt->count > 0);
-    opts.traditional = (traditional_opt->count > 0);
-    opts.typeset_mode = (typeset_opt->count > 0);
-    opts.references = (refs_opt->count > 0);
+    opts.auto_reference = static_cast<int>(auto_ref_opt->count > 0);
+    opts.right_side_refs = static_cast<int>(right_ref_opt->count > 0);
+    opts.traditional = static_cast<int>(traditional_opt->count > 0);
+    opts.typeset_mode = static_cast<int>(typeset_opt->count > 0);
+    opts.references = static_cast<int>(refs_opt->count > 0);
     opts.width = (width_opt->count > 0) ? width_opt->ival[0] : 72;
     opts.gap_size = (gap_opt->count > 0) ? gap_opt->ival[0] : 3;
     opts.sentence_regexp = (sentence_opt->count > 0) ? sentence_opt->sval[0] : nullptr;
@@ -250,7 +250,7 @@ int ptx_command(int argc, char** argv) {
                     continue;
                 }
                 process_file(fp, fname, &entries, &opts);
-                fclose(fp);
+                (void)fclose(fp);
             }
         }
     }

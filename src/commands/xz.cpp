@@ -1,3 +1,5 @@
+#include <cstdint>
+#include <cerrno>
 #include <lzma.h>
 
 #include <argtable3.h>
@@ -5,7 +7,6 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
-#include <sys/stat.h>
 #include <vector>
 
 #include "commands/arg_util.hpp"
@@ -39,7 +40,7 @@ bool xz_compress(const std::vector<unsigned char>& in,
     }
 
     strm.next_in = in.data();
-    strm.avail_in = (uint32_t)in.size();
+    strm.avail_in = static_cast<uint32_t>(in.size());
 
     unsigned char buf[65536];
     do {
@@ -50,7 +51,7 @@ bool xz_compress(const std::vector<unsigned char>& in,
             lzma_end(&strm);
             return false;
         }
-        size_t got = sizeof(buf) - strm.avail_out;
+        size_t const got = sizeof(buf) - strm.avail_out;
         out.insert(out.end(), buf, buf + got);
     } while (ret != LZMA_STREAM_END);
 
@@ -61,16 +62,18 @@ bool xz_compress(const std::vector<unsigned char>& in,
 // Decompress data using liblzma.
 bool xz_decompress(const std::vector<unsigned char>& in,
                    std::vector<unsigned char>& out) {
-    if (!is_xz_stream(in)) return false;
+    if (!is_xz_stream(in)) { return false;
+}
 
     out.clear();
 
     lzma_stream strm = LZMA_STREAM_INIT;
     lzma_ret ret = lzma_stream_decoder(&strm, UINT64_MAX, 0);
-    if (ret != LZMA_OK) return false;
+    if (ret != LZMA_OK) { return false;
+}
 
     strm.next_in = in.data();
-    strm.avail_in = (uint32_t)in.size();
+    strm.avail_in = static_cast<uint32_t>(in.size());
 
     unsigned char buf[65536];
     bool done = false;
@@ -79,7 +82,7 @@ bool xz_decompress(const std::vector<unsigned char>& in,
         strm.avail_out = sizeof(buf);
         ret = lzma_code(&strm, LZMA_FINISH);
 
-        size_t got = sizeof(buf) - strm.avail_out;
+        size_t const got = sizeof(buf) - strm.avail_out;
         if (got > 0) {
             out.insert(out.end(), buf, buf + got);
         }
@@ -126,98 +129,103 @@ void print_help(const char* prog) {
 
 int process_path(const XzOptions& opt, const std::string& path,
                  const char* prog) {
-    bool stdin_mode = (path == "-");
+    bool const stdin_mode = (path == "-");
 
     if (stdin_mode) {
         std::vector<unsigned char> in;
         if (!compress_util::read_all(stdin, in)) {
-            fprintf(stderr, "%s: stdin: %s\n", prog, strerror(errno));
+            (void)fprintf(stderr, "%s: stdin: %s\n", prog, strerror(errno));
             return 1;
         }
         if (opt.decompress) {
             if (!is_xz_stream(in)) {
-                fprintf(stderr, "%s: stdin: Compressed data is corrupt\n", prog);
+                (void)fprintf(stderr, "%s: stdin: Compressed data is corrupt\n", prog);
                 return 1;
             }
             std::vector<unsigned char> out;
             if (!xz_decompress(in, out)) {
-                fprintf(stderr, "%s: stdin: Compressed data is corrupt\n", prog);
+                (void)fprintf(stderr, "%s: stdin: Compressed data is corrupt\n", prog);
                 return 1;
             }
-            fwrite(out.data(), 1, out.size(), stdout);
-            if (opt.verbose) compress_util::print_ratio("-", in.size(), out.size(), nullptr);
+            (void)fwrite(out.data(), 1, out.size(), stdout);
+            if (opt.verbose) { compress_util::print_ratio("-", in.size(), out.size(), nullptr);
+}
             return 0;
         }
         std::vector<unsigned char> out;
         if (!xz_compress(in, out, opt.level)) {
-            fprintf(stderr, "%s: stdin: Compression failed\n", prog);
+            (void)fprintf(stderr, "%s: stdin: Compression failed\n", prog);
             return 1;
         }
-        fwrite(out.data(), 1, out.size(), stdout);
-        if (opt.verbose) compress_util::print_ratio("-", in.size(), out.size(), nullptr);
+        (void)fwrite(out.data(), 1, out.size(), stdout);
+        if (opt.verbose) { compress_util::print_ratio("-", in.size(), out.size(), nullptr);
+}
         return 0;
     }
 
     FILE* fp = fopen(path.c_str(), "rb");
-    if (!fp) {
+    if (fp == nullptr) {
         cmd_perror(prog, path.c_str());
         return 1;
     }
     std::vector<unsigned char> in;
-    bool read_ok = compress_util::read_all(fp, in);
-    int read_errno = errno;
-    fclose(fp);
+    bool const read_ok = compress_util::read_all(fp, in);
+    int const read_errno = errno;
+    (void)fclose(fp);
     if (!read_ok) {
-        fprintf(stderr, "%s: %s: %s\n", prog, path.c_str(), strerror(read_errno));
+        (void)fprintf(stderr, "%s: %s: %s\n", prog, path.c_str(), strerror(read_errno));
         return 1;
     }
 
     if (opt.decompress) {
         std::vector<unsigned char> out;
         if (!xz_decompress(in, out)) {
-            fprintf(stderr, "%s: %s: Compressed data is corrupt\n", prog, path.c_str());
+            (void)fprintf(stderr, "%s: %s: Compressed data is corrupt\n", prog, path.c_str());
             return 1;
         }
         if (opt.to_stdout) {
-            fwrite(out.data(), 1, out.size(), stdout);
+            (void)fwrite(out.data(), 1, out.size(), stdout);
         } else {
-            std::string outname = strip_xz(path);
+            std::string const outname = strip_xz(path);
             if (compress_util::write_output_file(out, outname, opt.force, prog) != 0) {
                 return 1;
             }
             if (!opt.keep) {
-                std::remove(path.c_str());
+                (void)std::remove(path.c_str());
             }
         }
-        if (opt.verbose) compress_util::print_ratio(path, in.size(), out.size(), nullptr);
+        if (opt.verbose) { compress_util::print_ratio(path, in.size(), out.size(), nullptr);
+}
         return 0;
     }
 
     // Compression
     if (compress_util::ends_with(path, ".xz")) {
         if (!opt.quiet) {
-            fprintf(stderr, "%s: %s: file already has .xz suffix\n", prog, path.c_str());
+            (void)fprintf(stderr, "%s: %s: file already has .xz suffix\n", prog, path.c_str());
         }
         return 0;
     }
 
     std::vector<unsigned char> out;
     if (!xz_compress(in, out, opt.level)) {
-        fprintf(stderr, "%s: %s: Compression failed\n", prog, path.c_str());
+        (void)fprintf(stderr, "%s: %s: Compression failed\n", prog, path.c_str());
         return 1;
     }
-    std::string outname = path + ".xz";
+    std::string const outname = path + ".xz";
     if (opt.to_stdout) {
-        fwrite(out.data(), 1, out.size(), stdout);
-        if (opt.verbose) compress_util::print_ratio(path, in.size(), out.size(), nullptr);
+        (void)fwrite(out.data(), 1, out.size(), stdout);
+        if (opt.verbose) { compress_util::print_ratio(path, in.size(), out.size(), nullptr);
+}
     } else {
         if (compress_util::write_output_file(out, outname, opt.force, prog) != 0) {
             return 1;
         }
         if (!opt.keep) {
-            std::remove(path.c_str());
+            (void)std::remove(path.c_str());
         }
-        if (opt.verbose) compress_util::print_ratio(path, in.size(), out.size(), outname.c_str());
+        if (opt.verbose) { compress_util::print_ratio(path, in.size(), out.size(), outname.c_str());
+}
     }
     return 0;
 }
@@ -276,14 +284,14 @@ int xz_command(int argc, char** argv) {
     struct arg_lit* version = arg_lit0(NULL, "version", "Show version");
     struct arg_end* end = arg_end(20);
 
-    std::vector<void*> table = {
-        (void*)decompress, (void*)keep, (void*)force, (void*)quiet,
-        (void*)verbose, (void*)stdout_, (void*)level, (void*)files,
-        (void*)help, (void*)version, (void*)end,
+    std::vector<void*> const table = {
+        reinterpret_cast<void*>(decompress), reinterpret_cast<void*>(keep), reinterpret_cast<void*>(force), reinterpret_cast<void*>(quiet),
+        reinterpret_cast<void*>(verbose), reinterpret_cast<void*>(stdout_), reinterpret_cast<void*>(level), reinterpret_cast<void*>(files),
+        reinterpret_cast<void*>(help), reinterpret_cast<void*>(version), reinterpret_cast<void*>(end),
     };
 
     ArgTable tbl(table);
-    int errors = tbl.parse((int)cargv.size(), (char**)cargv.data());
+    int const errors = tbl.parse(static_cast<int>(cargv.size()), const_cast<char**>(cargv.data()));
     if (errors != 0) {
         return tbl.print_errors(end, prog);
     }
@@ -304,12 +312,13 @@ int xz_command(int argc, char** argv) {
     opt.quiet = (quiet->count > 0);
     opt.verbose = (verbose->count > 0);
     opt.to_stdout = (stdout_->count > 0);
-    if (saw_level) opt.level = pre_level;
+    if (saw_level) { opt.level = pre_level;
+}
 
     if (level->count > 0) {
-        int lvl = level->ival[0];
+        int const lvl = level->ival[0];
         if (lvl < 0 || lvl > 9) {
-            fprintf(stderr, "%s: invalid compression level: %d\n", prog, lvl);
+            (void)fprintf(stderr, "%s: invalid compression level: %d\n", prog, lvl);
             return 1;
         }
         opt.level = lvl;
@@ -318,7 +327,7 @@ int xz_command(int argc, char** argv) {
     // Collect file paths
     std::vector<std::string> paths;
     for (int i = 0; i < files->count; i++) {
-        if (files->filename[i]) {
+        if (files->filename[i] != nullptr) {
             paths.push_back(files->filename[i]);
         }
     }
@@ -329,8 +338,9 @@ int xz_command(int argc, char** argv) {
 
     int status = 0;
     for (const auto& path : paths) {
-        int ret = process_path(opt, path, prog);
-        if (ret != 0) status = 1;
+        int const ret = process_path(opt, path, prog);
+        if (ret != 0) { status = 1;
+}
     }
     return status;
 }
