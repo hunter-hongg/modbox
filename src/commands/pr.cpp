@@ -9,6 +9,33 @@
 #include <unistd.h>
 #include <argtable3.h>
 
+namespace {
+
+// Read everything from the given fd into a freshly created temporary file and
+// return its path. Returns an empty string on failure. The caller owns the
+// file and must unlink() it.
+std::string spill_fd_to_tempfile(int fd) {
+    char tmpl[] = "/tmp/modbox-pr-XXXXXX";
+    int const tmp_fd = mkstemp(tmpl);
+    if (tmp_fd < 0) { return std::string(); }
+
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        ssize_t written = 0;
+        while (written < n) {
+            ssize_t const w = write(tmp_fd, buf + written,
+                                    static_cast<size_t>(n - written));
+            if (w <= 0) { break; }
+            written += w;
+        }
+    }
+    close(tmp_fd);
+    return std::string(tmpl);
+}
+
+}  // namespace
+
 #include "commands/pr.hpp"
 #include "commands/arg_util.hpp"
 #include "commands/command_macros.hpp"
@@ -85,9 +112,14 @@ void paginate_file(const char* filename, PrOptions& opts) {
     std::vector<std::string> lines;
     char buf[4096];
     while (fgets(buf, sizeof(buf), fp) != nullptr) {
-        if (!lines.empty() && lines.back().empty()) {
+        std::string line(buf);
+        // Store lines without the trailing newline so multi-column layout can
+        // pad each field cleanly; a single '\n' is emitted per output row.
+        while (!line.empty() &&
+               (line.back() == '\n' || line.back() == '\r')) {
+            line.pop_back();
         }
-        lines.push_back(buf);
+        lines.push_back(line);
     }
     (void)fclose(fp);
 
@@ -98,32 +130,46 @@ void paginate_file(const char* filename, PrOptions& opts) {
 
     int const col_width = opts.page_width / opts.columns;
     if (opts.multi_column != 0) {
-        int const rows = (total_lines + opts.columns - 1) / opts.columns;
+        // Column-major fill. Columns are packed with ceil(N / cols) rows so
+        // each column has roughly the same height, then chunked into pages of
+        // (lines_per_page) rows.
+        int const rows_for_content =
+            (total_lines + opts.columns - 1) / opts.columns;
+        int const rows = std::max(1, std::min(rows_for_content, lines_per_page));
+        int const lines_per_page_total = rows * opts.columns;
         int page_num = 1;
 
-        for (int start = 0; start < total_lines; start += rows) {
+        for (int start = 0; start < total_lines; start += lines_per_page_total) {
             if (opts.header != 0) {
                 print_page_header(filename, page_num, opts);
             }
 
             for (int row = 0; row < rows; row++) {
+                bool any = false;
                 for (int col = 0; col < opts.columns; col++) {
                     int const idx = start + col * rows + row;
                     if (idx < static_cast<int>(lines.size())) {
+                        any = true;
                         std::string line = lines[idx];
                         if (static_cast<int>(line.length()) > col_width) {
                             line = line.substr(0, col_width);
                         }
-                        printf("%-*s", col_width, line.c_str());
-                    } else {
+                        if (col + 1 < opts.columns) {
+                            printf("%-*s", col_width, line.c_str());
+                        } else {
+                            printf("%s", line.c_str());
+                        }
+                    } else if (any && col + 1 < opts.columns) {
                         printf("%*s", col_width, "");
                     }
                 }
-                printf("\n");
+                if (any) {
+                    printf("\n");
+                }
             }
 
-            if ((opts.header != 0) && start + rows < total_lines) {
-                printf("\n");
+            if (start + lines_per_page_total < total_lines) {
+                printf("\f");
             }
             page_num++;
         }
@@ -140,7 +186,7 @@ void paginate_file(const char* filename, PrOptions& opts) {
             int const page_lines = remaining < lines_per_page ? remaining : lines_per_page;
 
             for (int i = 0; i < page_lines; i++) {
-                printf("%s", lines[line_idx + i].c_str());
+                printf("%s\n", lines[line_idx + i].c_str());
                 if (opts.double_space != 0) {
                     printf("\n");
                 }
@@ -158,25 +204,49 @@ void paginate_file(const char* filename, PrOptions& opts) {
 }
 
 int pr_command(int argc, char** argv) {
+    // GNU pr accepts "-COLUMNS" (a bare number immediately after '-') and
+    // "-COLUMNS" style. argtable3 cannot express that form, so extract it
+    // before parsing and remember the requested column count.
+    std::vector<char*> filtered;
+    filtered.reserve(static_cast<size_t>(argc));
+    filtered.push_back(argv[0]);
+    int digit_columns = 0;
+    bool digit_columns_set = false;
+    for (int a = 1; a < argc; a++) {
+        const char* arg = argv[a];
+        if (arg[0] == '-' && arg[1] >= '0' && arg[1] <= '9') {
+            char* endp = nullptr;
+            long const n = std::strtol(arg + 1, &endp, 10);
+            if (endp != nullptr && *endp == '\0' && n > 0) {
+                digit_columns = static_cast<int>(std::min<long>(n, 1000));
+                digit_columns_set = true;
+                continue;
+            }
+        }
+        filtered.push_back(argv[a]);
+    }
+    int const fargc = static_cast<int>(filtered.size());
+    char** const fargv = filtered.data();
+
     struct arg_lit* header_opt = arg_lit0(NULL, "header", "page header (default)");
-    struct arg_lit* no_header_opt = arg_lit0(NULL, "no-header", "suppress page headers");
-    struct arg_lit* multi_col_opt = arg_lit0(NULL, "columns", "multi-column output");
+    struct arg_lit* no_header_opt = arg_lit0("t", "no-header", "suppress page headers");
     struct arg_str* col_num_opt = arg_strn(NULL, "columns", "<num>", 0, 1, "number of columns");
     struct arg_int* lines_opt = arg_int0("l", "length", "lines", "set lines per page");
     struct arg_int* width_opt = arg_int0("w", "width", "width", "set page width");
     struct arg_lit* no_fill_opt = arg_lit0(NULL, "no-fill", "no fill");
+    struct arg_lit* across_opt = arg_lit0("a", "across", "fill columns across");
     struct arg_lit* first_only_opt = arg_lit0(NULL, "first-title-count", "first title only");
-    struct arg_lit* double_opt = arg_lit0(NULL, "double-space", "double space output");
+    struct arg_lit* double_opt = arg_lit0("d", "double-space", "double space output");
     struct arg_str* title_opt = arg_strn(NULL, "title", "<text>", 0, 1, "custom title");
     struct arg_lit* help_opt = arg_lit0("h", "help", "display this help and exit");
     struct arg_file* files_arg = arg_filen(NULL, NULL, "FILE", 0, 100, "input files");
     struct arg_end* end = arg_end(20);
 
-    ArgTable at({header_opt, no_header_opt, multi_col_opt, col_num_opt,
-                 lines_opt, width_opt, no_fill_opt, first_only_opt,
+    ArgTable at({header_opt, no_header_opt, col_num_opt,
+                 lines_opt, width_opt, no_fill_opt, across_opt, first_only_opt,
                  double_opt, title_opt, help_opt, files_arg, end});
 
-    int const nerrors = at.parse(argc, argv);
+    int const nerrors = at.parse(fargc, fargv);
 
     if (help_opt->count > 0) {
         printf("Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -202,13 +272,20 @@ int pr_command(int argc, char** argv) {
     PrOptions opts;
 
     opts.header = static_cast<int>(no_header_opt->count == 0);
-    opts.multi_column = static_cast<int>(multi_col_opt->count > 0);
     opts.double_space = static_cast<int>(double_opt->count > 0);
+
+    if (digit_columns_set) {
+        opts.columns = digit_columns;
+        opts.multi_column = 1;
+    }
 
     if (col_num_opt->count > 0) {
         opts.columns = atoi(col_num_opt->sval[0]);
         opts.columns = std::max(opts.columns, 1);
         opts.columns = std::min(opts.columns, 1000);
+        if (opts.columns > 1) {
+            opts.multi_column = 1;
+        }
     }
 
     if (lines_opt->count > 0) {
@@ -224,40 +301,24 @@ int pr_command(int argc, char** argv) {
     }
 
     if (files_arg->count == 0) {
-        const char* tmpfile = "/tmp/pr_input_XXXXXX";
-        int const fd = mkstemp(const_cast<char*>(tmpfile));
-        if (fd < 0) {
+        std::string const tmpfile = spill_fd_to_tempfile(STDIN_FILENO);
+        if (tmpfile.empty()) {
             (void)fprintf(stderr, "pr: cannot create temp file\n");
-            return 0;
+            return 1;
         }
-
-        char buf[4096];
-        ssize_t n;
-        while ((n = read(STDIN_FILENO, buf, sizeof(buf))) > 0) {
-            write(fd, buf, n);
-        }
-        close(fd);
-
-        paginate_file(tmpfile, opts);
-        unlink(tmpfile);
+        paginate_file(tmpfile.c_str(), opts);
+        (void)unlink(tmpfile.c_str());
     } else {
         for (int i = 0; i < files_arg->count; i++) {
             const char* filename = files_arg->filename[i];
             if (strcmp(filename, "-") == 0) {
-                const char* tmpfile = "/tmp/pr_input_XXXXXX";
-                int const fd = mkstemp(const_cast<char*>(tmpfile));
-                if (fd < 0) {
+                std::string const tmpfile = spill_fd_to_tempfile(STDIN_FILENO);
+                if (tmpfile.empty()) {
                     (void)fprintf(stderr, "pr: cannot create temp file\n");
                     continue;
                 }
-                char buf[4096];
-                ssize_t n;
-                while ((n = read(STDIN_FILENO, buf, sizeof(buf))) > 0) {
-                    write(fd, buf, n);
-                }
-                close(fd);
-                paginate_file(tmpfile, opts);
-                unlink(tmpfile);
+                paginate_file(tmpfile.c_str(), opts);
+                (void)unlink(tmpfile.c_str());
             } else {
                 paginate_file(filename, opts);
             }

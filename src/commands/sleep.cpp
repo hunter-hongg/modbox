@@ -106,7 +106,7 @@ int sleep_command(int argc, char** argv) {
     if (first_arg >= argc) {
         (void)fprintf(stderr, "sleep: missing operand\n");
         (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-        return 0;
+        return 1;
     }
 
     double total = 0.0;
@@ -116,7 +116,7 @@ int sleep_command(int argc, char** argv) {
         if (!parse_duration(a, &dur)) {
             (void)fprintf(stderr, "sleep: invalid time interval '%s'\n", a);
             (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
-            return 0;
+            return 1;
         }
         total += dur;
     }

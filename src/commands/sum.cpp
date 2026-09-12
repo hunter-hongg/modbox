@@ -99,6 +99,7 @@ int sum_command(int argc, char** argv) {
     }
 
     bool const bsd_mode = (bsd_opt->count > 0);
+    int rc = 0;
 
     if (files_arg->count == 0) {
         sum_file(stdin, nullptr, bsd_mode);
@@ -111,6 +112,7 @@ int sum_command(int argc, char** argv) {
                 FILE* in = fopen(filename, "rb");
                 if (in == nullptr) {
                     (void)fprintf(stderr, "sum: %s: %s\n", filename, strerror(errno));
+                    rc = 1;
                     continue;
                 }
                 sum_file(in, filename, bsd_mode);
@@ -119,7 +121,7 @@ int sum_command(int argc, char** argv) {
         }
     }
 
-    return 0;
+    return rc;
 }
 
 REGISTER_COMMAND("sum", sum_command, "Print checksum and block count");

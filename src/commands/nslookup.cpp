@@ -15,19 +15,13 @@
 int nslookup_command(int argc, char** argv) {
     struct arg_lit* help_opt = arg_lit0("h", "help", "Show help");
     struct arg_lit* version_opt = arg_lit0("V", "version", "Show version");
-    struct arg_str* type_opt = arg_str1("t", "type", "<type>", "Record type");
+    struct arg_str* type_opt = arg_str0("t", "type", "<type>", "Record type (default A)");
     struct arg_str* server_opt = arg_str0("s", "server", "<server>", "DNS server");
     struct arg_str* domain_opt = arg_str1(nullptr, nullptr, "<domain>", "Domain name");
     struct arg_end* end_opt = arg_end(1);
 
     void* argtable[] = { help_opt, version_opt, type_opt, server_opt, domain_opt, end_opt };
     int const nerrors = arg_parse(argc, argv, argtable);
-
-    if (nerrors != 0) {
-        arg_print_errors(stderr, end_opt, "nslookup");
-        arg_free(argtable);
-        return 1;
-    }
 
     if (help_opt->count > 0) {
         printf("Usage: modbox nslookup [options] <domain>\n");
@@ -46,7 +40,14 @@ int nslookup_command(int argc, char** argv) {
         return 0;
     }
 
-    std::string const record_type = type_opt->sval[0];
+    if (nerrors != 0) {
+        arg_print_errors(stderr, end_opt, "nslookup");
+        arg_free(argtable);
+        return 1;
+    }
+
+    std::string const record_type =
+        type_opt->count > 0 ? type_opt->sval[0] : "A";
     std::string const dns_server = server_opt->count > 0 ? server_opt->sval[0] : "";
     std::string domain = domain_opt->sval[0];
     arg_free(argtable);
