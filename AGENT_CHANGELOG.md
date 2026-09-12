@@ -2,6 +2,30 @@
 
 ## 2026-9-12
 
+- 新增 `chrt` 命令：显示或修改进程的实时调度策略与优先级，或按指定策略启动一条命令（补齐 `nice` → `renice` → `chrt` 的调度家族）。autopilot 全流程（spec → ticket → TDD 实现 → 双轴 code review → 提交）。
+  - **两种形态**：启动形态 `chrt [<优先级>] <命令> [参数...]`（未给策略时默认 SCHED_RR）；`--pid` 形态——带策略旗标为设置现有进程，不带策略旗标为查询 `chrt -p <PID>`。
+  - **策略表单一来源**：`kPolicies[]`（`short_opt`/`long_opt`/`name`/`value`/`needs_priority`）同时驱动解析、帮助文本与 `-m` 列表，三者不会漂移；覆盖 SCHED_OTHER/BATCH/IDLE/FIFO/RR，并在 `#ifdef` 下纳入 SCHED_DEADLINE（`-d`）与 SCHED_EXT（`-e`）。`-m` 展示顺序独立于表序，按上游 util-linux 先实时策略。
+  - **`-p` 形态的参数计数判别**：**一个**数字=仅 PID；**两个**数字=优先级随后 PID（与上游一致）；带需要优先级的策略却只给一个数字时报 `policy SCHED_FIFO requires a priority argument`；不需要优先级的策略（OTHER/BATCH/IDLE）单个数字即视为 PID。
+  - **报错提示有无之别**（与上游逐条比对）：`policy ... requires a priority argument`、`invalid PID argument` **无** `Try --help` 提示；`too few arguments`、`unrecognized option`、`no command or priority specified` **有**。
+  - **退出码**：0=成功（含查询/`-m`/help/version）；1=运行失败（进程不存在、权限不足、缺优先级参数、无命令或优先级）；2=用法/解析错误（本仓约定，上游为 1）；127=数字实参作为命令无法执行。启动形态原样传递子进程退出状态，信号则返回 `128+N`。
+  - **实现要点**：手写解析（与 `nice.cpp`/`renice.cpp`/`logname.cpp` 一致），错误措辞与 argtable3 兼容；`launch_command` 中由**子进程**做 `sched_setscheduler` + `execvp`（`[[noreturn]]` + `_exit`），父进程仅 `waitpid`，避免把策略施加到自身。无新增依赖，仅 POSIX 调度调用；查询/启动路径无需特权即可 CI 测试。
+  - **既有意偏离（已在 man page 记录）**：查询输出不打印 util-linux 的 `current runtime parameter` 行；SCHED_DEADLINE 仅接受策略名、`-T/-P/-D` 仅解析不施加。
+  - **双轴 code review 修复**：Standards 轴——删除只写不读的 `all_tasks` 死字段（`-a` 改为纯兼容旗标）、抽取 `apply_policy()` 消除 `set_pid` 与 `launch_command` 的重复、用 `kFlags[]` 表消除帮助文本与解析器的旗标字符串重复（顺带把启动失败信息从 `getpid()` 改为上游一致的 `pid 0`）。Spec 轴——`-e`/`-d` 经复核其实**已支持**（`SCHED_EXT`/`SCHED_DEADLINE` 已定义），`-o 5` 的"静默丢优先级"经复核为**误报**（`check_priority_range` 已按 OTHER 的 0-0 范围拒绝）。
+  - 新增文件：`include/commands/chrt.hpp`、`src/commands/chrt.cpp`（约 560 行）、`docs/man/modbox-chrt.1.md`、`tests/test_chrt.sh`（54 条断言，特权相关用例按"成功或干净失败"断言，root 与普通用户均全绿）；Makefile `MAN_SOURCES`、`registered_cmds.txt`（188→189）、README 命令计数（188→189）与命令列表、CHANGELOG 各更新。
+  - 已提交 `2283f0f`（仅提交本功能 7 个文件；`registered_cmds.txt`、`man_pages.txt` 与 `.scratch/` 为 gitignore，未纳入）。`chrt` 自身测试 54/54 通过；`/tmp/diff_chrt.sh` 与上游 util-linux 2.42.3 差分逐条比对，除"用法错误退出码 2 vs 1"与帮助措辞外全部一致；`test_man_pages.sh` registry 覆盖检查确认 189 个注册命令均具备 man page 与 Makefile 条目。全量套件 3370 通过、6 失败（均为下述 `test_nice.sh` 环境遗留）。clang-tidy 对 `chrt.cpp` 除 5 条 `<sched.h>`/`<sys/wait.h>` 的 `misc-include-cleaner` glibc 误报（与 `timeout.cpp`/`renice.cpp` 同类，仓库既有约定为接受）外零告警。
+  - **环境说明**：本会话早些时候的手工探测曾对整个用户会话执行 `renice -n 19 -u <user>`，且非特权下不可逆（无法降回），故 `test_nice.sh` 等若干套件当前出现 `expected [N] got [19]` 类失败——经 `git stash -u` 回到 pristine HEAD 复现，证明与本次改动无关，在干净会话中将通过。
+
+- 新增 `renice` 命令：修改**正在运行**进程的调度优先级（补齐 `nice` 家族——此前只能以指定优先级启动新进程，无法事后调整）。autopilot 全流程（spec → ticket → TDD 实现 → 双轴 code review → 提交）。
+  - **目标选择**：默认按进程 ID（`-p/--pid`），另支持进程组 ID（`-g/--pgrp`）与用户名/UID（`-u/--user`，经 `getpwnam` 解析为数字 UID，输出行显示解析后的 UID）。多个标识符一次处理。
+  - **优先级语义**：默认**绝对**值；`--relative` 恒为相对增量；`-n` 在设置了 `POSIXLY_CORRECT` 时按历史 POSIX 语义变为相对，而 `--priority` **始终绝对**（与 util-linux 一致）。仅接受分离形式（`-n N`/`--priority N`/`--relative N`），粘连的 `--priority=N` 按参考实现拒绝（`invalid priority '--priority=19'`）。
+  - **报值**：成功行 `<id> (<类型>) old priority <旧>, new priority <新>`，其中 `<新>` 为内核 `[-20,19]` 钳制后的值（与 util-linux 逐字节一致）；类型标签为 `process ID`/`process group ID`/`user ID`。
+  - **退出码**：0=全部成功；1=任一失败（进程不存在、权限不足、未知用户、标识符非数字、参数不足、优先级非法）。
+  - **实现要点**：复用 `nice.cpp` 的 `getpriority`/`setpriority` 与 `-1` 哨兵 errno 守卫；手写解析（与兄弟命令 `nice.cpp`、`logname.cpp`、`realpath.cpp` 一致，88/204 命令如此）。新文件 clang-tidy 0 error、0 cognitive-complexity 告警（`renice_command` 初版复杂度 53 → 抽取 `parse_priority_option`（返回 `PriorityOption` 结构体，消除长出参表）后达标）；剩余唯一告警为 `<unistd.h>` 的 `misc-include-cleaner` 误报（与 `nice.cpp`/`watch`/`logger` 同类，仓库既有约定为接受）。
+  - **双轴 code review 修复**：Spec 轴 4 项与 util-linux 参考的偏差——`--priority` 在 `POSIXLY_CORRECT` 下被误设为相对（改为恒绝对）、粘连 `--priority=N` 被误接受（改为拒绝）、成功行误报原始算术值而非钳制值（改为钳制）、`-u` 标签误为 `(user)` 而非 `(user ID)`；均以 `/tmp/diff_renice.sh` 差分比对确认逐字节一致。Standards 轴无违标。
+  - 新增文件：`include/commands/renice.hpp`、`src/commands/renice.cpp`、`docs/man/modbox-renice.1.md`、`tests/test_renice.sh`（25 条断言，niceness 无关：探测子进程基线，若会话已在 19 且无特权则以可见 SKIP 跳过提升类用例，保证任何环境全绿）；Makefile `MAN_SOURCES`、`registered_cmds.txt`（187→188）、README 命令计数（187→188）与命令列表、CHANGELOG 各更新。
+  - 已提交 `0747fce`（仅提交本功能 7 个文件；`registered_cmds.txt` 与 `.scratch/` 为 gitignore，未纳入）。`renice` 自身测试 25/25 通过；`test_man_pages.sh` registry 覆盖检查确认 188 个注册命令均具备 man page 与 Makefile 条目。
+  - **环境说明**：本会话早些时候的手工探测曾对整个用户会话执行 `renice -n 19 -u <user>`，且非特权下不可逆（无法降回），故 `test_nice.sh` 等若干套件当前出现 `expected [N] got [19]` 类失败——经 `git stash -u` 回到 pristine HEAD 复现，证明与本次改动无关，在干净会话中将通过。
+
 - 新增 `logger` 命令：把消息写入系统日志（延续 wall/who/audit2allow 的文本/审计工具链）。
   - **实现路径**：走 POSIX `syslog(3)`（`openlog`/`syslog`/`closelog`），不引入 libsystemd、无新增依赖、无需特权。宿主未运行 syslog 守护进程时提交仍返回成功，符合 GNU logger 语义。
   - **选项**：`-f/--file`（`-` 读 stdin，剥离尾部换行，与位置参数互斥）、`-i/--id`（记录 pid，经 `LOG_PID`）、`-p/--priority`（`facility.severity` 或裸 severity，覆盖 auth/authpriv/cron/daemon/ftp/kern/lpr/mail/news/syslog/user/uucp/local0..local7 与 emerg..debug）、`-s/--stderr`（同时写 stderr）、`-t/--tag`、`-h/--help`、`-V/--version`。
