@@ -240,6 +240,8 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-vdir.1.md \
 	$(MAN_SRC_DIR)/modbox-wall.1.md \
 	$(MAN_SRC_DIR)/modbox-wget.1.md \
+	$(MAN_SRC_DIR)/modbox-whereis.1.md \
+	$(MAN_SRC_DIR)/modbox-which.1.md \
 	$(MAN_SRC_DIR)/modbox-who.1.md \
 	$(MAN_SRC_DIR)/modbox-yes.1.md \
 $(MAN_SRC_DIR)/modbox-zoxide.1.md \
