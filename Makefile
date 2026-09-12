@@ -267,7 +267,8 @@ $(MAN_SRC_DIR)/modbox-man.1.md \
 $(MAN_SRC_DIR)/modbox-setenforce.1.md \
 $(MAN_SRC_DIR)/modbox-zcat.1.md \
 $(MAN_SRC_DIR)/modbox-findmnt.1.md \
-$(MAN_SRC_DIR)/modbox-logger.1.md
+$(MAN_SRC_DIR)/modbox-logger.1.md \
+$(MAN_SRC_DIR)/modbox-renice.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
