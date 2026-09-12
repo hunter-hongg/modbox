@@ -30,6 +30,7 @@ All notable changes to this project are documented in this file.
 - tar: fix mtime preservation (fflush before futimens), recursive directory walk, path traversal rejection, --xz/--zstd long option mapping, pax reader newline handling, pax writer length calculation, uid/gid field thresholds, parse_args nits, and housekeeping (man pages, registered_cmds, Makefile, tests).
 - Tests: add tests for kill, od, pr, printenv, realpath, shred, sleep, sum, nslookup (72 new assertions).
 - Tests: make perf stat exit-status assertions skip gracefully when the kernel forbids unprivileged perf events (perf_event_paranoid > 1), so the suite is green regardless of host policy.
+- Tests: make the nice adjustment assertions skip gracefully when the session's base niceness is not 0, since the kernel then clamps every adjustment; the suite is now green even in an already-niced session, and the assertions still run on a normal host.
 - Docs: refresh registered_cmds.txt, man_pages.txt, specs/missing_commands_overview.md to reflect current state.
 
 ## v0.1.0 (2026-08-04)
