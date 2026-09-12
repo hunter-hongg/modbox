@@ -1,5 +1,11 @@
 # ausearch — Work Plan
 
+> **Status: implemented** (2026-09). Shipped as `src/commands/ausearch.cpp`
+> (+ `include/commands/ausearch.hpp`, `tests/test_ausearch.sh`,
+> `docs/man/modbox-ausearch.1.md`). The per-todo checkboxes below were never
+> ticked because the work was tracked in the session log; the code is the
+> source of truth.
+
 ## TL;DR (For humans)
 
 **What you'll get:** A fully working `modbox ausearch` command that reads Linux audit log files, parses key=value records, assembles multi-record events, applies filters (type, user, filename, key, syscall, time range, etc.), and outputs in default/raw/interpret mode. Plus tests and a man page.

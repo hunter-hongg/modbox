@@ -1,5 +1,12 @@
 Superpowers TODOs — 2026-07-29
 
+> **Status: historical / resolved.** This snapshot predates the project's
+> expansion to 186 commands. Items 1–5 below have since been completed
+> (build/tests are green, CHANGELOG and CI badge exist, ls/lf TUI is
+> implemented and tested, and the old C/GLib plans were superseded by the
+> C++ implementations). Kept for historical reference only — see
+> `CHANGELOG.md` and `docs/superpowers/STATUS-2026.md` for current state.
+
 These are follow-up tasks identified after marking implemented plans. The repository's session DB refused INSERTs from this agent, so these are written here for tracking and can be imported into any task tracker.
 
 Todos (suggested IDs to use in tracker):

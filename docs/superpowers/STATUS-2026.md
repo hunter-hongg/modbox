@@ -1,5 +1,10 @@
 STATUS — 2026 Superpowers work
 
+> **Status: historical.** Snapshot from 2026-07-29, retained for reference.
+> The project has since grown well beyond the scope described here (186
+> registered commands, all GNU coreutils covered, man pages for every
+> command). For current state see `CHANGELOG.md` and `AGENT_CHANGELOG.md`.
+
 Snapshot (2026-07-29): summary of work completed from the 2026 plans/specs and suggested next steps.
 
 Completed (implemented in tree):
