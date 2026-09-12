@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- logger: add a command that writes messages to the system log through the POSIX syslog interface, supporting `--priority` (facility.severity), `--tag`, `--file` (with `-` for stdin), `--stderr` and `--id`. No new dependencies and no privileges required; messages are read from arguments or stdin.
 - findmnt: add a filesystem-query command that searches the mount table by device or mount point. Reads /proc/self/mountinfo (falling back to /proc/mounts), renders the mount hierarchy as a tree, and supports column selection, type/source/target filters, and table, list, pairs, raw, canonical and JSON output. Requires no privileges and adds no dependencies.
 - which, whereis: add command-location utilities that resolve executables on PATH and locate binaries, sources and man pages.
 - Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat. All 186 commands now have man pages.

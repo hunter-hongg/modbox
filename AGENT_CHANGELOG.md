@@ -1,5 +1,16 @@
 # Agent Changelog
 
+## 2026-9-12
+
+- 新增 `logger` 命令：把消息写入系统日志（延续 wall/who/audit2allow 的文本/审计工具链）。
+  - **实现路径**：走 POSIX `syslog(3)`（`openlog`/`syslog`/`closelog`），不引入 libsystemd、无新增依赖、无需特权。宿主未运行 syslog 守护进程时提交仍返回成功，符合 GNU logger 语义。
+  - **选项**：`-f/--file`（`-` 读 stdin，剥离尾部换行，与位置参数互斥）、`-i/--id`（记录 pid，经 `LOG_PID`）、`-p/--priority`（`facility.severity` 或裸 severity，覆盖 auth/authpriv/cron/daemon/ftp/kern/lpr/mail/news/syslog/user/uucp/local0..local7 与 emerg..debug）、`-s/--stderr`（同时写 stderr）、`-t/--tag`、`-h/--help`、`-V/--version`。
+  - **消息来源**：优先 `--file`，其次位置参数（空格拼接），否则读 stdin。
+  - **退出码**：0=成功；1=`--file` 不可读 / 未知 facility/severity / `--file` 与消息参数互斥 / argtable3 解析失败（复用 `print_arg_errors`，措辞与全仓一致）。
+  - **实现要点**：facility/severity 查表用 `std::ranges::find_if`（规避 `readability-use-anyofallof`）；常量表用指定初始化器；新文件 clang-tidy 0 error、0 cognitive-complexity 告警。剩余告警仅为 `<syslog.h>` 宏在项目 `-I` 集合下的 `misc-include-cleaner` 误报（与既有 `watch`（13 条，来自 `<poll.h>`/`<termios.h>`/`<sys/wait.h>`）同类，仓库既有约定为接受）。
+  - 新增文件：`include/commands/logger.hpp`、`src/commands/logger.cpp`、`tests/test_logger.sh`（24 条断言）、`docs/man/modbox-logger.1.md`；Makefile `MAN_SOURCES`、`registered_cmds.txt`（186→187）、README 命令计数（186→187）与命令列表、CHANGELOG 各更新。
+  - 全量测试 3297 通过、0 失败（此前 3273），`test_man_pages.sh` 的 registry 驱动覆盖检查确认 187 个注册命令均具备 man page 与 Makefile 条目。
+
 ## 2026-9-12（工作区整理与完善）
 
 - 整理工作区并完善：把上一批「已实现但悬在工作区」的成果归档提交，修正文档计数漂移，补齐状态文档，修复长期环境性测试失败。
