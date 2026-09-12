@@ -12,7 +12,8 @@ All notable changes to this project are documented in this file.
 - logger: add a command that writes messages to the system log through the POSIX syslog interface, supporting `--priority` (facility.severity), `--tag`, `--file` (with `-` for stdin), `--stderr` and `--id`. No new dependencies and no privileges required; messages are read from arguments or stdin.
 - findmnt: add a filesystem-query command that searches the mount table by device or mount point. Reads /proc/self/mountinfo (falling back to /proc/mounts), renders the mount hierarchy as a tree, and supports column selection, type/source/target filters, and table, list, pairs, raw, canonical and JSON output. Requires no privileges and adds no dependencies.
 - which, whereis: add command-location utilities that resolve executables on PATH and locate binaries, sources and man pages.
-- Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat, modbox-cmp. All 190 commands now have man pages.
+- sdiff: add a side-by-side merge command that shows two files in parallel columns with `|`, `<`, `>` and `(` gutters marking the differences. Supports the comparison options `-i`, `-E`, `-Z`, `-b`, `-W`, `-B`, `-I`, `--strip-trailing-cr` and `-a`, the layout options `-l`, `-s`, `-t` and `-w`, and interactive merging into a file with `-o` (including editor commands `v`, `e` and their variants). Without `-o` it matches `diff -y` byte-for-byte, and it uses the same exit codes (0 same, 1 differ, 2 trouble) and messages as GNU diffutils. No new dependencies.
+- Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat, modbox-cmp, modbox-sdiff. All 191 commands now have man pages.
 
 ### Fixed
 
