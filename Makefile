@@ -54,7 +54,7 @@ DEP := $(OBJ:.o=.d)
 # Support linuxbrew pkg-config path (can be overridden via environment)
 LINUXBREW_PKGCONFIG ?= /home/linuxbrew/.linuxbrew/lib/pkgconfig
 PKG_CONFIG_PATH := $(LINUXBREW_PKGCONFIG):$(PKG_CONFIG_PATH)
-PKGS := argtable3 ftxui openssl libselinux libacl zlib liblzma libzstd minizip
+PKGS := argtable3 ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2
 PKG_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags $(PKGS))
 PKG_LIBS   := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs   $(PKGS))
 # --------------------------------------------------------------------------
@@ -271,7 +271,10 @@ $(MAN_SRC_DIR)/modbox-setenforce.1.md \
 $(MAN_SRC_DIR)/modbox-zcat.1.md \
 $(MAN_SRC_DIR)/modbox-findmnt.1.md \
 $(MAN_SRC_DIR)/modbox-logger.1.md \
-$(MAN_SRC_DIR)/modbox-renice.1.md
+$(MAN_SRC_DIR)/modbox-renice.1.md \
+$(MAN_SRC_DIR)/modbox-bzip2.1.md \
+$(MAN_SRC_DIR)/modbox-bunzip2.1.md \
+$(MAN_SRC_DIR)/modbox-bzcat.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------

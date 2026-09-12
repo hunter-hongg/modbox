@@ -16,6 +16,20 @@
 
 ## 2026-9-12
 
+- 新增 `bzip2`/`bunzip2`/`bzcat` 命令：以 bzip2 格式压缩/解压文件，补齐压缩家族（此前已有 gzip、xz、zstd，唯独缺 bzip2）。autopilot 全流程（spec → header → TDD 红 → 实现 → 解码对拍 → 注册文档 → 全量验证 → 提交）。
+  - **依赖决策**：bzip2 的容器（BWT + MTF + 霍夫曼 + 多级选择）远比 gzip 的 DEFLATE 复杂，手写不现实；本仓已通过 pkg-config 链接 zlib/liblzma/libzstd 三个压缩库，故沿用同一机制链接系统 `libbz2`（`PKGS` 增加 `bzip2`，编译产出 `-lbz2`），属既有约定而非新增依赖面。已验证 `pkg-config --exists bzip2` 成立、`/usr/include/bzlib.h` 存在。
+  - **多调用名（multi-call）**：单一实现函数 `bzip2_command_impl(prog, name, argc, argv)`，由 `base_name_of(argv[0])` 推导默认动作（`bunzip2` → 解压、`bzcat` → 解压到 stdout），故符号链接调用同样生效；命令行显式 `-d`/`-z` 覆盖名字派生的默认值。
+  - **`REGISTER_COMMAND` 同名陷阱**：宏在匿名 namespace 中以 `_<fn>_reg` 命名静态初始化器，**同一函数名注册两次会重定义**；沿用 `nc.cpp` 先例，为 `bunzip2`/`bzcat` 各写一个**独立命名的薄包装**（并置 `static` 以满足 `misc-use-internal-linkage`）。
+  - **流式 API**：用 `BZ2_bzCompress*`/`BZ2_bzDecompress*` 流式接口（非一次性缓冲），以 64 KiB 读块 + 1 MiB 写块处理任意大小输入；**拼接流**（concatenated streams）按 `consumed = in.size() - strm.avail_in` 推进并在流结束后重新初始化解码器，实现与参考实现一致的「多流视作单一逻辑输入」。
+  - **退出码（有意的包际差异）**：上游 bzip2 用 0/1/2/3 区分 成功/警告/错误/致命，本仓压缩家族（`gzip`/`xz`/`zstd`）统一为「0 成功 / 非 0 失败」。为家族内一致性采用后者，并已在三个 man page 的 EXIT STATUS 中显式记录该偏离。
+  - **选项**：`-d/--decompress`、`-z/--compress`、`-c/--stdout`、`-k/--keep`、`-f/--force`、`-t/--test`、`-1`..`-9`（块大小 100k..900k，默认 9）、`--fast`/`--best`、`-q`、`-v`、`-s/--small`（接受并忽略，流式实现内存本就有界）、`-h`、`--version`。`-1`..`-9` 无法用 argtable3 表达数字短选项，故按 `gzip.cpp` 先例在解析前手工摘出，并支持 `-9v` 这类粘连形式。
+  - **TDD 抓到的一个真实缺陷**：`-t` 最初只置位 `opt.test` 而未置 `opt.decompress`，导致 `bzip2 -t x.bz2` 落入压缩分支并报 `already has .bz2 suffix`（rc=1）。测试断言「有效文件应退出 0」在实现完成后**仍为红**，据此修正为 `-t` 蕴含 `-d`（与上游语义一致），并在 `do_decompress` 中于 `test` 分支提前返回，确保 `-t` 不写任何输出、不删除输入。
+  - **错误措辞**：映射 `BZ_DATA_ERROR` → `data integrity (CRC) error in data`、`BZ_DATA_ERROR_MAGIC` → `not a bzip2 file`、`BZ_UNEXPECTED_EOF` → `unexpected end of file` 等；非法选项沿用全仓统一的 argtable3 `unrecognized option '...'` 措辞（上游为 `Bad flag` + 完整 usage，属仓库既有约定）。
+  - **`.out` 命名**：解压非 `.bz2` 结尾的文件时无法从名字还原，输出写入 `<name>.out` 并（除 `-q` 外）打印 `Can't guess original name for ... -- using ...` 警告，与上游一致。
+  - 新增文件：`include/commands/bzip2.hpp`、`src/commands/bzip2.cpp`（约 435 行）、`docs/specs/bzip2-command.md`、`docs/man/modbox-bzip2.1.md`、`docs/man/modbox-bunzip2.1.md`、`docs/man/modbox-bzcat.1.md`、`tests/test_bz2.sh`（38 条断言：help/version、单文件压缩（校验 `BZh` magic `425a68`）、keep/stdout/force、解压往返（`cmp -s` 逐字节）、符号链接名字派发、`.out` 命名、多文件、stdin/stdout 管道、`-t` 完整性（有效+损坏）、块级 `-1`/`-9`/`--fast`/`--best` 且校验 `-9` 的头部第 4 字节为 `9`、缺文件/非 bzip2/非法选项/`.bz2` 后缀守卫等错误路径、零长度输入、混合好坏退出码、与宿主 `bzip2` 的双向互操作含拼接流（宿主工具缺失时干净 SKIP））；Makefile `PKGS` 与 `MAN_SOURCES`、`registered_cmds.txt`（191→194）、README 命令计数（191→194，三处）与命令列表、CHANGELOG、本文件各更新。
+  - **验证**：`test_bz2.sh` 38/38 通过；`test_man_pages.sh` registry 驱动覆盖检查 **495/495、0 失败**（确认 194 个注册命令均具备 man page 与 Makefile 条目）；三个 man page 经 pandoc 渲染并 `man ./build/man/...` 校验身份正确。clang-tidy 对 `bzip2.cpp` **仅 14 条 argtable 指针的 `misc-const-correctness`**（仓库既有噪音，兄弟 `gzip.cpp` 为 11 条同类外加 4 条其他类型），此前 LSP 报出的 `readability-avoid-nested-conditional-operator` 已随链条三元式改写为 if/else 消除（该 LSP 诊断在编辑后为**陈旧缓存**，以真实 `make` 加 clang-tidy 复核为准）。
+  - **工作区纪律**：提交前工作区已存在**与本功能无关**的未提交改动（`src/commands/stty.cpp` 修复、`tests/test_stty.sh`、以及 README/`specs/missing_commands_overview.md` 的 186→191 计数校正），已刻意不纳入本次 bzip2 提交；README 中仅纳入直接相关的计数（191→194）与命令列表 hunk。
+
 - 新增 `chrt` 命令：显示或修改进程的实时调度策略与优先级，或按指定策略启动一条命令（补齐 `nice` → `renice` → `chrt` 的调度家族）。autopilot 全流程（spec → ticket → TDD 实现 → 双轴 code review → 提交）。
   - **两种形态**：启动形态 `chrt [<优先级>] <命令> [参数...]`（未给策略时默认 SCHED_RR）；`--pid` 形态——带策略旗标为设置现有进程，不带策略旗标为查询 `chrt -p <PID>`。
   - **策略表单一来源**：`kPolicies[]`（`short_opt`/`long_opt`/`name`/`value`/`needs_priority`）同时驱动解析、帮助文本与 `-m` 列表，三者不会漂移；覆盖 SCHED_OTHER/BATCH/IDLE/FIFO/RR，并在 `#ifdef` 下纳入 SCHED_DEADLINE（`-d`）与 SCHED_EXT（`-e`）。`-m` 展示顺序独立于表序，按上游 util-linux 先实时策略。
