@@ -135,6 +135,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-mktemp.1.md \
 	$(MAN_SRC_DIR)/modbox-install.1.md \
 	$(MAN_SRC_DIR)/modbox-seq.1.md \
+	$(MAN_SRC_DIR)/modbox-cmp.1.md \
 	$(MAN_SRC_DIR)/modbox-comm.1.md \
 	$(MAN_SRC_DIR)/modbox-paste.1.md \
 	$(MAN_SRC_DIR)/modbox-ping.1.md \

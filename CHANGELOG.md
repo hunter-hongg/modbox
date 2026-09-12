@@ -6,12 +6,13 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- cmp: add a byte-by-byte file comparison command that is binary-safe (unlike the line-oriented `diff`). Supports `-b/--print-bytes`, `-i/--ignore-initial` (including the `SKIP1:SKIP2` and positional forms), `-l/--verbose`, `-n/--bytes`, `-s/--quiet`/`--silent`, reads `-` from stdin, and matches GNU exit codes (0 same, 1 differ, 2 trouble) and messages. No new dependencies.
 - chrt: add a command that shows or changes the real-time scheduling policy and priority of a process, or launches a command under a chosen policy. Supports SCHED_OTHER/BATCH/IDLE/FIFO/RR (with SCHED_DEADLINE and SCHED_EXT recognised where the kernel provides them), the `--pid` query and set forms, `--max`, `--reset-on-fork`, `--all-tasks` and `--verbose`. Uses only POSIX scheduling calls, adding no dependencies, and its query/launch paths are testable without privileges.
 - renice: add a command that alters the scheduling priority of running processes, selecting targets by process ID (default), process group ID (`-g`), or user name/UID (`-u`). Priorities are absolute by default, or relative with `--relative` (and `-n` when `POSIXLY_CORRECT` is set), with the kernel's `[-20, 19]` clamping reported. No new dependencies.
 - logger: add a command that writes messages to the system log through the POSIX syslog interface, supporting `--priority` (facility.severity), `--tag`, `--file` (with `-` for stdin), `--stderr` and `--id`. No new dependencies and no privileges required; messages are read from arguments or stdin.
 - findmnt: add a filesystem-query command that searches the mount table by device or mount point. Reads /proc/self/mountinfo (falling back to /proc/mounts), renders the mount hierarchy as a tree, and supports column selection, type/source/target filters, and table, list, pairs, raw, canonical and JSON output. Requires no privileges and adds no dependencies.
 - which, whereis: add command-location utilities that resolve executables on PATH and locate binaries, sources and man pages.
-- Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat. All 189 commands now have man pages.
+- Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat, modbox-cmp. All 190 commands now have man pages.
 
 ### Fixed
 

@@ -1,5 +1,19 @@
 # Agent Changelog
 
+- 新增 `cmp` 命令：逐字节比较两个文件（补齐 `diff`/`diff3`/`comm` 的比较家族，此前缺失这个 GNU coreutils 标准命令）。autopilot 全流程（勘察 → TDD 红 → 实现 → 与 GNU 差分对拍 → 注册文档 → 全量验证 → 提交）。
+  - **二进制安全**：与行式的 `comm.cpp`（`fgets`）不同，`cmp` 必须正确处理 NUL 与非可打印字节，故实现了一个 64 KiB 缓冲的 `ByteStream`，其 `next()` 返回 `int`（`-1` 明确表示 EOF）；两个流以同一 `LineCounter` 推进即可满足行号统计。
+  - **选项**：`-b/--print-bytes`、`-i/--ignore-initial`（含 `SKIP1:SKIP2` 及位置实参形式）、`-l/--verbose`、`-n/--bytes=LIMIT`、`-s/--quiet/--silent`、`-h/--help`、`-V/--version`，以及 `FILE1 [FILE2 [SKIP1 [SKIP2]]]`。`-` 表示标准输入。
+  - **退出码（与 GNU 一致）**：0=相同；1=不同（含前缀/EOF 情形）；2=故障（文件缺失、选项非法、`-l` 与 `-s` 同用）。
+  - **与 GNU diffutils 3.12 逐字节对拍**：最终以**分离 stdout/stderr** 的严格对拍脚本覆盖 43 组核心场景 + 53 组扩展场景（默认、`-l`、`-lb`、`-b`、`-s`、`-n`、`-i`、`--ignore-initial`、`--bytes`、`--print-bytes`、`--verbose`、`--quiet`、`--silent`、缺失文件、相同文件、多行错位、二进制、各种 EOF 边界），**两套均 0 组差异**。
+  - **最重要的教训——必须先分离两个流**：初版对拍用 `diff <(cmp ...) <(modbox cmp ...)`，把 stdout 与 stderr 混在一起，给出了「19 组一致、0 组差异」的**假绿**，从而漏掉了整类 EOF 语义缺陷。改为 `cmd >out 2>err` 分别落盘再比，立刻暴露 22 组不一致。此项为本次最大的方法论修正：**永远分离流再与 oracle 比较**。
+  - **EOF 模型（经对拍完整反推并逐条验证）**：GNU 在同一位置字节耗尽时**绝不**把该位置当作普通差异；它是否出现在 stdout 完全取决于**此前是否已记录过真实差异**——若已有真实差异，则 stdout 打印该差异行且**抑制** stderr 的 EOF 提示；若差异仅来自长度不同（短端是长端前缀），则 stdout 为空、只打印 stderr 的 `EOF on ‘F’ …`。此前实现（含新增的 `note_prefix_boundary`）错误地试图以「短端末字节是否为换行」判定是否记为差异，对拍证明该启发式完全错误，已删除并改为上述简单规则。
+  - **EOF 措辞与 `-l` 差异**：`EOF on ‘F’ which is empty`（短端 0 字节）；默认模式短端在行末结束为 `after byte N, line L`，行中结束为 `after byte N, in line L`；**`-l` 模式一律为 `after byte N`，不带任何行号信息**（`print_eof_diagnostic` 增 `verbose` 参数）。
+  - **退出码 1 的长度差异**：只要两端长度不同（即使短端是长端前缀、无任何字节不匹配）也必须返回 1，故返回值改为 `(report.differ || eof_side != 0) ? CMP_DIFFER : CMP_EQUAL`。
+  - **`-l` 与 `-s` 同用**：GNU diffutils 的错误提示第二行带程序名前缀（`cmp: Try 'cmp --help' for more information.`），与核心工具族（如 `basename`）的无前缀形式不同；本命令按 GNU diffutils 逐字节对齐（其余 modbox 命令沿用核心工具族的无前缀形式，此为有意的包际差异）。
+  - **实现要点**：所有内部辅助函数置于**单一**匿名 `namespace` 且不写 `static`（初版多 namespace + `static` 曾触发 17 条 clang-tidy `misc-use-internal-linkage`，改写后清零）；`cmd_error`/`cmd_perror` 返回 1 但 `cmp` 用法错误需返回 2，故统一采用 `(void)cmd_error(...); return CMP_ERROR;` 丢弃返回值。无新增依赖。
+  - 新增文件：`include/commands/cmp.hpp`、`src/commands/cmp.cpp`（约 440 行）、`docs/man/modbox-cmp.1.md`、`tests/test_cmp.sh`（48 条断言，覆盖退出码/默认输出/`-s`/`-l`/`-b`/EOF 两种报告模式/`-n`/`-i`/stdin/二进制安全/退化输入/help/version）；Makefile `MAN_SOURCES`、`registered_cmds.txt`（189→190）、README 命令计数（189→190）与命令列表、CHANGELOG 各更新。
+  - **验证**：`test_cmp.sh` 48/48 通过；严格对拍脚本 43/43 与 53/53 全部一致；`test_man_pages.sh` registry 覆盖检查 495/495 通过（确认 190 个注册命令均具备 man page 与 Makefile 条目）；全量套件 3418 通过、6 失败（均为下述 `test_nice.sh` 环境遗留，经 `git stash -u` 回到 pristine HEAD 复现，证明与本次改动无关）。clang-tidy 对 `cmp.cpp` 仅剩 9 条 argtable 指针的 `misc-const-correctness`（与兄弟命令 `comm.cpp` 同类的仓库既有噪音，而 `comm.cpp` 共 23 条，`cmp.cpp` 反而更干净）；另修复了一处 `clang-analyzer-unix.Stream` 流泄漏**误报**（`ByteStream` 在 `compare_inputs` 的**所有**返回路径均调用 `close()`，分析器无法跨越调用边界），按仓库既有约定加 `NOLINTNEXTLINE` 并注明理由。
+
 ## 2026-9-12
 
 - 新增 `chrt` 命令：显示或修改进程的实时调度策略与优先级，或按指定策略启动一条命令（补齐 `nice` → `renice` → `chrt` 的调度家族）。autopilot 全流程（spec → ticket → TDD 实现 → 双轴 code review → 提交）。
