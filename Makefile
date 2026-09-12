@@ -151,6 +151,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-chcon.1.md \
 	$(MAN_SRC_DIR)/modbox-chgrp.1.md \
 	$(MAN_SRC_DIR)/modbox-chroot.1.md \
+	$(MAN_SRC_DIR)/modbox-chrt.1.md \
 	$(MAN_SRC_DIR)/modbox-curl.1.md \
 	$(MAN_SRC_DIR)/modbox-fd.1.md \
 	$(MAN_SRC_DIR)/modbox-lf.1.md \
