@@ -402,7 +402,7 @@ void print_help(const char* prog) {
 
 } // namespace
 
-int gzip_command(int argc, char** argv) {
+int gzip_command_impl(const char* prog, bool default_decompress, int argc, char** argv) {
     struct arg_lit* opt_c = arg_lit0("c", "stdout", "write to stdout");
     struct arg_lit* opt_d = arg_lit0("d", "decompress,uncompress", "decompress");
     struct arg_lit* opt_k = arg_lit0("k", "keep", "keep input files");
@@ -446,21 +446,21 @@ int gzip_command(int argc, char** argv) {
     int const nerrors = at.parse(static_cast<int>(cargv.size()), const_cast<char**>(cargv.data()));
 
     if (opt_h->count > 0) {
-        print_help(argv[0]);
+        print_help(prog);
         return 0;
     }
     if (opt_ver->count > 0) {
-        print_version("gzip");
+        print_version(prog);
         return 0;
     }
     if (nerrors > 0) {
-        at.print_errors(end, argv[0]);
-        (void)fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+        at.print_errors(end, prog);
+        (void)fprintf(stderr, "Try '%s --help' for more information.\n", prog);
         return 1;
     }
 
     GzipOptions opt;
-    opt.decompress = opt_d->count > 0;
+    opt.decompress = default_decompress || opt_d->count > 0;
     opt.keep = opt_k->count > 0;
     opt.to_stdout = opt_c->count > 0;
     opt.force = opt_f->count > 0;
@@ -483,10 +483,24 @@ int gzip_command(int argc, char** argv) {
 
     int status = 0;
     for (const auto& p : paths) {
-        if (process_path(opt, p, argv[0]) != 0) { status = 1;
+        if (process_path(opt, p, prog) != 0) { status = 1;
 }
     }
     return status;
 }
 
+// Thin wrappers give each shipped name a distinct function so the
+// REGISTER_COMMAND macro's static initializer name is unique per name. The
+// prog string is the name used in diagnostics; `default_decompress` selects
+// the default action when no explicit -d/-z is given (so invoking as `gunzip`
+// decompresses by default, matching upstream gunzip(1)).
+int gzip_command(int argc, char** argv) {
+    return gzip_command_impl("gzip", false, argc, argv);
+}
+
+static int gunzip_command(int argc, char** argv) {
+    return gzip_command_impl("gunzip", true, argc, argv);
+}
+
 REGISTER_COMMAND("gzip", gzip_command, "Compress or decompress files with gzip")
+REGISTER_COMMAND("gunzip", gunzip_command, "Decompress files with gzip")

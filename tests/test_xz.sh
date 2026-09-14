@@ -165,3 +165,91 @@ printf 'exit test\n' > "$TMPDIR/exit.txt"
 if [[ $? -eq 0 ]]; then pass "xz: exit 0 on success"; else fail "xz: should exit 0"; fi
 "$MODBOX" xz -d "$TMPDIR/exit.txt.xz" >/dev/null 2>&1
 if [[ $? -eq 0 ]]; then pass "xz: decompress exit 0"; else fail "xz: should exit 0"; fi
+
+echo ""
+echo "-- unxz --------------------------------------"
+
+echo " -- help / version --"
+assert_cmd_pat 'Usage:.*unxz.*\[FILE\]' unxz --help
+assert_cmd_pat 'unxz \(modbox\) 1\.0' unxz --version
+
+echo " -- default action: decompress (no -d needed) --"
+printf 'unxz default payload\n' > "$TMPDIR/ud.txt"
+cp "$TMPDIR/ud.txt" "$TMPDIR/ud.orig"
+"$MODBOX" xz "$TMPDIR/ud.txt"
+"$MODBOX" unxz "$TMPDIR/ud.txt.xz"
+if [[ ! -f "$TMPDIR/ud.txt.xz" && -f "$TMPDIR/ud.txt" ]]; then
+    pass "unxz: decompresses by default"
+else
+    fail "unxz: default decompress state wrong"
+fi
+if cmp -s "$TMPDIR/ud.txt" "$TMPDIR/ud.orig"; then
+    pass "unxz: round-trip byte-identical"
+else
+    fail "unxz: round-trip mismatch"
+fi
+
+echo " -- xz compress, unxz decompress cross-name --"
+printf 'cross name payload\n' > "$TMPDIR/cn2.txt"
+cp "$TMPDIR/cn2.txt" "$TMPDIR/cn2.orig"
+"$MODBOX" xz "$TMPDIR/cn2.txt"
+"$MODBOX" unxz "$TMPDIR/cn2.txt.xz"
+if cmp -s "$TMPDIR/cn2.txt" "$TMPDIR/cn2.orig"; then
+    pass "unxz: xz->unxz round-trip matches original"
+else
+    fail "unxz: xz->unxz round-trip mismatch"
+fi
+
+echo " -- stdin -> stdout --"
+printf 'unxz pipe payload\n' > "$TMPDIR/up.txt"
+"$MODBOX" xz "$TMPDIR/up.txt"
+pipe_out=$(cat "$TMPDIR/up.txt.xz" | "$MODBOX" unxz)
+if [[ "$pipe_out" == "unxz pipe payload" ]]; then
+    pass "unxz: stdin -> stdout"
+else
+    fail "unxz: stdin->stdout got [$pipe_out]"
+fi
+
+echo " -- -k keeps compressed file --"
+printf 'unxz keep\n' > "$TMPDIR/uk.txt"
+"$MODBOX" xz "$TMPDIR/uk.txt"
+"$MODBOX" unxz -k "$TMPDIR/uk.txt.xz"
+if [[ -f "$TMPDIR/uk.txt" && -f "$TMPDIR/uk.txt.xz" ]]; then
+    pass "unxz -k: keeps compressed file"
+else
+    fail "unxz -k: state wrong"
+fi
+
+echo " -- -c writes decompressed bytes to stdout --"
+printf 'unxz -c\n' > "$TMPDIR/uc.txt"
+"$MODBOX" xz "$TMPDIR/uc.txt"
+c_out=$("$MODBOX" unxz -c "$TMPDIR/uc.txt.xz")
+if [[ "$c_out" == "unxz -c" && -f "$TMPDIR/uc.txt.xz" ]]; then
+    pass "unxz -c: stdout + keeps compressed file"
+else
+    fail "unxz -c: got [$c_out]"
+fi
+
+echo " -- -f overwrites existing decompressed output --"
+printf 'unxz -f payload\n' > "$TMPDIR/uf.txt"
+"$MODBOX" xz "$TMPDIR/uf.txt"
+printf 'stale\n' > "$TMPDIR/uf.txt"
+"$MODBOX" unxz -f "$TMPDIR/uf.txt.xz"
+if [[ "$(cat "$TMPDIR/uf.txt")" == "unxz -f payload" ]]; then
+    pass "unxz -f: overwrites existing output"
+else
+    fail "unxz -f: overwrite failed"
+fi
+
+echo " -- non-xz input error --"
+printf 'hello not xz\n' > "$TMPDIR/uplain.txt"
+"$MODBOX" unxz "$TMPDIR/uplain.txt" >/dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+    pass "unxz: non-xz input exits non-zero"
+else
+    fail "unxz: non-xz input should exit non-zero"
+fi
+assert_cmd_pat_stderr 'Compressed data is corrupt|corrupt' unxz "$TMPDIR/uplain.txt"
+
+echo " -- discoverable via modbox help --"
+assert_cmd_pat 'unxz' help

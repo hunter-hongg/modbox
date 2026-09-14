@@ -1,5 +1,14 @@
 # Agent Changelog
 
+- 新增 `gunzip` 与 `unxz` 命令：注册传统压缩工具族缺失的对称解压别名（对齐 `bzip2` 家族已经建立的 `bunzip2`/`bzcat` 多名模式）。autopilot 全流程：spec → tickets → 实现 → 测试 → code-review → 提交。
+  - **实现模式（与 `bzip2.cpp` 一致）**：将 `gzip_command` / `xz_command` 重命名为 `<cmd>_command_impl(prog, default_decompress, argc, argv)`，然后追加两个 `static` 包装器：主命令包装器（`default_decompress=false`）与别名包装器（`default_decompress=true`）。别名通过 `REGISTER_COMMAND("gunzip", gunzip_command, ...)` / `REGISTER_COMMAND("unxz", unxz_command, ...)` 直接注册，无需修改公开头文件（与 `bunzip2_command`/`bzcat_command` 同为文件内 `static` 局部）。
+  - **行为**：`modbox gunzip foo.gz` 默认解压（无需 `-d`）；`modbox unxz foo.xz` 默认解压。所有既有 `-c` / `-d` / `-k` / `-f` / `-q` / `-v` / `-1..-9` / `--fast` / `--best` / `--help` / `--version` 选项保持可用；`-d` 在别名上冗余但接受；`--help` 与 `--version` 会打印实际的别名名（`gunzip (modbox) 1.0`），符合上游 `gunzip(1)` / `unxz(1)` 的 UX。
+  - **测试**：`tests/test_gzip.sh` 新增 `gunzip` 段（12 断言：help/version/默认解压/round-trip/stdin 管道/`-k`/`-c`/`-f`/`-q`/错误消息/help 可见性），`tests/test_xz.sh` 追加 `unxz` 段（11 断言）。全套测试从 3496 增至 3521（+25）。
+  - **手册页**：新增 `docs/man/modbox-gunzip.1.md` 与 `docs/man/modbox-unxz.1.md`，并在 `Makefile` 的 `MAN_SOURCES` 中登记。
+  - **文档同步**：README.md 的命令行清单加入 `gunzip`、`unxz`，总数标注更新为 196；CHANGELOG.md 的 "Unreleased/Added" 追加两条；`specs/` 下新增 `gunzip-unxz-spec.md` 与两个 ticket 文件；`specs/code-review-gunzip-unxz.md` 记录双轴（Standards/Spec）评审结论。
+  - **无新增依赖、无新增代码路径**：所有压缩/解压逻辑仍复用 `libz` 与 `liblzma`，别名只是路由层，不引入任何新的字节流处理。
+  - **已知偏差（超出本次范围）**：modbox 的 `gzip`/`xz` 未绑定上游 `-z`/`--compress` 短选项（argtable3 限制），故别名上 `-z` 会给出 `invalid option` 错误。此为既有行为，非本次回归；已在此处记录以待后续统一处理。
+
 - 新增 `cmp` 命令：逐字节比较两个文件（补齐 `diff`/`diff3`/`comm` 的比较家族，此前缺失这个 GNU coreutils 标准命令）。autopilot 全流程（勘察 → TDD 红 → 实现 → 与 GNU 差分对拍 → 注册文档 → 全量验证 → 提交）。
   - **二进制安全**：与行式的 `comm.cpp`（`fgets`）不同，`cmp` 必须正确处理 NUL 与非可打印字节，故实现了一个 64 KiB 缓冲的 `ByteStream`，其 `next()` 返回 `int`（`-1` 明确表示 EOF）；两个流以同一 `LineCounter` 推进即可满足行号统计。
   - **选项**：`-b/--print-bytes`、`-i/--ignore-initial`（含 `SKIP1:SKIP2` 及位置实参形式）、`-l/--verbose`、`-n/--bytes=LIMIT`、`-s/--quiet/--silent`、`-h/--help`、`-V/--version`，以及 `FILE1 [FILE2 [SKIP1 [SKIP2]]]`。`-` 表示标准输入。

@@ -232,8 +232,7 @@ int process_path(const XzOptions& opt, const std::string& path,
 
 } // namespace
 
-int xz_command(int argc, char** argv) {
-    const char* prog = argv[0];
+int xz_command_impl(const char* prog, bool default_decompress, int argc, char** argv) {
 
     XzOptions opt;
 
@@ -306,7 +305,7 @@ int xz_command(int argc, char** argv) {
         return 0;
     }
 
-    opt.decompress = (decompress->count > 0);
+    opt.decompress = default_decompress || (decompress->count > 0);
     opt.keep = (keep->count > 0);
     opt.force = (force->count > 0);
     opt.quiet = (quiet->count > 0);
@@ -345,4 +344,18 @@ int xz_command(int argc, char** argv) {
     return status;
 }
 
+// Thin wrappers give each shipped name a distinct function so the
+// REGISTER_COMMAND macro's static initializer name is unique per name. The
+// prog string is the name used in diagnostics; `default_decompress` selects
+// the default action when no explicit -d/-z is given (so invoking as `unxz`
+// decompresses by default, matching upstream unxz(1)).
+int xz_command(int argc, char** argv) {
+    return xz_command_impl("xz", false, argc, argv);
+}
+
+static int unxz_command(int argc, char** argv) {
+    return xz_command_impl("unxz", true, argc, argv);
+}
+
 REGISTER_COMMAND("xz", xz_command, "Compress or decompress files with xz");
+REGISTER_COMMAND("unxz", unxz_command, "Decompress files with xz");

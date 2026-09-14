@@ -136,7 +136,114 @@ echo "  ── verbosity (T02/T04) ──"
 printf 'verbose content line\n' > "$TMPDIR/v.txt"
 assert_cmd_pat 'replaced with' gzip -v "$TMPDIR/v.txt"
 
-echo "  ── interop with system gzip (best-effort) ──"
+echo ""
+echo "── gunzip ──────────────────────────────────────"
+
+echo "  ── help / version ──"
+assert_cmd_pat 'Usage:.*gunzip.*\[FILE\]' gunzip --help
+assert_cmd_pat 'gunzip \(modbox\) 1\.0' gunzip --version
+
+echo "  ── default action: decompress (no -d needed) ──"
+printf 'gunzip default payload\n' > "$TMPDIR/gd.txt"
+cp "$TMPDIR/gd.txt" "$TMPDIR/gd.orig"
+"$MODBOX" gzip "$TMPDIR/gd.txt" >/dev/null 2>&1
+"$MODBOX" gunzip "$TMPDIR/gd.txt.gz" >/dev/null 2>&1
+if [[ ! -f "$TMPDIR/gd.txt.gz" && -f "$TMPDIR/gd.txt" ]]; then
+    pass "gunzip: decompresses by default"
+else
+    fail "gunzip: default decompress state wrong"
+fi
+if cmp -s "$TMPDIR/gd.txt" "$TMPDIR/gd.orig"; then
+    pass "gunzip: round-trip byte-identical"
+else
+    fail "gunzip: round-trip mismatch"
+fi
+
+echo "  ── gzip compress, gunzip decompress cross-name ──"
+printf 'cross name payload\n' > "$TMPDIR/cn.txt"
+cp "$TMPDIR/cn.txt" "$TMPDIR/cn.orig"
+"$MODBOX" gzip "$TMPDIR/cn.txt" >/dev/null 2>&1
+"$MODBOX" gunzip "$TMPDIR/cn.txt.gz" >/dev/null 2>&1
+if cmp -s "$TMPDIR/cn.txt" "$TMPDIR/cn.orig"; then
+    pass "gunzip: gzip->gunzip round-trip matches original"
+else
+    fail "gunzip: gzip->gunzip round-trip mismatch"
+fi
+
+echo "  ── stdin/stdout pipeline ──"
+printf 'gunzip pipe payload\n' > "$TMPDIR/gp.txt"
+"$MODBOX" gzip "$TMPDIR/gp.txt" >/dev/null 2>&1
+pipe_out=$("$MODBOX" gunzip < "$TMPDIR/gp.txt.gz" 2>/dev/null)
+if [[ "$pipe_out" == "gunzip pipe payload" ]]; then
+    pass "gunzip: stdin -> stdout"
+else
+    fail "gunzip: stdin->stdout got [$pipe_out]"
+fi
+
+echo "  ── -k keeps compressed file ──"
+printf 'gunzip keep\n' > "$TMPDIR/gk.txt"
+"$MODBOX" gzip "$TMPDIR/gk.txt" >/dev/null 2>&1
+"$MODBOX" gunzip -k "$TMPDIR/gk.txt.gz" >/dev/null 2>&1
+if [[ -f "$TMPDIR/gk.txt" && -f "$TMPDIR/gk.txt.gz" ]]; then
+    pass "gunzip -k: keeps compressed file"
+else
+    fail "gunzip -k: state wrong"
+fi
+
+echo "  ── -c writes decompressed bytes to stdout ──"
+printf 'gunzip -c\n' > "$TMPDIR/gc.txt"
+"$MODBOX" gzip "$TMPDIR/gc.txt" >/dev/null 2>&1
+c_out=$("$MODBOX" gunzip -c "$TMPDIR/gc.txt.gz" 2>/dev/null)
+if [[ "$c_out" == "gunzip -c" ]]; then
+    pass "gunzip -c: writes decompressed bytes to stdout"
+else
+    fail "gunzip -c: got [$c_out]"
+fi
+
+echo "  ── -f overwrites existing decompressed output ──"
+printf 'gunzip -f payload\n' > "$TMPDIR/gf.txt"
+"$MODBOX" gzip "$TMPDIR/gf.txt" >/dev/null 2>&1
+printf 'stale\n' > "$TMPDIR/gf.txt"
+"$MODBOX" gunzip -f "$TMPDIR/gf.txt.gz" >/dev/null 2>&1
+if [[ "$(cat "$TMPDIR/gf.txt")" == "gunzip -f payload" ]]; then
+    pass "gunzip -f: overwrites existing output"
+else
+    fail "gunzip -f: overwrite failed"
+fi
+
+echo "  ── -q suppresses warnings (silent stderr) ──"
+printf 'gunzip quiet\n' > "$TMPDIR/gq.txt"
+"$MODBOX" gzip "$TMPDIR/gq.txt" >/dev/null 2>&1
+cp "$TMPDIR/gq.txt.gz" "$TMPDIR/gq.1.gz"
+cp "$TMPDIR/gq.txt.gz" "$TMPDIR/gq.2.gz"
+cp "$TMPDIR/gq.txt.gz" "$TMPDIR/gq.3.gz"
+"$MODBOX" gunzip -q -c "$TMPDIR/gq.1.gz" >/dev/null 2>/dev/null
+status=$?
+"$MODBOX" gunzip -q -c "$TMPDIR/gq.2.gz" >/dev/null 2>/tmp/gq.stderr
+q_err=$(cat /tmp/gq.stderr)
+rm -f /tmp/gq.stderr
+if [[ $status -eq 0 && -z "$q_err" ]]; then
+    pass "gunzip -q -c: quiet exit 0 with silent stderr"
+else
+    fail "gunzip -q -c: status=$status stderr=[$q_err]"
+fi
+rm -f "$TMPDIR/gq.1.gz" "$TMPDIR/gq.2.gz" "$TMPDIR/gq.3.gz"
+
+echo "  ── non-gzip input error ──"
+printf 'hello not gzip\n' > "$TMPDIR/gplain.txt"
+"$MODBOX" gunzip "$TMPDIR/gplain.txt" >/dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+    pass "gunzip: non-gzip input exits non-zero"
+else
+    fail "gunzip: non-gzip input should exit non-zero"
+fi
+assert_cmd_pat_stderr 'not in gzip format' gunzip "$TMPDIR/gplain.txt"
+
+echo "  ── discoverable via modbox help ──"
+assert_cmd_pat 'gunzip' help
+
+# End of gunzip section.
+
 if [[ $GZIP_HAS_SYS -eq 1 ]]; then
     printf 'interop payload 12345\n' > "$TMPDIR/io.txt"
     "$MODBOX" gzip "$TMPDIR/io.txt" >/dev/null 2>&1
