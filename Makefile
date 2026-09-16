@@ -113,6 +113,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-uname.1.md \
 	$(MAN_SRC_DIR)/modbox-echo.1.md \
 	$(MAN_SRC_DIR)/modbox-xargs.1.md \
+	$(MAN_SRC_DIR)/modbox-xxd.1.md \
 	$(MAN_SRC_DIR)/modbox-gzip.1.md \
 	$(MAN_SRC_DIR)/modbox-gunzip.1.md \
 	$(MAN_SRC_DIR)/modbox-md5sum.1.md \
