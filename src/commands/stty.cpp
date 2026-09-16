@@ -796,6 +796,7 @@ static int apply_tokens(char** tokens, int count) {
             } else {
                 // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
                 (void)fprintf(stderr, "%s: standard input: %s\n", g_prog, strerror(errno));
+                return -1;
             }
             continue;
         }
@@ -837,9 +838,20 @@ static int apply_tokens(char** tokens, int count) {
             set_winsize(&ws);
             continue;
         }
-        if ((strcmp(arg, "speed") == 0 || strcmp(arg, "ispeed") == 0 ||
-             strcmp(arg, "ospeed") == 0) &&
-            i + 1 < count) {
+        if (strcmp(arg, "speed") == 0 || strcmp(arg, "ispeed") == 0 ||
+            strcmp(arg, "ospeed") == 0) {
+            if (i + 1 >= count) {
+                // Query form. GNU stty prints a bare number for `speed`, and
+                // treats a bare `ispeed`/`ospeed` as a missing-argument error.
+                if (strcmp(arg, "speed") == 0) {
+                    int const queried = decode_baud(cfgetospeed(&g_mode));
+                    printf("%d\n", std::max(queried, 0));
+                    continue;
+                }
+                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+                (void)fprintf(stderr, "%s: missing argument to '%s'\n", g_prog, arg);
+                return -1;
+            }
             int const n = atoi(tokens[i + 1]);
             speed_t const code = encode_baud(n);
             if (code == static_cast<speed_t>(-1)) {
@@ -963,17 +975,20 @@ int stty_command(int argc, char** argv) {
         if (g_fd < 0) {
             // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             (void)fprintf(stderr, "%s: %s: %s\n", g_prog, file.c_str(), strerror(errno));
-            return 0;
+            return 1;
         }
     } else {
         g_fd = STDIN_FILENO;
     }
 
     if (tcgetattr(g_fd, &g_mode) != 0) {
+        // GNU stty names the device it was told to use when -F was given, and
+        // only falls back to "standard input" when reading the inherited stdin.
         // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-        (void)fprintf(stderr, "%s: standard input: %s\n", g_prog, strerror(errno));
+        (void)fprintf(stderr, "%s: %s: %s\n", g_prog,
+                      have_file ? file.c_str() : "standard input", strerror(errno));
         if (have_file) { close(g_fd); }
-        return 0;
+        return 1;
     }
 
     int rc = 0;
@@ -981,12 +996,14 @@ int stty_command(int argc, char** argv) {
         std::vector<char*> mtoks;
         for (auto& m : modes) { mtoks.push_back(const_cast<char*>(m.c_str())); }
         rc = apply_tokens(mtoks.data(), static_cast<int>(mtoks.size()));
-        if (rc == 0) {
-            if (tcsetattr(g_fd, TCSANOW, &g_mode) != 0) {
-                // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-                (void)fprintf(stderr, "%s: %s\n", g_prog, strerror(errno));
-                rc = 1;
-            }
+        // apply_tokens signals failure with -1; normalize to the shell-facing
+        // exit code 1 that GNU stty uses.
+        if (rc != 0) {
+            rc = 1;
+        } else if (tcsetattr(g_fd, TCSANOW, &g_mode) != 0) {
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            (void)fprintf(stderr, "%s: %s\n", g_prog, strerror(errno));
+            rc = 1;
         }
     }
 
@@ -1001,7 +1018,7 @@ int stty_command(int argc, char** argv) {
     }
 
     if (have_file) { close(g_fd); }
-    return 0;
+    return rc;
 }
 
 REGISTER_COMMAND("stty", stty_command, "Print or change terminal characteristics");
