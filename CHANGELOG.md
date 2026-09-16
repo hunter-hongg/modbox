@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- xxd: add a hexdump command that converts files into hexadecimal, postscript plain or C include format, or does the reverse. Supports `-a` autoskip, `-b`/`-d`/`-E`/`-e` digit and offset styles, `-c`/`-g` layout control, `-u` upper hex, `-s`/`-o`/`-l` offsets and lengths, `-i` with `-C`/`-n`/`-t`/`-ps` C-array and plain-hex output, and a full `-r` reverse path including patch mode and `-s` offsets. No new dependencies; dump, `-ps` and the `-r` reverse path match the reference `xxd` byte for byte (see the man page NOTES for the deliberate `-i` and `-h` deviations).
+- tcpdump: add a packet capture and analysis command with three paths: live capture over Linux `AF_PACKET` raw sockets (`-i`, `-c N`, Ctrl-C summary via SIGINT/SIGTERM, EPERM error suggesting root/CAP_NET_RAW), classic pcap file reading (`-r FILE`/`-`, both endians, Wireshark-compatible) and writing (`-w FILE` with `-r`/`-w` round-trip equivalence and same-file conflict detection), and a decode chain for Ethernet II → ARP / IPv4 / IPv6 → TCP / UDP / ICMP / ICMPv6 producing tcpdump-style one-line-per-packet output. Filtering uses a user-space expression subset (`host`/`net`/`port`/`proto`/`src`/`dst` + `and`/`or`/`not` + parentheses, no BPF compiler), and display is controlled by `-q`, `-v`, `-e`, `-x`, `-tt`, `-s`, with `-n`/`-nn` accepted as no-ops. No libpcap and no new dependencies. Exit codes: 0 success, 1 runtime errors, 2 usage/parse errors. Verified by a fully deterministic test suite (fixtures byte-built with `xxd -r -p`, CI-safe without network or root).
 - cmp: add a byte-by-byte file comparison command that is binary-safe (unlike the line-oriented `diff`). Supports `-b/--print-bytes`, `-i/--ignore-initial` (including the `SKIP1:SKIP2` and positional forms), `-l/--verbose`, `-n/--bytes`, `-s/--quiet`/`--silent`, reads `-` from stdin, and matches GNU exit codes (0 same, 1 differ, 2 trouble) and messages. No new dependencies.
 - gunzip, unxz: register the traditional decompression aliases as first-class commands. `gunzip` decompresses by default (equivalent to `gzip -d`), `unxz` decompresses by default (equivalent to `xz -d`), following the `bunzip2`/`bzcat` pattern already used for the bzip2 family. Both keep the existing `-c`, `-d`, `-k`, `-f`, `-q`, `-v`, `-1`..`-9`, `--fast`, `--best`, `--help`, `--version` flags. No new compression code — the aliases are thin wrappers around the existing `gzip_command_impl` and `xz_command_impl`, with the invocation name passed through so `--help`/`--version` print the correct name.
 - Man pages: add modbox-gunzip and modbox-unxz.
@@ -16,7 +18,7 @@ All notable changes to this project are documented in this file.
 - which, whereis: add command-location utilities that resolve executables on PATH and locate binaries, sources and man pages.
 - sdiff: add a side-by-side merge command that shows two files in parallel columns with `|`, `<`, `>` and `(` gutters marking the differences. Supports the comparison options `-i`, `-E`, `-Z`, `-b`, `-W`, `-B`, `-I`, `--strip-trailing-cr` and `-a`, the layout options `-l`, `-s`, `-t` and `-w`, and interactive merging into a file with `-o` (including editor commands `v`, `e` and their variants). Without `-o` it matches `diff -y` byte-for-byte, and it uses the same exit codes (0 same, 1 differ, 2 trouble) and messages as GNU diffutils. No new dependencies.
 - bzip2, bunzip2, bzcat: add bzip2 compression, completing the compression family alongside gzip, xz and zstd. Supports compressing and decompressing in place, `-c/--stdout`, `-k/--keep`, `-f/--force`, `-t/--test` integrity checking, block-size levels `-1`..`-9` with `--fast`/`--best`, `-q`/`-v`, and stdin/stdout pipelines. `bunzip2` and `bzcat` are the same binary selecting a different default action from the name used to invoke it. The output is a standard bzip2 stream, verified interoperable with the system `bzip2`/`bunzip2`, including concatenated streams. Links the system `libbz2` through the same pkg-config mechanism already used by the gzip, xz and zstd commands.
-- Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat, modbox-cmp, modbox-sdiff, modbox-bzip2, modbox-bunzip2, modbox-bzcat, modbox-gunzip, modbox-unxz. All commands now have man pages.
+- Man pages: add modbox-bc, modbox-man, modbox-setenforce, modbox-zcat, modbox-cmp, modbox-sdiff, modbox-bzip2, modbox-bunzip2, modbox-bzcat, modbox-gunzip, modbox-unxz, modbox-tcpdump, modbox-xxd. All commands now have man pages.
 
 ### Fixed
 
@@ -26,6 +28,7 @@ All notable changes to this project are documented in this file.
 - nslookup: fix --help requiring domain, make -t optional (default A).
 - sleep: fix error exit code (0 -> 1).
 - sum: fix error exit code on missing file (0 -> 1).
+- stty: return exit 1 instead of 0 on a non-tty or unreadable device, name the requested device in the error when `-F` is given instead of falling back to "standard input", and handle the bare `speed`/`ispeed`/`ospeed` query forms.
 
 ### Changed
 

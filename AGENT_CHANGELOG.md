@@ -1,5 +1,16 @@
 # Agent Changelog
 
+- 补齐 `xxd` 命令的文档面：新增 `docs/man/modbox-xxd.1.md`（MAN_SOURCES 按字母序登记、pandoc 渲染验证）、README 命令清单与总数 196→197（四处）、CHANGELOG 的 Added 与 Man pages 条目、`registered_cmds.txt`/`man_pages.txt` 重生成（197/197，覆盖率检查从假绿转为真实红绿信号）、`specs/missing_commands_overview.md` 计数同步。与 GNU `xxd`（v2026-06-16）逐字节对拍共 92 组 dump 选项，除下述已记录偏离外全部一致；已确认的既有偏离有：`-i` 用 basename 而非全路径命名、stdin 输入总是输出 `stdin`/`stdin_len` 包装（上游省略）、`-r` 接受裸 hex 且 `-r -s` 不补 NUL 填充、`-e -r` 退出码 1 vs 255、`-b -e`/`-b -i`（十六进制而非上游 `0b` 二进制）组合、`-u -i` 用小写 `0x`、`-h` 退出码 0 且输出到 stdout 及 `-R` 为 no-op。
+- 新增 `tcpdump` 命令：基于 Linux `AF_PACKET` 原始套接字的抓包工具（不引 libpcap，零新依赖），补齐 modbox 的网络协议查看能力。autopilot 全流程（spec #102 → 5 个 tickets → 15 个 TDD todos → 4 波交付 → 双轴评审 → 提交）。
+  - **三条路径**：实时抓包（`-i`/`-i any`/默认 any、`-c N` 按保留包计数停止、SIGINT/SIGTERM 打印 `N packets captured, M packets received, K dropped` 摘要、EPERM 提示需 root/CAP_NET_RAW）；pcap 文件读（`-r FILE`/`-` stdin，双端序 magic `0xa1b2c3d4`/`0xd4c3b2a1`，非 EN10MB linktype 与截断记录报错退 1）；pcap 写（`-w FILE` 经典 pcap、`-r`→`-w`→`-r` 往返解码逐字节一致、`-r`/`-w` 同文件冲突退 2、`-w -` 拒绝）。
+  - **解码链**：Ethernet II → ARP / IPv4 / IPv6 → TCP / UDP / ICMP / ICMPv6 逐包单行输出（tcpdump 风格）；IPv6 固定头（next 6/17/58）+ ICMPv6 常用类型（128/129/133/134/135/136），未知 EtherType/扩展头与短记录一律安全降级（不崩溃、可过滤）。
+  - **过滤器**：用户态求值子集 `host`/`net`/`port`/`proto`/`src`/`dst` + `and`/`or`/`not` + 括号（recursive descent parser，无 BPF 编译器）；非法表达式报 `filter error` 退 2；解码失败的包总是被丢弃。
+  - **显示选项**：`-q`（精简）、`-v`（TTL/IP ID/TCP options/hop limit）、`-e`（MAC+EtherType）、`-x`（16 字节/行 hex 转储）、`-tt`（epoch 时间戳）、`-s N`（snaplen 截断）；`-n`/`-nn` 为兼容 no-op。
+  - **退出码**：0=成功（含摘要）、1=运行时错误（socket/pcap/文件）、2=用法/解析错误（非法选项/过滤器/`-r`/`-w` 冲突）——仓库约定，细化自 spec 的 1/1/1。
+  - **测试**：`tests/test_tcpdump.sh`（fixture 用 `xxd -r -p` 字节构建，CI 零网络零 root 全确定性）覆盖 CLI 表面、双端序、5 协议族解码、过滤器原子/组合/解析失败、显示选项、`-w` 往返、EPERM/未知接口错误路径、`-c` 与摘要的 kept/received 计数语义。
+  - **man page**：`docs/man/modbox-tcpdump.1.md`（含 FILTER SYNTAX 与 EXIT STATUS 偏离说明），Makefile MAN_SOURCES 注册。
+  - **提交**：`cf5a40f`..`db4c115` 共 16 个 commit（15 个 todo commit + 1 个 `fix(tcpdump): treat -w - as a usage error, clamp malformed IPv4 IHL`），仅触及 7 个 in-scope 路径。
+
 - 新增 `gunzip` 与 `unxz` 命令：注册传统压缩工具族缺失的对称解压别名（对齐 `bzip2` 家族已经建立的 `bunzip2`/`bzcat` 多名模式）。autopilot 全流程：spec → tickets → 实现 → 测试 → code-review → 提交。
   - **实现模式（与 `bzip2.cpp` 一致）**：将 `gzip_command` / `xz_command` 重命名为 `<cmd>_command_impl(prog, default_decompress, argc, argv)`，然后追加两个 `static` 包装器：主命令包装器（`default_decompress=false`）与别名包装器（`default_decompress=true`）。别名通过 `REGISTER_COMMAND("gunzip", gunzip_command, ...)` / `REGISTER_COMMAND("unxz", unxz_command, ...)` 直接注册，无需修改公开头文件（与 `bunzip2_command`/`bzcat_command` 同为文件内 `static` 局部）。
   - **行为**：`modbox gunzip foo.gz` 默认解压（无需 `-d`）；`modbox unxz foo.xz` 默认解压。所有既有 `-c` / `-d` / `-k` / `-f` / `-q` / `-v` / `-1..-9` / `--fast` / `--best` / `--help` / `--version` 选项保持可用；`-d` 在别名上冗余但接受；`--help` 与 `--version` 会打印实际的别名名（`gunzip (modbox) 1.0`），符合上游 `gunzip(1)` / `unxz(1)` 的 UX。
