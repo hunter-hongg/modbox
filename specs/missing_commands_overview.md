@@ -1,8 +1,8 @@
 # ModBox: GNU CoreUtils Compatibility — Missing Commands Overview
 
-## Status: complete (2026-09-11)
+## Status: complete (2026-09-15)
 
-ModBox implements **186 registered commands**, including **all standard GNU
+ModBox implements **199 registered commands**, including **all standard GNU
 coreutils commands** plus additional utilities. There are currently **no
 known missing coreutils commands**.
 

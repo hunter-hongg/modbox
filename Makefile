@@ -86,6 +86,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-rm.1.md \
 	$(MAN_SRC_DIR)/modbox-cp.1.md \
 	$(MAN_SRC_DIR)/modbox-mv.1.md \
+	$(MAN_SRC_DIR)/modbox-namei.1.md \
 	$(MAN_SRC_DIR)/modbox-rmdir.1.md \
 	$(MAN_SRC_DIR)/modbox-arch.1.md \
 	$(MAN_SRC_DIR)/modbox-audit2allow.1.md \
@@ -273,6 +274,7 @@ $(MAN_SRC_DIR)/modbox-man.1.md \
 $(MAN_SRC_DIR)/modbox-setenforce.1.md \
 $(MAN_SRC_DIR)/modbox-zcat.1.md \
 $(MAN_SRC_DIR)/modbox-findmnt.1.md \
+$(MAN_SRC_DIR)/modbox-flock.1.md \
 $(MAN_SRC_DIR)/modbox-logger.1.md \
 $(MAN_SRC_DIR)/modbox-renice.1.md \
 $(MAN_SRC_DIR)/modbox-bzip2.1.md \
