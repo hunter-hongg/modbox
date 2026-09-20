@@ -31,11 +31,13 @@ assert_cmd_norm() {
 }
 
 # ── fixtures ────────────────────────────────────────────────────────────────
-# The runner's cwd is the per-test TMPDIR; a relative fixture avoids the
-# host-dependent $TMPDIR prefix (an absolute /tmp path would drag the /tmp
-# mount point into every -x test).
+# The runner keeps cwd at the repo root, so move into TMPDIR first: otherwise
+# the fixture below would be written into the source tree. A relative fixture
+# keeps the printed listings free of the host-dependent $TMPDIR prefix (an
+# absolute /tmp path would drag the /tmp mount point into every -x test).
+cd "$TMPDIR"
 F=ne
-mkdir -p "$F/sub/deep/inner" "$F/nested"
+mkdir -p "$F/sub/deep/inner" "$F/nested" "$F/deep"
 echo payload > "$F/file.txt"
 printf '' > "$F/empty"
 ln -sf file.txt "$F/rel-link"        # relative target

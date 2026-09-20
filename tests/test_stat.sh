@@ -68,10 +68,15 @@ if [ "$HAVE_GNU_STAT" -eq 1 ]; then
   done
 
   echo "  ── parity with GNU stat (-f filesystem formats) ──"
-  for fmt in '%n %i %l %t %s %S %b %f %a %c %d %T'; do
+  # Fixed properties of the filesystem: GNU stat and modbox must agree exactly.
+  for fmt in '%n %i %l %t %s %S %b %c %d %T'; do
     expected=$(LC_ALL=C stat -f -c "$fmt" / 2>/dev/null)
     assert_cmd "$expected" stat -f -c "$fmt" /
   done
+  # %f/%a are live free-block counts that can change between the reference stat
+  # and modbox's stat while the parallel suite writes to the same filesystem,
+  # so assert the shape only.
+  assert_cmd_pat '^[0-9]+ [0-9]+$' stat -f -c '%f %a' /
 
   echo "  ── parity with GNU stat: default verbose (file type line) ──"
   assert_cmd_pat 'regular file' stat "$REG"
