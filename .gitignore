@@ -16,6 +16,10 @@ compile_commands.json
 .playwright-mcp/
 .qwen/
 .scratch/
+.commandcode/
+.crush/
+.mimocode/
+.omo/
 
 # Project specs (external to main codebase)
 specs/
