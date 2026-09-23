@@ -239,6 +239,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-top.1.md \
 	$(MAN_SRC_DIR)/modbox-true.1.md \
 	$(MAN_SRC_DIR)/modbox-tsort.1.md \
+	$(MAN_SRC_DIR)/modbox-tree.1.md \
 	$(MAN_SRC_DIR)/modbox-tty.1.md \
 	$(MAN_SRC_DIR)/modbox-unexpand.1.md \
 	$(MAN_SRC_DIR)/modbox-unlink.1.md \

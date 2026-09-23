@@ -2,7 +2,7 @@
 
 ## Status: complete (2026-09-15)
 
-ModBox implements **199 registered commands**, including **all standard GNU
+ModBox implements **200 registered commands**, including **all standard GNU
 coreutils commands** plus additional utilities. There are currently **no
 known missing coreutils commands**.
 
