@@ -218,6 +218,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-prompts.1.md \
 	$(MAN_SRC_DIR)/modbox-ps.1.md \
 	$(MAN_SRC_DIR)/modbox-pgrep.1.md \
+	$(MAN_SRC_DIR)/modbox-pidof.1.md \
 	$(MAN_SRC_DIR)/modbox-pstree.1.md \
 	$(MAN_SRC_DIR)/modbox-ptx.1.md \
 	$(MAN_SRC_DIR)/modbox-realpath.1.md \
