@@ -89,6 +89,26 @@ def missing_docs(names):
     return gaps
 
 
+def _header(line):
+    """The comment header of an inventory file, or None for a body line."""
+    return line if line.startswith("#") else None
+
+
+def is_stale(path, want):
+    """True when the file's *content* differs from `want`.
+
+    The first line is a comment header carrying a generation date. Comparing it
+    would make every file look stale the day after it was written, so the
+    header is excluded: staleness must mean the command set changed, not that
+    the clock moved. `make regen` still refreshes the date.
+    """
+    if not path.exists():
+        return True
+    have = path.read_text().split("\n")
+    expected = want.split("\n")
+    return [_header(l) for l in have[1:]] != [_header(l) for l in expected[1:]]
+
+
 def main():
     ap = argparse.ArgumentParser(description="regenerate modbox command inventory files")
     ap.add_argument("--check", action="store_true",
@@ -108,10 +128,20 @@ def main():
     for gap in missing_docs(names):
         print("WARNING: %s" % gap, file=sys.stderr)
 
-    stale = [p for p, want in outputs.items()
-             if not p.exists() or p.read_text() != want]
+    stale = [p for p, want in outputs.items() if is_stale(p, want)]
     if not stale:
-        print("inventory up to date (%d commands)" % len(names))
+        # Content matches. Still refresh the generation date, so `make regen`
+        # records that the inventory was verified today — but say so rather
+        # than implying a rewrite happened.
+        changed = False
+        for p, want in outputs.items():
+            if p.read_text() != want:
+                p.write_text(want)
+                changed = True
+        if changed:
+            print("refreshed generation date (%d commands)" % len(names))
+        else:
+            print("inventory up to date (%d commands)" % len(names))
         return 0
 
     if args.check:
