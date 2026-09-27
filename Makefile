@@ -353,8 +353,26 @@ run: compile
 #   TESTS_ARGS="ls"  run only matched files   SERIAL=1  force serial
 # --------------------------------------------------------------------------
 .PHONY: test
-test:
+test: check-registry
 	bash tests/run_tests.sh $(TESTS_ARGS)
+# --------------------------------------------------------------------------
+# Command inventory (registered_cmds.txt / man_pages.txt)
+#
+# These two git-ignored files are the ONLY input to the registry-driven
+# man-page coverage check in tests/test_man_pages.sh, so a command added
+# without refreshing them silently narrows that check instead of failing
+# it. `regen` rebuilds them from the binary (the source of truth for what
+# REGISTER_COMMAND registered); `check-registry` fails the build when they
+# are stale, so the drift cannot reach a commit.
+# --------------------------------------------------------------------------
+.PHONY: regen
+regen: $(TARGET)
+	python3 tests/regen_registry.py
+.PHONY: check-registry
+check-registry: $(TARGET)
+	@python3 tests/regen_registry.py --check || { \
+		echo "run 'make regen' to refresh registered_cmds.txt / man_pages.txt"; \
+		exit 1; }
 # --------------------------------------------------------------------------
 # Man pages
 # --------------------------------------------------------------------------
