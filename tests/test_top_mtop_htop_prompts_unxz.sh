@@ -19,7 +19,14 @@ echo "  ── batch mode prints a header block and a process table ──"
 # -n1 -b is one iteration, no TUI: safe to run non-interactively.
 assert_cmd_pat '^top - [0-9]{2}:[0-9]{2}:[0-9]{2} up ' top -b -n1
 assert_cmd_pat '^Tasks: [0-9]+ total' top -b -n1
-assert_cmd_pat '^PID +USER +PR +NI ' top -b -n1
+# The column header is width-dependent: the PID field is right-aligned to the
+# widest running PID, so the line is " PID USER ..." with 4-digit PIDs and
+# "PID USER ..." with 1-digit ones. Match the labels anywhere in the line
+# rather than anchoring to the start.
+assert_cmd_pat 'PID[[:space:]]+USER[[:space:]]+PR' top -b -n1
+assert_cmd_pat '%CPU[[:space:]]+%MEM[[:space:]]+TIME\+' top -b -n1
+# At least the header plus PID 1, which exists in every container.
+assert_cmd_pat '^[[:space:]]+1[[:space:]]' top -b -n1
 
 echo "  ── -n1 implies a single iteration without -b ──"
 # The header alone is enough; a second iteration would need another delay.
@@ -28,12 +35,20 @@ assert_cmd_pat '^Tasks: [0-9]+ total' top -n1
 echo "  ── -p restricts the table to one PID ──"
 all_count=$(timeout 10 "$MODBOX" top -b -n1 2>/dev/null | grep -cE '^[[:space:]]*[0-9]+ ')
 one_count=$(timeout 10 "$MODBOX" top -b -n1 -p 1 2>/dev/null | grep -cE '^[[:space:]]*[0-9]+ ')
-if [[ "$one_count" -eq 1 ]]; then
-    pass "top -p 1: table shows exactly one process"
+if [[ "$one_count" -eq 1 && "$all_count" -gt 1 ]]; then
+    pass "top -p 1: table shows exactly one of $all_count processes"
 else
-    fail "top -p 1: expected 1 row, got $one_count (unfiltered had $all_count)"
+    fail "top -p 1: expected 1 row (unfiltered had $all_count), got $one_count"
 fi
 assert_cmd_pat '^Tasks: 1 total' top -b -n1 -p 1
+# A PID that is not running is not an error: an empty table, status 0.
+assert_cmd_pat '^Tasks: 0 total' top -b -n1 -p 999999
+timeout 10 "$MODBOX" top -b -n1 -p 999999 >/dev/null 2>&1
+if [[ $? -eq 0 ]]; then
+    pass "top -p <unused>: exits 0 with an empty table"
+else
+    fail "top -p <unused>: should exit 0"
+fi
 
 echo "  ── memory line reports MiB units ──"
 assert_cmd_pat 'Mem: .* total, .* free, .* used' top -b -n1
