@@ -20,7 +20,7 @@ public:
     ArgTable& operator=(const ArgTable&) = delete;
 
     int parse(int argc, char** argv) {
-        return arg_parse(argc, argv, table_.data());
+        return arg_parse_n(argc, argv, table_.data(), table_.size());
     }
 
     int print_errors(struct arg_end* end, const char* prog) {

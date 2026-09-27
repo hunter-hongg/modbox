@@ -54,7 +54,9 @@ DEP := $(OBJ:.o=.d)
 # Support linuxbrew pkg-config path (can be overridden via environment)
 LINUXBREW_PKGCONFIG ?= /home/linuxbrew/.linuxbrew/lib/pkgconfig
 PKG_CONFIG_PATH := $(LINUXBREW_PKGCONFIG):$(PKG_CONFIG_PATH)
-PKGS := argtable3 ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2
+# argtable3 is no longer an external dependency: include/argtable3.h and
+# src/argtable3.cpp are a hand-written reimplementation of its API.
+PKGS := ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2
 PKG_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags $(PKGS))
 PKG_LIBS   := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs   $(PKGS))
 # --------------------------------------------------------------------------

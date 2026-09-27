@@ -23,7 +23,8 @@
   - `std::filesystem` for path manipulation (replaces `g_path_get_basename`, `g_build_filename`)
 - Standard C types: `int` for `gint`, `size_t` for `gsize`, `int64_t` for `gint64`, `uint64_t` for `guint64`, `bool` for `gboolean`
 - Memory management: `new`/`delete` or RAII containers (no `g_malloc`/`g_free`)
-- Uses argtable3 for argument parsing
+- Uses argtable3 for argument parsing — the API is implemented in-tree
+  (`include/argtable3.h` + `src/argtable3.cpp`), not linked from a system library
 - POSIX APIs (fopen, stat, readdir, etc.) used directly
 
 ### Adding Commands
@@ -44,12 +45,13 @@
 ### Command Interface
 
 - Signature: `int command(int argc, char** argv)`
-- Uses argtable3 for argument parsing
+- Uses argtable3 for argument parsing (in-tree; see Code Convention)
 - Command lookup via `CommandRegistry` singleton in `src/main.cpp`
 
 ### Dependencies
 
-- argtable3, ftxui, openssl, libselinux, libacl (via pkg-config)
+- ftxui, openssl, libselinux, libacl (via pkg-config)
+- argtable3 is in-tree, not an external dependency
 - No GLib dependency
 - Pure Makefile build — no CMake or vcpkg required
 
