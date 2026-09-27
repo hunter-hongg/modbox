@@ -41,13 +41,20 @@ export PATH="$B/opt/gcc/bin:$B/opt/pandoc/bin:$PATH"
 export PKG_CONFIG="$B/lib/pkgconfig:/home/linuxbrew/.linuxbrew/lib/pkgconfig"
 
 make compile LINUXBREW_PKGCONFIG="$PKG_CONFIG" CXX="$B/opt/gcc/bin/g++-16"
-make test
 make man LINUXBREW_PKGCONFIG="$PKG_CONFIG"
+make test
 ```
 
 `CXX=` is required because the Makefile defaults to `g++`, which does not exist
 on this host. `LINUXBREW_PKGCONFIG=` is overridden for the same reason: the
 Makefile hard-codes the read-only prefix at line 55.
+
+`make man` must run **before** `make test`, and `pandoc` must be on `PATH` (it
+is in `$B/opt/pandoc/bin`, which the `PATH` above covers). The man-page tests
+assert that `make man` has actually rendered `build/man/modbox-<cmd>.1`, and
+`make clean` deletes `build/man`. Without pandoc, `make man` prints "pandoc
+not found" and exits 1, so those 4 assertions in `tests/test_man_issue62.sh`
+fail on an empty `build/man` even though nothing is wrong with the command.
 
 ## Reinstalling into `.brew/`
 
@@ -78,7 +85,7 @@ chmod a-w "$B/bin/brew"
 
 ## Expected test failures (environment, not regressions)
 
-`make test` reports `3617 passed, 5 failed`. All five are container artefacts:
+`make test` reports `3623 passed, 5 failed`. All five are container artefacts:
 
 * `test_restorecon.sh` (2) — SELinux is `Disabled` on this host.
 * `test_pgrep.sh` (1) — expects `2 kthreadd`; the PID namespace has a different
