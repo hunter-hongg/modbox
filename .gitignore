@@ -29,6 +29,9 @@ index.html
 payload.json
 .codewhale/
 
+# Local Homebrew prefix (toolchain fallback when /home/linuxbrew is read-only)
+.brew/
+
 # Generated reference files
 man_pages.txt
 registered_cmds.txt
