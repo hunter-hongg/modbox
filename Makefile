@@ -95,6 +95,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-ausearch.1.md \
 	$(MAN_SRC_DIR)/modbox-awk.1.md \
 	$(MAN_SRC_DIR)/modbox-head.1.md \
+	$(MAN_SRC_DIR)/modbox-hexdump.1.md \
 	$(MAN_SRC_DIR)/modbox-tail.1.md \
 	$(MAN_SRC_DIR)/modbox-sort.1.md \
 	$(MAN_SRC_DIR)/modbox-grep.1.md \
