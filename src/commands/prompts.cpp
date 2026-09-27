@@ -876,10 +876,10 @@ static void cmd_render(int argc, char** argv) {
 
 // ── Subcommand: init ────────────────────────────────────────────────────
 
-static void cmd_init(const char* shell) {
+static int cmd_init(const char* shell) {
     if ((shell == nullptr) || shell[0] == '\0') {
         (void)fprintf(stderr, "prompts: please specify a shell: bash, zsh, fish\n");
-        return;
+        return 1;
     }
 
     std::string const s(shell);
@@ -949,7 +949,9 @@ end
 )SH");
     } else {
         (void)fprintf(stderr, "prompts: unsupported shell '%s'. Supported: bash, zsh, fish\n", shell);
+        return 1;
     }
+    return 0;
 }
 
 // ── Subcommand: list ────────────────────────────────────────────────────
@@ -1040,7 +1042,7 @@ int prompts_command(int argc, char** argv) {
         cmd_render(argc - 1, argv + 1);
     } else if (subcmd == "init") {
         const char* shell = (argc >= 3) ? argv[2] : "";
-        cmd_init(shell);
+        return cmd_init(shell);
     } else if (subcmd == "list") {
         cmd_list();
     } else if (subcmd == "modules") {
@@ -1049,6 +1051,7 @@ int prompts_command(int argc, char** argv) {
     } else {
         (void)fprintf(stderr, "prompts: unknown subcommand '%s'\n", subcmd.c_str());
         (void)fprintf(stderr, "Run 'prompts --help' for usage.\n");
+        return 1;
     }
     return 0;
 }
