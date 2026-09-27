@@ -321,9 +321,10 @@ int process_path(const GzipOptions& opt, const std::string& path,
             return 1;
         }
         if (opt.to_stdout) {
+            /* -c writes to stdout and keeps the input, as its own help text
+             * says. Deleting here contradicted both that and gzip(1), and the
+             * compress path below already gets it right. */
             (void)fwrite(out.data(), 1, out.size(), stdout);
-            if (!opt.keep) { (void)std::remove(path.c_str());
-}
             if (opt.verbose) { print_ratio(prog, path, in.size(), out.size(), nullptr);
 }
             return 0;

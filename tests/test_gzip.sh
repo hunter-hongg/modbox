@@ -199,6 +199,33 @@ if [[ "$c_out" == "gunzip -c" ]]; then
 else
     fail "gunzip -c: got [$c_out]"
 fi
+# -c must KEEP the input. The compress direction already did; the decompress
+# direction used to delete it, which the stdout-content assertion above could
+# not see because the bytes are identical either way.
+if [[ -f "$TMPDIR/gc.txt.gz" ]]; then
+    pass "gunzip -c: keeps the compressed input"
+else
+    fail "gunzip -c: deleted the compressed input"
+fi
+# Same contract via the combined form, and it must not write a decompressed
+# file next to the input.
+printf 'gzip -dc\n' > "$TMPDIR/gdc.txt"
+"$MODBOX" gzip "$TMPDIR/gdc.txt" >/dev/null 2>&1
+gdc_out=$("$MODBOX" gzip -dc "$TMPDIR/gdc.txt.gz" 2>/dev/null)
+if [[ "$gdc_out" == "gzip -dc" && -f "$TMPDIR/gdc.txt.gz" && ! -f "$TMPDIR/gdc.txt" ]]; then
+    pass "gzip -dc: stdout, keeps .gz, writes no output file"
+else
+    fail "gzip -dc: out=[$gdc_out] gz=$([[ -f "$TMPDIR/gdc.txt.gz" ]] && echo kept || echo gone) plain=$([[ -f "$TMPDIR/gdc.txt" ]] && echo written || echo absent)"
+fi
+# Without -c the input IS consumed, so the fix did not disable removal.
+printf 'gzip -d removes\n' > "$TMPDIR/grm.txt"
+"$MODBOX" gzip "$TMPDIR/grm.txt" >/dev/null 2>&1
+"$MODBOX" gzip -d "$TMPDIR/grm.txt.gz" >/dev/null 2>&1
+if [[ ! -f "$TMPDIR/grm.txt.gz" && -f "$TMPDIR/grm.txt" ]]; then
+    pass "gzip -d (no -c): still removes the .gz"
+else
+    fail "gzip -d (no -c): failed to remove the .gz"
+fi
 
 echo "  ── -f overwrites existing decompressed output ──"
 printf 'gunzip -f payload\n' > "$TMPDIR/gf.txt"
