@@ -72,6 +72,52 @@ printf 'cat by name\n' > "$TMPDIR/catn.txt"
 catname_out=$("$TMPDIR/bzcat" "$TMPDIR/catn.txt.bz2" 2>/dev/null)
 if [[ "$catname_out" == "cat by name" && -f "$TMPDIR/catn.txt.bz2" ]]; then pass "bzcat: decompresses to stdout and keeps input"; else fail "bzcat: got [$catname_out]"; fi
 
+echo "  ── bzcat -f passes non-bzip2 input through ──"
+# Upstream's `bzcat -f FILE` decompresses bzip2 and copies anything else
+# through, which is how bzcat doubles as a plain `cat`. Without -f a
+# non-bzip2 file is an error, so the flag is what selects the two behaviours.
+printf 'not compressed at all\n' > "$TMPDIR/plain.txt"
+force_out=$("$MODBOX" bzcat -f "$TMPDIR/plain.txt" 2>/dev/null)
+if [[ "$force_out" == "not compressed at all" ]]; then
+    pass "bzcat -f: copies non-bzip2 input to stdout"
+else
+    fail "bzcat -f: got [$force_out]"
+fi
+noforce_out=$("$MODBOX" bzcat "$TMPDIR/plain.txt" 2>/dev/null)
+if [[ -z "$noforce_out" ]]; then
+    pass "bzcat (no -f): refuses non-bzip2 input"
+else
+    fail "bzcat (no -f): unexpectedly produced [$noforce_out]"
+fi
+assert_cmd_pat_stderr 'not a bzip2 file' bzcat "$TMPDIR/plain.txt"
+# -f must not swallow a real corruption: bad magic is passthrough-eligible,
+# a broken stream is not.
+printf 'BZh9truncated garbage' > "$TMPDIR/broken.bz2"
+"$MODBOX" bzcat -f "$TMPDIR/broken.bz2" >/dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+    pass "bzcat -f: still fails on a corrupt bzip2 stream"
+else
+    fail "bzcat -f: corrupt stream was passed through"
+fi
+# The passthrough is bzcat-specific; bunzip2 -f must keep erroring.
+"$MODBOX" bunzip2 -f "$TMPDIR/plain.txt" >/dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+    pass "bunzip2 -f: does not inherit the bzcat passthrough"
+else
+    fail "bunzip2 -f: unexpectedly accepted a non-bzip2 file"
+fi
+# A mixed directory is the reason the feature exists.
+printf 'plain member\n' > "$TMPDIR/mix-plain.txt"
+printf 'bz member\n'     > "$TMPDIR/mix.txt"
+"$MODBOX" bzip2 "$TMPDIR/mix.txt" >/dev/null 2>&1
+mix_out=$("$MODBOX" bzcat -f "$TMPDIR/mix-plain.txt" "$TMPDIR/mix.txt.bz2" 2>/dev/null)
+if [[ "$mix_out" == "plain member
+bz member" ]]; then
+    pass "bzcat -f: handles a mixed plain+compressed directory"
+else
+    fail "bzcat -f mixed dir: got [$mix_out]"
+fi
+
 echo "  ── -d on non-.bz2 name appends .out ──"
 printf 'odd name payload\n' > "$TMPDIR/odd.src"
 "$MODBOX" bzip2 -k "$TMPDIR/odd.src" >/dev/null 2>&1

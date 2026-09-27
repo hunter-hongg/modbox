@@ -42,6 +42,14 @@ Concatenated bzip2 streams are decoded as a single logical input.
 **-q**, **--quiet**
 :   Suppress non-critical error messages.
 
+**-f**, **--force**
+:   Copy input that is *not* a bzip2 stream through to standard output
+    unchanged, instead of reporting `not a bzip2 file`. This is upstream's
+    behaviour and is what lets **bzcat** stand in for **cat** on a directory
+    holding both plain and compressed files. A file that *starts* with a
+    bzip2 header but is corrupt is still reported as an error: only a
+    missing header selects the passthrough.
+
 **-v**, **--verbose**
 :   Print the file name and the compression ratio for each file.
 
@@ -57,7 +65,8 @@ Concatenated bzip2 streams are decoded as a single logical input.
   created and no input file is removed, regardless of **-k**.
 - Input that does not begin with a bzip2 stream header is reported as
   `not a bzip2 file`; a checksum mismatch is reported as
-  `data integrity (CRC) error in data`.
+  `data integrity (CRC) error in data`. With **-f**, a missing header is
+  instead copied through verbatim (see **-f** above).
 
 # EXAMPLES
 
@@ -70,6 +79,9 @@ modbox bzcat archive.txt.bz2 | grep pattern
 
 # Decompress standard input
 cat archive.txt.bz2 | modbox bzcat
+
+# Show a directory's contents whether or not each file is compressed
+modbox bzcat -f *
 ```
 
 # EXIT STATUS

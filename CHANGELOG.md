@@ -34,6 +34,7 @@ All notable changes to this project are documented in this file.
 - nslookup: fix --help requiring domain, make -t optional (default A).
 - sleep: fix error exit code (0 -> 1).
 - sum: fix error exit code on missing file (0 -> 1).
+- bzcat: implement `-f` passthrough — decompress bzip2 streams and copy non-bzip2 input through unchanged, matching upstream bzip2 and letting `bzcat -f *` stand in for `cat` on a mixed directory. Only a missing bzip2 header selects the passthrough; a stream with a valid header but corrupt data is still an error, and the behaviour is bzcat-specific so `bunzip2 -f` still rejects a plain file. The man page documented no `-f` at all and its BEHAVIOR NOTES claimed every non-bzip2 input was an error; both are corrected.
 - gzip: fix `gzip -d -c` and `gunzip -c` deleting the compressed input. `-c` writes to stdout and keeps the file, as its own help text and gzip(1) both state; the compress direction already behaved that way and only the decompress branch removed the source. The existing test asserted only the stdout bytes, which are identical either way, so it could not see the deletion.
 - stty: return exit 1 instead of 0 on a non-tty or unreadable device, name the requested device in the error when `-F` is given instead of falling back to "standard input", and handle the bare `speed`/`ispeed`/`ospeed` query forms.
 

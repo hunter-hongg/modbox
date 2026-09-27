@@ -189,6 +189,15 @@ int do_decompress(const Bzip2Options& opt, const std::string& path,
     std::vector<unsigned char> out;
     int const rc = bz_decompress(in, out);
     if (rc != BZ_OK) {
+        /* `bzcat -f FILE` is upstream's "decompress if it is bzip2, otherwise
+         * copy the bytes through": it is how bzcat doubles as a plain `cat`
+         * for mixed directories. Only the bad magic qualifies — a genuinely
+         * corrupt stream must still be reported. */
+        if (rc == BZ_DATA_ERROR_MAGIC && opt.force
+            && std::string(prog) == "bzcat") {
+            write_stdout(in);
+            return 0;
+        }
         return report(rc, prog, stdin_mode ? "(stdin)" : path);
     }
     if (opt.test) {
@@ -280,6 +289,9 @@ void print_help(const char* prog, const std::string& name) {
     printf("  -c, --stdout       write to standard output, keep input files\n");
     printf("  -k, --keep         keep (do not delete) input files\n");
     printf("  -f, --force        overwrite existing output files\n");
+    if (name == "bzcat") {
+        printf("                     for bzcat: also copy non-bzip2 input through\n");
+    }
     printf("  -t, --test         test compressed file integrity\n");
     printf("  -q, --quiet        suppress noncritical error messages\n");
     printf("  -v, --verbose      be verbose\n");
