@@ -181,6 +181,65 @@ if [[ -n $LIVE_PORT ]]; then
     if [[ $rc -ne 0 ]]; then pass "nc -i0.2 -z → glued -i parsed"; else fail "nc -i0.2 -z → exit 0, expected non-zero"; fi
     "$MODBOX" nc -p12345 -z 127.0.0.1 "$CLOSED_PORT" >/dev/null 2>&1; rc=$?
     if [[ $rc -ne 0 ]]; then pass "nc -p12345 -z → glued -p parsed"; else fail "nc -p12345 -z → exit 0, expected non-zero"; fi
+    # The `netcat` alias runs the same code, so a divergence would be in
+    # behaviour rather than in registration. Exercise it for real, not just
+    # for --help.
+    echo "  ── live netcat alias: TCP round-trip ──"
+    start_listener -l "$P"
+    printf 'hello-netcat\n' | "$MODBOX" netcat 127.0.0.1 "$P" >/dev/null 2>&1
+    rc=$?
+    stop_listener
+    if [[ $rc -eq 0 ]] && grep -q 'hello-netcat' "$LISTENER_OUT"; then
+        pass "netcat alias: listener relayed client data"
+    else
+        fail "netcat alias round-trip — client rc=$rc, listener output [$(head -c 80 "$LISTENER_OUT")]"
+    fi
+
+    echo "  ── live netcat alias: -v reports succeeded ──"
+    start_listener -l "$P"
+    VOUT=$("$MODBOX" netcat -v 127.0.0.1 "$P" </dev/null 2>&1)
+    rc=$?
+    stop_listener
+    if [[ $rc -eq 0 && "$VOUT" == *"succeeded!"* ]]; then
+        pass "netcat -v → prints succeeded!"
+    else
+        fail "netcat -v — rc=$rc, output [$(echo "$VOUT" | head -c 80)]"
+    fi
+
+    echo "  ── live netcat alias: -z probes an open port ──"
+    start_listener -l -k "$P"
+    "$MODBOX" netcat -z 127.0.0.1 "$P" >/dev/null 2>&1
+    rc=$?
+    stop_listener
+    if [[ $rc -eq 0 ]]; then
+        pass "netcat -z → exit 0 against a listening port"
+    else
+        fail "netcat -z → exit $rc against a listening port, expected 0"
+    fi
+
+    echo "  ── live netcat alias: -c executes a command ──"
+    # Like nc -c, the command's output reaches us through the listener's relay,
+    # not on the client's own stdout.
+    start_listener -l -k "$P"
+    "$MODBOX" netcat -c 'echo netcat-exec' 127.0.0.1 "$P" >/dev/null 2>&1
+    rc=$?
+    stop_listener
+    if [[ $rc -eq 0 ]] && grep -q 'netcat-exec' "$LISTENER_OUT"; then
+        pass "netcat -c → command output relayed"
+    else
+        fail "netcat -c — rc=$rc, output [$(head -c 80 "$LISTENER_OUT")]"
+    fi
+
+    echo "  ── live netcat alias: UDP client completes ──"
+    start_listener -l -u -k "$P"
+    printf 'udp-netcat\n' | "$MODBOX" netcat -u 127.0.0.1 "$P" >/dev/null 2>&1
+    rc=$?
+    stop_listener
+    if [[ $rc -eq 0 ]]; then
+        pass "netcat -u → UDP client completed"
+    else
+        fail "netcat -u — rc=$rc"
+    fi
 else
     echo "  SKIP  live loopback tests (no free bindable port in 19000-19999)"
 fi
@@ -193,6 +252,34 @@ assert_cmd_pat 'modbox' netcat --version
 
 echo "  ── netcat -h shows usage ──"
 assert_cmd_pat 'Usage:' netcat -h
+
+echo "  ── diagnostics name the command the user invoked ──"
+# The alias shares the implementation, so a hardcoded "nc:" prefix would name
+# a command the user never typed. -z against a closed port is the reliable
+# trigger: it always fails to connect.
+CLOSED=$((19000 + (RANDOM % 900)))
+assert_cmd_pat_stderr '^netcat: ' netcat -z 127.0.0.1 "$CLOSED"
+assert_cmd_pat_stderr '^nc: ' nc -z 127.0.0.1 "$CLOSED"
+assert_cmd_pat_stderr '^netcat: missing host or port' netcat
+assert_cmd_pat_stderr '^nc: missing host or port' nc
+# ... and must not leak the other name.
+if "$MODBOX" netcat -z 127.0.0.1 "$CLOSED" 2>&1 >/dev/null | grep -q '^nc: '; then
+    fail "netcat diagnostics must not say 'nc:'"
+else
+    pass "netcat diagnostics do not say 'nc:'"
+fi
+
+echo "  ── netcat rejects bad options the same way as nc ──"
+"$MODBOX" netcat >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 2 ]]; then pass "netcat (no args) → exit 2"; else fail "netcat (no args) → exit $rc, expected 2"; fi
+"$MODBOX" netcat --bogus >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 2 ]]; then pass "netcat --bogus → exit 2"; else fail "netcat --bogus → exit $rc, expected 2"; fi
+"$MODBOX" netcat -l >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 2 ]]; then pass "netcat -l (no port) → exit 2"; else fail "netcat -l (no port) → exit $rc, expected 2"; fi
+"$MODBOX" netcat no-such-host-xyz.invalid 80 >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 1 ]]; then pass "netcat unknown host → exit 1"; else fail "netcat unknown host → exit $rc, expected 1"; fi
+# Usage errors mention the alias in the hint too.
+assert_cmd_pat_stderr 'Try .*--help' netcat --bogus
 
 echo "  ── nc appears in modbox help ──"
 assert_cmd_pat 'nc' help

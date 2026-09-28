@@ -28,6 +28,11 @@ namespace {
 // ── Options ─────────────────────────────────────────────────────────────────
 
 struct NCOptions {
+    /* The name this command was invoked as. Diagnostics must use it rather
+     * than a hardcoded "nc": the same code serves the `netcat` alias, and a
+     * user who typed `netcat` should not be told about `nc`. */
+    const char* prog = "nc";
+
     bool listen = false;
     bool keep = false;
     bool udp = false;
@@ -244,7 +249,7 @@ bool resolve_and_connect(const NCOptions* opts, Resolved& out) {
     struct addrinfo* res = nullptr;
     int rc = getaddrinfo(opts->host.c_str(), port_str.c_str(), &hints, &res);
     if (rc != 0) {
-        (void)fprintf(stderr, "nc: %s\n", gai_strerror(rc));
+        (void)fprintf(stderr, "%s: %s\n", opts->prog, gai_strerror(rc));
         return false;
     }
 
@@ -283,7 +288,7 @@ bool resolve_and_connect(const NCOptions* opts, Resolved& out) {
     if (sock < 0 || chosen == nullptr) {
         freeaddrinfo(res);
         out.fd = -1;
-        (void)fprintf(stderr, "nc: connect to %s port %d (%s) failed: %s\n",
+        (void)fprintf(stderr, "%s: connect to %s port %d (%s) failed: %s\n", opts->prog,
                       opts->host.c_str(), opts->port,
                       opts->udp ? "udp" : "tcp",
                       strerror(saved_errno));
@@ -324,7 +329,7 @@ int run_listener(const NCOptions* opts) {
     struct addrinfo* res = nullptr;
     int rc = getaddrinfo(nullptr, port_str.c_str(), &hints, &res);
     if (rc != 0) {
-        (void)fprintf(stderr, "nc: %s\n", gai_strerror(rc));
+        (void)fprintf(stderr, "%s: %s\n", opts->prog, gai_strerror(rc));
         return 1;
     }
 
@@ -340,13 +345,13 @@ int run_listener(const NCOptions* opts) {
     freeaddrinfo(res);
 
     if (lsock < 0) {
-        (void)fprintf(stderr, "nc: bind to port %d failed\n", opts->port);
+        (void)fprintf(stderr, "%s: bind to port %d failed\n", opts->prog, opts->port);
         return 1;
     }
 
     if (!opts->udp) {
         if (listen(lsock, 5) < 0) {
-            (void)fprintf(stderr, "nc: listen failed: %s\n", strerror(errno));
+            (void)fprintf(stderr, "%s: listen failed: %s\n", opts->prog, strerror(errno));
             close(lsock);
             return 1;
         }
@@ -500,6 +505,7 @@ int nc_command_impl(const char* prog, int argc, char** argv) {
 
     // Build options struct from parsed args
     NCOptions opts;
+    opts.prog = prog;
     opts.listen = (listen_opt->count > 0);
     opts.keep = (keep_opt->count > 0);
     opts.udp = (udp_opt->count > 0);
@@ -600,7 +606,7 @@ int nc_command_impl(const char* prog, int argc, char** argv) {
             _exit(127);
         }
         if (pid < 0) {
-            (void)fprintf(stderr, "nc: fork failed: %s\n", strerror(errno));
+            (void)fprintf(stderr, "%s: fork failed: %s\n", prog, strerror(errno));
             close(fd);
             return 1;
         }

@@ -22,6 +22,14 @@ stdin/stdout. It is functionally identical to **nc**; see
 
 See **modbox-nc**(1) — the exact same options apply.
 
+# BEHAVIOR NOTES
+
+- Diagnostics name the command you actually invoked. `netcat -z <closed-port>`
+  reports `netcat: connect to ... failed`, while `nc -z` on the same port
+  reports `nc: ...`.
+- The verbose (`-v`) connection line is the one message that carries no
+  program-name prefix, matching upstream netcat.
+
 # SEE ALSO
 
 **modbox**(1), **modbox-nc**(1)
