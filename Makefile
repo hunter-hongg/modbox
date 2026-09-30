@@ -56,7 +56,7 @@ LINUXBREW_PKGCONFIG ?= /home/linuxbrew/.linuxbrew/lib/pkgconfig
 PKG_CONFIG_PATH := $(LINUXBREW_PKGCONFIG):$(PKG_CONFIG_PATH)
 # argtable3 is no longer an external dependency: include/argtable3.h and
 # src/argtable3.cpp are a hand-written reimplementation of its API.
-PKGS := ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2
+PKGS := ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd
 PKG_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --cflags $(PKGS))
 PKG_LIBS   := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" pkg-config --libs   $(PKGS))
 # --------------------------------------------------------------------------
@@ -235,6 +235,7 @@ MAN_SOURCES := $(MAN_SRC_DIR)/modbox-cat.1.md \
 	$(MAN_SRC_DIR)/modbox-split.1.md \
 	$(MAN_SRC_DIR)/modbox-ss.1.md \
 	$(MAN_SRC_DIR)/modbox-stdbuf.1.md \
+	$(MAN_SRC_DIR)/modbox-strings.1.md \
 	$(MAN_SRC_DIR)/modbox-stty.1.md \
 	$(MAN_SRC_DIR)/modbox-sync.1.md \
 	$(MAN_SRC_DIR)/modbox-tac.1.md \

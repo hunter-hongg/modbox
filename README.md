@@ -13,7 +13,7 @@ Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism t
 ## Features
 
 - **Multi-call binary architecture**: All commands contained in a single executable
-- **Command dispatch via CommandRegistry**: Singleton registry backed by an `unordered_map` O(1) name→entry index (202 commands)
+- **Command dispatch via CommandRegistry**: Singleton registry backed by an `unordered_map` O(1) name→entry index (203 commands)
 - **Modern C++20**: Uses the C++ STL exclusively — no GLib dependency
 - **GNU-style argument parsing**: Uses argtable3 for robust CLI option handling
 - **Minimal dependencies**: argtable3, ftxui, openssl, libselinux, libacl (resolved via pkg-config)
@@ -22,9 +22,9 @@ Unlike traditional single-purpose Unix tools, modbox uses a dispatch mechanism t
 
 ## Available Commands
 
-modbox currently provides the following commands (202 in total):
+modbox currently provides the following commands (203 in total):
 
-`arch`, `arping`, `audit2allow`, `ausearch`, `awk`, `b2sum`, `base32`, `base64`, `basename`, `basenc`, `bc`, `bunzip2`, `bzcat`, `bzip2`, `cat`, `chattr`, `chcon`, `chgrp`, `chmod`, `chown`, `chroot`, `chrt`, `cksum`, `cmp`, `column`, `comm`, `cp`, `csplit`, `curl`, `cut`, `date`, `dd`, `df`, `diff`, `diff3`, `dig`, `dir`, `dircolors`, `dirname`, `du`, `dust`, `echo`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `file`, `find`, `findmnt`, `flock`, `fmt`, `fold`, `free`, `fuser`, `getenforce`, `getfacl`, `getsebool`, `grep`, `groups`, `gunzip`, `gzip`, `head`, `help`, `hexdump`, `hostid`, `hostname`, `htop`, `id`, `install`, `iostat`, `ip`, `join`, `jq`, `kill`, `less`, `lf`, `link`, `ln`, `logger`, `logname`, `ls`, `lsblk`, `lsc`, `lscpu`, `lsof`, `lspci`, `lsusb`, `man`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mktemp`, `mount`, `mpstat`, `mtop`, `mv`, `namei`, `nc`, `netcat`, `nice`, `nl`, `nohup`, `nproc`, `nslookup`, `numfmt`, `od`, `paste`, `pathchk`, `perf`, `pgrep`, `pidof`, `ping`, `pinky`, `pr`, `printenv`, `printf`, `prompts`, `ps`, `pstree`, `ptx`, `pwd`, `readlink`, `realpath`, `renice`, `restorecon`, `rev`, `rg`, `rm`, `rmdir`, `rsync`, `runcon`, `sdiff`, `sed`, `seq`, `setenforce`, `setfacl`, `setsebool`, `sh`, `sha1sum`, `sha224sum`, `sha256sum`, `sha384sum`, `sha512sum`, `shred`, `shuf`, `sleep`, `sort`, `split`, `ss`, `stat`, `stdbuf`, `stty`, `sum`, `sync`, `tac`, `tail`, `tar`, `tc`, `tcpdump`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `tree`, `true`, `truncate`, `tsort`, `tty`, `umask`, `umount`, `uname`, `unexpand`, `uniq`, `unlink`, `unxz`, `unzip`, `uptime`, `users`, `vdir`, `vmstat`, `wall`, `watch`, `wc`, `wget`, `whereis`, `which`, `who`, `whoami`, `xargs`, `xxd`, `xz`, `yes`, `zcat`, `zip`, `zoxide`, `zstd`
+`arch`, `arping`, `audit2allow`, `ausearch`, `awk`, `b2sum`, `base32`, `base64`, `basename`, `basenc`, `bc`, `bunzip2`, `bzcat`, `bzip2`, `cat`, `chattr`, `chcon`, `chgrp`, `chmod`, `chown`, `chroot`, `chrt`, `cksum`, `cmp`, `column`, `comm`, `cp`, `csplit`, `curl`, `cut`, `date`, `dd`, `df`, `diff`, `diff3`, `dig`, `dir`, `dircolors`, `dirname`, `du`, `dust`, `echo`, `env`, `expand`, `expr`, `factor`, `false`, `fd`, `file`, `find`, `findmnt`, `flock`, `fmt`, `fold`, `free`, `fuser`, `getenforce`, `getfacl`, `getsebool`, `grep`, `groups`, `gunzip`, `gzip`, `head`, `help`, `hexdump`, `hostid`, `hostname`, `htop`, `id`, `install`, `iostat`, `ip`, `join`, `jq`, `kill`, `less`, `lf`, `link`, `ln`, `logger`, `logname`, `ls`, `lsblk`, `lsc`, `lscpu`, `lsof`, `lspci`, `lsusb`, `man`, `md5sum`, `mkdir`, `mkfifo`, `mknod`, `mktemp`, `mount`, `mpstat`, `mtop`, `mv`, `namei`, `nc`, `netcat`, `nice`, `nl`, `nohup`, `nproc`, `nslookup`, `numfmt`, `od`, `paste`, `pathchk`, `perf`, `pgrep`, `pidof`, `ping`, `pinky`, `pr`, `printenv`, `printf`, `prompts`, `ps`, `pstree`, `ptx`, `pwd`, `readlink`, `realpath`, `renice`, `restorecon`, `rev`, `rg`, `rm`, `rmdir`, `rsync`, `runcon`, `sdiff`, `sed`, `seq`, `setenforce`, `setfacl`, `setsebool`, `sh`, `sha1sum`, `sha224sum`, `sha256sum`, `sha384sum`, `sha512sum`, `shred`, `shuf`, `sleep`, `sort`, `split`, `ss`, `stat`, `stdbuf`, `strings`, `stty`, `sum`, `sync`, `tac`, `tail`, `tar`, `tc`, `tcpdump`, `tee`, `test`, `time`, `timeout`, `top`, `touch`, `tr`, `tree`, `true`, `truncate`, `tsort`, `tty`, `umask`, `umount`, `uname`, `unexpand`, `uniq`, `unlink`, `unxz`, `unzip`, `uptime`, `users`, `vdir`, `vmstat`, `wall`, `watch`, `wc`, `wget`, `whereis`, `which`, `who`, `whoami`, `xargs`, `xxd`, `xz`, `yes`, `zcat`, `zip`, `zoxide`, `zstd`
 
 > Note: `[` is aliased to `test`. Several commands also have interactive TUI modes via `--tui` (e.g. `modbox ls --tui`, `modbox grep --tui`).
 
@@ -383,12 +383,12 @@ modbox follows these principles:
 ## Current Status
 
 See CHANGELOG.md for release notes and recent notable changes.
-- ✅ Implemented commands: 202 commands including all standard GNU coreutils plus additional utilities
+- ✅ Implemented commands: 203 commands including all standard GNU coreutils plus additional utilities
 - ✅ Comprehensive test suite
 - ✅ Static analysis integration
 - ✅ GNU-style argument parsing
 - ✅ Multi-call binary architecture
-- ✅ Man pages: all 202 commands have pandoc-rendered man pages under `docs/man/`
+- ✅ Man pages: all 203 commands have pandoc-rendered man pages under `docs/man/`
 
 ## See Also
 
