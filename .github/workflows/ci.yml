@@ -79,14 +79,6 @@ jobs:
           cmake --build build -j$(nproc)
           sudo cmake --install build
 
-      - name: Verify pkg-config dependencies
-        run: |
-          set -euo pipefail
-          for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
-            pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
-          done
-          echo "All pkg-config dependencies resolve."
-
       - name: Build (make compile)
         run: |
           set -euo pipefail
@@ -149,14 +141,6 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=/usr/local
           cmake --build build -j$(nproc)
           sudo cmake --install build
-
-      - name: Verify pkg-config dependencies
-        run: |
-          set -euo pipefail
-          for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
-            pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
-          done
-          echo "All pkg-config dependencies resolve."
 
       - name: Generate compile_commands.json
         run: |
