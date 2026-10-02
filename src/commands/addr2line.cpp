@@ -1,7 +1,14 @@
 // ────── addr2line ──────────────────────────────────────────────────────────
 // Convert addresses or symbol+offset into file names and line numbers.
-// Uses libelf + libdw (elfutils) for DWARF parsing and libbfd for
-// demangling. Matches GNU addr2line 2.46 output format.
+//
+// Mirrors GNU addr2line (binutils addr2line.c): addresses are read from the
+// command line or stdin, each one is resolved against the executable's
+// symbol table and DWARF line info, and file:line[/function] is printed.
+//
+// Debug info and symbol lookup go through libbfd, so the behaviour (symbol
+// matching, "-j" section-relative offsets, "-i" inline unwinding, VMA sign
+// extension, address formatting) matches the system addr2line rather than
+// approximating it.
 // ──────────────────────────────────────────────────────────────────────────
 
 #include <argtable3.h>
@@ -10,49 +17,32 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
 #include <string>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <vector>
 
-// libelf / libdw from elfutils
-#include <elfutils/libdw.h>
-#include <elfutils/libdwfl.h>
-#include <gelf.h>
+// bfd.h insists on a config.h that only exists inside the binutils build
+// tree.  The two macros below satisfy that guard; everything else bfd.h
+// needs is already self-contained.
+#define PACKAGE 1
+#define PACKAGE_VERSION 1
+#include <bfd.h>
+
+// DMGL_* come from libiberty's demangle.h, which is not installed by the
+// Homebrew binutils formula.  These are stable libiberty ABI values; only
+// the bits bfd_demangle() actually inspects are needed here.
+static constexpr int DMGL_NO_OPTS          = 0;
+static constexpr int DMGL_PARAMS           = (1 << 0);   // include function args
+static constexpr int DMGL_ANSI             = (1 << 1);   // ANSI C style
+static constexpr int DMGL_JAVA             = (1 << 2);   // demangle as Java
+static constexpr int DMGL_AUTO             = (1 << 8);
+static constexpr int DMGL_GNU_V3           = (1 << 14);
+static constexpr int DMGL_GNAT             = (1 << 15);
+static constexpr int DMGL_NO_RECURSE_LIMIT = (1 << 18);
 
 #include "commands/arg_util.hpp"
 #include "commands/addr2line.hpp"
 #include "commands/command_macros.hpp"
 #include "commands/version_util.hpp"
-
-// ── bfd demangle (from libbfd, via Homebrew binutils) ──────────────────
-// We declare bfd_demangle ourselves because bfd.h requires config.h which
-// is internal to the binutils build tree. The DMGL_* constants are from
-// libiberty's demangle.h and are stable ABI values.
-extern "C" {
-char* bfd_demangle(void* abfd, const char* name, int flags);
-}
-
-// DMGL flag values (from libiberty's demangle.h).
-// These bit positions are defined by libiberty and must not be changed.
-static constexpr int DMGL_NO_OPTS  = 0;
-static constexpr int DMGL_PARAMS   = (1 << 0);
-static constexpr int DMGL_VERBOSE  = (1 << 1);
-static constexpr int DMGL_TYPES    = (1 << 2);
-static constexpr int DMGL_RET_POST = (1 << 3);
-static constexpr int DMGL_AUTO     = (1 << 4);
-static constexpr int DMGL_FILE     = (1 << 5);
-static constexpr int DMGL_VIEW     = (1 << 6);
-static constexpr int DMGL_GNU      = (1 << 7);
-static constexpr int DMGL_LUCID    = (1 << 8);
-static constexpr int DMGL_ARM      = (1 << 9);
-static constexpr int DMGL_JAVA     = (1 << 10);
-static constexpr int DMGL_ACT      = (1 << 11);
-static constexpr int DMGL_IBM      = (1 << 12);
-static constexpr int DMGL_GNU_V3   = (1 << 13);
-static constexpr int DMGL_HP       = (1 << 14);
-static constexpr int DMGL_REMOTE   = (1 << 15);
 
 namespace {
 
@@ -62,275 +52,363 @@ struct Addr2LineOptions {
     bool print_address = false;        // -a/--addresses
     bool demangle = false;             // -C/--demangle
     std::string demangle_style;        // --demangle=STYLE
-    bool recurse_limit = true;         // -R/--recurse-limit (default on)
+    bool no_recurse_limit = false;     // -r/--no-recurse-limit
     std::string exe_file = "a.out";    // -e/--exe
     bool print_functions = false;      // -f/--functions
     bool show_inlines = false;         // -i/--inlines
     bool pretty_print = false;         // -p/--pretty-print
-    bool basename_only = false;         // -s/--basenames
+    bool basename_only = false;        // -s/--basenames
+    std::string section_name;          // -j/--section
 };
 
-// ── Demangling ───────────────────────────────────────────────────────────
+// ── Token grammar ────────────────────────────────────────────────────────
 
-// Convert a demangle style name to DMGL style flags.
-// Returns -1 for unknown style names.
-int demangle_style_to_flags(const char* style) {
-    if (style == nullptr || *style == '\0') {
-        return DMGL_AUTO;  // default: autodetect
+// Split a "symbol+offset" expression, mirroring is_symbol() in binutils
+// addr2line.c.  Returns true when the token is a symbol reference; the
+// symbol name is written to `sym` (with the "+offset" tail removed) and the
+// offset to `offset`.  A bare hex number yields false.
+//
+// The rules are deliberately literal copies of the original:
+//   - leading whitespace is skipped
+//   - a digit, or an empty token, is a number
+//   - a leading [A-Fa-f] with no '+' anywhere in the token is a number
+//   - otherwise the name runs to the next space or '+', and an offset
+//     follows only when a '+' comes next (optional whitespace between)
+bool is_symbol(const std::string& input, std::string& sym, unsigned long& offset) {
+    size_t i = 0;
+    while (i < input.size() && isspace((unsigned char)input[i])) {
+        i++;
     }
-
-    if (strcmp(style, "gnu") == 0 || strcmp(style, "g") == 0 ||
-        strcmp(style, "gnulib") == 0) {
-        return DMGL_GNU;
+    if (i >= input.size()) {
+        return false;  // empty token is a number
     }
-    if (strcmp(style, "lucid") == 0 || strcmp(style, "l") == 0) {
-        return DMGL_LUCID;
+    if (isdigit((unsigned char)input[i])) {
+        return false;
     }
-    if (strcmp(style, "arm") == 0) {
-        return DMGL_ARM;
-    }
-    if (strcmp(style, "java") == 0 || strcmp(style, "j") == 0) {
-        return DMGL_JAVA;
-    }
-    if (strcmp(style, "auto") == 0) {
-        return DMGL_AUTO;
-    }
-    return -1;  // unknown style
-}
-
-// ── DWFL callbacks ───────────────────────────────────────────────────────
-
-// For offline (file-based) use, find_elf is not needed since
-// dwfl_report_offline already provides the ELF data.
-static int find_elf_mod(Dwfl_Module*, void**, const char*, Dwarf_Addr,
-                        char**, Elf**) {
-    return -1;
-}
-
-static const Dwfl_Callbacks dwfl_callbacks = {
-    .find_elf = find_elf_mod,
-    .find_debuginfo = nullptr,
-    .debuginfo_path = nullptr,
-};
-
-// ── Address resolution ───────────────────────────────────────────────────
-
-struct ResolvedLocation {
-    std::string function;
-    std::string filename;
-    int line;
-    bool has_location;   // true if file:line was resolved from DWARF
-    bool has_symbol;     // true if a symbol/function name was found
-};
-
-// Resolve an address to file:line and optionally function name.
-// The `bias` is the module load bias from dwfl_module_getelf; the
-// user-supplied address is a raw ELF virtual address without the bias.
-ResolvedLocation resolve_address(Dwfl_Module* mod, Dwarf_Addr address,
-                                 Dwarf_Addr bias) {
-    ResolvedLocation result = {"??", "??", 0, false, false};
-
-    if (!mod) {
-        return result;
-    }
-
-    // Get source line info — dwfl_module_getsrc expects the address
-    // adjusted by the module's load bias.
-    Dwarf_Addr adjusted = address + bias;
-    Dwfl_Line* line = dwfl_module_getsrc(mod, adjusted);
-    if (line) {
-        Dwarf_Addr addr_out;
-        int line_out = 0;
-        int col_out = 0;
-        Dwarf_Word mtime = 0;
-        Dwarf_Word length = 0;
-        const char* file = dwfl_lineinfo(line, &addr_out, &line_out, &col_out,
-                                        &mtime, &length);
-        if (file) {
-            result.filename = file;
-            result.line = line_out;
-            result.has_location = true;
+    {
+        char c = (char)toupper((unsigned char)input[i]);
+        bool is_hex_letter = (c >= 'A' && c <= 'F');
+        if (is_hex_letter && input.find('+', i) == std::string::npos) {
+            return false;
         }
     }
 
-    // Get function name
-    GElf_Sym sym;
-    GElf_Word shndx;
-    const char* symname = dwfl_module_addrsym(mod, adjusted, &sym, &shndx);
-    if (symname) {
-        result.function = symname;
-        result.has_symbol = true;
+    const size_t start = i;
+    while (i < input.size() && !isspace((unsigned char)input[i]) && input[i] != '+') {
+        i++;
+    }
+    const size_t end = i;  // NUL position in the original (mutating) version
+
+    while (i < input.size() && isspace((unsigned char)input[i])) {
+        i++;
     }
 
-    return result;
+    offset = 0;
+    if (i < input.size() && input[i] == '+') {
+        i++;
+        offset = strtoul(input.c_str() + i, nullptr, 0);
+    }
+
+    sym = input.substr(start, end - start);
+    return true;
 }
 
-// Resolve a symbol+offset expression by looking up the symbol in the
-// symbol table and adding the offset to its value.
-bool resolve_symbol_offset(Dwfl_Module* mod, const std::string& input,
-                           Dwarf_Addr& out_addr) {
-    size_t plus_pos = input.find_last_of('+');
-    if (plus_pos == std::string::npos || plus_pos == 0) {
-        return false;
+// ── Symbol table ─────────────────────────────────────────────────────────
+
+// Loaded once per invocation; the BFD API wants the canonicalized table for
+// both symbol lookup and nearest-line queries.
+struct SymbolTable {
+    asymbol** syms = nullptr;
+    long count = 0;
+
+    ~SymbolTable() {
+        free(syms);
     }
 
-    std::string sym_name = input.substr(0, plus_pos);
-    std::string offset_str = input.substr(plus_pos + 1);
+    bool load(bfd* abfd) {
+        long storage = bfd_get_symtab_upper_bound(abfd);
+        if (storage < 0) {
+            return false;
+        }
+        if (storage == 0) {
+            // No symbols — bfd_canonicalize_symtab would be a no-op.
+            count = 0;
+            syms = nullptr;
+            return true;
+        }
+        syms = (asymbol**)malloc((size_t)storage);
+        if (syms == nullptr) {
+            return false;
+        }
+        count = bfd_canonicalize_symtab(abfd, syms);
+        if (count < 0) {
+            free(syms);
+            syms = nullptr;
+            count = 0;
+            return false;
+        }
+        return true;
+    }
+};
 
-    char* end = nullptr;
-    errno = 0;
-    unsigned long offset = strtoul(offset_str.c_str(), &end, 0);
-    if (errno != 0 || end == offset_str.c_str() || *end != '\0') {
-        return false;
+// Find a symbol by name and return value + offset + section VMA, exactly as
+// GNU addr2line's lookup_symbol() does.  A second pass compares against the
+// demangled names so "Foo::bar(int)" resolves the same as the mangled
+// spelling.  Returns 0 when nothing matches.
+bfd_vma lookup_symbol(bfd* abfd, const SymbolTable& symtab,
+                      const std::string& name, unsigned long offset,
+                      int demangle_flags) {
+    for (long i = 0; i < symtab.count; i++) {
+        const char* symname = symtab.syms[i]->name;
+        if (symname != nullptr && strcmp(symname, name.c_str()) == 0) {
+            return symtab.syms[i]->value + (bfd_vma)offset +
+                   bfd_section_vma(bfd_asymbol_section(symtab.syms[i]));
+        }
     }
 
-    int symcount = dwfl_module_getsymtab(mod);
-    if (symcount < 0) {
-        return false;
+    // Try again with demangled names.
+    for (long i = 0; i < symtab.count; i++) {
+        const char* symname = symtab.syms[i]->name;
+        if (symname == nullptr || symname[0] == '\0') {
+            continue;
+        }
+        char* demangled = bfd_demangle(abfd, symname, demangle_flags);
+        bool match = (demangled != nullptr && strcmp(demangled, name.c_str()) == 0);
+        free(demangled);
+        if (match) {
+            return symtab.syms[i]->value + (bfd_vma)offset +
+                   bfd_section_vma(bfd_asymbol_section(symtab.syms[i]));
+        }
     }
 
+    return 0;
+}
+
+// ── Address → location ──────────────────────────────────────────────────
+
+struct Location {
+    const char* filename = nullptr;
+    const char* function = nullptr;
+    unsigned int line = 0;
+    unsigned int discriminator = 0;
     bool found = false;
-    for (int i = 0; i < symcount; i++) {
-        GElf_Sym sym;
-        GElf_Word shndx;
-        const char* name = dwfl_module_getsym(mod, i, &sym, &shndx);
-        if (name && strcmp(name, sym_name.c_str()) == 0) {
-            out_addr = sym.st_value + (Dwarf_Addr)offset;
-            found = true;
+};
+
+// Callback state used by the section walk; like binutils, the first
+// SEC_ALLOC section containing the address wins.
+struct FindState {
+    bfd_vma pc;
+    asymbol** syms;
+    Location loc;
+};
+
+static void find_address_in_section(bfd* abfd, asection* section, void* data) {
+    FindState* state = (FindState*)data;
+    if (state->loc.found) {
+        return;
+    }
+    if ((bfd_section_flags(section) & SEC_ALLOC) == 0) {
+        return;
+    }
+    const bfd_vma vma = bfd_section_vma(section);
+    if (state->pc < vma) {
+        return;
+    }
+    if (state->pc >= vma + bfd_section_size(section)) {
+        return;
+    }
+
+    const char* filename = nullptr;
+    const char* funcname = nullptr;
+    unsigned int line = 0;
+    unsigned int discriminator = 0;
+    const bool found = bfd_find_nearest_line_discriminator(
+        abfd, section, state->syms, state->pc - vma, &filename, &funcname,
+        &line, &discriminator);
+    if (found) {
+        state->loc.found = true;
+        state->loc.filename = filename;
+        state->loc.function = funcname;
+        state->loc.line = line;
+        state->loc.discriminator = discriminator;
+    }
+}
+
+static void find_offset_in_section(bfd* abfd, asection* section, void* data) {
+    FindState* state = (FindState*)data;
+    if (state->loc.found) {
+        return;
+    }
+    if ((bfd_section_flags(section) & SEC_ALLOC) == 0) {
+        return;
+    }
+    if (state->pc >= (bfd_vma)bfd_section_size(section)) {
+        return;
+    }
+
+    const char* filename = nullptr;
+    const char* funcname = nullptr;
+    unsigned int line = 0;
+    unsigned int discriminator = 0;
+    const bool found = bfd_find_nearest_line_discriminator(
+        abfd, section, state->syms, state->pc, &filename, &funcname, &line,
+        &discriminator);
+    if (found) {
+        state->loc.found = true;
+        state->loc.filename = filename;
+        state->loc.function = funcname;
+        state->loc.line = line;
+        state->loc.discriminator = discriminator;
+    }
+}
+
+// ── Output ─────────────────────────────────────────────────────────────
+
+// Print an address with the target's own width, as bfd_printf_vma does.
+void print_address(bfd* abfd, bfd_vma value) {
+    fputc('0', stdout);
+    fputc('x', stdout);
+    bfd_printf_vma(abfd, value);
+}
+
+// Print "filename:line", applying -s and the "?" / "?"-line fallbacks that
+// GNU addr2line uses when the debug info has no answer.
+void print_file_line(const Location& loc, const Addr2LineOptions& opts) {
+    const char* filename = loc.filename;
+    if (opts.basename_only && filename != nullptr) {
+        const char* slash = strrchr(filename, '/');
+        if (slash != nullptr) {
+            filename = slash + 1;
+        }
+    }
+    printf("%s:", filename != nullptr ? filename : "??");
+    if (loc.line != 0) {
+        if (loc.discriminator != 0) {
+            printf("%u (discriminator %u)\n", loc.line, loc.discriminator);
+        } else {
+            printf("%u\n", loc.line);
+        }
+    } else {
+        printf("?\n");
+    }
+}
+
+// Emit the function-name portion, demangling when requested.  An empty
+// function name means "known location, unnamed function" → "??".
+void print_function(bfd* abfd, const Location& loc, bool demangle,
+                    int demangle_flags, bool pretty_print) {
+    const char* name = loc.function;
+    char* allocated = nullptr;
+
+    if (name == nullptr || name[0] == '\0') {
+        name = "??";
+    } else if (demangle) {
+        allocated = bfd_demangle(abfd, name, demangle_flags);
+        if (allocated != nullptr) {
+            name = allocated;
+        }
+    }
+
+    fputs(name, stdout);
+    if (pretty_print) {
+        fputs(" at ", stdout);
+    } else {
+        fputc('\n', stdout);
+    }
+    free(allocated);
+}
+
+void print_location(bfd* abfd, Location& loc, const Addr2LineOptions& opts,
+                    bfd_vma address, int demangle_flags) {
+    if (opts.print_address) {
+        print_address(abfd, address);
+        if (opts.pretty_print) {
+            fputs(": ", stdout);
+        } else {
+            fputc('\n', stdout);
+        }
+    }
+
+    if (!loc.found) {
+        if (opts.print_functions) {
+            if (opts.pretty_print) {
+                fputs("?? ", stdout);
+            } else {
+                fputs("??\n", stdout);
+            }
+        }
+        fputs("??:0\n", stdout);
+        return;
+    }
+
+    // Unwind inline frames when -i was given.
+    while (true) {
+        if (opts.print_functions) {
+            print_function(abfd, loc, opts.demangle, demangle_flags,
+                           opts.pretty_print);
+        }
+        print_file_line(loc, opts);
+
+        if (!opts.show_inlines) {
             break;
         }
-    }
-
-    return found;
-}
-
-// ── Output helpers ───────────────────────────────────────────────────────
-
-void print_filename(const std::string& filename, bool basename_only) {
-    if (basename_only) {
-        size_t pos = filename.find_last_of('/');
-        if (pos != std::string::npos) {
-            fputs(filename.c_str() + pos + 1, stdout);
-        } else {
-            fputs(filename.c_str(), stdout);
+        const char* filename = nullptr;
+        const char* funcname = nullptr;
+        unsigned int line = 0;
+        if (!bfd_find_inliner_info(abfd, &filename, &funcname, &line)) {
+            break;
         }
-    } else {
-        fputs(filename.c_str(), stdout);
+        loc.filename = filename;
+        loc.function = funcname;
+        loc.line = line;
+        if (opts.pretty_print) {
+            fputs(" (inlined by) ", stdout);
+        }
     }
 }
 
-// Print the file:line portion. When debug info is absent for the address:
-// - if a symbol was found, the line is "?" (unknown line in known function)
-// - if no symbol was found, the line is "0" (completely unknown address)
-void print_file_line(const std::string& filename, int line, bool has_location,
-                     bool has_symbol, bool basename_only) {
-    print_filename(filename, basename_only);
-    if (has_location) {
-        printf(":%d\n", line);
-    } else if (has_symbol) {
-        printf(":?\n");
-    } else {
-        printf(":0\n");
-    }
-}
+// ── Usage / version ─────────────────────────────────────────────────────
 
-void print_location(const ResolvedLocation& loc, const Addr2LineOptions& opts,
-                    Dwarf_Addr address) {
-    if (opts.pretty_print) {
-        // Pretty-print: single line.
-        // Format with -a: "0xADDR: [FUNC at ]FILE:LINE"
-        // Format without -a: "[FUNC at ]FILE:LINE"
-        // When function is "??": "?? ??:0" instead of "?? at ??:0"
-        if (opts.print_address) {
-            printf("0x%016lx:", (unsigned long)address);
-        }
-        if (opts.print_functions && loc.has_symbol) {
-            if (opts.print_address) {
-                printf(" ");
-            }
-            if (loc.function != "??") {
-                printf("%s at ", loc.function.c_str());
-            } else {
-                printf("?? ");
-            }
-            print_file_line(loc.filename, loc.line, loc.has_location,
-                            loc.has_symbol, opts.basename_only);
-        } else if (opts.print_functions && !loc.has_symbol) {
-            // Unknown function — system addr2line prints "?? ??:0"
-            if (opts.print_address) {
-                printf(" ");
-            }
-            printf("?? ");
-            print_file_line(loc.filename, loc.line, loc.has_location,
-                            opts.basename_only);
-        } else {
-            // No -f: just print file:line
-            if (opts.print_address) {
-                printf(" ");
-            }
-            print_file_line(loc.filename, loc.line, loc.has_location,
-                            opts.basename_only);
-        }
-    } else {
-        // Normal (non-pretty) output
-        if (opts.print_address) {
-            printf("0x%016lx\n", (unsigned long)address);
-        }
-        if (opts.print_functions) {
-            if (loc.has_symbol) {
-                printf("%s\n", loc.function.c_str());
-            } else {
-                printf("??\n");
-            }
-        }
-        print_file_line(loc.filename, loc.line, loc.has_location,
-                        opts.basename_only);
-    }
+void print_usage(const char* prog) {
+    printf("Usage: %s [option(s)] [addr(s)]\n", prog);
+    printf(" Convert addresses into line number/file name pairs.\n");
+    printf(" If no addresses are specified on the command line, they will be read from stdin\n");
+    printf(" The options are:\n");
+    printf("  -a --addresses         Show addresses\n");
+    printf("  -b --target=<bfdname>  Set the binary file format\n");
+    printf("  -e --exe=<executable>  Set the input file name (default is a.out)\n");
+    printf("  -i --inlines           Unwind inlined functions\n");
+    printf("  -j --section=<name>    Read section-relative offsets instead of addresses\n");
+    printf("  -p --pretty-print      Make the output easier to read for humans\n");
+    printf("  -s --basenames         Strip directory names\n");
+    printf("  -f --functions         Show function names\n");
+    printf("  -C --demangle[=style]  Demangle function names\n");
+    printf("  -R --recurse-limit     Enable a limit on recursion whilst demangling.  [Default]\n");
+    printf("  -r --no-recurse-limit  Disable a limit on recursion whilst demangling\n");
+    printf("  -h --help              Display this information\n");
+    printf("  -v --version           Display the program's version\n");
+    printf("\n");
 }
 
 // ── Main command ─────────────────────────────────────────────────────────
 
-void print_usage(const char* prog) {
-    printf("Usage: %s [OPTION(S)] [addr addr ...]\n", prog);
-    printf("Convert addresses to file names and line numbers.\n");
-    printf("\n");
-    printf("  -a, --addresses        print the address before the function\n");
-    printf("                         name, file name and line number\n");
-    printf("  -b, --target=BFDNAME   target object-code format\n");
-    printf("  -C, --demangle[=STYLE] print demangled symbol names\n");
-    printf("  -e, --exe=FILENAME     specify the executable to be read\n");
-    printf("  -f, --functions        also display the function name\n");
-    printf("  -i, --inlines          print enclosing/inlined functions\n");
-    printf("  -p, --pretty-print     human-friendly output\n");
-    printf("  -s, --basenames        strip directory from file names\n");
-    printf("  -j, --section=NAME     specify the section\n");
-    printf("  -r, --no-recurse-limit disable recursion limit\n");
-    printf("  -R, --recurse-limit    enable recursion limit (default)\n");
-    printf("  -h, --help             display this help and exit\n");
-    printf("  -V, --version          output version information and exit\n");
-}
-
 int run_addr2line(int argc, char** argv) {
-    // Pre-process argv to extract --demangle=STYLE from the long option.
-    // argtable3 treats -C as a flag (arg_lit0) — it does not consume the
-    // next argument. But --demangle=STYLE needs a value. We intercept
-    // --demangle=STYLE here and rewrite it to --demangle before argtable3
-    // sees it, capturing the style separately.
+    // --demangle=STYLE carries a value that argtable3's flag-only -C cannot
+    // consume.  Rewrite those arguments to a bare --demangle first and keep
+    // the style separately, so parsing below stays simple.
     std::string demangle_style;
     bool has_demangle_style = false;
 
     std::vector<char*> argv_copy;
+    argv_copy.reserve((size_t)argc);
     for (int i = 0; i < argc; i++) {
         argv_copy.push_back(argv[i]);
     }
 
     for (int i = 1; i < argc; i++) {
-        char* arg = argv_copy[i];
+        char* arg = argv[i];
         if (arg == nullptr || arg[0] != '-' || arg[1] != '-') {
             continue;
-        }
-        if (strcmp(arg, "--demangle") == 0) {
-            continue;  // flag, handled by arg_lit0
         }
         if (strncmp(arg, "--demangle=", 11) == 0) {
             demangle_style = arg + 11;
@@ -365,6 +443,8 @@ int run_addr2line(int argc, char** argv) {
         "display this help and exit");
     struct arg_lit* version_opt = arg_lit0("V", "version",
         "output version information and exit");
+    struct arg_lit* version_alt_opt = arg_lit0("v", nullptr,
+        "output version information and exit");
     struct arg_file* addr_arg = arg_filen(nullptr, nullptr, "ADDR", 0, 1000,
         "addresses");
     struct arg_end* end = arg_end(20);
@@ -372,7 +452,7 @@ int run_addr2line(int argc, char** argv) {
     ArgTable at({addresses_opt, target_opt, demangle_opt, no_recurse_opt,
                  recurse_opt, exe_opt, functions_opt, inlines_opt,
                  pretty_opt, basename_opt, section_opt, help_opt,
-                 version_opt, addr_arg, end});
+                 version_opt, version_alt_opt, addr_arg, end});
     const int nerrors = at.parse(argc, argv_copy.data());
 
     if (help_opt->count > 0) {
@@ -380,7 +460,7 @@ int run_addr2line(int argc, char** argv) {
         return 0;
     }
 
-    if (version_opt->count > 0) {
+    if (version_opt->count > 0 || version_alt_opt->count > 0) {
         print_version("addr2line");
         return 0;
     }
@@ -389,7 +469,6 @@ int run_addr2line(int argc, char** argv) {
         return print_arg_errors(end, argv[0]);
     }
 
-    // Build options
     Addr2LineOptions opts;
     opts.print_address = (addresses_opt->count > 0);
     opts.demangle = (demangle_opt->count > 0);
@@ -397,145 +476,161 @@ int run_addr2line(int argc, char** argv) {
     opts.show_inlines = (inlines_opt->count > 0);
     opts.pretty_print = (pretty_opt->count > 0);
     opts.basename_only = (basename_opt->count > 0);
-    opts.recurse_limit = !(no_recurse_opt->count > 0);
-
+    opts.no_recurse_limit = (no_recurse_opt->count > 0);
     if (has_demangle_style) {
         opts.demangle = true;
         opts.demangle_style = demangle_style;
     }
+    if (exe_opt->count > 0 && exe_opt->sval[0] != nullptr) {
+        opts.exe_file = exe_opt->sval[0];
+    }
+    if (section_opt->count > 0 && section_opt->sval[0] != nullptr) {
+        opts.section_name = section_opt->sval[0];
+    }
+    if (target_opt->count > 0 && target_opt->sval[0] != nullptr) {
+        // Accepted for compatibility; modbox sniffs the format from the file.
+    }
 
-    // Build demangle flags — DMGL_AUTO with DMGL_PARAMS to show parameters,
-    // matching GNU addr2line/c++filt defaults.
-    int demangle_flags = DMGL_NO_OPTS;
-    if (opts.demangle) {
-        if (!opts.demangle_style.empty()) {
-            int flags = demangle_style_to_flags(opts.demangle_style.c_str());
-            if (flags < 0) {
-                fprintf(stderr, "addr2line: unknown demangling style '%s'\n",
-                        opts.demangle_style.c_str());
-                demangle_flags = DMGL_NO_OPTS;
-            } else {
-                demangle_flags = flags | DMGL_PARAMS;
-            }
+    // Demangling style.  GNU addr2line starts from DMGL_PARAMS | DMGL_ANSI
+    // and only the recursion-limit flags adjust it; an explicit style
+    // replaces it wholesale.
+    int demangle_flags = DMGL_PARAMS | DMGL_ANSI;
+    if (opts.demangle && !opts.demangle_style.empty()) {
+        if (strcmp(opts.demangle_style.c_str(), "gnu-v3") == 0) {
+            demangle_flags = DMGL_PARAMS | DMGL_ANSI | DMGL_GNU_V3;
+        } else if (strcmp(opts.demangle_style.c_str(), "java") == 0) {
+            demangle_flags = DMGL_PARAMS | DMGL_ANSI | DMGL_JAVA;
+        } else if (strcmp(opts.demangle_style.c_str(), "auto") == 0) {
+            demangle_flags = DMGL_PARAMS | DMGL_ANSI | DMGL_AUTO;
+        } else if (strcmp(opts.demangle_style.c_str(), "gnat") == 0) {
+            demangle_flags = DMGL_PARAMS | DMGL_ANSI | DMGL_GNAT;
         } else {
-            demangle_flags = DMGL_AUTO | DMGL_PARAMS;
+            fprintf(stderr, "addr2line: unknown demangling style '%s'\n",
+                    opts.demangle_style.c_str());
+            return 1;
+        }
+    }
+    if (opts.no_recurse_limit) {
+        demangle_flags |= DMGL_NO_RECURSE_LIMIT;
+    } else {
+        demangle_flags &= ~DMGL_NO_RECURSE_LIMIT;
+    }
+
+    // Open the executable.
+    bfd_init();
+
+    bfd* abfd = bfd_openr(opts.exe_file.c_str(), nullptr);
+    if (abfd == nullptr) {
+        fprintf(stderr, "addr2line: %s: %s\n", opts.exe_file.c_str(),
+                bfd_errmsg(bfd_get_error()));
+        return 1;
+    }
+
+    char** matching = nullptr;
+    if (!bfd_check_format_matches(abfd, bfd_object, &matching)) {
+        // Not an object file (e.g. a text file was passed to -e).  The
+        // detailed reason is only meaningful for ambiguous matches, so fall
+        // back to the generic wording the reference uses.
+        const char* err = matching != nullptr ? bfd_errmsg(bfd_get_error())
+                                              : "File format not recognized";
+        fprintf(stderr, "addr2line: %s: %s\n", opts.exe_file.c_str(), err);
+        bfd_close(abfd);
+        return 1;
+    }
+
+    SymbolTable symtab;
+    if (!symtab.load(abfd)) {
+        fprintf(stderr, "addr2line: %s: %s\n", opts.exe_file.c_str(),
+                bfd_errmsg(bfd_get_error()));
+        bfd_close(abfd);
+        return 1;
+    }
+
+    // -j selects a single section and makes the input offsets
+    // section-relative instead of absolute addresses.
+    asection* section = nullptr;
+    if (!opts.section_name.empty()) {
+        section = bfd_get_section_by_name(abfd, opts.section_name.c_str());
+        if (section == nullptr) {
+            fprintf(stderr, "addr2line: %s: cannot find section '%s'\n",
+                    opts.exe_file.c_str(), opts.section_name.c_str());
+            bfd_close(abfd);
+            return 1;
         }
     }
 
-    // Executable file
-    if (exe_opt->count > 0 && exe_opt->sval[0]) {
-        opts.exe_file = exe_opt->sval[0];
-    }
-
-    // Initialize DWFL
-    Dwfl* dwfl = dwfl_begin(&dwfl_callbacks);
-    if (!dwfl) {
-        fprintf(stderr, "addr2line: dwfl_begin failed\n");
-        return 1;
-    }
-
-    // Open the executable and report it as an offline module.
-    // Using the fd form ensures the ELF is properly loaded.
-    int fd = open(opts.exe_file.c_str(), O_RDONLY);
-    if (fd < 0) {
-        fprintf(stderr, "addr2line: cannot open %s: %s\n",
-                opts.exe_file.c_str(), strerror(errno));
-        dwfl_end(dwfl);
-        return 1;
-    }
-
-    Dwfl_Module* mod = dwfl_report_offline(dwfl, "modbox-addr2line",
-                                           opts.exe_file.c_str(), fd);
-    close(fd);
-    if (!mod) {
-        fprintf(stderr, "addr2line: cannot read debug info from %s: %s\n",
-                opts.exe_file.c_str(), dwfl_errmsg(-1));
-        dwfl_end(dwfl);
-        return 1;
-    }
-
-    // Get the module bias. For PIE executables, the ELF virtual addresses
-    // differ from what dwfl_module_getsrc expects; the bias must be added
-    // to user-supplied (nm-style) addresses.
-    GElf_Addr mod_bias = 0;
-    if (dwfl_module_getelf(mod, &mod_bias) == nullptr) {
-        fprintf(stderr, "addr2line: dwfl_module_getelf failed: %s\n",
-                dwfl_errmsg(-1));
-        dwfl_end(dwfl);
-        return 1;
-    }
-
-    // Collect addresses: from command line args or stdin
+    // Collect the addresses: from the command line, otherwise from stdin.
     std::vector<std::string> addresses;
-
     if (addr_arg->count > 0) {
         for (int i = 0; i < addr_arg->count; i++) {
             const char* addr = addr_arg->filename[i];
-            if (addr) {
+            if (addr != nullptr) {
                 addresses.push_back(addr);
             }
         }
     } else {
-        // Read from stdin, one address per line
+        // Read from stdin, one address per line.  A line containing only
+        // whitespace is still a token — GNU addr2line's fgets loop hands
+        // every non-failed read to is_symbol(), and the empty string there
+        // parses as the number 0.
         char buf[256];
         while (fgets(buf, sizeof(buf), stdin) != nullptr) {
-            char* end = buf + strlen(buf) - 1;
-            while (end > buf && (*end == '\n' || *end == '\r' ||
-                                 *end == ' ' || *end == '\t')) {
-                *end-- = '\0';
+            size_t len = strlen(buf);
+            while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
+                buf[--len] = '\0';
             }
-            if (buf[0] != '\0') {
-                addresses.push_back(buf);
-            }
+            addresses.push_back(buf);
         }
     }
 
-    // Process each address
-    int status = 0;
+    // ELF targets mask the address to the architecture width and, on some,
+    // sign-extend it.  Match that so the same hex input resolves the same
+    // way the system addr2line would resolve it.
+    const bool is_elf = (bfd_get_flavour(abfd) == bfd_target_elf_flavour);
+    const int arch_size = is_elf ? bfd_get_arch_size(abfd) : 0;
+    const bool sign_extend = is_elf && (bfd_get_sign_extend_vma(abfd) != 0);
+
     for (const std::string& input : addresses) {
-        Dwarf_Addr address = 0;
-        bool parsed = false;
+        std::string sym_name;
+        unsigned long offset = 0;
+        const bool is_sym = is_symbol(input, sym_name, offset);
 
-        // Try to parse as a number (hex or decimal)
-        char* endptr = nullptr;
-        errno = 0;
-        address = (Dwarf_Addr)strtoull(input.c_str(), &endptr, 0);
-        if (errno == 0 && endptr != input.c_str() && *endptr == '\0') {
-            parsed = true;
+        bfd_vma pc;
+        if (is_sym) {
+            pc = lookup_symbol(abfd, symtab, sym_name, offset, demangle_flags);
         } else {
-            // Try symbol+offset format (e.g. "main+0x10")
-            if (resolve_symbol_offset(mod, input, address)) {
-                parsed = true;
-            } else {
-                // Completely unparseable input — treat as address 0
-                address = 0;
-                parsed = true;
+            // strtoull with base 16 reproduces bfd_scan_vma's own parsing:
+            // it accepts an optional leading '+' and a 0x/0 prefix.
+            errno = 0;
+            char* endptr = nullptr;
+            pc = (bfd_vma)strtoull(input.c_str(), &endptr, 16);
+            (void)endptr;
+        }
+
+        if (is_elf && arch_size > 0) {
+            const bfd_vma sign = (bfd_vma)1 << (arch_size - 1);
+            pc &= (sign << 1) - 1;
+            if (sign_extend) {
+                pc = (pc ^ sign) - sign;
             }
         }
 
-        if (!parsed) {
-            continue;
+        FindState state;
+        state.pc = pc;
+        state.syms = symtab.syms;
+
+        if (section != nullptr) {
+            find_offset_in_section(abfd, section, &state);
+        } else {
+            bfd_map_over_sections(abfd, find_address_in_section, &state);
         }
 
-        // Resolve the address
-        ResolvedLocation loc = resolve_address(mod, address, mod_bias);
-
-        // Demangle the function name if requested
-        if (opts.demangle && loc.has_symbol && loc.function != "??") {
-            char* demangled = bfd_demangle(nullptr, loc.function.c_str(),
-                                           demangle_flags);
-            if (demangled) {
-                loc.function = demangled;
-                free(demangled);
-            }
-        }
-
-        // Print output
-        print_location(loc, opts, address);
+        print_location(abfd, state.loc, opts, pc, demangle_flags);
+        fflush(stdout);
     }
 
-    dwfl_end(dwfl);
-    return status;
+    bfd_close(abfd);
+    return 0;
 }
 
 }  // namespace

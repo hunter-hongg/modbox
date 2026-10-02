@@ -285,7 +285,8 @@ $(MAN_SRC_DIR)/modbox-logger.1.md \
 $(MAN_SRC_DIR)/modbox-renice.1.md \
 $(MAN_SRC_DIR)/modbox-bzip2.1.md \
 $(MAN_SRC_DIR)/modbox-bunzip2.1.md \
-$(MAN_SRC_DIR)/modbox-bzcat.1.md
+$(MAN_SRC_DIR)/modbox-bzcat.1.md \
+$(MAN_SRC_DIR)/modbox-addr2line.1.md
 MAN_PAGES := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_BUILD_DIR)/%,$(MAN_SOURCES))
 MAN_INSTALLED := $(patsubst $(MAN_SRC_DIR)/%.md,$(MAN_INSTALL_DIR)/%.gz,$(MAN_SOURCES))
 # --------------------------------------------------------------------------
