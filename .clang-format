@@ -30,7 +30,6 @@ SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 SpaceBeforeCpp11BracedList: true
-SpaceBeforeParens: ControlStatements
 SpaceAfterCStyleCast: false
 SpaceAfterTemplateKeyword: true
 

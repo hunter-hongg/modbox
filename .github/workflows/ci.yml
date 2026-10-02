@@ -47,24 +47,41 @@ jobs:
   build-test:
     name: Build & test
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           set -euo pipefail
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
             build-essential git pkg-config \
-            libssl-dev libselinux1-dev \
-            python3
+            libssl-dev libselinux1-dev libacl1-dev \
+            zlib1g-dev liblzma-dev libzstd-dev \
+            libbz2-dev libelf-dev libdw-dev \
+            binutils-dev libminizip-dev \
+            python3 cmake
 
-      - name: Verify vendored pkg-config deps
+      - name: Build ftxui from source (not in Ubuntu repos)
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          cd /tmp
+          git clone --depth 1 --branch v7.0.3 https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          cmake -B build -S . \
+            -DBUILD_SHARED_LIBS=ON \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build build -j$(nproc)
+          sudo cmake --install build
+
+      - name: Verify pkg-config dependencies
+        run: |
+          set -euo pipefail
           for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
             pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
           done
@@ -73,22 +90,17 @@ jobs:
       - name: Build (make compile)
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          export LD_LIBRARY_PATH="$PWD/.brew/Homebrew/lib:${LD_LIBRARY_PATH:-}"
           make clean || true
           make compile
 
       - name: Smoke run
         run: |
           set -euo pipefail
-          export LD_LIBRARY_PATH="$PWD/.brew/Homebrew/lib:${LD_LIBRARY_PATH:-}"
           ./target/modbox --help || true
 
       - name: Run tests
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          export LD_LIBRARY_PATH="$PWD/.brew/Homebrew/lib:${LD_LIBRARY_PATH:-}"
           make test
 
       - name: Upload test results (logs)
@@ -106,24 +118,41 @@ jobs:
   lint:
     name: Clang-tidy
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           set -euo pipefail
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
             build-essential git pkg-config \
-            libssl-dev libselinux1-dev \
-            clang-tidy
+            libssl-dev libselinux1-dev libacl1-dev \
+            zlib1g-dev liblzma-dev libzstd-dev \
+            libbz2-dev libelf-dev libdw-dev \
+            binutils-dev libminizip-dev \
+            clang-tidy cmake
 
-      - name: Verify vendored pkg-config deps
+      - name: Build ftxui from source (not in Ubuntu repos)
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          cd /tmp
+          git clone --depth 1 --branch v7.0.3 https://github.com/ArthurSonzogni/FTXUI.git
+          cd FTXUI
+          cmake -B build -S . \
+            -DBUILD_SHARED_LIBS=ON \
+            -DFTXUI_BUILD_DOCS=OFF \
+            -DFTXUI_BUILD_EXAMPLES=OFF \
+            -DFTXUI_BUILD_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build build -j$(nproc)
+          sudo cmake --install build
+
+      - name: Verify pkg-config dependencies
+        run: |
+          set -euo pipefail
           for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
             pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
           done
@@ -132,13 +161,11 @@ jobs:
       - name: Generate compile_commands.json
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           make compile_commands.json
 
       - name: Run clang-tidy
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           make lint
 
       - name: Upload lint output on failure
