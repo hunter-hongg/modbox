@@ -79,6 +79,39 @@ jobs:
           cmake --build build -j$(nproc)
           sudo cmake --install build
 
+      - name: Create missing pkg-config files (bzip2, bfd)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pkgconfig
+          # bzip2.pc — Ubuntu's libbz2-dev doesn't ship one
+          cat > /tmp/pkgconfig/bzip2.pc <<'EOF'
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib/x86_64-linux-gnu
+includedir=${prefix}/include
+
+Name: bzip2
+Description: bzip2 compression library
+Version: 1.0.8
+Libs: -L${libdir} -lbz2
+Cflags: -I${includedir}
+EOF
+          # bfd.pc — Ubuntu's binutils-dev doesn't ship one
+          cat > /tmp/pkgconfig/bfd.pc <<'EOF'
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib/x86_64-linux-gnu
+includedir=${prefix}/include
+
+Name: bfd
+Description: BFD library
+Version: 2.42
+Libs: -L${libdir} -lbfd
+Cflags: -I${includedir}
+EOF
+          export PKG_CONFIG_PATH="/tmp/pkgconfig:${PKG_CONFIG_PATH:-}"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> $GITHUB_ENV
+
       - name: Build (make compile)
         run: |
           set -euo pipefail
@@ -141,6 +174,37 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=/usr/local
           cmake --build build -j$(nproc)
           sudo cmake --install build
+
+      - name: Create missing pkg-config files (bzip2, bfd)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pkgconfig
+          cat > /tmp/pkgconfig/bzip2.pc <<'EOF'
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib/x86_64-linux-gnu
+includedir=${prefix}/include
+
+Name: bzip2
+Description: bzip2 compression library
+Version: 1.0.8
+Libs: -L${libdir} -lbz2
+Cflags: -I${includedir}
+EOF
+          cat > /tmp/pkgconfig/bfd.pc <<'EOF'
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib/x86_64-linux-gnu
+includedir=${prefix}/include
+
+Name: bfd
+Description: BFD library
+Version: 2.42
+Libs: -L${libdir} -lbfd
+Cflags: -I${includedir}
+EOF
+          export PKG_CONFIG_PATH="/tmp/pkgconfig:${PKG_CONFIG_PATH:-}"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
       - name: Generate compile_commands.json
         run: |
