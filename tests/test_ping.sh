@@ -24,9 +24,17 @@ if "$MODBOX" ping -c 1 127.0.0.1 >/dev/null 2>&1; then
     echo "  -- live raw socket available --"
     assert_cmd_pat '1 packets transmitted, 1 packets received' ping -c 1 127.0.0.1
     assert_cmd_pat '3 packets transmitted, 3 packets received' ping -c 3 127.0.0.1
-    assert_cmd_pat '1 packets transmitted, 0 packets received' ping -c 1 10.255.255.1
-    "$MODBOX" ping -c 1 10.255.255.1 >/dev/null 2>&1; rcu=$?
-    if [[ $rcu -eq 1 ]]; then pass "ping unreachable → exit 1"; else fail "ping unreachable → exit $rcu, expected 1"; fi
+
+    # 10.255.255.1 is only an unreachable-by-convention target; on hosts that
+    # actually route it, assert the unreachable contract only when it really is
+    # unreachable, using the system ping as the ground truth.
+    if /usr/bin/ping -c 1 -W 2 10.255.255.1 >/dev/null 2>&1; then
+        echo "  SKIP  unreachable-target tests (10.255.255.1 is routable here)"
+    else
+        assert_cmd_pat '1 packets transmitted, 0 packets received' ping -c 1 10.255.255.1
+        "$MODBOX" ping -c 1 10.255.255.1 >/dev/null 2>&1; rcu=$?
+        if [[ $rcu -eq 1 ]]; then pass "ping unreachable → exit 1"; else fail "ping unreachable → exit $rcu, expected 1"; fi
+    fi
 else
     echo "  SKIP  live ping tests (no raw socket permission in this environment)"
 fi

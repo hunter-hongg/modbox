@@ -85,13 +85,26 @@ chmod a-w "$B/bin/brew"
 
 ## Expected test failures (environment, not regressions)
 
-`make test` reports `3623 passed, 5 failed`. All five are container artefacts:
+`make test` reports `3858 passed, 2 failed`. Both are host artefacts:
 
-* `test_restorecon.sh` (2) — SELinux is `Disabled` on this host.
-* `test_pgrep.sh` (1) — expects `2 kthreadd`; the PID namespace has a different
-  PID 2.
-* `test_users.sh` (1) — no login sessions (`who` is empty).
-* `test_fuser.sh` (1) — `fuser -m /` finds no mount users.
+* `test_restorecon.sh` (2) — modbox is linked against the Homebrew
+  `libselinux`, which rejects the installed SELinux policy file contexts with
+  `Regex version mismatch, expected: 10.48 actual: 10.47`. The system
+  `restorecon`, linked against `/lib64/libselinux.so.1`, reads them fine, so
+  the differential assertion fails. Nothing is wrong with the command; the
+  Homebrew pcre2 needs to catch up with the installed policy.
+
+Other environment-dependent suites assert their own preconditions and skip
+when the host does not match, so the failing set can differ elsewhere:
+
+* `test_ping.sh` skips its unreachable-target assertions when
+  `10.255.255.1` is routable from this host.
+* `test_restorecon.sh`, `test_getsebool.sh` and the other SELinux suites
+  skip when `/sys/fs/selinux/enforce` is absent (SELinux disabled).
+* `test_pgrep.sh` expects `2 kthreadd`; a different PID namespace has a
+  different PID 2.
+* `test_users.sh` needs a login session (`who` non-empty).
+* `test_fuser.sh` needs `fuser -m /` to find mount users.
 
 ## `make lint` / clang-tidy
 

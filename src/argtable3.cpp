@@ -333,18 +333,12 @@ int arg_parse_n(int argc, char** argv, void** argtable, size_t n) {
         const char* a = argv[i];
 
         if (no_more_options) {
-            ++errors;
-            add_end_error(t, ARG_ARG, a);
-            continue;
-        }
-
-        if (std::strcmp(a, "--") == 0) {
+            /* fall through to the positional routing below; "--" only ends
+             * option scanning, it does not discard the arguments after it */
+        } else if (std::strcmp(a, "--") == 0) {
             no_more_options = true;
             continue;
-        }
-
-        /* A long option. */
-        if (a[0] == '-' && a[1] == '-') {
+        } else if (a[0] == '-' && a[1] == '-') {
             const char* name = a + 2;
             const char* eq = std::strchr(name, '=');
             const size_t nlen = (eq != nullptr)
