@@ -32,6 +32,9 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- getsebool: match the reference instead of doing the opposite. The `-a`/`--all` flag was missing entirely, and with no arguments the command listed every boolean and exited 0, which is backwards — the reference's usage line is `usage:  getsebool -a or getsebool boolean...` and it requires exactly one of the two forms, so combining `-a` with names is a usage error (exit 1) and a bare invocation prints that line to stderr and exits 1. An unknown boolean now prints the reference's `Error getting active value for NAME` and exits 255 rather than `getsebool: NAME: no such boolean` and 1, and processing stops at the first failure instead of continuing, so `getsebool valid nope valid` prints only the leading valid entry like the reference. Verified byte for byte against the system `getsebool` for 13 argument combinations.
+- argtable3: `--` was treated as a discard rather than an end-of-options marker. Every argument after it was recorded as an excess-argument error, so `modbox cat -- FILE` was rejected with `cat: unexpected argument 'FILE'`. A POSIX `--` only stops option scanning; the arguments after it are still positional. Affects every command built on the shared parser.
+
 - pr: fix segfault on stdin input (string-literal mkstemp), add missing -t/-N/--columns/-d option support.
 - od: add -b/-c/-o/-d/-x shortcut flags, fix -t format parsing, fix output layout (one address per line, final offset), fix signed decimal, fix hex address width, add -An/-Ax/-Ad bundled forms.
 - kill: fix -l to accept signal names/numbers, fix -0 (existence check), fix error exit codes (0 -> 1).
