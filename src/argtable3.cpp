@@ -333,12 +333,17 @@ int arg_parse_n(int argc, char** argv, void** argtable, size_t n) {
         const char* a = argv[i];
 
         if (no_more_options) {
-            /* fall through to the positional routing below; "--" only ends
-             * option scanning, it does not discard the arguments after it */
-        } else if (std::strcmp(a, "--") == 0) {
+            /* "--" ends option scanning; every argument after it is positional,
+             * even if it starts with '-' (e.g. a file named "-l_file"). Fall
+             * through to positional routing below. */
+            goto positional;
+        }
+        if (std::strcmp(a, "--") == 0) {
             no_more_options = true;
             continue;
-        } else if (a[0] == '-' && a[1] == '-') {
+        }
+        if (a[0] == '-' && a[1] == '-') {
+            /* A long option. */
             const char* name = a + 2;
             const char* eq = std::strchr(name, '=');
             const size_t nlen = (eq != nullptr)
@@ -437,6 +442,7 @@ int arg_parse_n(int argc, char** argv, void** argtable, size_t n) {
         /* A positional argument. Route it to the first positional entry
          * (arg_file / arg_str / arg_int / arg_dbl) that still has room; when
          * every one of them is full it is an excess argument. */
+        positional:
         {
             Entry* target = nullptr;
             Slot* tslot = nullptr;

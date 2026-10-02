@@ -50,6 +50,33 @@ assert_cmd "$(printf '       0       0       0 %s/wc_empty.txt' "$TMPDIR")" wc "
 echo "  ── help ──"
 assert_cmd_pat 'Usage:' wc --help
 
+echo "  ── end-of-options marker: '-- -l_file' treats -l as filename ──"
+printf 'abcd\n' > "$TMPDIR"/-l_file
+actual=$("$MODBOX" wc -- "$TMPDIR"/-l_file 2>/dev/null)
+if [[ "$actual" == "$(printf '       1       1       5 %s/-l_file' "$TMPDIR")" ]]; then
+    pass "wc -- -l_file treats -l as filename, not flag"
+else
+    fail "wc -- -l_file — expected [(1 1 5 .../-l_file)] got [$actual]"
+fi
+
+echo "  ── unknown option exits non-zero ──"
+"$MODBOX" wc --bogus "$TMPDIR"/wc_test.txt >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 1 ]]; then
+    pass "wc unknown option exits non-zero (rc=$rc)"
+else
+    fail "wc unknown option should exit non-zero (got rc=$rc)"
+fi
+
+echo "  ── missing file exits non-zero ──"
+"$MODBOX" wc "$TMPDIR"/does_not_exist_xyz.txt >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 1 ]]; then
+    pass "wc missing file exits 1 (rc=$rc)"
+else
+    fail "wc missing file should exit 1 (got rc=$rc)"
+fi
+
 echo "  ── --json single file ──"
 output=$("$MODBOX" wc --json "$TMPDIR"/wc_test.txt 2>/dev/null)
 if echo "$output" | python3 -m json.tool >/dev/null 2>&1; then
