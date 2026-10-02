@@ -13,31 +13,6 @@ concurrency:
 
 jobs:
   # ------------------------------------------------------------------
-  # Shared dependency bootstrap
-  #
-  # The project ships a vendored Linuxbrew tree under .brew/ containing
-  # ftxui, libdw, libelf, bfd, minizip, bzip2, libzstd, liblzma, zlib,
-  # libacl and their transitive deps. Only openssl and libselinux come
-  # from the system. This keeps builds reproducible and independent of
-  # distro package availability.
-  # ------------------------------------------------------------------
-  deps: &deps-install
-    name: Install dependencies
-    run: |
-      set -euo pipefail
-      sudo apt-get update -y
-      sudo apt-get install -y --no-install-recommends \
-        build-essential git pkg-config \
-        libssl-dev libselinux1-dev \
-        python3 clang-tidy clang-format
-      # Sanity-check: every pkg-config package the Makefile needs must resolve
-      export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-      for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
-        pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
-      done
-      echo "All pkg-config dependencies resolve."
-
-  # ------------------------------------------------------------------
   # 1. Format check — clang-format over every C++ source and header.
   # ------------------------------------------------------------------
   format:
@@ -85,6 +60,15 @@ jobs:
             build-essential git pkg-config \
             libssl-dev libselinux1-dev \
             python3
+
+      - name: Verify vendored pkg-config deps
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
+            pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
+          done
+          echo "All pkg-config dependencies resolve."
 
       - name: Build (make compile)
         run: |
@@ -135,6 +119,15 @@ jobs:
             build-essential git pkg-config \
             libssl-dev libselinux1-dev \
             clang-tidy
+
+      - name: Verify vendored pkg-config deps
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
+            pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
+          done
+          echo "All pkg-config dependencies resolve."
 
       - name: Generate compile_commands.json
         run: |
