@@ -6,31 +6,106 @@ on:
   pull_request:
     branches: [ main, master ]
 
+# Cancel superseded runs of the same ref to keep CI queue small.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-test:
+  # ------------------------------------------------------------------
+  # Shared dependency bootstrap
+  #
+  # The project ships a vendored Linuxbrew tree under .brew/ containing
+  # ftxui, libdw, libelf, bfd, minizip, bzip2, libzstd, liblzma, zlib,
+  # libacl and their transitive deps. Only openssl and libselinux come
+  # from the system. This keeps builds reproducible and independent of
+  # distro package availability.
+  # ------------------------------------------------------------------
+  deps: &deps-install
+    name: Install dependencies
+    run: |
+      set -euo pipefail
+      sudo apt-get update -y
+      sudo apt-get install -y --no-install-recommends \
+        build-essential git pkg-config \
+        libssl-dev libselinux1-dev \
+        python3 clang-tidy clang-format
+      # Sanity-check: every pkg-config package the Makefile needs must resolve
+      export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+      for p in ftxui openssl libselinux libacl zlib liblzma libzstd minizip bzip2 libdw libelf bfd; do
+        pkg-config --exists "$p" || { echo "ERROR: pkg-config cannot find '$p'"; exit 1; }
+      done
+      echo "All pkg-config dependencies resolve."
+
+  # ------------------------------------------------------------------
+  # 1. Format check — clang-format over every C++ source and header.
+  # ------------------------------------------------------------------
+  format:
+    name: Clang-format
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends clang-format
+
+      - name: Check formatting
+        run: |
+          set -euo pipefail
+          files=$(find src include -type f \( -name '*.cpp' -o -name '*.hpp' \) | LC_ALL=C sort)
+          unformatted=$(echo "$files" | xargs clang-format --dry-run --Werror -n)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not clang-format clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "All files formatted."
+
+  # ------------------------------------------------------------------
+  # 2. Build + test — the canonical job.
+  # ------------------------------------------------------------------
+  build-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
+          set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y build-essential cmake git pkg-config curl ca-certificates libssl-dev 
-          # optional helpers that may be used by the project
-          sudo apt-get install -y python3 python3-pip
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git pkg-config \
+            libssl-dev libselinux1-dev \
+            python3
 
       - name: Build (make compile)
         run: |
           set -euo pipefail
+          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export LD_LIBRARY_PATH="$PWD/.brew/Homebrew/lib:${LD_LIBRARY_PATH:-}"
           make clean || true
           make compile
+
+      - name: Smoke run
+        run: |
+          set -euo pipefail
+          export LD_LIBRARY_PATH="$PWD/.brew/Homebrew/lib:${LD_LIBRARY_PATH:-}"
+          ./target/modbox --help || true
 
       - name: Run tests
         run: |
           set -euo pipefail
-          bash tests/run_tests.sh
+          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export LD_LIBRARY_PATH="$PWD/.brew/Homebrew/lib:${LD_LIBRARY_PATH:-}"
+          make test
 
       - name: Upload test results (logs)
         if: failure()
@@ -40,3 +115,43 @@ jobs:
           path: |
             tests/*.log
             build-debug/**
+
+  # ------------------------------------------------------------------
+  # 3. Static analysis — clang-tidy over all sources.
+  # ------------------------------------------------------------------
+  lint:
+    name: Clang-tidy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git pkg-config \
+            libssl-dev libselinux1-dev \
+            clang-tidy
+
+      - name: Generate compile_commands.json
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          make compile_commands.json
+
+      - name: Run clang-tidy
+        run: |
+          set -euo pipefail
+          export PKG_CONFIG_PATH="$PWD/.brew/Homebrew/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          make lint
+
+      - name: Upload lint output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-output
+          path: |
+            .clang-tidy-cache/**
