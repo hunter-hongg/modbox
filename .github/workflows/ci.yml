@@ -96,6 +96,11 @@ jobs:
           make clean || true
           make compile
 
+      - name: Regenerate registry files
+        run: |
+          set -euo pipefail
+          make regen
+
       - name: Smoke run
         run: |
           set -euo pipefail
