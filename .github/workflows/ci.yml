@@ -62,7 +62,7 @@ jobs:
             zlib1g-dev liblzma-dev libzstd-dev \
             libbz2-dev libelf-dev libdw-dev \
             binutils-dev libminizip-dev \
-            python3 cmake
+            python3 cmake pandoc
 
       - name: Build ftxui from source (not in Ubuntu repos)
         run: |
@@ -141,7 +141,7 @@ jobs:
             zlib1g-dev liblzma-dev libzstd-dev \
             libbz2-dev libelf-dev libdw-dev \
             binutils-dev libminizip-dev \
-            clang-tidy cmake
+            clang-tidy cmake pandoc
 
       - name: Build ftxui from source (not in Ubuntu repos)
         run: |
